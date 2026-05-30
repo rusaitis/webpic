@@ -74,7 +74,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 
 ## Dependencies
 
-Don't add without justification matching `docs/DESIGN.md`. Intended core (webpic starts empty): `three` (`three/webgpu`), `zarrita` (Zarr v3), `zod/v4-mini` (embed) + `zod` (app), `smol-toml`, `gl-matrix`, `comlink`, `zustand`, `xxhash-wasm`. webpic **owns its control primitives** (slider/select/checkbox/text behind a `Pane`/`Folder`/`Binding` facade, lifted from magviz's `ui/controls`) — **no `tweakpane`**. GPU-timing comes from `gpu/profiler.ts` (`timestamp-query` + `performance.now` fallback), not `stats-gl`. v0.2 adds `h5wasm`, `hyparquet`, `apache-arrow`, `@duckdb/duckdb-wasm` (dynamic import only). Pin majors. Three.js: **pin one exact known-good release carrying PR-#31607** (OffscreenCanvas-on-Worker), not a floating range — TODO: fill the exact version.
+Don't add without justification matching `docs/DESIGN.md`. Intended core (webpic starts empty): `three` (`three/webgpu`), `zarrita` (Zarr v3), `zod/v4-mini` (embed) + `zod` (app), `smol-toml`, `gl-matrix`, `comlink`, `zustand`, `xxhash-wasm`. webpic **owns its control primitives** (slider/select/checkbox/text behind a `Pane`/`Folder`/`Binding` facade, lifted from magviz's `ui/controls`) — **no `tweakpane`**. GPU-timing comes from `gpu/profiler.ts` (`timestamp-query` + `performance.now` fallback), not `stats-gl`. v0.2 adds `h5wasm`, `hyparquet`, `apache-arrow`, `@duckdb/duckdb-wasm` (dynamic import only). Pin majors. Three.js: **pin exactly `three@0.184.0`** — latest, carries PR-#31607 (OffscreenCanvas-on-Worker; first shipped r180/`0.180.0`, fixing the r179 regression), not a floating range.
 
 ## Dev commands
 

@@ -18,7 +18,7 @@ Goal: toolchain + schema codegen + scaffolds boot; OffscreenCanvas worker alive.
 - [x] 2. `src/<layer>/` skeleton (schema, containers, coordinates, numerics, gpu) + path aliases (`@schema/*`, …)
 - [x] 3. `scripts/check-boundaries.ts` (ts-morph) — layer-DAG enforcement, runs in CI ahead of `biome ci`
 - [x] 4. Schema codegen: `gen-schema.ts` (pypic `schema export` → Zod + TS types), `gen-aliases.ts`, `gen-recipes.ts`
-- [ ] 5. `gpu/`: device acquire, capability probe, `device.lost` recovery, timestamp-query + `performance.now` fallback profiler
+- [x] 5. `gpu/`: device acquire, capability probe, `device.lost` recovery, timestamp-query + `performance.now` fallback profiler
 - [ ] 6. OffscreenCanvas-on-Worker scaffold (`transferControlToOffscreen`); main-vs-worker frame-parity test
 - [ ] 7. Theme loader — reads `pypic/plotting/themes/*.toml` `[webpic]` block (7 themes, incl. `anuppuccin-light`)
 - [ ] 8. OPFS cache w/ `navigator.locks`; writes confined to `data.worker.ts` (Safari constraint)

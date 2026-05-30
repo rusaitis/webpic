@@ -1,0 +1,220 @@
+// The single GPUDevice webpic runs on. `compute/backends/webgpu` and `render/`
+// both import the device from here. This module owns acquisition (with a clean
+// unsupported signal for the requires-WebGPU page), the singleton, and device.lost
+// recovery. It cannot import other layers (gpu is a foundational leaf), so recovery
+// is a mechanism: re-acquire the device and notify registered observers — render/
+// and compute/ rebuild themselves on `onDeviceRestored`.
+
+import {
+  DESIRED_FEATURES,
+  type GpuCapabilities,
+  probeCapabilities,
+  selectFeatures,
+} from "./capabilities.ts";
+
+export type GpuUnsupportedReason = "no-navigator-gpu" | "no-adapter" | "no-device";
+
+export type GpuSupport =
+  | { readonly ok: true; readonly adapter: GPUAdapter; readonly device: GPUDevice }
+  | { readonly ok: false; readonly reason: GpuUnsupportedReason; readonly message: string };
+
+export interface GpuRequestOptions {
+  readonly powerPreference?: GPUPowerPreference;
+  readonly requiredFeatures?: readonly GPUFeatureName[]; // intersected with the adapter
+  readonly requiredLimits?: Record<string, number>;
+  readonly label?: string;
+  readonly reacquireOnLoss?: boolean; // auto re-acquire on real device loss (default true)
+}
+
+export interface InstalledGpu {
+  readonly device: GPUDevice;
+  readonly adapter: GPUAdapter;
+  readonly capabilities: GpuCapabilities;
+  readonly dispose: () => void; // install*() => () => void teardown contract
+}
+
+export type DeviceLossKind = "intentional" | "destroyed" | "unknown";
+
+export interface DeviceLossEvent {
+  readonly kind: DeviceLossKind;
+  readonly message: string;
+}
+
+export type DeviceLostListener = (event: DeviceLossEvent) => void;
+export type DeviceRestoredListener = (device: GPUDevice) => void;
+export type Unsubscribe = () => void;
+
+/**
+ * Thrown by {@link installGpu} when WebGPU is unavailable. Carries the discriminant
+ * so callers can branch (e.g. render the requires-WebGPU page) without string-matching.
+ */
+export class GpuUnavailableError extends Error {
+  readonly reason: GpuUnsupportedReason;
+  constructor(reason: GpuUnsupportedReason, message: string) {
+    super(message);
+    this.name = "GpuUnavailableError";
+    this.reason = reason;
+  }
+}
+
+interface GpuSingleton {
+  readonly adapter: GPUAdapter;
+  readonly device: GPUDevice;
+  readonly capabilities: GpuCapabilities;
+  isDisposing: boolean;
+  settled: boolean; // loss or dispose already processed for this device
+}
+
+let current: GpuSingleton | undefined;
+const lostListeners = new Set<DeviceLostListener>();
+const restoredListeners = new Set<DeviceRestoredListener>();
+
+function navigatorGpu(): GPU | undefined {
+  // @webgpu/types declares navigator.gpu as required, but it is absent on
+  // non-WebGPU browsers and on Node — probe presence before reaching for it.
+  if (typeof navigator === "undefined" || !("gpu" in navigator)) return undefined;
+  return navigator.gpu;
+}
+
+/**
+ * Acquire an adapter + device without touching the singleton. Returns a
+ * discriminated result so the caller can show a requires-WebGPU page on `!ok`
+ * instead of catching an exception.
+ */
+export async function requestGpu(options?: GpuRequestOptions): Promise<GpuSupport> {
+  const gpu = navigatorGpu();
+  if (gpu === undefined) {
+    return {
+      ok: false,
+      reason: "no-navigator-gpu",
+      message: "WebGPU is unavailable: navigator.gpu is undefined.",
+    };
+  }
+  const adapterOptions: GPURequestAdapterOptions = {};
+  if (options?.powerPreference !== undefined) {
+    adapterOptions.powerPreference = options.powerPreference;
+  }
+  const adapter = await gpu.requestAdapter(adapterOptions);
+  if (adapter === null) {
+    return {
+      ok: false,
+      reason: "no-adapter",
+      message: "WebGPU is unavailable: no GPUAdapter (check drivers or hardware acceleration).",
+    };
+  }
+  const descriptor: GPUDeviceDescriptor = {
+    requiredFeatures: selectFeatures(adapter, options?.requiredFeatures ?? DESIRED_FEATURES),
+  };
+  if (options?.requiredLimits !== undefined) descriptor.requiredLimits = options.requiredLimits;
+  if (options?.label !== undefined) descriptor.label = options.label;
+  try {
+    const device = await adapter.requestDevice(descriptor);
+    return { ok: true, adapter, device };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return { ok: false, reason: "no-device", message: `WebGPU device request failed: ${detail}` };
+  }
+}
+
+/**
+ * Acquire, store the singleton, wire device.lost recovery, and return a disposer.
+ * Throws {@link GpuUnavailableError} when WebGPU is missing — call {@link requestGpu}
+ * first if you need to branch on the unsupported reason without a try/catch.
+ */
+export async function installGpu(options?: GpuRequestOptions): Promise<InstalledGpu> {
+  if (current !== undefined) {
+    throw new Error("GPU already installed; dispose the previous handle before reinstalling.");
+  }
+  const support = await requestGpu(options);
+  if (!support.ok) {
+    throw new GpuUnavailableError(support.reason, support.message);
+  }
+  const singleton = adopt(support.adapter, support.device, options);
+  return {
+    device: singleton.device,
+    adapter: singleton.adapter,
+    capabilities: singleton.capabilities,
+    dispose,
+  };
+}
+
+export function getDevice(): GPUDevice {
+  if (current === undefined) throw new Error("GPU not installed; call installGpu() first.");
+  return current.device;
+}
+
+export function getCapabilities(): GpuCapabilities {
+  if (current === undefined) throw new Error("GPU not installed; call installGpu() first.");
+  return current.capabilities;
+}
+
+export function onDeviceLost(listener: DeviceLostListener): Unsubscribe {
+  lostListeners.add(listener);
+  return () => {
+    lostListeners.delete(listener);
+  };
+}
+
+export function onDeviceRestored(listener: DeviceRestoredListener): Unsubscribe {
+  restoredListeners.add(listener);
+  return () => {
+    restoredListeners.delete(listener);
+  };
+}
+
+function adopt(adapter: GPUAdapter, device: GPUDevice, options?: GpuRequestOptions): GpuSingleton {
+  const singleton: GpuSingleton = {
+    adapter,
+    device,
+    capabilities: probeCapabilities(adapter, device),
+    isDisposing: false,
+    settled: false,
+  };
+  current = singleton;
+  void watchForLoss(singleton, options);
+  return singleton;
+}
+
+async function watchForLoss(singleton: GpuSingleton, options?: GpuRequestOptions): Promise<void> {
+  const info = await singleton.device.lost; // resolves (never rejects) on loss or destroy
+  if (singleton.settled) return; // dispose() already handled this device synchronously
+  singleton.settled = true;
+  const kind: DeviceLossKind = info.reason === "destroyed" ? "destroyed" : "unknown";
+  emitLost({ kind, message: info.message });
+  if (current === singleton) current = undefined;
+  if (options?.reacquireOnLoss ?? true) void recover(options);
+}
+
+async function recover(options?: GpuRequestOptions): Promise<void> {
+  const support = await requestGpu(options);
+  if (!support.ok) {
+    // One attempt only; surface failure as a synthetic loss so the UI banner stays
+    // up. Retry policy belongs to app/, not gpu/ — never loop here.
+    emitLost({ kind: "unknown", message: `GPU recovery failed: ${support.message}` });
+    return;
+  }
+  const singleton = adopt(support.adapter, support.device, options);
+  emitRestored(singleton.device);
+}
+
+function dispose(): void {
+  const singleton = current;
+  if (singleton === undefined) return;
+  singleton.isDisposing = true;
+  if (!singleton.settled) {
+    singleton.settled = true; // suppress the pending watchForLoss for this device
+    emitLost({ kind: "intentional", message: "GPU device destroyed by dispose()." });
+  }
+  current = undefined;
+  singleton.device.destroy();
+  lostListeners.clear();
+  restoredListeners.clear();
+}
+
+function emitLost(event: DeviceLossEvent): void {
+  for (const listener of lostListeners) listener(event);
+}
+
+function emitRestored(device: GPUDevice): void {
+  for (const listener of restoredListeners) listener(device);
+}
