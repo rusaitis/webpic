@@ -12,14 +12,22 @@
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "check:boundaries": "node scripts/check-boundaries.ts",
+    "gen:export": "uv run --project ../pypic pypic export bundle --inline-single-use-defs --include-x-extensions -o src/schema/pypic-export.generated.json",
+    "gen:emit": "node scripts/codegen/emit.ts && biome format --write src/schema src/compute",
+    "gen": "npm run gen:export && npm run gen:emit",
+    "gen:check": "npm run gen:emit && git diff --exit-code -- src/schema src/compute",
     "lint": "biome check .",
     "lint:ci": "biome ci .",
     "test": "vitest run",
     "format": "biome format --write ."
   },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",
     "@types/node": "^25.9.1",
+    "json-schema-to-zod": "^2.8.1",
     "ts-morph": "^28.0.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.14",

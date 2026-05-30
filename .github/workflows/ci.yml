@@ -17,6 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run check:boundaries
+      - run: npm run gen:check
       - run: npm run lint:ci
       - run: npm run test
       - run: npm run build

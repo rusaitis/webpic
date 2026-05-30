@@ -34,5 +34,16 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.generated.ts"],
+      "linter": { "enabled": false },
+      "assist": { "actions": { "source": { "organizeImports": "off" } } }
+    },
+    {
+      "includes": ["**/*.generated.json"],
+      "formatter": { "enabled": false }
+    }
+  ]
 }
