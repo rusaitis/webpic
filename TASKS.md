@@ -14,8 +14,8 @@ Full rationale for every step: **`docs/DESIGN.md`** (read on demand — not auto
 
 ## M0 — Foundation
 Goal: toolchain + schema codegen + scaffolds boot; OffscreenCanvas worker alive.
-- [ ] 1. Vite + TS strict (`tsconfig.base.json`) + Biome + Vitest; `npm` scripts wired
-- [ ] 2. `src/<layer>/` skeleton (schema, containers, coordinates, numerics, gpu) + path aliases (`@schema/*`, …)
+- [x] 1. Vite + TS strict (`tsconfig.base.json`) + Biome + Vitest; `npm` scripts wired
+- [x] 2. `src/<layer>/` skeleton (schema, containers, coordinates, numerics, gpu) + path aliases (`@schema/*`, …)
 - [ ] 3. `scripts/check-boundaries.ts` (ts-morph) — layer-DAG enforcement, runs in CI ahead of `biome ci`
 - [ ] 4. Schema codegen: `gen-schema.ts` (pypic `schema export` → Zod + TS types), `gen-aliases.ts`, `gen-recipes.ts`
 - [ ] 5. `gpu/`: device acquire, capability probe, `device.lost` recovery, timestamp-query + `performance.now` fallback profiler
