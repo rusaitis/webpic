@@ -41,10 +41,21 @@ export interface Bundle {
   readonly fields: Record<string, FieldInfoJson>;
 }
 
+// The pypic schema version this codegen targets. A mismatch means pypic's shape moved
+// out from under the renderers — fail loudly rather than emit against a new contract.
+export const EXPECTED_SCHEMA_VERSION = "1.0";
+
 export function loadBundle(path: string): Bundle {
   // Shape is the contract emitted by `pypic export bundle`; validated downstream
   // by the renderers (and ultimately by tsc on their output).
-  return JSON.parse(readFileSync(path, "utf8")) as Bundle;
+  const bundle = JSON.parse(readFileSync(path, "utf8")) as Bundle;
+  if (bundle.schemaVersion !== EXPECTED_SCHEMA_VERSION) {
+    throw new Error(
+      `Bundle schemaVersion ${bundle.schemaVersion} != expected ${EXPECTED_SCHEMA_VERSION}; ` +
+        "regenerate webpic codegen for the new pypic schema.",
+    );
+  }
+  return bundle;
 }
 
 export const BANNER =

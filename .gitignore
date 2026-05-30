@@ -7,8 +7,9 @@ dist/
 build/
 *.tsbuildinfo
 
-# NOTE: *.generated.ts (schema/alias/recipe codegen) and tests/fixtures/v*/ are
-# intentionally COMMITTED — webpic builds without Python. See docs/DESIGN.md.
+# NOTE: *.generated.ts + *.generated.json (the pypic export bundle and schema/alias/
+# recipe codegen) and tests/fixtures/v*/ are intentionally COMMITTED — webpic builds
+# without Python. See docs/DESIGN.md.
 
 # Test / coverage
 coverage/
