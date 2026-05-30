@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.pnp.*
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# NOTE: *.generated.ts (schema/alias/recipe codegen) and tests/fixtures/v*/ are
+# intentionally COMMITTED — webpic builds without Python. See docs/DESIGN.md.
+
+# Test / coverage
+coverage/
+.vitest/
+
+# Caches
+.vite/
+.cache/
+*.log
+npm-debug.log*
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
