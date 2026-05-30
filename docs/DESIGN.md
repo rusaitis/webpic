@@ -10,11 +10,15 @@
 - **rustpic** (Rust) — future PIC simulator; plan reserves `@rustpic/plasma-wasm` (npm) and `@rustpic/shaders` (npm) for browser-side reuse. Neither exists yet.
 - **webpic** (TypeScript / Three.js / WebGPU) — local and remote 3D viewer and lightweight analyzer.
 
-webpic exists because the earlier prototype `magviz` proved browser-side plasma visualization is feasible but, in its pre-refactor form, entangled rendering, UI, data, and physics so tightly that extension was painful (magviz has since been refactored to layered TS itself — the lesson, not the LoC, is what matters here). webpic is a clean restart with hard layer boundaries, WebGPU-first compute, strict TypeScript, and schema-level compatibility with pypic so the same `simulation.toml`, the same Zarr/HDF5/Parquet on disk, and (eventually) the same WGSL kernels work in both browser and Rust simulator. The viewer must be useful standalone — drop in a Zarr URL, get a working scene — and later stream from `pypic.server` and live rustpic runs.
+**Why a clean restart.** The prototype `magviz` proved browser-side plasma viz is feasible, but its pre-refactor form entangled rendering, UI, data, and physics — extension was painful (since refactored to layered TS; the lesson, not the LoC, is what matters). webpic restarts with:
+
+- Hard layer boundaries, WebGPU-first compute, strict TypeScript.
+- Schema-level pypic compatibility — same `simulation.toml`, same Zarr/HDF5/Parquet on disk, eventually the same WGSL kernels in both browser and Rust simulator.
+- Standalone-useful (drop in a Zarr URL → working scene); later streams from `pypic.server` and live rustpic runs.
 
 ### Why now / why this shape
 - pypic's schema and reader infrastructure are stable. The schema CLI (`pypic schema export | validate | diff`) ships today, so codegen invokes it directly rather than shelling into Python or reimplementing the export.
-- pypic's codegen-surface modules are now public: `pypic.aliases` (`COMPUTE_ALIASES`, `GROUP_ALIASES`, `SPECIES_SUFFIX_RE`, `species_name_aliases`), `pypic.compute` (`RECIPES` as a `MappingProxyType` view, `Recipe`, `SpeciesArgs`, `SpeciesTemplate`, `SPECIES_TEMPLATES`), `pypic.numerics` (Dormand-Prince RK45 step + batched variants, PI step controllers — generic ODE machinery, currently consumed by the adaptive tracer and slated for future particle pushers), `pypic.traces` (`VectorFieldInterpolator`, `FieldLine`, `ParticleTrace`, `trace_field_line` / `trace_field_line_adaptive` / `trace_field_lines_adaptive`, `PoincareSection` / `poincare_section`, trace-analysis helpers like `curvature` / `mirror_points` / `equatorial_crossings`), and `pypic.server` (Arrow-IPC streaming foundation, see §Remote API). webpic codegen reads these directly — no underscore-prefixed imports.
+- pypic's codegen-surface modules are public — `pypic.{aliases,compute,numerics,traces,server}` (full symbol inventory in §Critical files & references). webpic codegen reads them directly — no underscore-prefixed imports.
 - rustpic's plan reserves `@rustpic/plasma-wasm` and `@rustpic/shaders` for webpic to consume; neither exists today, so v0.1 ships **TS-only compute** and adopts WASM / shared shaders as they land. We adopt WESL syntax now so rustpic can publish shared shaders without rewriting.
 - WebGPU is shipped in Chrome/Edge (since 2023), Safari 18+ (2024), and behind a flag in Firefox. Coverage is solid enough to make it the only path and skip the WebGL2 twin.
 
@@ -111,7 +115,13 @@ embed       ──►  (re-export facade only)      public lib surface; never
 
 ### First load walkthrough
 
-> User pastes a Zarr URL into the dataset bar → `app/bootstrap.ts` probes WebGPU and acquires a `GPUDevice` (or shows the requires-WebGPU page) → hardcoded heuristics seed the dispatcher (background calibration kicks off) → `data.worker.ts` fetches `simulation.toml`; Zod validates against the canonical schema → `simulationStore` populated with dataset metadata, available timesteps and fields → user clicks `B_1` → `computeField('|B|', dataset, ctx)` resolves through dispatcher (TS backend wins while calibration runs) → returned `Float32Array` transfers via dedicated `MessageChannel` to `render.worker.ts` → `device.queue.writeTexture` uploads to `texture_3d<r16float>` → next frame paints volume + 3 slices.
+1. User pastes a Zarr URL → `app/bootstrap.ts` probes WebGPU + acquires a `GPUDevice` (or shows the requires-WebGPU page).
+2. Hardcoded heuristics seed the dispatcher; background calibration kicks off.
+3. `data.worker.ts` fetches `simulation.toml`; Zod validates against the canonical schema.
+4. `simulationStore` populated with dataset metadata, timesteps, and fields.
+5. User clicks `B_1` → `computeField('|B|', dataset, ctx)` resolves through the dispatcher (TS backend wins while calibration runs).
+6. Returned `Float32Array` transfers via dedicated `MessageChannel` to `render.worker.ts` → `device.queue.writeTexture` → `texture_3d<r16float>`.
+7. Next frame paints volume + 3 slices.
 
 Example `simulationStore` shape:
 
@@ -129,7 +139,10 @@ type SimulationState = {
 
 **Single package, `src/<layer>/` from day one.** v0.1 ships as one package whose source is split into `src/<layer>/` folders named per the DAG above; `scripts/check-boundaries.ts` enforces the layer boundaries on those directories. Path aliases (`@schema/*`, `@compute/*`, …) stand in for the eventual `@webpic/<layer>` package specifiers, so the workspace split is a mechanical lift later. The pnpm-workspace / `@webpic/<name>` packaging is **deferred** — see the M2 checkpoint below for when (and whether) to promote `src/<layer>/` into published packages vs. collapse the math-y layers into one `@webpic/core`.
 
-> **Trade-off acknowledged:** 18 packages is heavy for a single-developer browser app. The benefit is defense-in-depth on layer enforcement (pnpm rejects undeclared cross-package imports at install). The costs are inter-package version drift, slower install, more `package.json` boilerplate, and publish-flow complexity if any are ever published independently. **Checkpoint at M2:** if maintenance overhead dominates, collapse the math-y mirror layers (`containers`, `coordinates`, `numerics`, `reductions`, `derived`, `diagnostics`) into a single `@webpic/core` — they share the same external dep surface (essentially none) and ship together. Boundary enforcement via `check-boundaries.ts` still works on `src/<layer>/` directories within one package.
+> **Trade-off acknowledged.** 18 packages is heavy for a single-dev browser app.
+> - **Benefit:** defense-in-depth on layer enforcement (pnpm rejects undeclared cross-package imports at install).
+> - **Costs:** inter-package version drift, slower install, `package.json` boilerplate, publish-flow complexity.
+> - **Checkpoint at M2:** if maintenance overhead dominates, collapse the math-y mirror layers (`containers`, `coordinates`, `numerics`, `reductions`, `derived`, `diagnostics`) into one `@webpic/core` — same external dep surface (~none), ship together. `check-boundaries.ts` still enforces `src/<layer>/` dirs within one package.
 
 ```
 webpic/
@@ -273,7 +286,7 @@ webpic/
     migration.test.ts             #   schema-version migration guards
     prefetch.test.ts              #   EWMA direction fuzz scrubber
   scripts/
-    gen-schema-types.ts           #   M0 — pypic Pydantic JSON Schema → Zod codegen
+    gen-schema.ts                 #   M0 — pypic Pydantic JSON Schema → Zod codegen
     gen-aliases.ts                #   M0 — emit aliases.generated.ts from pypic.aliases
     gen-recipes.ts                #   M0 — emit recipes.generated.ts stubs from pypic.compute
     gen-fixtures.ts               #   dev-only (no milestone) — refresh fixtures via pypic
@@ -283,27 +296,41 @@ webpic/
     bench.ts                      #   v0.2 — per-kernel benchmarking
 ```
 
-**Public library export** (`@webpic/embed`): `schema/*`, `containers/*`, `coordinates/*`, `numerics/*`, `reductions/*`, `compute/dispatcher`, `compute/recipes`, `compute/compute_field`, `derived/*`, `diagnostics/*`, `data/readers`. Does **not** export `render`, `ui`, `app`, `store`, `remote/client`. A downstream Jupyter widget can import containers + coordinates + numerics + reductions + data without dragging in Three.js. CI `size-limit` enforces 1.0 MB gzipped on `@webpic/embed`, 1.6 MB on `@webpic/app`.
+**Public library export** (`@webpic/embed`): `schema/*`, `containers/*`, `coordinates/*`, `numerics/*`, `reductions/*`, `compute/{dispatcher,recipes,compute_field}`, `derived/*`, `diagnostics/*`, `data/readers`. Does **not** export `render`, `ui`, `app`, `store`, `remote/client` — a downstream Jupyter widget imports the math + data layers without dragging in Three.js. Bundle budgets enforced by `size-limit` (see §Deferred but tracked).
 
 ---
 
 ## Schema sharing with pypic
 
-**Codegen via `pypic schema export`** (`pypic/schema/cli.py`; root model `pypic.schema._models.SimulationSchema`, `SCHEMA_VERSION = "1.0"`). Flags `--inline-single-use-defs` (flattens `$defs` for json-schema-to-zod) + `--include-x-extensions` (patternProperties for `x-*` namespace). `scripts/gen-schema.ts` prefers the CLI when pypic is on PATH; falls back to bundled `pypic/schema/simulation.schema.v{SCHEMA_VERSION}.json` from a pinned checkout. Emits Zod (json-schema-to-zod) + TS types (json-schema-to-typescript). Outputs checked in: `packages/schema/src/{validators,aliases}.generated.ts`, `packages/compute/src/recipes.generated.ts` (webpic builds without Python).
+**Codegen via `pypic schema export`** (`pypic/schema/cli.py`; root model `pypic.schema._models.SimulationSchema`, `SCHEMA_VERSION = "1.0"`):
+- Flags `--inline-single-use-defs` (flattens `$defs` for json-schema-to-zod) + `--include-x-extensions` (patternProperties for `x-*`).
+- `scripts/gen-schema.ts` prefers the CLI when pypic is on PATH; else falls back to bundled `pypic/schema/simulation.schema.v{SCHEMA_VERSION}.json` from a pinned checkout.
+- Emits Zod (json-schema-to-zod) + TS types (json-schema-to-typescript).
+- Checked-in outputs (so webpic builds without Python): `packages/schema/src/{validators,aliases}.generated.ts`, `packages/compute/src/recipes.generated.ts`.
 
-**Drift detection.** Three tiers: CLI diff (`pypic schema diff` in CI, flags additive vs breaking), semantic-parity test (regenerated Zod vs checked-in, all pypic fixtures validate against both), additive-compat test (current fixtures vs prior N schemas). Breaking changes force a release; additive bumps don't.
+**Drift detection.** Three tiers; breaking changes force a release, additive bumps don't:
+- CLI diff (`pypic schema diff` in CI) flags additive vs breaking.
+- Semantic-parity test: every pypic fixture validates against both regenerated and checked-in Zod.
+- Additive-compat test: current fixtures vs prior N schemas.
 
-**Canonical-name discipline.** `schema/registry.ts` is the *only* mapping from human labels to canonical names. Store keys, kernel inputs, remote API params, shader uniforms all use canonical names. `grep B_1` works across all three projects. Aliases resolve at boundaries only — see *Aliases & registry keys* below.
+**Canonical-name discipline.** `schema/registry.ts` is the *only* label→canonical mapping. Store keys, kernel inputs, remote API params, shader uniforms all use canonical names — `grep B_1` works across all three projects. Aliases resolve at boundaries only (see *Aliases & registry keys*).
 
-**Schema versioning.** `SCHEMA_VERSION = "1.0"` is the single truth (pypic v1.x is additive-only; breaking changes bump to v2.0). Every persisted artifact (OPFS cache entries, exported Zarr, saved themes) carries a `schemaVersion` tag. Loader has explicit `migrate(oldVersion, newVersion)` hook (no-op for additive; explicit code for breaking).
+**Schema versioning.** `SCHEMA_VERSION = "1.0"` is the single truth (pypic v1.x additive-only; breaking → v2.0). Every persisted artifact (OPFS cache, exported Zarr, saved themes) carries a `schemaVersion` tag; loader has an explicit `migrate(oldVersion, newVersion)` hook (no-op for additive, code for breaking).
 
-**Run metadata: `attrs.run` over `attrs.simulation_toml`.** Pypic-written Zarr stores carry run identity at the root in two complementary forms (schema.md §4.2). Prefer `attrs.run` — a JSON-mode `Run.model_dump` with typed fields (`name`, `doi`, `license`, `authors`, `git_sha`, `host`, `funding`, `embargo`, `resources`, `ensemble`, …) for everything the FieldDataset boundary preserves. Fall back to re-validating `attrs.simulation_toml` (verbatim UTF-8 text of the source `simulation.toml`) only for sections that don't survive that boundary: `[bodies]`, `[drivers]`, `[output.*]`, `[restart]`, `[[probes]]`, `[[collisions]]`, `[phase_space]`, and `x-<code>` extensions. webpic can re-parse `attrs.simulation_toml` through the same generated Zod validators (smol-toml → Zod), but it's a heavier path; reach for it only when those orphan sections are actually needed.
+**Run metadata: `attrs.run` over `attrs.simulation_toml`** (Zarr root carries both; schema.md §4.2):
+- **Prefer `attrs.run`** — JSON-mode `Run.model_dump`, typed fields (`name`, `doi`, `license`, `authors`, `git_sha`, `host`, `funding`, `embargo`, `resources`, `ensemble`, …) — for everything the FieldDataset boundary preserves.
+- **Fall back to `attrs.simulation_toml`** (verbatim source TOML, re-parsed smol-toml → same Zod) only for sections that don't survive that boundary: `[bodies]`, `[drivers]`, `[output.*]`, `[restart]`, `[[probes]]`, `[[collisions]]`, `[phase_space]`, `x-<code>`. Heavier path — reach for it only when those orphan sections are needed.
 
-**Bundle split.** `@webpic/embed` uses `zod/v4-mini` (~1.9 KB). `@webpic/app` uses full zod (~50 KB) for richer error messages. Saves ~48 KB on embed.
+**Bundle split.** `@webpic/embed` uses `zod/v4-mini` (~1.9 KB); `@webpic/app` uses full zod (~50 KB) for richer errors — saves ~48 KB on embed.
 
-**Reduction Literal sourcing.** The `Reduction` Literal type (10 ops, see §"Reduction provenance round-trip") originates in `@webpic/schema` (`schema/src/selections.ts`), beside `BoxSelection`/`PlaneSelection`/`SphereSelection` — schema is the dependency root and canonical-name authority, so codegen consumers find it next to the selection types. `@webpic/reductions` imports and re-exports it for locality next to `reduce()`; downstream consumers (`@webpic/remote/src/protocol.ts`, `@webpic/data`) import `Reduction` from `@webpic/schema` directly to build the `ReductionSpec` shape. Origin-in-the-root keeps the layer DAG acyclic (`reductions ──► schema`, never the reverse).
+**Reduction Literal sourcing.** The `Reduction` Literal (10 ops, see §"Reduction provenance round-trip") originates in `@webpic/schema` (`schema/src/selections.ts`), beside `Box`/`Plane`/`SphereSelection` — schema is the dependency root, so codegen consumers find it there.
+- `@webpic/reductions` re-exports it for locality next to `reduce()`.
+- Downstream (`@webpic/remote/src/protocol.ts`, `@webpic/data`) import `Reduction` from `@webpic/schema` directly to build `ReductionSpec`.
+- Origin-in-the-root keeps the DAG acyclic (`reductions ──► schema`, never reverse).
 
-**Local selections vs wire specs.** `BoxSelection`/`PlaneSelection`/`SphereSelection` (in `@webpic/schema`, mirroring `pypic.selections`) are the local on-disk/compute shapes; `BoxSpec`/`PlaneSpec`/`SphereSpec` (in `@webpic/remote`, mirroring `pypic.server.protocol`) are the wire shapes. They are deliberately distinct, with a thin map at the remote boundary — don't conflate them.
+**Local selections vs wire specs — deliberately distinct, thin map at the remote boundary; don't conflate:**
+- `Box`/`Plane`/`SphereSelection` (`@webpic/schema`, mirror `pypic.selections`) — local on-disk/compute shapes.
+- `Box`/`Plane`/`SphereSpec` (`@webpic/remote`, mirror `pypic.server.protocol`) — wire shapes.
 
 **Runtime parser stack**
 - TOML: `smol-toml` (TOML 1.0 compliant, ESM, ~7 KB)
@@ -365,7 +392,10 @@ export function computeIter<K extends KernelName>(
 ): AsyncIterable<ComputeEvent<ComputeKernels[K]['output']>>;
 ```
 
-**Recipe registry** (mirrors `pypic.compute.RECIPES` + the public `pypic.compute.Recipe` dataclass at `pypic/compute.py:49-79`). `compute/recipes.ts` maps canonical names (`|B|`, `beta`, `v_A`) to functions in `@webpic/derived` + dispatch hints. `recipes.generated.ts` is codegen'd from pypic's registry (keys, dependencies, flags); recipe *bodies* live hand-written in `@webpic/derived`. The TS `Recipe` shape mirrors pypic's `Recipe` field-for-field:
+**Recipe registry** (mirrors `pypic.compute.RECIPES` + the public `pypic.compute.Recipe` dataclass):
+- `compute/recipes.ts` maps canonical names (`|B|`, `beta`, `v_A`) → functions in `@webpic/derived` + dispatch hints.
+- `recipes.generated.ts` is codegen'd from pypic's registry (keys, dependencies, flags); recipe *bodies* stay hand-written in `@webpic/derived`.
+- The TS `Recipe` shape mirrors pypic's field-for-field:
 
 ```ts
 // packages/compute/src/recipes.ts
@@ -398,13 +428,10 @@ await computeField('|B|', dataset, ctx?);
 // Not exported from @webpic/compute's barrel. Callers only see computeField.
 ```
 
-**Selection policy.** `ctx.prefer` overrides; otherwise per-kernel scores from `calibration.ts`. Heuristic exceptions for driver pathologies (e.g. `adapterInfo.vendor === 'apple' && size < 1<<14` → avoid webgpu for tiny kernels). Local backends only — remote streaming (`@webpic/remote`) emits `FieldDataset` into `@webpic/data`, not kernel-level dispatch.
-
-**Worker routing.** `GPUDevice` can't transfer to workers, so `webgpu` runs inline on main thread. `ts`/`wasm` dispatch to a `comlink` worker pool sized `Math.min(navigator.hardwareConcurrency - 1, 8)` (cap avoids thrashing the render/data workers). Transferable typed arrays; SharedArrayBuffer when COOP/COEP set.
-
-**Boundary discipline.** Callers get a `Float32Array`; backends marshal internally.
-
-**Cross-backend equivalence.** Every kernel runs `ts` and (when available) `webgpu`, asserting agreement within per-kernel per-precision tolerance (see §Testing).
+- **Selection policy.** `ctx.prefer` overrides; else per-kernel scores from `calibration.ts`. Heuristic exceptions for driver pathologies (e.g. `vendor === 'apple' && size < 1<<14` → avoid webgpu for tiny kernels). Local backends only — remote streaming emits `FieldDataset` into `@webpic/data`, not kernel-level dispatch.
+- **Worker routing.** `GPUDevice` can't transfer, so `webgpu` runs inline on main; `ts`/`wasm` dispatch to a `comlink` pool sized `Math.min(hardwareConcurrency - 1, 8)` (cap avoids thrashing render/data workers). Transferable typed arrays; SharedArrayBuffer when COOP/COEP set.
+- **Boundary discipline.** Callers get a `Float32Array`; backends marshal internally.
+- **Cross-backend equivalence.** Every kernel runs `ts` and (when available) `webgpu`, asserting agreement within per-kernel per-precision tolerance (see §Testing).
 
 ---
 
@@ -434,14 +461,14 @@ Each worker's `onmessage` handles `'pair'` once, storing the port. Worker-init i
 ## Rendering pipeline
 
 ### Renderer
-- **`THREE.WebGPURenderer`** (`three/webgpu`, **pinned to one exact known-good release carrying PR-#31607** — not a floating `r172+` range, since r179 broke OffscreenCanvas-in-worker before a later fix; TODO: author to fill the exact version). CI smoke asserts worker-frame vs main-frame within 1 px.
-- **OffscreenCanvas-on-Worker from day one.** `render/worker.ts` owns canvas + scene + renderer; `app/main.ts` transfers via `transferControlToOffscreen()`; communicates with `store/` via `MessageChannel`.
+- **`THREE.WebGPURenderer`** (`three/webgpu`) — **pinned to one exact known-good release carrying PR-#31607** (OffscreenCanvas-in-worker), not a floating `r172+` range (r179 broke it before a later fix; TODO: fill exact version). Canonical pin reference for the whole doc. CI smoke asserts worker-frame vs main-frame within 1 px.
+- **OffscreenCanvas-on-Worker from day one.** `render/worker.ts` owns canvas + scene + renderer; `app/main.ts` transfers via `transferControlToOffscreen()`; talks to `store/` via `MessageChannel`.
 - **Raw `GPUComputePassEncoder` pipelines** owned by `compute/backends/webgpu/`; shared kernels in `@webpic/shaders`.
-- `gpu/profiler.ts`: `GPUQuerySet` when `timestamp-query` feature is present; `performance.now()` + `device.queue.onSubmittedWorkDone()` fallback otherwise.
-- **`device.lost` recovery** (`gpu/device.ts`): rebuild `compute/` + `render/` from OPFS-cached source; scene state restores from `store/`. UX: canvas freezes on last frame; banner "GPU was reset; recovering…" with elapsed seconds; UI stays interactive (Zustand survives in main); 200 ms fade-in on recovery; OPFS-evicted fields marked "unavailable, refetching" — never silent.
+- `gpu/profiler.ts`: `GPUQuerySet` with `timestamp-query`; `performance.now()` + `onSubmittedWorkDone()` fallback.
+- **`device.lost` recovery** (`gpu/device.ts`): rebuild `compute/` + `render/` from OPFS-cached source, restore scene from `store/`. UX: canvas freezes on last frame; "GPU was reset; recovering…" banner with elapsed seconds; UI stays interactive (Zustand survives in main); 200 ms fade-in on recovery; OPFS-evicted fields marked "unavailable, refetching" — never silent.
 - Memory pressure (`gpu/memory.ts`): on alloc failure, halve texture resolution + banner.
 - Boot: `app/bootstrap.ts` shows "requires WebGPU" page with magviz fallback link when `!navigator.gpu`.
-- **Pipeline compile:** `material.compileAsync(scene, camera)` at boot for M0–M2 baseline scene; streamlines/particles compile lazily on toggle. First-frame target: <500 ms cold, <100 ms warm.
+- **Pipeline compile:** `material.compileAsync(scene, camera)` at boot for the M0–M2 baseline scene; streamlines/particles compile lazily on toggle. First-frame: <500 ms cold, <100 ms warm.
 
 ### Volume rendering
 Single-pass WGSL fragment raymarcher with min-max mipmap empty-space skipping; gradient + Phong from M2.
@@ -484,7 +511,9 @@ Single-pass WGSL fragment raymarcher with min-max mipmap empty-space skipping; g
 
 ### Performance gate (not a budget)
 
-Numbers are per-frame GPU time, single pass, M2 Pro Chrome stable. "256 steps" = dataset depth on disk — the ring buffer holds only the N≈1–5 prefetched steps around the cursor (see §Time-series playback), not all 256. 8 ms = per-frame raymarch budget on a 256³ volume at any single timestep.
+**Canonical definition of the perf gate** (other sections cross-ref here). Numbers are per-frame GPU time, single pass, M2 Pro Chrome stable.
+- **8 ms** = per-frame raymarch budget on a 256³ volume at any single timestep.
+- **"256 steps"** = dataset depth on disk; the ring buffer holds only N≈1–5 prefetched steps around the cursor (see §Time-series playback), not all 256.
 
 | Element                       | M2 gate (256³ volume, 256-step dataset) | Stretch (512³, 256-step, v0.2) |
 |-------------------------------|----------------------------------------:|-------------------------------:|
@@ -495,7 +524,7 @@ Numbers are per-frame GPU time, single pass, M2 Pro Chrome stable. "256 steps" =
 
 **Rule:** if 256³ at 256-step depth doesn't hit 8 ms/frame on the volume raymarch by end of M2, defer 512³ to v0.2 with LOD bricks. Measure with `timestamp-query` when available, `performance.now()` + `onSubmittedWorkDone()` fallback otherwise.
 
-**GPU memory:** 256³ × 6 fields × `r16float` ≈ 192 MiB (the `r8unorm` fallback halves that to ~96 MiB); 512³ ≈ 1.5 GiB. Resident GPU is several× the single-timestep figure — single-timestep × ring-buffer depth (N≈1–5) + min-max pyramid (~+33%) + transfer-function texture — which is what forces the downsample to 256³ preview + LOD bricks for anything larger.
+**GPU memory:** 256³ × 6 fields × `r16float` ≈ 192 MiB (`r8unorm` fallback ≈ 96 MiB); 512³ ≈ 1.5 GiB. Resident GPU is several× the single-timestep figure (× ring depth N≈1–5, + min-max pyramid ~+33%, + TF texture) — which forces 256³ preview + LOD bricks for anything larger.
 
 ---
 
@@ -553,7 +582,7 @@ export function supportsSelectiveRead(reader: SimulationReader): boolean;
 - **OPFS** preferred; **IndexedDB** fallback.
 - Cache key: `(reader, source-URL, step, field, chunk-coords, schemaVersion)`.
 - LRU eviction with configurable budget (default 1 GB).
-- **Safari constraint:** `createSyncAccessHandle()` only exposed in dedicated workers (no `createWritable()` on main). **Cache writes always happen in `data.worker.ts`;** main thread only issues read requests.
+- **Safari constraint (canonical):** `createSyncAccessHandle()` is exposed only in dedicated workers (no `createWritable()` on main). **All cache writes happen in `data.worker.ts`;** main thread only issues read requests.
 - **Multi-tab safety:** `navigator.locks.request('webpic-cache', { mode: 'exclusive' })` around cache writes. Losing tab degrades to read-only with UI banner.
 
 ### Subregion streaming
@@ -641,7 +670,11 @@ The `SubscribeRequest` JSON shape (mirror in `remote/protocol.ts` field-for-fiel
 
 ## UI
 
-**Own the control primitives; custom code for shell + palette + keymap + theme.** magviz proved this out — its dependency-free `ui/controls` layer (a `RangeControl` slider plus pure-DOM select/checkbox/text behind a tiny `Pane`/`Folder`/`Binding` facade) carries no `three`/scene/framework deps and lifts into `@webpic/ui/controls` unchanged. It dropped Tweakpane entirely (~50 KB + plugin gone) once the primitives landed; the facade's `addBinding(target, key, opts)` shape is what the `ControlDescriptor` binder below targets, and the store contract is callbacks-out / `set()`-in (intent dispatch + selective subscribe — no two-way object binding). Aim small — magviz's TS UI tree (~3 kLoC) is the comparison, not a target. If the shell starts looking like a framework, stop. **CSP:** control styles inject via a single `<style>` block at init (magviz's `applyControlPaneStyles`); for strict-CSP hosts, ship the extracted CSS via `<link>` with a nonce.
+**Own the control primitives; custom code for shell + palette + keymap + theme.** magviz proved this out:
+- Its dependency-free `ui/controls` layer (a `RangeControl` slider + pure-DOM select/checkbox/text behind a tiny `Pane`/`Folder`/`Binding` facade) carries no `three`/scene/framework deps and lifts into `@webpic/ui/controls` unchanged. Dropped Tweakpane entirely (~50 KB + plugin) once the primitives landed.
+- The facade's `addBinding(target, key, opts)` is what the `ControlDescriptor` binder below targets; store contract is callbacks-out / `set()`-in (intent dispatch + selective subscribe — no two-way binding).
+- **Aim small** — magviz's TS UI tree (~3 kLoC) is the comparison, not a target. If the shell starts looking like a framework, stop.
+- **CSP:** control styles inject via a single `<style>` at init (`applyControlPaneStyles`); for strict-CSP hosts, ship extracted CSS via `<link>` with a nonce.
 
 **Schema-aware bindings** via `ControlDescriptor`:
 
@@ -667,7 +700,7 @@ function bindControl(pane: Pane, obj: object, desc: ControlDescriptor) {
 
 Runtime introspection — no codegen. Schema changes propagate without rebuild.
 
-**Theme.** Reads pypic's shared TOML themes from `pypic/plotting/themes/*.toml`, picks the `[webpic]` section for app-specific colors and `[colors]`, `[colormaps]`, `[fonts]` for cross-project values. Shipped upstream in all 7 bundled themes (see M0). Schema kept here for reference and additive bumps:
+**Theme.** Reads pypic's shared TOML themes (`pypic/plotting/themes/*.toml`): the `[webpic]` section for app-specific colors, plus `[colors]`/`[colormaps]`/`[fonts]` for cross-project values. **Canonical fact:** the `[webpic]` block has shipped upstream in all 7 bundled themes — webpic is purely a consumer (other sections cross-ref here). Schema kept for reference and additive bumps:
 
 ```toml
 [webpic]
@@ -700,7 +733,7 @@ Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirr
 
 **Accessibility.** Tab order, focus rings, palette keyboard nav, ARIA roles. High-contrast theme to v0.2.
 
-**Embedding.** `new WebpicViewer({ canvas, datasource })` — UI fully strippable; `size-limit` enforces 1.0 MB gzipped on `@webpic/embed`.
+**Embedding.** `new WebpicViewer({ canvas, datasource })` — UI fully strippable (bundle budget in §Deferred but tracked).
 
 ---
 
@@ -779,26 +812,40 @@ Visual-only shaders (raymarcher, particle billboard, axes gizmo) live in `packag
 
 ## Milestones
 
-v0.1 = M0–M4 + M6 (writers/export). M5/M7/M8 to v0.2. M9 contingent on rustpic shipping plasma-wasm. Each milestone is end-to-end runnable.
+Scope per §Versioning scheme; M9 contingent on rustpic shipping plasma-wasm. Each milestone is end-to-end runnable.
 
-> **Execution checklist + live status: `../TASKS.md`** (single source of truth for step-by-step progress). The table below is design intent — weeks, headline scope, exit gate — not a tracker.
+> **Execution checklist + live status: `../TASKS.md`** (single source of truth for step-by-step progress). The table below is design intent — headline scope + exit gate — not a tracker.
 
-> **Scope risk acknowledged.** The v0.1 bundle is ambitious for ~14 weeks: schema codegen + WebGPU raymarcher + cross-backend parity + WGSL streamlines + Zarr writer + reduction-provenance round-trip + OffscreenCanvas worker + perf gate. There is no slack for the perf-gate-fails branch (LOD bricks, deferred 512³) the plan itself anticipates. If M2 ships >2 weeks late, **first cut M4 (streamlines)** to v0.2 — slicing + volume is already a useful viewer. Cutting M6 (Zarr writer + screenshot) is a harder call because export gates the analyzer use-case; only cut if the writer or `attrs["reduction"]` round-trip proves harder than expected. Decision point: end of week 7.
+> **Scope risk acknowledged.** The v0.1 bundle is ambitious (codegen + raymarcher + cross-backend parity + WGSL streamlines + Zarr writer + reduction round-trip + OffscreenCanvas worker + perf gate), with no slack for the perf-gate-fails branch it anticipates. Decision point: M2 exit.
+> - If M2 slips materially, **first cut M4 (streamlines)** to v0.2 — slice + volume is already a useful viewer.
+> - Cutting M6 (Zarr writer + screenshot) is harder — export gates the analyzer use-case; cut only if the writer or `attrs["reduction"]` round-trip proves harder than expected.
 
-| Milestone | Weeks | Headline | Exit gate |
-|---|---|---|---|
-| **M0 — Foundation** | 1–2 | Vite + TS strict + Biome + pnpm + Vitest; schema/aliases/recipes codegen (§Schema sharing); `@webpic/{containers,coordinates,numerics,gpu}` scaffolds; `check-boundaries.ts`; OffscreenCanvas-on-Worker scaffold; theme loader; OPFS cache; backend microbench in background | Cold-start: page paint <500 ms; first frame <1500 ms on M2 Pro Chrome stable |
-| **M1 — Static slice** | 3–4 | `data/readers/zarr.ts` (zarrita.js) implementing `SimulationReader`+`FieldListingReader`; `_registry.ts` with `openSimulation()`; `magnitude` operator registered as `'|B|'`; TS backend; one orthogonal slice with themed colormap | `computeField('|B|', dataset)` end-to-end; schema-parity (`pypic schema diff` + Vitest) + additive-compat tests green |
-| **M2 — Volume + perf gate** | 5–7 | WESL fragment raymarcher (NodeMaterial + `wgslFn`), single-scalar volume; transfer-function texture + window/level (owned RangeControl); min-max mipmap empty-space skipping; gradient + Phong shading; `timestamp-query` diagnostics; time-series prefetcher (EWMA + debounce); eager `compileAsync`; WESL HMR | **Perf gate:** 256³ × 256-step dataset @ 8 ms per-frame raymarch on M2 Pro by end of M2. 512³ deferred to v0.2 if missed |
-| **M3 — WebGPU compute + parity** | 8–9 | WebGPU backend for `field.{magnitude,curl,divergence}`; cross-backend equivalence (TS vs WebGPU) at per-precision tolerances; pypic fixture suite checked in; Orszag-Tang + Harris synthetic fixtures. WASM backend deferred to M9 | Cross-backend parity within tolerance against pypic goldens |
-| **M4 — Field lines** | 10–11 | WESL streamline compute (Dormand-Prince 5(4) + PI step control), shared-shader scaffold; raycast seed picking against slice/volume bounds; Line2 indirect-draw render; `AbortSignal`-cancellable mid-trace | Cancellable traces match pypic golden traces |
-| **M6 — Writers + export** | 12–14 | Zarr v3 writer for derived fields; PNG screenshot (`canvas.toBlob`); `simulation.toml` round-trip; reduction-provenance round-trip (see §Data layer › Reduction provenance round-trip); theme switcher; TypeDoc from public exports; `size-limit` CI gate | 1.0 MB embed / 1.6 MB app (gzipped) |
+| Milestone | Headline | Exit gate |
+|---|---|---|
+| **M0 — Foundation** | Vite + TS strict + Biome + pnpm + Vitest; schema/aliases/recipes codegen (§Schema sharing); `@webpic/{containers,coordinates,numerics,gpu}` scaffolds; `check-boundaries.ts`; OffscreenCanvas-on-Worker scaffold; theme loader; OPFS cache; backend microbench in background | Cold-start: page paint <500 ms; first frame <1500 ms on M2 Pro Chrome stable |
+| **M1 — Static slice** | `data/readers/zarr.ts` (zarrita.js) implementing `SimulationReader`+`FieldListingReader`; `_registry.ts` with `openSimulation()`; `magnitude` operator registered as `'|B|'`; TS backend; one orthogonal slice with themed colormap | `computeField('|B|', dataset)` end-to-end; schema-parity (`pypic schema diff` + Vitest) + additive-compat tests green |
+| **M2 — Volume + perf gate** | WESL fragment raymarcher (NodeMaterial + `wgslFn`), single-scalar volume; transfer-function texture + window/level (owned RangeControl); min-max mipmap empty-space skipping; gradient + Phong shading; `timestamp-query` diagnostics; time-series prefetcher (EWMA + debounce); eager `compileAsync`; WESL HMR | **Perf gate:** 256³ × 256-step dataset @ 8 ms per-frame raymarch on M2 Pro by end of M2. 512³ deferred to v0.2 if missed |
+| **M3 — WebGPU compute + parity** | WebGPU backend for `field.{magnitude,curl,divergence}`; cross-backend equivalence (TS vs WebGPU) at per-precision tolerances; pypic fixture suite checked in; Orszag-Tang + Harris synthetic fixtures. WASM backend deferred to M9 | Cross-backend parity within tolerance against pypic goldens |
+| **M4 — Field lines** | WESL streamline compute (Dormand-Prince 5(4) + PI step control), shared-shader scaffold; raycast seed picking against slice/volume bounds; Line2 indirect-draw render; `AbortSignal`-cancellable mid-trace | Cancellable traces match pypic golden traces |
+| **M6 — Writers + export** | Zarr v3 writer for derived fields; PNG screenshot (`canvas.toBlob`); `simulation.toml` round-trip; reduction-provenance round-trip (see §Data layer › Reduction provenance round-trip); theme switcher; TypeDoc from public exports; `size-limit` CI gate | 1.0 MB embed / 1.6 MB app (gzipped) |
 
-**M0 detail.** Codegen wiring per §Schema sharing — `validators.generated.ts`, `aliases.generated.ts` (from `pypic.aliases.COMPUTE_ALIASES`/`GROUP_ALIASES`/`SPECIES_SUFFIX_RE`; the regex powers per-species runtime expansion), `recipes.generated.ts` stubs (from `pypic.compute.RECIPES`; `pypic.compute.Recipe` dataclass for field types; `pypic.compute.SPECIES_TEMPLATES` codegened separately; recipe bodies hand-written in `@webpic/derived`). Port `pypic.numerics.dormand_prince_step` + `i_step_controller` into `@webpic/numerics` as the v0.1 reference adaptive integrator — matches pypic's field-line tracer for cross-tool equivalence. `@webpic/gpu`: device acquisition, capability probe, `device.lost` recovery, timestamp-query + fallback profiler. Theme loader reads `pypic/plotting/themes/*.toml`; the `[webpic]` block (version=1; `[webpic.{layout,shortcuts,diagnostics,embed}]`) has shipped upstream in all 7 bundled themes (lcars `docked-side = "left"`, synthwave `timestamp-query-overlay = true`, light `fps-overlay = false`; others use the base block). OPFS cache uses `navigator.locks`; writer lives in `data.worker.ts` (Safari). Boot page shows WebGPU capability probe + "requires WebGPU" fallback. Main-vs-worker frame-parity test green.
+**M0 detail.**
+- **Codegen** (per §Schema sharing): `validators.generated.ts`; `aliases.generated.ts` (from `pypic.aliases.{COMPUTE_ALIASES,GROUP_ALIASES,SPECIES_SUFFIX_RE}` — the regex powers per-species runtime expansion); `recipes.generated.ts` stubs (from `pypic.compute.RECIPES`; `Recipe` dataclass for field types; `SPECIES_TEMPLATES` codegened separately; recipe bodies hand-written in `@webpic/derived`).
+- **Numerics:** port `pypic.numerics.{dormand_prince_step,i_step_controller}` into `@webpic/numerics` as the v0.1 reference adaptive integrator — matches pypic's field-line tracer for cross-tool equivalence.
+- **`@webpic/gpu`:** device acquisition, capability probe, `device.lost` recovery, profiler (see §Renderer).
+- **Theme loader** reads `pypic/plotting/themes/*.toml` `[webpic]` block (already upstream, see §UI; e.g. lcars `docked-side="left"`, synthwave `timestamp-query-overlay=true`, light `fps-overlay=false`).
+- **OPFS cache** via `navigator.locks`, writes in `data.worker.ts` (see §Caching). Boot page does the WebGPU probe + fallback. Main-vs-worker frame-parity test green.
 
-**M2 detail.** Perf-gate clarification: 8 ms = volume-raymarch only, per frame; dataset depth 256 timesteps (see §Performance gate). WESL HMR working — edit raymarcher color, see update without losing camera pose. Gradient + Phong is ~20 lines for a scientific quality win. `timestamp-query` panel falls back to `performance.now()` where unavailable.
+**M2 detail.**
+- Perf gate per §Performance gate (8 ms = raymarch only; 256 = disk depth).
+- WESL HMR working — edit raymarcher color, see update without losing camera pose.
+- Gradient + Phong is ~20 lines for a scientific quality win. `timestamp-query` panel falls back to `performance.now()`.
 
-**M4 detail.** **Reference implementations to mirror in `@webpic/numerics`:** `pypic.traces.trace_field_line_adaptive` (Dormand-Prince 5(4) + PI step control via `pypic.numerics`); `trace_field_lines_adaptive` (batched form for seed fans). `VectorFieldInterpolator` (trilinear) ports cleanly to a WGSL `textureSampleLevel` lookup — pypic's variant at `pypic.traces.VectorFieldInterpolator`; tricubic (pypic Step 44b roadmap) already supported by storage-texture backing. Termination mirrors `pypic.traces.TerminationReason` (out-of-bounds, max-steps, low-step-size, …), re-exported under `@webpic/numerics`. **v0.2 candidates enabled by these primitives:** `pypic.traces.poincare_section` + `PoincareSurface`/`PoincareSection` (render 2-D scatter overlay, no new compute); `pypic.traces.estimate_tracing_error` (per-step error from embedded RK45 norm) for a per-streamline confidence overlay or interactive tolerance-slider that retraces seeds.
+**M4 detail.** Reference implementations to mirror in `@webpic/numerics`:
+- `pypic.traces.trace_field_line_adaptive` (DP5(4) + PI step control via `pypic.numerics`); `trace_field_lines_adaptive` (batched, for seed fans).
+- `VectorFieldInterpolator` (trilinear) → WGSL `textureSampleLevel` lookup; tricubic (pypic Step 44b roadmap) already supported by storage-texture backing.
+- Termination mirrors `pypic.traces.TerminationReason` (out-of-bounds, max-steps, low-step-size, …), re-exported under `@webpic/numerics`.
+- **v0.2 candidates from these primitives:** `poincare_section` + `PoincareSurface`/`PoincareSection` (2-D scatter overlay, no new compute); `estimate_tracing_error` (embedded-RK45 norm) for a per-streamline confidence overlay / tolerance-slider that retraces.
 
 **v0.2 (post-launch):**
 - **M5 — Particles:** `hyparquet`, instanced billboards, GPU cull/sort, density-binning fallback, `particleAccessMode` enum, DuckDB dynamic import
@@ -828,17 +875,17 @@ v0.1 = M0–M4 + M6 (writers/export). M5/M7/M8 to v0.2. M9 contingent on rustpic
 2. **Schema codegen drift.** Mitigation: semantic parity (every fixture validates against regenerated + checked-in schema) + additive-compatibility test against prior N versions.
 3. **WebGPU adapter quirks.** Storage texture formats vary; `shader-f16` is Chrome-mostly with Qualcomm exclusion. Mitigation: capability matrix in `gpu/capabilities.ts`, WESL `#if SHADER_F16` for f32 fallback, `?backend=ts` URL override for triage.
 4. **Perf gate may fail.** 256³ × 256 steps at 8 ms is not guaranteed. Mitigation: measure end of M2; defer 512³ to v0.2 with LOD bricks if needed.
-5. **WESL pre-1.0 churn.** Mitigation: exact version pin; raw-WGSL + 80-line custom preprocessor as 1-day swap target if maturity stalls.
-6. **Three.js OffscreenCanvas worker bugs.** History of regressions (r179 broke it, post-#31607 fixed). Mitigation: exact-version pin to a known-good release; worker-vs-main parity smoke test in CI.
+5. **WESL pre-1.0 churn.** Mitigation: the version pin + raw-WGSL preprocessor swap in §Build.
+6. **Three.js OffscreenCanvas worker bugs.** Mitigation: the exact-version pin in §Renderer + worker-vs-main parity smoke test in CI.
 7. **`render/adapters/` god-module risk.** Magviz failure mode. Mitigation: one adapter file per scene concern, boundary-check enforced.
 
 **Open questions for execution time**
 
-- `pypic.server` foundations have shipped (Step 37: Arrow-IPC WebSocket + JSON discovery routes). Step 37a shipped the typed exception hierarchy + additive HTTP `kind` field — v0.2 remote client dispatches on `kind`, not `detail` strings. v0.1 still skips remote support — M6 remains writers/export — but v0.2 remote-client work is now wiring against a real contract rather than co-designing.
-- pypic Step 37b (`attrs.selections` round-trip; symmetric counterpart to `attrs["reduction"]`) is pending. Soft v0.2 dependency for any save/reload-of-session feature that bakes selection state into an exported Zarr store. Live streaming and in-memory selection state are unaffected; track upstream and revisit M6 session-export once it lands.
-- When does rustpic's `plasma-wasm` ship? v0.1 is TS-only compute regardless.
-- The `[webpic]` section landed upstream in all 7 bundled pypic theme TOMLs (version=1; layout, shortcuts, diagnostics, embed) — no longer M0 prep work, just a consumer for webpic's theme loader.
-- `data/writers` ship in v0.1 (M6) for Zarr v3 only — derived-field caching, simulation.toml round-trip, and reduction-provenance preservation (`attrs["reduction"].length_axes` drives SI conversion on integrated fields). Full export to other formats deferred.
+- **`pypic.server` shipped** (Step 37: Arrow-IPC WebSocket + JSON discovery; Step 37a: typed exception hierarchy + HTTP `kind` field). v0.2 remote client dispatches on `kind`, not `detail` strings — now wiring against a real contract, not co-designing. v0.1 still skips remote (M6 = writers/export).
+- **pypic Step 37b** (`attrs.selections` round-trip; symmetric to `attrs["reduction"]`) pending — soft v0.2 dependency for session save/reload that bakes selection state into exported Zarr. Live streaming + in-memory selection unaffected; revisit M6 session-export once it lands.
+- **rustpic `plasma-wasm` timing** — unknown; v0.1 is TS-only compute regardless.
+- **Theme block** — already upstream (see §UI); a consumer concern, not M0 prep.
+- **`data/writers`** ship v0.1 (M6), Zarr v3 only — derived-field caching, `simulation.toml` round-trip, reduction-provenance (see §Data layer). Other formats deferred.
 
 ---
 
