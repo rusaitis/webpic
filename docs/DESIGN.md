@@ -316,7 +316,7 @@ webpic/
 
 **Canonical-name discipline.** `schema/registry.ts` is the *only* label→canonical mapping. Store keys, kernel inputs, remote API params, shader uniforms all use canonical names — `grep B_1` works across all three projects. Aliases resolve at boundaries only (see *Aliases & registry keys*).
 
-**Schema versioning.** `SCHEMA_VERSION = "1.0"` is the single truth (pypic v1.x additive-only; breaking → v2.0). Every persisted artifact (OPFS cache, exported Zarr, saved themes) carries a `schemaVersion` tag; loader has an explicit `migrate(oldVersion, newVersion)` hook (no-op for additive, code for breaking).
+**Schema versioning.** `SCHEMA_VERSION = "1.0"` is the single truth (pypic v1.x additive-only; breaking → v2.0). Every persisted artifact (OPFS field cache, calibration cache, exported Zarr, saved themes) carries a `schemaVersion` tag; loader has an explicit `migrate(oldVersion, newVersion)` hook (no-op for additive, code for breaking).
 
 **Run metadata: `attrs.run` over `attrs.simulation_toml`** (Zarr root carries both; schema.md §4.2):
 - **Prefer `attrs.run`** — JSON-mode `Run.model_dump`, typed fields (`name`, `doi`, `license`, `authors`, `git_sha`, `host`, `funding`, `embargo`, `resources`, `ensemble`, …) — for everything the FieldDataset boundary preserves.
