@@ -1,0 +1,62 @@
+import { Color, Mesh, MeshBasicMaterial } from "three";
+import { describe, expect, it, vi } from "vitest";
+import type { TestScene } from "./scene.ts";
+import { createTestScene } from "./scene.ts";
+
+function meshOf(scene: TestScene["scene"]): Mesh {
+  const first = scene.children[0];
+  if (!(first instanceof Mesh)) throw new Error("test scene has no mesh");
+  return first;
+}
+
+function singleMaterial(mesh: Mesh): MeshBasicMaterial {
+  const material = mesh.material;
+  if (Array.isArray(material)) throw new Error("expected a single material");
+  if (!(material instanceof MeshBasicMaterial)) throw new Error("expected MeshBasicMaterial");
+  return material;
+}
+
+describe("createTestScene", () => {
+  it("builds an identical scene each call (the main/worker parity precondition)", () => {
+    const a = createTestScene();
+    const b = createTestScene();
+
+    for (const key of ["left", "right", "top", "bottom", "near", "far"] as const) {
+      expect(a.camera[key]).toBe(b.camera[key]);
+    }
+    expect(a.scene.children).toHaveLength(1);
+    expect(b.scene.children).toHaveLength(1);
+
+    const ga = meshOf(a.scene).geometry;
+    const gb = meshOf(b.scene).geometry;
+    for (const attr of ["position", "color"] as const) {
+      expect(Array.from(ga.getAttribute(attr).array)).toEqual(
+        Array.from(gb.getAttribute(attr).array),
+      );
+    }
+
+    expect(a.scene.background).toBeInstanceOf(Color);
+    const bgA = a.scene.background as Color;
+    const bgB = b.scene.background as Color;
+    expect(bgA.getHex()).toBe(bgB.getHex());
+
+    a.dispose();
+    b.dispose();
+  });
+
+  it("enables vertex colors so the frame carries a non-trivial pixel spread", () => {
+    const ts = createTestScene();
+    expect(singleMaterial(meshOf(ts.scene)).vertexColors).toBe(true);
+    ts.dispose();
+  });
+
+  it("dispose() releases the geometry and material", () => {
+    const ts = createTestScene();
+    const mesh = meshOf(ts.scene);
+    const geometrySpy = vi.spyOn(mesh.geometry, "dispose");
+    const materialSpy = vi.spyOn(singleMaterial(mesh), "dispose");
+    ts.dispose();
+    expect(geometrySpy).toHaveBeenCalledTimes(1);
+    expect(materialSpy).toHaveBeenCalledTimes(1);
+  });
+});

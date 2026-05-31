@@ -1,0 +1,52 @@
+import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
+
+const DEFAULT_SIZE = 256;
+
+// Seams default to the real DOM/Worker; the handshake test injects fakes so
+// bootstrap runs headless in Node.
+export interface BootstrapOptions {
+  readonly width?: number;
+  readonly height?: number;
+  readonly createCanvas?: () => HTMLCanvasElement;
+  readonly mount?: (canvas: HTMLCanvasElement) => void;
+  readonly spawnWorker?: () => Worker;
+}
+
+export function bootstrap(options: BootstrapOptions = {}): () => void {
+  const width = options.width ?? DEFAULT_SIZE;
+  const height = options.height ?? DEFAULT_SIZE;
+
+  const createCanvas =
+    options.createCanvas ??
+    (() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      return canvas;
+    });
+  const mount = options.mount ?? ((canvas: HTMLCanvasElement) => document.body.appendChild(canvas));
+  const spawnWorker =
+    options.spawnWorker ??
+    // Literal `new Worker(new URL(...))` so Vite emits the worker as its own chunk.
+    (() => new Worker(new URL("../render/worker.ts", import.meta.url), { type: "module" }));
+
+  const canvas = createCanvas();
+  mount(canvas);
+  const offscreen = canvas.transferControlToOffscreen();
+
+  const worker = spawnWorker();
+  worker.onmessage = (event: MessageEvent<RenderWorkerResponse>) => {
+    if (event.data.kind === "error") console.error("[render worker]", event.data.message);
+  };
+
+  const request: RenderWorkerRequest = {
+    kind: "init",
+    requestId: 1,
+    canvas: offscreen,
+    width,
+    height,
+  };
+  worker.postMessage(request, [offscreen]); // transfer the OffscreenCanvas
+
+  return () => worker.terminate();
+}

@@ -1,4 +1,3 @@
-const app = document.querySelector<HTMLDivElement>("#app");
-if (app) {
-  app.textContent = "webpic — toolchain online";
-}
+import { bootstrap } from "@app";
+
+bootstrap();
