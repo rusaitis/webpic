@@ -22,7 +22,7 @@ Goal: toolchain + schema codegen + scaffolds boot; OffscreenCanvas worker alive.
 - [x] 6. OffscreenCanvas-on-Worker scaffold (`transferControlToOffscreen`); main-vs-worker frame-parity test
 - [x] 7. Theme loader — reads `pypic/plotting/themes/*.toml` `[webpic]` block (7 themes, incl. `anuppuccin-light`)
 - [x] 8. OPFS cache w/ `navigator.locks`; writes confined to `data.worker.ts` (worker-only sync handle; Safari <26)
-- [ ] 9. Background backend microbench (seeds dispatcher calibration; scores cached in OPFS by GPU adapter)
+- [x] 9. Background backend microbench (seeds dispatcher calibration; scores cached in OPFS by GPU adapter)
 - [ ] **Exit gate:** cold-start page paint <500 ms; first frame <1500 ms (M2 Pro Chrome stable)
 
 ## M1 — Static slice
