@@ -39,13 +39,15 @@ Goal: read a Zarr store and render one themed orthogonal slice of `|B|`.
 ## M2 — Volume + perf gate
 Goal: single-scalar volume raymarcher hitting the perf gate; time-series scrub.
 - [ ] 1. WESL fragment raymarcher (`NodeMaterial` + `wgslFn`); analytic ray-box, early-α (≥0.98) termination
-- [ ] 2. Transfer-function texture (256×1 `rgba16float`) + window/level via **owned `RangeControl`**
-- [ ] 3. Min-max mipmap (`rg32float`/`rg16float`) empty-space skipping, built on upload
-- [ ] 4. Gradient + Phong central-difference shading (~20 lines WGSL — shape-perception win)
-- [ ] 5. `timestamp-query` diagnostics panel (+ `performance.now` fallback)
-- [ ] 6. Time-series prefetcher `data/prefetch.ts`: EWMA direction + debounce, double-buffered GPU upload
-- [ ] 7. Eager `material.compileAsync` at boot; WESL HMR (edit shader, keep camera pose)
-- [ ] 8. **Package-split checkpoint** — decide: promote `src/<layer>/` → `@webpic/<layer>` packages vs. collapse math-y layers into one `@webpic/core` (see `docs/DESIGN.md` §Package shape)
+- [ ] 2. **`ui/` scaffold** — hideable shell panels + dependency-free `Pane`/`Folder`/`Binding` controls facade (slider/select/checkbox/text, ported from `magviz/src/ui/controls`, no `tweakpane`) + `ControlDescriptor` schema-aware binder. `ui` dispatches typed store intents only — never imports `render` (DAG-enforced); embed renders without `@webpic/ui`. One smoke per panel. *(foundation for M2.3 `RangeControl`, M2.6 diagnostics panel, M6.5 theme switcher)*
+- [ ] 3. Transfer-function texture (256×1 `rgba16float`) + window/level via **owned `RangeControl`**
+- [ ] 4. **`ColormapBinding`** store/schema node — reified colormap registry (mirror `magviz/src/store/schema.ts` field-for-field: `kind`/`label`/`id` discriminators) so magviz session exports round-trip. **Land before v0.1 freeze.**
+- [ ] 5. Min-max mipmap (`rg32float`/`rg16float`) empty-space skipping, built on upload
+- [ ] 6. Gradient + Phong central-difference shading (~20 lines WGSL — shape-perception win)
+- [ ] 7. `timestamp-query` diagnostics panel (+ `performance.now` fallback)
+- [ ] 8. Time-series prefetcher `data/prefetch.ts`: EWMA direction + debounce, double-buffered GPU upload
+- [ ] 9. Eager `material.compileAsync` at boot; WESL HMR (edit shader, keep camera pose)
+- [ ] 10. **Package-split checkpoint** — decide: promote `src/<layer>/` → `@webpic/<layer>` packages vs. collapse math-y layers into one `@webpic/core` (see `docs/DESIGN.md` §Package shape)
 - [ ] **Exit gate:** 256³ × 256-step dataset @ ≤8 ms/frame raymarch on M2 Pro — else defer 512³ to v0.2 + LOD bricks; scrub without stalls
 
 ## M3 — WebGPU compute + parity
