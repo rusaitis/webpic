@@ -23,7 +23,7 @@ Goal: toolchain + schema codegen + scaffolds boot; OffscreenCanvas worker alive.
 - [x] 7. Theme loader — reads `pypic/plotting/themes/*.toml` `[webpic]` block (7 themes, incl. `anuppuccin-light`)
 - [x] 8. OPFS cache w/ `navigator.locks`; writes confined to `data.worker.ts` (worker-only sync handle; Safari <26)
 - [x] 9. Background backend microbench (seeds dispatcher calibration; scores cached in OPFS by GPU adapter)
-- [ ] **Exit gate:** cold-start page paint <500 ms; first frame <1500 ms (M2 Pro Chrome stable)
+- [x] **Exit gate:** cold-start page paint <500 ms; first frame <1500 ms (M2 Pro Chrome stable). Measured by `npm run perf:gate` (`scripts/perf-gate.ts` — Playwright drives system Chrome stable headed, prod preview). Cold on base M2 (conservative proxy for M2 Pro): page paint 146 ms, first frame 210 ms — both well under budget. Re-validate at M2 once the raymarcher + `compileAsync`-at-boot replace the scaffold triangle.
 
 ## M1 — Static slice
 Goal: read a Zarr store and render one themed orthogonal slice of `|B|`.

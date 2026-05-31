@@ -19,6 +19,7 @@
     "lint": "biome check .",
     "lint:ci": "biome ci .",
     "test": "vitest run",
+    "perf:gate": "node scripts/perf-gate.ts",
     "format": "biome format --write ."
   },
   "dependencies": {
@@ -32,6 +33,7 @@
     "@types/three": "^0.184.1",
     "@webgpu/types": "^0.1.70",
     "json-schema-to-zod": "^2.8.1",
+    "playwright-core": "^1.60.0",
     "ts-morph": "^28.0.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.14",

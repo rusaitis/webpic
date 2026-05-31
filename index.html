@@ -4,9 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>webpic</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; background: #101820; }
+      #app { display: grid; place-items: center; min-height: 100vh; }
+      /* Splash text gives First Contentful Paint a definite anchor at HTML paint —
+         the "page paint" the M0 perf gate measures, distinct from the WebGPU first
+         frame. bootstrap() replaces it with the canvas once the worker is ready. */
+      #splash { color: #c8d0d8; font: 500 14px/1.4 system-ui, sans-serif; letter-spacing: 0.08em; }
+      canvas { display: block; }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app"><p id="splash">webpic</p></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

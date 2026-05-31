@@ -201,9 +201,14 @@ export class OpfsCacheStore implements CacheStore {
   }
 
   async list(): Promise<ReadonlyArray<{ readonly path: string; readonly size: number }>> {
-    const root = await navigator.storage.getDirectory();
+    // Walk only the current schema-version subtree so manifest/totalBytes match the
+    // paths buildPath() emits. Stale-version dirs must not inflate the budget — the
+    // M1 LRU can only evict current-version keys, so counting them would wedge the
+    // cache below capacity. The prefix keeps returned paths aligned with buildPath().
+    const versionDir = await resolveDir([SCHEMA_VERSION]);
+    if (versionDir === undefined) return [];
     const out: { path: string; size: number }[] = [];
-    await collectFiles(root, "", out);
+    await collectFiles(versionDir, SCHEMA_VERSION, out);
     return out;
   }
 

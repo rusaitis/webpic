@@ -1,6 +1,7 @@
 import type { Camera, Object3D } from "three";
 import { RenderTarget, RGBAFormat, UnsignedByteType } from "three";
 import { WebGPURenderer } from "three/webgpu";
+import { toTransferablePixels } from "./pixels.ts";
 
 export interface RendererOptions {
   // OffscreenCanvas only: the worker receives a transferred one, the parity test
@@ -58,9 +59,8 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
         opts.height,
       );
       renderer.setRenderTarget(null);
-      return data instanceof Uint8Array
-        ? data
-        : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+      // Compact, offset-0 buffer so the worker can transfer pixels.buffer wholesale.
+      return toTransferablePixels(data);
     },
     dispose() {
       // The gpu-layer device is intentionally NOT destroyed here — its lifetime

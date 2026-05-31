@@ -98,11 +98,13 @@ export function decodeScores(
 // Hardcoded seed so scores exist the instant calibration installs, before any bench
 // completes ("TS backend wins while calibration runs"). webgpu/wasm seeds + the
 // `apple && size < 1<<14 → avoid webgpu` dispatcher exception land with those backends.
+const SEED_THROUGHPUT: Partial<Record<BackendId, number>> = { ts: 1 };
+
 export function seedHeuristics(adapter: GpuAdapterSummary): CalibrationScores {
   return {
     calibrationVersion: CALIBRATION_VERSION,
     adapterKey: adapterKey(adapter),
-    throughput: { ts: 1 },
+    throughput: { ...SEED_THROUGHPUT }, // fresh copy: scores() exposes this mutably
   };
 }
 
@@ -245,7 +247,7 @@ async function runBenchAndPersist(
     calibrationVersion: CALIBRATION_VERSION,
     adapterKey: adapterKey(adapter),
     // Merge over the seed so a backend without a probe keeps its heuristic number.
-    throughput: { ...seedHeuristics(adapter).throughput, ...benched },
+    throughput: { ...SEED_THROUGHPUT, ...benched },
   };
   onScores(scores); // upgrade in-memory scores before persisting
   try {

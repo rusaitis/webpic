@@ -10,6 +10,8 @@ export interface BootstrapOptions {
   readonly createCanvas?: () => HTMLCanvasElement;
   readonly mount?: (canvas: HTMLCanvasElement) => void;
   readonly spawnWorker?: () => Worker;
+  /** Fires when the worker reports its first rendered frame — the perf-gate signal. */
+  readonly onFirstFrame?: () => void;
 }
 
 export function bootstrap(options: BootstrapOptions = {}): () => void {
@@ -24,7 +26,12 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       canvas.height = height;
       return canvas;
     });
-  const mount = options.mount ?? ((canvas: HTMLCanvasElement) => document.body.appendChild(canvas));
+  const mount =
+    options.mount ??
+    ((canvas: HTMLCanvasElement) => {
+      // Replace the FCP splash with the canvas; FCP has already fired on the splash.
+      (document.getElementById("app") ?? document.body).replaceChildren(canvas);
+    });
   const spawnWorker =
     options.spawnWorker ??
     // Literal `new Worker(new URL(...))` so Vite emits the worker as its own chunk.
@@ -36,7 +43,15 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   const worker = spawnWorker();
   worker.onmessage = (event: MessageEvent<RenderWorkerResponse>) => {
-    if (event.data.kind === "error") console.error("[render worker]", event.data.message);
+    const message = event.data;
+    if (message.kind === "ready") {
+      // First GPU frame is up. The mark's startTime is ms since navigation, which
+      // scripts/perf-gate.ts reads alongside First Contentful Paint to check the gate.
+      performance.mark("webpic:first-frame");
+      options.onFirstFrame?.();
+    } else if (message.kind === "error") {
+      console.error("[render worker]", message.message);
+    }
   };
 
   const request: RenderWorkerRequest = {
