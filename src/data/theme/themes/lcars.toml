@@ -1,0 +1,97 @@
+name = "lcars"
+
+[colors]
+background = "#060d1a"
+text = [0.600, 0.850, 0.900, 0.90]
+secondary_text = [0.400, 0.600, 0.700, 0.70]
+grid = [0.150, 0.400, 0.500, 0.12]
+accent = "#d4a843"
+overlay = [0.040, 0.080, 0.140, 0.85]
+overlay_text = [0.600, 0.850, 0.900, 0.90]
+overlay_alt = [0.650, 0.720, 0.780, 0.75]
+overlay_alt_text = [0.050, 0.060, 0.080, 0.90]
+overlay_border = [0.200, 0.500, 0.600, 0.25]
+overlay_alt_border = [0.820, 0.650, 0.260, 0.20]
+track = [0.200, 0.500, 0.600, 0.25]
+track_alt = [0.400, 0.550, 0.600, 0.35]
+
+[colors.cycle]
+values = ["#3ec9d1", "#d4a843", "#5b9bd5", "#e07850", "#45d6a0", "#c084fc", "#f0c674", "#7ecfd6"]
+
+[colormaps]
+sequential = "cividis"
+diverging = "coolwarm"
+
+[font]
+family = ["Helvetica Neue", "Helvetica", "DejaVu Sans", "sans-serif"]
+title = 13.0
+label = 10.5
+tick = 9.5
+overlay = 9.0
+
+[overlay]
+rounding = 0.4
+padding = 0.55
+margin = 0.025
+
+[lines]
+width = 1.4
+arrow_size = 4.0
+arrow_style = "triangle"
+
+[axes]
+x_color = "#e07850"
+y_color = "#3ec9d1"
+z_color = "#d4a843"
+arrows = true
+
+[ticks]
+direction = "in"
+major_length = 3.0
+major_width = 0.4
+minor_length = 1.5
+minor_width = 0.3
+
+[grid]
+major_width = 0.35
+minor_width = 0.2
+style = "solid"
+
+[colorbar]
+width = "4%"
+outline_width = 0.45
+tick_length = 5.0
+pad = 0.05
+
+[progress_bar]
+width = 85.0
+height = 5.0
+rounding = 2.0
+
+[plot]
+rounding = 0.0
+
+# Cross-tool app config consumed by webpic (Three.js/WebGPU viewer).
+# pypic itself ignores this section — see plotting/_theme_io.py.
+[webpic]
+version = 1
+
+[webpic.layout]
+default-panels = ["field", "layers", "diagnostics"]
+docked-side = "left"          # LCARS canon: panels on the left
+panel-collapsed-default = false
+
+[webpic.shortcuts]
+toggle-volume = "V"
+toggle-slices = "S"
+toggle-ui = "F"
+command-palette = "Cmd+K"
+
+[webpic.diagnostics]
+fps-overlay = true
+gpu-memory-overlay = false
+timestamp-query-overlay = false
+
+[webpic.embed]
+banner-on-cors-failure = true
+default-controls-visible = true

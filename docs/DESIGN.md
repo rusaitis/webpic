@@ -116,7 +116,7 @@ embed       ──►  (re-export facade only)      public lib surface; never
 ### First load walkthrough
 
 1. User pastes a Zarr URL → `app/bootstrap.ts` probes WebGPU + acquires a `GPUDevice` (or shows the requires-WebGPU page).
-2. Hardcoded heuristics seed the dispatcher; background calibration kicks off.
+2. Hardcoded heuristics seed the dispatcher; OPFS-cached scores for a known GPU adapter restore instantly, else background calibration kicks off.
 3. `data.worker.ts` fetches `simulation.toml`; Zod validates against the canonical schema.
 4. `simulationStore` populated with dataset metadata, timesteps, and fields.
 5. User clicks `B_1` → `computeField('|B|', dataset, ctx)` resolves through the dispatcher (TS backend wins while calibration runs).
@@ -219,7 +219,8 @@ webpic/
         compute_field.ts          #   computeField(name, dataset, ctx?)
         recipes.ts, recipes.generated.ts
         capabilities.ts           #   per-backend probe
-        calibration.ts            #   background microbench; seeded by adapter heuristics
+        calibration.ts            #   background microbench; seeded by adapter heuristics;
+                                  #   scores persisted to OPFS keyed by GPU adapter
     data/                         # @webpic/data — format adapters
       src/
         readers/
@@ -582,8 +583,9 @@ export function supportsSelectiveRead(reader: SimulationReader): boolean;
 - **OPFS** preferred; **IndexedDB** fallback.
 - Cache key: `(reader, source-URL, step, field, chunk-coords, schemaVersion)`.
 - LRU eviction with configurable budget (default 1 GB).
-- **Safari constraint (canonical):** `createSyncAccessHandle()` is exposed only in dedicated workers (no `createWritable()` on main). **All cache writes happen in `data.worker.ts`;** main thread only issues read requests.
+- **Worker-confined writes (canonical):** all cache writes happen in `data.worker.ts` via `createSyncAccessHandle()` — the synchronous fast path, which is worker-only in every engine. Main thread only issues read requests. *(Safari <26 additionally lacked `createWritable()` entirely, making the worker path mandatory there; Safari 26+ (GA Sept 2025) added it on the main thread, but the worker/sync-handle path stays preferred for perf and covers the Safari 18.x tail.)*
 - **Multi-tab safety:** `navigator.locks.request('webpic-cache', { mode: 'exclusive' })` around cache writes. Losing tab degrades to read-only with UI banner.
+- **Calibration cache (separate namespace):** per-kernel backend scores from `calibration.ts` persist under key `(adapterKey, calibrationVersion, schemaVersion)`, where `adapterKey = GPUAdapterInfo.{vendor, architecture}` — coarse by design (browsers mask finer fields to limit fingerprinting), but a vendor+architecture bucket has stable crossover behavior. Warm start on a known adapter loads scores and **skips the microbench**; miss/stale → seed heuristics + background bench + write-back. Written via `data.worker.ts` like all OPFS writes (the bench itself runs `webgpu` timings on main + `ts` timings in the pool, then hands the aggregated blob to the writer). `calibrationVersion` bumps whenever kernel code or bench methodology changes — timings are otherwise silently stale.
 
 ### Subregion streaming
 A `BoxSelection` from `@webpic/schema` (mirrors `pypic.selections.BoxSelection`) lets callers fetch axis-aligned subregions of a field without pulling the full 3D array. Passed to `readTimestep(handle, step, { fields, region })`. Zarr v3 native; HDF5 via hyperslab; Parquet via row-group + min-max stats. (Reducing a subregion onto a 2-D surface — column densities, LOS integrals — is a separate concern owned by `@webpic/reductions` and the remote `ReductionSpec`; see §"Reduction provenance round-trip".)

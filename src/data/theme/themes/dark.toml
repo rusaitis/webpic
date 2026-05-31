@@ -1,0 +1,85 @@
+name = "dark"
+
+[colors]
+background = "#1e1e1e"
+text = [0.878, 0.878, 0.878, 0.90]
+secondary_text = [0.533, 0.533, 0.533, 0.80]
+grid = [1.000, 1.000, 1.000, 0.08]
+accent = "#f39c12"
+overlay = [0.071, 0.071, 0.071, 0.65]
+overlay_text = [0.878, 0.878, 0.878, 0.80]
+overlay_alt = [0.120, 0.120, 0.120, 0.55]
+overlay_alt_text = [0.878, 0.878, 0.878, 0.80]
+overlay_border = [1.000, 1.000, 1.000, 0.10]
+track = [1.000, 1.000, 1.000, 0.15]
+
+[colors.cycle]
+values = ["#7cb7ff", "#f47067", "#96e072", "#f39c12", "#c74ded", "#00e8c6", "#ff8b6a", "#ffe66d"]
+
+[colormaps]
+sequential = "inferno"
+diverging = "RdBu_r"
+
+[font]
+family = ["DejaVu Serif", "Computer Modern", "Times", "serif"]
+title = 12.0
+label = 11.0
+tick = 10.0
+overlay = 9.0
+
+[overlay]
+rounding = 0.6
+padding = 0.4
+margin = 0.03
+
+[lines]
+width = 1.5
+arrow_size = 4.0
+arrow_style = "triangle"
+
+[axes]
+x_color = "#d63031"
+y_color = "#00b894"
+z_color = "#0984e3"
+arrows = true
+
+[grid]
+major_width = 0.5
+minor_width = 0.3
+style = "solid"
+
+[colorbar]
+width = "4%"
+outline_width = 0.3
+tick_length = 2.0
+pad = 0.05
+
+[progress_bar]
+width = 80.0
+height = 4.0
+rounding = 2.0
+
+# Cross-tool app config consumed by webpic (Three.js/WebGPU viewer).
+# pypic itself ignores this section — see plotting/_theme_io.py.
+[webpic]
+version = 1
+
+[webpic.layout]
+default-panels = ["field", "layers", "diagnostics"]
+docked-side = "right"
+panel-collapsed-default = false
+
+[webpic.shortcuts]
+toggle-volume = "V"
+toggle-slices = "S"
+toggle-ui = "F"
+command-palette = "Cmd+K"
+
+[webpic.diagnostics]
+fps-overlay = true
+gpu-memory-overlay = false
+timestamp-query-overlay = false
+
+[webpic.embed]
+banner-on-cors-failure = true
+default-controls-visible = true

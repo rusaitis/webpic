@@ -1,0 +1,85 @@
+name = "catppuccin-mocha"
+
+[colors]
+background = "#1e1e2e"
+text = [0.804, 0.839, 0.957, 0.90]
+secondary_text = [0.651, 0.678, 0.784, 0.80]
+grid = [0.804, 0.839, 0.957, 0.08]
+accent = "#fab387"
+overlay = [0.067, 0.067, 0.106, 0.65]
+overlay_text = [0.804, 0.839, 0.957, 0.80]
+overlay_alt = [0.100, 0.100, 0.150, 0.55]
+overlay_alt_text = [0.804, 0.839, 0.957, 0.80]
+overlay_border = [0.804, 0.839, 0.957, 0.10]
+track = [0.804, 0.839, 0.957, 0.15]
+
+[colors.cycle]
+values = ["#89b4fa", "#f38ba8", "#a6e3a1", "#fab387", "#cba6f7", "#94e2d5", "#eba0ac", "#f9e2af"]
+
+[colormaps]
+sequential = "inferno"
+diverging = "RdBu_r"
+
+[font]
+family = ["DejaVu Serif", "Computer Modern", "Times", "serif"]
+title = 12.0
+label = 11.0
+tick = 10.0
+overlay = 9.0
+
+[overlay]
+rounding = 0.6
+padding = 0.4
+margin = 0.03
+
+[lines]
+width = 1.5
+arrow_size = 4.0
+arrow_style = "triangle"
+
+[axes]
+x_color = "#d63031"
+y_color = "#00b894"
+z_color = "#0984e3"
+arrows = true
+
+[grid]
+major_width = 0.5
+minor_width = 0.3
+style = "solid"
+
+[colorbar]
+width = "4%"
+outline_width = 0.3
+tick_length = 2.0
+pad = 0.05
+
+[progress_bar]
+width = 80.0
+height = 4.0
+rounding = 2.0
+
+# Cross-tool app config consumed by webpic (Three.js/WebGPU viewer).
+# pypic itself ignores this section — see plotting/_theme_io.py.
+[webpic]
+version = 1
+
+[webpic.layout]
+default-panels = ["field", "layers", "diagnostics"]
+docked-side = "right"
+panel-collapsed-default = false
+
+[webpic.shortcuts]
+toggle-volume = "V"
+toggle-slices = "S"
+toggle-ui = "F"
+command-palette = "Cmd+K"
+
+[webpic.diagnostics]
+fps-overlay = true
+gpu-memory-overlay = false
+timestamp-query-overlay = false
+
+[webpic.embed]
+banner-on-cors-failure = true
+default-controls-visible = true

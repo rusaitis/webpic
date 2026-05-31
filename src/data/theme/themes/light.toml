@@ -1,0 +1,97 @@
+name = "light"
+
+[colors]
+background = "#f8f9fa"
+text = [0.200, 0.200, 0.220, 0.85]
+secondary_text = [0.450, 0.450, 0.470, 0.70]
+grid = [0.000, 0.000, 0.000, 0.05]
+accent = "#6366f1"
+overlay = [0.940, 0.945, 0.960, 0.80]
+overlay_text = [0.200, 0.200, 0.220, 0.75]
+overlay_alt = [0.120, 0.120, 0.140, 0.75]
+overlay_alt_text = [1.0, 1.0, 1.0, 0.90]
+overlay_border = [0.0, 0.0, 0.0, 0.08]
+overlay_alt_border = [1.0, 1.0, 1.0, 0.15]
+track = [0.000, 0.000, 0.000, 0.10]
+track_alt = [0.500, 0.500, 0.500, 0.30]
+
+[colors.cycle]
+values = ["#6366f1", "#ec4899", "#14b8a6", "#f59e0b", "#8b5cf6", "#06b6d4", "#ef4444", "#84cc16"]
+
+[colormaps]
+sequential = "magma"
+diverging = "RdBu_r"
+
+[font]
+family = ["Helvetica Neue", "Helvetica", "DejaVu Sans", "sans-serif"]
+title = 13.0
+label = 11.0
+tick = 10
+overlay = 10
+
+[overlay]
+rounding = 0.4
+padding = 0.7
+margin = 0.02
+
+[lines]
+width = 1.2
+arrow_size = 3.5
+arrow_style = "triangle"
+
+[axes]
+x_color = "#ef4444"
+y_color = "#14b8a6"
+z_color = "#6366f1"
+arrows = true
+
+[ticks]
+direction = "inout"
+major_length = 4.0
+major_width = 1.0
+minor_length = 1.5
+minor_width = 0.3
+
+[grid]
+major_width = 0.3
+minor_width = 0.2
+style = "solid"
+
+[colorbar]
+width = "4%"
+outline_width = 0.2
+tick_length = 5.0
+pad = 0.05
+
+[progress_bar]
+width = 80.0
+height = 6.0
+rounding = 2.0
+
+[plot]
+rounding = 0.04
+
+# Cross-tool app config consumed by webpic (Three.js/WebGPU viewer).
+# pypic itself ignores this section — see plotting/_theme_io.py.
+[webpic]
+version = 1
+
+[webpic.layout]
+default-panels = ["field", "layers", "diagnostics"]
+docked-side = "right"
+panel-collapsed-default = false
+
+[webpic.shortcuts]
+toggle-volume = "V"
+toggle-slices = "S"
+toggle-ui = "F"
+command-palette = "Cmd+K"
+
+[webpic.diagnostics]
+fps-overlay = false              # light theme: less chrome
+gpu-memory-overlay = false
+timestamp-query-overlay = false
+
+[webpic.embed]
+banner-on-cors-failure = true
+default-controls-visible = true

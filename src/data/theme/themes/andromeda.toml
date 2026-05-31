@@ -1,0 +1,85 @@
+name = "andromeda"
+
+[colors]
+background = "#1a1c23"
+text = [0.835, 0.808, 0.851, 0.90]
+secondary_text = [0.604, 0.569, 0.612, 0.80]
+grid = [0.835, 0.808, 0.851, 0.08]
+accent = "#00e8c6"
+overlay = [0.106, 0.114, 0.133, 0.8]
+overlay_text = [0.835, 0.808, 0.851, 0.80]
+overlay_alt = [0.150, 0.160, 0.180, 0.8]
+overlay_alt_text = [0.835, 0.808, 0.851, 0.80]
+overlay_border = [0.835, 0.808, 0.851, 0.10]
+track = [0.835, 0.808, 0.851, 0.15]
+
+[colors.cycle]
+values = ["#00e8c6", "#7cb7ff", "#f92672", "#ffe66d", "#c74ded", "#96e072", "#f39c12", "#ee5d43"]
+
+[colormaps]
+sequential = "inferno"
+diverging = "RdBu_r"
+
+[font]
+family = ["DejaVu Serif", "Computer Modern", "Times", "serif"]
+title = 13.0
+label = 12.0
+tick = 11.0
+overlay = 11.0
+
+[overlay]
+rounding = 0.5
+padding = 0.4
+margin = 0.03
+
+[lines]
+width = 1.5
+arrow_size = 4.0
+arrow_style = "triangle"
+
+[axes]
+x_color = "#d63031"
+y_color = "#00b894"
+z_color = "#0984e3"
+arrows = true
+
+[grid]
+major_width = 0.5
+minor_width = 0.3
+style = "solid"
+
+[colorbar]
+width = "4%"
+outline_width = 0.3
+tick_length = 2.0
+pad = 0.05
+
+[progress_bar]
+width = 80.0
+height = 4.0
+rounding = 2.0
+
+# Cross-tool app config consumed by webpic (Three.js/WebGPU viewer).
+# pypic itself ignores this section — see plotting/_theme_io.py.
+[webpic]
+version = 1
+
+[webpic.layout]
+default-panels = ["field", "layers", "diagnostics"]
+docked-side = "right"
+panel-collapsed-default = false
+
+[webpic.shortcuts]
+toggle-volume = "V"
+toggle-slices = "S"
+toggle-ui = "F"
+command-palette = "Cmd+K"
+
+[webpic.diagnostics]
+fps-overlay = true
+gpu-memory-overlay = false
+timestamp-query-overlay = false
+
+[webpic.embed]
+banner-on-cors-failure = true
+default-controls-visible = true
