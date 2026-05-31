@@ -27,7 +27,7 @@ Goal: toolchain + schema codegen + scaffolds boot; OffscreenCanvas worker alive.
 
 ## M1 — Static slice
 Goal: read a Zarr store and render one themed orthogonal slice of `|B|`.
-- [ ] 1. `data/readers/zarr.ts` (zarrita.js) implementing `SimulationReader` + `FieldListingReader`
+- [x] 1. `data/readers/zarr.ts` (zarrita.js) implementing `SimulationReader` + `FieldListingReader`
 - [ ] 2. `data/readers/_registry.ts` — `registerReader` + `openSimulation()` (confidence-ranked)
 - [ ] 3. `containers/field_dataset.ts` — typed-array-backed `FieldDataset`; destagger to co-located grid on load
 - [ ] 4. `derived/magnitude.ts` registered under canonical `'|B|'`; TS backend in `compute/backends/ts`

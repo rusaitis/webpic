@@ -25,6 +25,7 @@
   "dependencies": {
     "smol-toml": "^1.6.1",
     "three": "0.184.0",
+    "zarrita": "^0.7.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {

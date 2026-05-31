@@ -9,6 +9,20 @@ export {
   installCache,
   MemoryCacheStore,
 } from "./cache.ts";
+export type {
+  ConfidenceFn,
+  DataHandle,
+  FieldListingReader,
+  ReadTimestepOptions,
+  SimulationReader,
+} from "./readers/_protocols.ts";
+export {
+  createZarrConfidence,
+  createZarrReader,
+  type StoreOpener,
+  type ZarrReaderOptions,
+  zarrConfidence,
+} from "./readers/zarr.ts";
 export {
   BUNDLED_THEME_NAMES,
   type BundledThemeName,
