@@ -8,6 +8,7 @@ import type {
 import type { FieldName } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import * as zarr from "zarrita";
+import { destaggerToColocated } from "../stagger.ts";
 import type {
   ConfidenceFn,
   DataHandle,
@@ -27,8 +28,8 @@ import {
 } from "./decode.ts";
 
 // Zarr v3 reader for pypic-blessed stores (mirrors pypic.io.zarr.from_zarr). Produces
-// canonical-named FieldDatasets. Destaggering Yee-mesh components to the co-located
-// grid is M1.3's job — this reader records StaggerInfo and returns data verbatim.
+// canonical-named FieldDatasets, destaggering Yee-mesh components to the co-located grid
+// on load (identity fast-path for already-co-located stores — i.e. every pypic store).
 
 export type StoreOpener = (handle: DataHandle) => zarr.Readable | Promise<zarr.Readable>;
 
@@ -354,7 +355,7 @@ export function createZarrReader(
         metadata: store.metadata,
         step,
       };
-      return dataset;
+      return destaggerToColocated(dataset);
     },
 
     availableFields(handle, _step) {

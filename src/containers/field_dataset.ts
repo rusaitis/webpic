@@ -1,9 +1,9 @@
 import type { FieldMeta, FieldName, Vec3 } from "@schema/types.ts";
 
 // Minimal typed-array-backed dataset container — the shape every reader produces
-// and the math/render layers consume. M1.1 ships the data record only; destaggering
-// to a co-located grid and alias resolution land with the FieldDataset behavior in M1.3.
-// Mirrors pypic.dataset.FieldDataset + pypic.grid.GridInfo.
+// and the math/render layers consume. Destaggering Yee-mesh components to a co-located
+// grid runs on load in @data/stagger.ts (destaggerToColocated). Mirrors
+// pypic.dataset.FieldDataset + pypic.grid.GridInfo.
 
 // pypic CoordinateGeometry plus `thetaMode` (FBPIC RZ). M1.1 carries the tag; the
 // raymarcher/coordinate transforms interpret it later.
