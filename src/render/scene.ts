@@ -7,18 +7,13 @@ import {
   OrthographicCamera,
   Scene,
 } from "three";
+import { BACKGROUND_COLOR, FRUSTUM } from "./constants.ts";
 
 export interface TestScene {
   readonly scene: Scene;
   readonly camera: OrthographicCamera;
   dispose(): void;
 }
-
-// Fixed clear color + camera frustum so worker and main-thread renders are
-// bit-comparable. Values are arbitrary but must stay stable: the parity test
-// diffs the resulting pixels.
-const CLEAR_COLOR = 0x101820;
-const FRUSTUM = { left: -1, right: 1, top: 1, bottom: -1, near: 0.1, far: 10 } as const;
 
 // A single gouraud-shaded triangle. Vertex colors interpolate to a gradient — a
 // dense spread of distinct pixel values, which makes a 1-px parity diff a
@@ -35,7 +30,7 @@ export function createTestScene(): TestScene {
   const mesh = new Mesh(geometry, material);
 
   const scene = new Scene();
-  scene.background = new Color(CLEAR_COLOR);
+  scene.background = new Color(BACKGROUND_COLOR);
   scene.add(mesh);
 
   const camera = new OrthographicCamera(

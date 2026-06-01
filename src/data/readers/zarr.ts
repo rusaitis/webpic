@@ -5,10 +5,10 @@ import type {
   Normalization,
   PhysicsParams,
 } from "@containers/field_dataset.ts";
+import { destaggerToColocated } from "@data/stagger.ts";
 import type { FieldName } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import * as zarr from "zarrita";
-import { destaggerToColocated } from "../stagger.ts";
 import type {
   ConfidenceFn,
   DataHandle,

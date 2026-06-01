@@ -15,7 +15,7 @@ function threeComponentOp(fn: ComponentFn): (inputs: readonly FieldArray[]) => F
   return (inputs) => {
     const [c1, c2, c3] = inputs;
     if (c1 === undefined || c2 === undefined || c3 === undefined) {
-      throw new Error(`magnitude op expects 3 components, got ${inputs.length}`);
+      throw new Error(`ts backend: magnitude op expects 3 components, got ${inputs.length}`);
     }
     return fn(c1.data, c2.data, c3.data);
   };

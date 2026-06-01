@@ -138,14 +138,17 @@ export async function installGpu(options?: GpuRequestOptions): Promise<Installed
   };
 }
 
-export function getDevice(): GPUDevice {
+function requireInstalled(): GpuSingleton {
   if (current === undefined) throw new Error("GPU not installed; call installGpu() first.");
-  return current.device;
+  return current;
+}
+
+export function getDevice(): GPUDevice {
+  return requireInstalled().device;
 }
 
 export function getCapabilities(): GpuCapabilities {
-  if (current === undefined) throw new Error("GPU not installed; call installGpu() first.");
-  return current.capabilities;
+  return requireInstalled().capabilities;
 }
 
 export function onDeviceLost(listener: DeviceLostListener): Unsubscribe {

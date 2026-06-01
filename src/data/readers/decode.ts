@@ -244,7 +244,7 @@ export function decodeGrid(rootAttrs: Record<string, unknown>, source: string): 
   return {
     grid: gridInfo,
     frame: coords.frame ?? "simulation",
-    transforms: (fromJsonNative(coords.transforms ?? {}) as Record<string, unknown>) ?? {},
+    transforms: fromJsonNative(coords.transforms ?? {}) as Record<string, unknown>,
   };
 }
 
@@ -283,7 +283,7 @@ export function decodePhysics(
     gamma: p.gamma_eos ?? p.gamma ?? 5 / 3,
     c: normalization.speedOfLight,
     relativistic: p.relativistic ?? false,
-    extra: (fromJsonNative(p.extra ?? {}) as Record<string, unknown>) ?? {},
+    extra: fromJsonNative(p.extra ?? {}) as Record<string, unknown>,
   };
 }
 

@@ -2,6 +2,7 @@ import { Color, Mesh, OrthographicCamera, PlaneGeometry, Scene } from "three";
 import { texture3D, uniform, uv, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import { colormapNode } from "./colormapNode.ts";
+import { BACKGROUND_COLOR, FRUSTUM } from "./constants.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
 // One orthogonal slice through the shared `uVolume`: a unit quad whose NodeMaterial
@@ -26,9 +27,6 @@ export interface SliceScene {
   readonly camera: OrthographicCamera;
   dispose(): void;
 }
-
-const DEFAULT_BACKGROUND = 0x101820; // shared with createTestScene
-const FRUSTUM = { left: -1, right: 1, top: 1, bottom: -1, near: 0.1, far: 10 } as const;
 
 // Plane uv (a,b) spans the two free axes; `position` fixes the third. Texture coords
 // (x,y,z) = field (axis2, axis1, axis0) — the reverse of axisLabels (createVolumeTexture) —
@@ -68,7 +66,7 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   const mesh = new Mesh(geometry, material);
 
   const scene = new Scene();
-  scene.background = new Color(opts.background ?? DEFAULT_BACKGROUND);
+  scene.background = new Color(opts.background ?? BACKGROUND_COLOR);
   scene.add(mesh);
 
   const camera = new OrthographicCamera(

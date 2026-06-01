@@ -19,6 +19,7 @@ import {
 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import { colormapNode } from "./colormapNode.ts";
+import { BACKGROUND_COLOR } from "./constants.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
 // Single-pass volume raymarcher over the shared `uVolume`: front faces of a unit box spawn
@@ -44,7 +45,6 @@ export interface RaymarchScene {
   dispose(): void;
 }
 
-const DEFAULT_BACKGROUND = 0x101820; // shared with createTestScene / createSliceScene
 const DEFAULT_STEPS = 256; // perf-gate depth; mipmap empty-space skipping comes later
 const EARLY_ALPHA = 0.98;
 
@@ -122,7 +122,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   const mesh = new Mesh(geometry, material);
 
   const scene = new Scene();
-  scene.background = new Color(opts.background ?? DEFAULT_BACKGROUND);
+  scene.background = new Color(opts.background ?? BACKGROUND_COLOR);
   scene.add(mesh);
 
   // aspect = 1: render targets are square today; thread width/height through when camera/resize
