@@ -1,61 +1,10 @@
-import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
-import { fieldInfo } from "@schema/registry.ts";
 import { describe, expect, it } from "vitest";
+import { fieldArray, makeDataset, vectorTriple } from "../../../../tests/fixtures.ts";
 import { computeRecipeTs } from "./index.ts";
-
-function fieldArray(name: string, data: Float64Array, shape: number[]): FieldArray {
-  const meta = fieldInfo(name);
-  return { data, shape, meta, units: meta.siUnit, latex: meta.latex, reduction: null };
-}
-
-const DUMMY_GRID: GridInfo = {
-  dimensions: [1],
-  spacing: [1],
-  origin: [0],
-  geometry: "cartesian",
-  axisLabels: ["x"],
-  dt: null,
-  boundary: null,
-  survivingAxes: null,
-  stagger: null,
-};
-
-function makeDataset(fields: Record<string, FieldArray>): FieldDataset {
-  return {
-    fields: new Map(Object.entries(fields)),
-    grid: DUMMY_GRID,
-    normalization: {
-      lengthRef: 1,
-      timeRef: 1,
-      velocityRef: 1,
-      bFieldRef: 1,
-      eFieldRef: 1,
-      densityRef: 1,
-      massRef: 1,
-      chargeRef: 1,
-      speedOfLight: Number.POSITIVE_INFINITY,
-    },
-    species: [],
-    physics: { gamma: 5 / 3, c: Number.POSITIVE_INFINITY, relativistic: false, extra: {} },
-    frame: "simulation",
-    transforms: {},
-    metadata: {},
-    step: 0,
-  };
-}
-
-// Build a single-cell dataset with the three components of a vector quantity set to (3,4,0).
-function triple(prefix: string): FieldDataset {
-  return makeDataset({
-    [`${prefix}_1`]: fieldArray(`${prefix}_1`, new Float64Array([3]), [1]),
-    [`${prefix}_2`]: fieldArray(`${prefix}_2`, new Float64Array([4]), [1]),
-    [`${prefix}_3`]: fieldArray(`${prefix}_3`, new Float64Array([0]), [1]),
-  });
-}
 
 describe("computeRecipeTs", () => {
   it("computes |B| from B_1/B_2/B_3 with canonical output metadata", () => {
-    const out = computeRecipeTs("|B|", triple("B"));
+    const out = computeRecipeTs("|B|", vectorTriple("B"));
     expect(Array.from(out.data)).toEqual([5]);
     expect(out.shape).toEqual([1]);
     expect(out.meta.quantityType).toBe("b_field");
@@ -71,7 +20,7 @@ describe("computeRecipeTs", () => {
     ["|J|", "J"],
     ["|V|", "V"],
   ] as const)("computes %s across the magnitude family", (recipe, prefix) => {
-    expect(Array.from(computeRecipeTs(recipe, triple(prefix)).data)).toEqual([5]);
+    expect(Array.from(computeRecipeTs(recipe, vectorTriple(prefix)).data)).toEqual([5]);
   });
 
   it("throws when a required input field is absent", () => {

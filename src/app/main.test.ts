@@ -1,7 +1,6 @@
-import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
-import { fieldInfo } from "@schema/registry.ts";
 import { describe, expect, it } from "vitest";
+import { vectorTriple } from "../../tests/fixtures.ts";
 import { bootstrap } from "./main.ts";
 
 interface Post {
@@ -9,57 +8,8 @@ interface Post {
   readonly transfer: Transferable[] | undefined;
 }
 
-const DUMMY_GRID: GridInfo = {
-  dimensions: [1, 1, 1],
-  spacing: [1, 1, 1],
-  origin: [0, 0, 0],
-  geometry: "cartesian",
-  axisLabels: ["x", "y", "z"],
-  dt: null,
-  boundary: null,
-  survivingAxes: null,
-  stagger: null,
-};
-
-// Single-cell B = (3, 4, 0) so |B| = 5 — a deterministic stand-in for the synthetic scaffold.
-function tinyDataset(): FieldDataset {
-  const component = (name: string, value: number): FieldArray => {
-    const meta = fieldInfo(name);
-    return {
-      data: new Float32Array([value]),
-      shape: [1, 1, 1],
-      meta,
-      units: meta.siUnit,
-      latex: meta.latex,
-      reduction: null,
-    };
-  };
-  return {
-    fields: new Map([
-      ["B_1", component("B_1", 3)],
-      ["B_2", component("B_2", 4)],
-      ["B_3", component("B_3", 0)],
-    ]),
-    grid: DUMMY_GRID,
-    normalization: {
-      lengthRef: 1,
-      timeRef: 1,
-      velocityRef: 1,
-      bFieldRef: 1,
-      eFieldRef: 1,
-      densityRef: 1,
-      massRef: 1,
-      chargeRef: 1,
-      speedOfLight: Number.POSITIVE_INFINITY,
-    },
-    species: [],
-    physics: { gamma: 1, c: Number.POSITIVE_INFINITY, relativistic: false, extra: {} },
-    frame: "lab",
-    transforms: {},
-    metadata: {},
-    step: 0,
-  };
-}
+// Single-cell B = (3, 4, 0) so |B| = 5; f32 so the showSlice payload keeps the f32 dtype.
+const tinyDataset = () => vectorTriple("B", { array: Float32Array, dims: [1, 1, 1] });
 
 describe("bootstrap OffscreenCanvas handshake", () => {
   it("transfers the OffscreenCanvas to the worker inside an init message", () => {
