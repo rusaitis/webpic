@@ -33,7 +33,7 @@ Goal: read a Zarr store and render one themed orthogonal slice of `|B|`.
 - [x] 4. `derived/magnitude.ts` registered under canonical `'|B|'`; TS backend in `compute/backends/ts`
 - [x] 5. `render`: one orthogonal `Mesh` (`NodeMaterial` sampling `uVolume`) with themed colormap
 - [x] 6. `computeField('|B|', dataset)` wired store → compute → render end-to-end
-- [ ] 7. Schema-parity test (`pypic schema diff` + regenerated-vs-checked-in Zod) + additive-compat test
+- [x] 7. Schema-parity test (`pypic schema diff` + regenerated-vs-checked-in Zod) + additive-compat test
 - [ ] **Exit gate:** `computeField('|B|')` end-to-end; schema-parity + additive-compat green
 
 ## M2 — Volume + perf gate
