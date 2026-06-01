@@ -31,7 +31,7 @@ Goal: read a Zarr store and render one themed orthogonal slice of `|B|`.
 - [x] 2. `data/readers/_registry.ts` — `registerReader` + `openSimulation()` (confidence-ranked)
 - [x] 3. `data/stagger.ts` — destagger Yee components to the co-located grid on load (`destaggerToColocated`, wired into the Zarr reader behind a no-op fast path); typed-array-backed `FieldDataset` consumed verbatim
 - [x] 4. `derived/magnitude.ts` registered under canonical `'|B|'`; TS backend in `compute/backends/ts`
-- [ ] 5. `render`: one orthogonal `Mesh` (`NodeMaterial` sampling `uVolume`) with themed colormap
+- [x] 5. `render`: one orthogonal `Mesh` (`NodeMaterial` sampling `uVolume`) with themed colormap
 - [ ] 6. `computeField('|B|', dataset)` wired store → compute → render end-to-end
 - [ ] 7. Schema-parity test (`pypic schema diff` + regenerated-vs-checked-in Zod) + additive-compat test
 - [ ] **Exit gate:** `computeField('|B|')` end-to-end; schema-parity + additive-compat green
