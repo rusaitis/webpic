@@ -1,13 +1,13 @@
 import type { FieldArray } from "@containers/field_dataset.ts";
 import { Color, Mesh, OrthographicCamera, PlaneGeometry, Scene } from "three";
-import { clamp, texture3D, uniform, uv, vec3 } from "three/tsl";
+import { texture3D, uniform, uv, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import { colormapNode } from "./colormapNode.ts";
 import { createVolumeTexture } from "./volumeTexture.ts";
 
 // One orthogonal slice through the shared `uVolume`: a unit quad whose NodeMaterial
 // samples the 3D texture at a plane, normalizes the scalar, and maps it through a themed
-// colormap. M2 adds the raymarcher + the other two slices against the same texture.
+// colormap. A volume raymarcher and further slices can sample the same texture.
 
 export type SliceAxis = "x" | "y" | "z";
 
@@ -60,7 +60,7 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
 
   const coord = sliceCoord(opts.axis, uv().x, uv().y, uPosition);
   const raw = texture3D(volume.texture, coord).r;
-  const normalized = clamp(raw.sub(uMin).div(uMax.sub(uMin)), 0, 1);
+  const normalized = raw.sub(uMin).div(uMax.sub(uMin)); // colormapNode clamps to [0,1]
 
   const material = new NodeMaterial();
   material.colorNode = colormapNode(opts.colormap)(normalized);

@@ -1,12 +1,9 @@
-// Pure analytic colormaps — the THREE-free source of truth for both the CPU
-// reference (Node-testable) and the TSL node (colormapNode.ts), which re-encodes the
-// same coefficients so GPU output matches this within rounding. Each map is a degree-6
+// Pure analytic colormaps — the THREE-free source of truth for both the CPU reference
+// (Node-testable) and the TSL node (colormapNode.ts), which re-encodes the same
+// coefficients so GPU output matches this within rounding. Each map is a degree-6
 // polynomial fit to the matplotlib perceptually-uniform sequentials (Matt Zucker,
-// https://www.shadertoy.com/view/WlfXRN), evaluated in Horner form per channel.
-//
-// M1.5 colors a sequential magnitude (|B|); the exact 256-entry LUT and diverging maps
-// arrive with the M2.3 transfer-function texture. Unknown names fall back to the theme
-// default (inferno).
+// https://www.shadertoy.com/view/WlfXRN), evaluated in Horner form per channel. Unknown
+// names fall back to the default sequential (inferno).
 
 export type Rgb = readonly [number, number, number];
 export type ColormapName = "inferno" | "viridis" | "plasma" | "magma";
