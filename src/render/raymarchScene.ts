@@ -91,6 +91,8 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     const accumAlpha = float(0).toVar();
 
     Loop({ type: "float", start: bounds.x, end: bounds.y, update: dt }, () => {
+      // Object [-0.5,0.5]³ → texture [0,1]³. Texture axes are the reverse of field axes
+      // (volumeTexture C-order): object x/y/z ↔ field axis 2/1/0 — the same reversal sliceScene maps.
       const sample = texture3D(volume.texture, pos.add(0.5)).r;
       const t = sample.sub(uMin).div(uMax.sub(uMin)).saturate();
       const sampleAlpha = t.mul(uDensity).mul(dt).saturate();
@@ -106,7 +108,8 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     // accumColor is premultiplied (Σ color·α·weight); un-premultiply so the default normal
     // blend (src·α + dst·(1−α)) composites it correctly over the cleared background.
     return vec4(accumColor.div(max(accumAlpha, 1e-4)), accumAlpha);
-  })();
+    // One shared temp: colorNode/opacityNode read .rgb/.a from it, so the march runs once.
+  })().toVar();
 
   const material = new NodeMaterial();
   material.colorNode = rgba.rgb;
@@ -122,6 +125,8 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   scene.background = new Color(opts.background ?? DEFAULT_BACKGROUND);
   scene.add(mesh);
 
+  // aspect = 1: render targets are square today; thread width/height through when camera/resize
+  // handling lands so non-square viewports don't stretch.
   const camera = new PerspectiveCamera(45, 1, 0.01, 10);
   camera.position.set(1.4, 1.1, 1.6);
   camera.lookAt(0, 0, 0);
