@@ -4,7 +4,7 @@ Check off `[ ]` → `[x]` as steps land. The `/tasks` skill summarizes progress;
 Full rationale for every step: **`docs/DESIGN.md`** (read on demand — not auto-loaded).
 
 **v0.1 = M0–M4 + M6.** v0.1 deliberately skips M5 (particles → v0.2): the sequence is M4 → M6.
-**Current milestone: M0.**
+**Current milestone: M2.**
 
 > **Scope-risk decision point — M2 exit:** if M2 slips materially, first cut
 > **M4 (streamlines)** to v0.2 — slice + volume is already a useful viewer. Cut M6 only if the Zarr
@@ -34,7 +34,7 @@ Goal: read a Zarr store and render one themed orthogonal slice of `|B|`.
 - [x] 5. `render`: one orthogonal `Mesh` (`NodeMaterial` sampling `uVolume`) with themed colormap
 - [x] 6. `computeField('|B|', dataset)` wired store → compute → render end-to-end
 - [x] 7. Schema-parity test (`pypic schema diff` + regenerated-vs-checked-in Zod) + additive-compat test
-- [ ] **Exit gate:** `computeField('|B|')` end-to-end; schema-parity + additive-compat green
+- [x] **Exit gate:** `computeField('|B|')` end-to-end; schema-parity + additive-compat green. Verified: typecheck/boundaries/lint clean, 188 tests pass, schema-parity + additive-compat green vs live pypic (`WEBPIC_PYPIC_PARITY=1`).
 
 ## M2 — Volume + perf gate
 Goal: single-scalar volume raymarcher hitting the perf gate; time-series scrub.
