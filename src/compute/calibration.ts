@@ -4,9 +4,9 @@ import { z } from "zod";
 // Background backend microbench + calibration cache. On install: warm-start from
 // cached per-adapter scores (skip the bench), else seed hardcoded heuristics so the
 // dispatcher has scores immediately while a background bench refines them and writes
-// back. The dispatcher (M3) consumes these scores; at M0 there is no dispatcher and
-// only the `ts` path is real, so the bench times one synthetic magnitude probe that
-// M1's real |B| kernel replaces. See docs/DESIGN.md §Caching + first-load walkthrough.
+// back. The dispatcher consumes these scores; there is no dispatcher yet and only the
+// `ts` path is real, so the bench times one synthetic magnitude probe that the real
+// |B| kernel will replace. See docs/DESIGN.md §Caching + first-load walkthrough.
 //
 // `compute` may not import `data` (DAG), so the OPFS cache is injected as a structural
 // port (CalibrationCache) — the real @data Cache is assignable; the app wires it.
@@ -19,7 +19,7 @@ export type BackendId = "ts" | "wasm" | "webgpu";
 export interface CalibrationScores {
   readonly calibrationVersion: string;
   readonly adapterKey: string;
-  /** Throughput in Melem/s (higher = faster). Partial: only `ts` exists at M0. */
+  /** Throughput in Melem/s (higher = faster). Partial: only `ts` exists currently. */
   readonly throughput: Partial<Record<BackendId, number>>;
 }
 
@@ -108,7 +108,7 @@ export function seedHeuristics(adapter: GpuAdapterSummary): CalibrationScores {
   };
 }
 
-// Placeholder probe — replaced by the real |B| `ts` backend at M1. Times a
+// Placeholder probe — to be replaced by the real |B| `ts` backend. Times a
 // representative typed-array magnitude (sqrt(x²+y²+z²) over three reused
 // Float32Arrays); validates the pipeline end-to-end, not yet a dispatch-quality signal.
 function syntheticMagnitudeProbe(): BenchKernel {

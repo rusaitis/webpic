@@ -2,7 +2,7 @@ import { parseTheme, type Theme } from "@schema";
 
 // Bundled themes: synced verbatim from pypic by scripts/sync-themes.ts and inlined at
 // build time (no runtime fetch — keeps the cold-start budget). Custom themes go
-// through parseTheme() directly (e.g. a user file drop; the picker UI is the M6 switcher).
+// through parseTheme() directly (e.g. a user file drop; the picker UI is the theme switcher).
 const RAW_THEMES = import.meta.glob("./themes/*.toml", {
   query: "?raw",
   import: "default",

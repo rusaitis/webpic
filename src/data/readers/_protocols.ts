@@ -3,7 +3,7 @@ import type { FieldName } from "@schema/types.ts";
 
 // Stackable reader protocols (mirrors pypic.readers). Readers implement whichever
 // subset they support; structural typing, no inheritance. The confidence probe that
-// ranks readers belongs to the registry (M1.2 _registry.ts), not the reader — so a
+// ranks readers belongs to the registry (_registry.ts), not the reader — so a
 // reader stays protocol-shaped and registration carries the probe.
 
 // Format-agnostic source locator. A plain serializable value (it lives in the store),
@@ -36,6 +36,6 @@ export interface FieldListingReader {
   availableFieldsMapping(handle: DataHandle, step: number): Promise<Record<string, string | null>>;
 }
 
-// Registry-side dispatch (registerReader/openSimulation) lives in M1.2's _registry.ts;
+// Registry-side dispatch (registerReader/openSimulation) lives in _registry.ts;
 // the probe type is defined here so readers can export a confidence function now.
 export type ConfidenceFn = (handle: DataHandle) => Promise<number>;

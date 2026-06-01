@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { type BrowserContext, chromium } from "playwright-core";
 import { build, preview } from "vite";
 
-// M0 exit gate: cold-start page paint <500 ms; first frame <1500 ms (M2 Pro Chrome
-// stable). Builds the production bundle, serves it via `vite preview` (so COOP/COEP
+// Foundation exit gate: cold-start page paint <500 ms; first frame <1500 ms (M2 Pro
+// Chrome stable). Builds the production bundle, serves it via `vite preview` (so COOP/COEP
 // and the worker chunking match prod), then drives the *installed* Chrome stable —
 // headed, because headless WebGPU on macOS/Metal is unreliable (DESIGN §CI). The gate
 // is judged on the cold profile; warm is reported for context. Run: `npm run perf:gate`.
@@ -110,7 +110,7 @@ async function main(): Promise<void> {
     const paintPass = cold.fcpMs !== null && cold.fcpMs < PAGE_PAINT_BUDGET_MS;
     const framePass = cold.firstFrameMs !== null && cold.firstFrameMs < FIRST_FRAME_BUDGET_MS;
 
-    console.log("\nwebpic M0 perf gate — Chrome stable, headed, production preview");
+    console.log("\nwebpic perf gate — Chrome stable, headed, production preview");
     console.log(
       `(this machine is a base Apple M2; the gate targets M2 Pro, so a pass here is conservative)\n`,
     );
@@ -129,10 +129,10 @@ async function main(): Promise<void> {
       console.error("\n✖ navigator.gpu absent — WebGPU unavailable in the launched Chrome.");
     }
     if (!paintPass || !framePass) {
-      console.error("\n✖ M0 exit gate FAILED on the cold profile.");
+      console.error("\n✖ exit gate FAILED on the cold profile.");
       exitCode = 1;
     } else {
-      console.log("\n✓ M0 exit gate PASSED on the cold profile.");
+      console.log("\n✓ exit gate PASSED on the cold profile.");
     }
   } catch (error) {
     console.error(`\n✖ ${(error as Error).message}`);

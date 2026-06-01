@@ -1,5 +1,5 @@
 import type { FieldArray, FieldDataset, GridInfo, StaggerInfo } from "@containers/field_dataset.ts";
-import type { FieldName } from "@schema/types.ts";
+import type { FieldName, FloatArray } from "@schema/types.ts";
 
 // Destagger Yee-mesh fields to a co-located cell-centered grid on load. Mirrors
 // pypic._stagger: linear half-cell averaging driven by the openPMD ED-PIC `position`
@@ -7,8 +7,6 @@ import type { FieldName } from "@schema/types.ts";
 // cell-center target is half-cell averaged (0.5*(arr[:-1] + arr[1:])), shrinking that axis
 // by one element. Offsets must be 0.0 or 0.5 — divergence-preserving constrained-transport
 // reconstruction (vector-potential schemes) is out of scope.
-
-type FloatArray = Float32Array | Float64Array;
 
 const CELL_CENTER = 0.5;
 const OFFSET_ATOL = 1e-9;

@@ -111,7 +111,7 @@ const ColorSchema = z
   });
 
 // pypic stores colormap preference as a single name or a fallback list; we take the
-// first (highest-preference) name. Matplotlib-name resolution to a LUT is M1/M2 work.
+// first (highest-preference) name. Matplotlib-name resolution to a LUT is future work.
 const ColormapName = z
   .union([z.string(), z.array(z.string()).nonempty()])
   .transform((value) => (typeof value === "string" ? value : value[0]));

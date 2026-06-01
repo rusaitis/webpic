@@ -1,7 +1,7 @@
 // Vector-field magnitudes — |B|, |E|, |J|, |V|. Pure typed-array math, mirrors
 // pypic.derived (_vector_magnitude + the per-quantity wrappers the compute recipes bind to).
 
-type FloatArray = Float32Array | Float64Array;
+import type { FloatArray } from "@schema/types.ts";
 
 /**
  * Euclidean magnitude of a 3-component vector field: `sqrt(c1² + c2² + c3²)`, elementwise.

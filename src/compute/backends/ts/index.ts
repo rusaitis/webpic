@@ -1,12 +1,13 @@
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import { fieldInfo } from "@schema/registry.ts";
+import type { FloatArray } from "@schema/types.ts";
 import { RECIPES, type RecipeKey } from "../../recipes.generated.ts";
 import { MAGNITUDE_FIELD_OPS } from "./magnitude.ts";
 
-export type TsFieldOp = (inputs: readonly FieldArray[]) => Float32Array | Float64Array;
+export type TsFieldOp = (inputs: readonly FieldArray[]) => FloatArray;
 
 // func-name → TS implementation. Each backend binds the codegen'd recipe `func` strings to
-// its own kernels; the WebGPU backend (M3) binds the same names to WGSL.
+// its own kernels; the WebGPU backend binds the same names to WGSL.
 const TS_FIELD_OPS: Record<string, TsFieldOp> = { ...MAGNITUDE_FIELD_OPS };
 
 function sameShape(a: readonly number[], b: readonly number[]): boolean {
@@ -20,7 +21,7 @@ function sameShape(a: readonly number[], b: readonly number[]): boolean {
 /**
  * Run recipe `name` on the TS backend: gather its inputs from `dataset`, run the bound op,
  * and package the result as a `FieldArray` (magnitude preserves component units; output meta
- * comes from the canonical registry). M1.4 supports the flag-free magnitude family — recipes
+ * comes from the canonical registry). Supports the flag-free magnitude family — recipes
  * needing grid/gamma/c, a component slice, or species args throw until those ops land.
  */
 export function computeRecipeTs(name: RecipeKey, dataset: FieldDataset): FieldArray {

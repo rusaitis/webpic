@@ -1,16 +1,17 @@
-import type { FieldMeta, FieldName, Vec3 } from "@schema/types.ts";
+import type { FieldMeta, FieldName, FloatArray, Vec3 } from "@schema/types.ts";
 
 // Minimal typed-array-backed dataset container — the shape every reader produces
 // and the math/render layers consume. Destaggering Yee-mesh components to a co-located
 // grid runs on load in @data/stagger.ts (destaggerToColocated). Mirrors
 // pypic.dataset.FieldDataset + pypic.grid.GridInfo.
 
-// pypic CoordinateGeometry plus `thetaMode` (FBPIC RZ). M1.1 carries the tag; the
+// pypic CoordinateGeometry plus `thetaMode` (FBPIC RZ). Carries the tag; the
 // raymarcher/coordinate transforms interpret it later.
 export type GeometryType = "cartesian" | "spherical" | "cylindrical" | "thetaMode";
 
 // Decoded pypic StaggerInfo (the __pypic_class__:"StaggerInfo" sentinel). Recorded
-// verbatim so M1.3's destagger can map Yee-mesh components to the co-located grid.
+// verbatim so the load-time destagger (@data/stagger.ts) can map Yee-mesh components
+// to the co-located grid.
 export interface StaggerInfo {
   readonly convention: "cell" | "node" | "staggered";
   readonly fieldLocations: Readonly<Record<string, string>> | null;
@@ -19,8 +20,8 @@ export interface StaggerInfo {
   readonly notes: string | null;
 }
 
-// pypic.reductions reduction-provenance block, preserved verbatim for the M6
-// round-trip. Optional keys are omitted (never set to undefined) to satisfy
+// pypic.reductions reduction-provenance block, preserved verbatim for the reduction
+// round-trip on write. Optional keys are omitted (never set to undefined) to satisfy
 // exactOptionalPropertyTypes.
 export type ReductionOp =
   | "integrate"
@@ -80,7 +81,7 @@ export interface PhysicsParams {
 // One field, in row-major C order. Disk dtype preserved (f32 for render, f64 for the
 // TS compute reference); consumers downcast at their own boundary. `shape` excludes time.
 export interface FieldArray {
-  readonly data: Float32Array | Float64Array;
+  readonly data: FloatArray;
   readonly shape: readonly number[];
   readonly meta: FieldMeta;
   readonly units: string;
@@ -92,7 +93,7 @@ export interface FieldDataset {
   readonly fields: ReadonlyMap<FieldName, FieldArray>;
   readonly grid: GridInfo;
   readonly normalization: Normalization;
-  // species/transforms/metadata stay opaque-but-decoded in M1.1; tightened to typed
+  // species/transforms/metadata stay opaque-but-decoded for now; tightened to typed
   // SpeciesInfo/FrameTransform when compute/render need them.
   readonly species: ReadonlyArray<Readonly<Record<string, unknown>>>;
   readonly physics: PhysicsParams;

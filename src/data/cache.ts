@@ -3,7 +3,7 @@ import { SCHEMA_VERSION } from "@schema/version.ts";
 // OPFS-backed key→bytes cache. Reads run async on the main thread; writes are
 // dispatched to data.worker.ts, which holds the createSyncAccessHandle() fast path
 // (worker-only in every engine) under an exclusive web-lock for multi-tab safety.
-// See docs/DESIGN.md §Caching. LRU eviction + an IndexedDB fallback land in M1 with
+// See docs/DESIGN.md §Caching. LRU eviction + an IndexedDB fallback are planned for
 // the first consumer that needs them (the Zarr field cache).
 
 export interface CacheKeyParts {
@@ -51,7 +51,7 @@ export interface CacheOptions {
   readonly store?: CacheStore;
   /** Override worker creation; defaults to spawning data.worker.ts. */
   readonly spawnWorker?: () => Worker;
-  /** Soft byte budget; tracked in M0, enforced once LRU lands. */
+  /** Soft byte budget; tracked now, enforced once LRU lands. */
   readonly budgetBytes?: number;
 }
 
@@ -203,7 +203,7 @@ export class OpfsCacheStore implements CacheStore {
   async list(): Promise<ReadonlyArray<{ readonly path: string; readonly size: number }>> {
     // Walk only the current schema-version subtree so manifest/totalBytes match the
     // paths buildPath() emits. Stale-version dirs must not inflate the budget — the
-    // M1 LRU can only evict current-version keys, so counting them would wedge the
+    // planned LRU can only evict current-version keys, so counting them would wedge the
     // cache below capacity. The prefix keeps returned paths aligned with buildPath().
     const versionDir = await resolveDir([SCHEMA_VERSION]);
     if (versionDir === undefined) return [];
@@ -233,7 +233,7 @@ function selectStore(options: CacheOptions): CacheStore {
     return new OpfsCacheStore(options.spawnWorker ?? defaultSpawnWorker);
   }
   // No OPFS (Node tests, sandboxed contexts): non-persistent degradation. IndexedDB
-  // is the future persistent fallback (deferred to M1 — see docs/DESIGN.md §Caching).
+  // is the future persistent fallback (deferred — see docs/DESIGN.md §Caching).
   return new MemoryCacheStore();
 }
 
@@ -261,7 +261,7 @@ export async function installCache(options: CacheOptions = {}): Promise<Cache> {
       manifest.set(path, bytes.byteLength);
       totalBytes += bytes.byteLength;
       if (totalBytes > budgetBytes) {
-        // TODO(M1): LRU eviction — DESIGN §Caching. The field cache is the first
+        // TODO: LRU eviction — DESIGN §Caching. The field cache is the first
         // consumer to approach the budget; calibration scores never trip it.
       }
     },

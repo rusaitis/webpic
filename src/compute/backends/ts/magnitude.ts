@@ -5,8 +5,8 @@ import {
   magneticFieldMagnitude,
   velocityMagnitude,
 } from "@derived/magnitude.ts";
+import type { FloatArray } from "@schema/types.ts";
 
-type FloatArray = Float32Array | Float64Array;
 type ComponentFn = (c1: FloatArray, c2: FloatArray, c3: FloatArray) => FloatArray;
 
 // Wrap a (c1,c2,c3) derived fn into an op over input FieldArrays. Destructured rather than

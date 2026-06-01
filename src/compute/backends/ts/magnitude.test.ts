@@ -92,7 +92,7 @@ describe("computeRecipeTs", () => {
   });
 
   it("throws for a recipe with no TS op bound", () => {
-    // `beta` (plasma_beta) is flag-free but unimplemented on the TS backend in M1.4; the op
+    // `beta` (plasma_beta) is flag-free but unimplemented on the TS backend; the op
     // lookup fails before inputs are gathered, so an empty dataset suffices.
     expect(() => computeRecipeTs("beta", makeDataset({}))).toThrow(/no TS op bound/);
   });

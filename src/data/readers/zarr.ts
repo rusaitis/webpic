@@ -160,6 +160,7 @@ async function openPypicStore(
     store,
     signal === undefined ? { kind: "group" } : { kind: "group", signal },
   );
+  // zarrita types Group.attrs loosely; a pypic store writes a JSON object at the root.
   const rootAttrs = root.attrs as Record<string, unknown>;
   assertPypicSchema(rootAttrs, source);
 
@@ -179,7 +180,7 @@ async function openPypicStore(
   const { grid, frame, transforms } = decodeGrid(rootAttrs, source);
   const normalization = decodeNormalization(rootAttrs, source);
   const physics = decodePhysics(rootAttrs, normalization, source);
-  // species/metadata are carried verbatim (decoded), typed opaque in M1.1.
+  // species/metadata are carried verbatim (decoded), typed opaque for now.
   const species = (fromJsonNative(rootAttrs.species ?? []) ?? []) as ReadonlyArray<
     Readonly<Record<string, unknown>>
   >;
@@ -371,7 +372,7 @@ export function createZarrReader(
   };
 }
 
-// Cheap probe for the M1.2 registry: a pypic store iff schema.version matches and a
+// Cheap probe for the reader registry: a pypic store iff schema.version matches and a
 // /fields group exists (metadata-only, no chunk reads). Injectable for testing.
 export function createZarrConfidence(openStore: StoreOpener = defaultOpenStore): ConfidenceFn {
   return async (handle) => {

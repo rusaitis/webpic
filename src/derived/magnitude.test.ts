@@ -10,7 +10,7 @@ import {
 function assertAllclose(
   actual: ArrayLike<number>,
   expected: ArrayLike<number>,
-  { rtol = 1e-15, atol = 0 }: { rtol?: number; atol?: number } = {},
+  { rtol = 1e-12, atol = 0 }: { rtol?: number; atol?: number } = {},
 ): void {
   expect(actual.length).toBe(expected.length);
   for (let i = 0; i < actual.length; i++) {

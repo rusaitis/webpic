@@ -79,7 +79,7 @@ describe("cache facade (MemoryCacheStore)", () => {
     expect(second.has(k)).toBe(true);
   });
 
-  it("tracks the byte budget without evicting (LRU deferred to M1)", async () => {
+  it("tracks the byte budget without evicting (LRU deferred)", async () => {
     const cache = await installCache({ store: new MemoryCacheStore(), budgetBytes: 4 });
     await cache.put(key("fields", "a"), new Uint8Array([1, 2, 3]));
     await cache.put(key("fields", "b"), new Uint8Array([4, 5, 6])); // 6 bytes > 4
