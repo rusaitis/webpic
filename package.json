@@ -26,7 +26,8 @@
     "smol-toml": "^1.6.1",
     "three": "0.184.0",
     "zarrita": "^0.7.3",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",

@@ -1,9 +1,8 @@
-import type { FieldArray } from "@containers/field_dataset.ts";
 import { Color, Mesh, OrthographicCamera, PlaneGeometry, Scene } from "three";
 import { texture3D, uniform, uv, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import { colormapNode } from "./colormapNode.ts";
-import { createVolumeTexture } from "./volumeTexture.ts";
+import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
 // One orthogonal slice through the shared `uVolume`: a unit quad whose NodeMaterial
 // samples the 3D texture at a plane, normalizes the scalar, and maps it through a themed
@@ -12,7 +11,7 @@ import { createVolumeTexture } from "./volumeTexture.ts";
 export type SliceAxis = "x" | "y" | "z";
 
 export interface SliceSceneOptions {
-  readonly field: FieldArray;
+  readonly field: ScalarField;
   /** Theme colormap name (`theme.colormaps.sequential`); unknown → inferno. */
   readonly colormap: string;
   /** Field axis held fixed by the slice plane. */

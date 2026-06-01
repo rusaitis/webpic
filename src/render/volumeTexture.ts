@@ -1,4 +1,4 @@
-import type { FieldArray } from "@containers/field_dataset.ts";
+import type { FloatArray } from "@schema/types.ts";
 import {
   ClampToEdgeWrapping,
   Data3DTexture,
@@ -8,10 +8,18 @@ import {
   RedFormat,
 } from "three";
 
-// Upload a scalar FieldArray as the shared `uVolume` 3D texture. R16F (half-float) holds
+// Upload a scalar field as the shared `uVolume` 3D texture. R16F (half-float) holds
 // physical values and is filterable in core WebGPU (r32float would need the
 // `float32-filterable` feature we don't request), so the shader normalizes via min/max
 // uniforms — physical values stay resident for later window/level without re-uploading.
+
+// Just the typed array + shape the upload needs — a `FieldArray` is structurally assignable,
+// and it lets the render worker reconstruct a slice input from a transferred buffer without
+// carrying `meta`/`units` over the wire.
+export interface ScalarField {
+  readonly data: FloatArray;
+  readonly shape: readonly number[];
+}
 
 export interface VolumeTexture {
   readonly texture: Data3DTexture;
@@ -22,7 +30,7 @@ export interface VolumeTexture {
 }
 
 /** Build a half-float `Data3DTexture` + finite range from a 3D scalar field. */
-export function createVolumeTexture(field: FieldArray): VolumeTexture {
+export function createVolumeTexture(field: ScalarField): VolumeTexture {
   const { data, shape } = field;
   if (shape.length !== 3) {
     throw new Error(`createVolumeTexture: expected a 3D field, got shape [${shape.join(", ")}]`);

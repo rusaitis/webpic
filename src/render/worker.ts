@@ -1,7 +1,10 @@
 import { getDevice, installGpu } from "@gpu";
-import type { RenderWorkerRequest, RenderWorkerResponse } from "./messages.ts";
+import type { Camera, Object3D } from "three";
+import type { RenderWorkerRequest, RenderWorkerResponse, SliceFieldPayload } from "./messages.ts";
 import { type InstalledRenderer, installRenderer } from "./renderer.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
+import { createSliceScene, type SliceScene } from "./sliceScene.ts";
+import type { ScalarField } from "./volumeTexture.ts";
 
 // Worker-scope view of `self`. The DOM lib types `self` as Window (whose
 // postMessage wants a targetOrigin), so narrow it to the dedicated-worker surface.
@@ -12,8 +15,12 @@ const ctx = self as unknown as {
 
 let gpu: { dispose: () => void } | undefined;
 let renderer: InstalledRenderer | undefined;
-let testScene: TestScene | undefined;
+let testScene: TestScene | undefined; // boot frame (also the parity-test target)
+let slice: SliceScene | undefined; // active data-driven slice, once a field arrives
 let dims = { width: 0, height: 0 };
+// The init promise; renderFrame/showSlice await it so they can't race a half-built renderer
+// even if a future caller stops gating on the `ready` response.
+let initDone: Promise<void> | undefined;
 
 async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Promise<void> {
   gpu = await installGpu();
@@ -29,13 +36,22 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
   ctx.postMessage({ kind: "ready", requestId: request.requestId });
 }
 
+// The data slice once one has been shown, else the boot triangle.
+function currentScene(): { scene: Object3D; camera: Camera } {
+  if (slice !== undefined) return { scene: slice.scene, camera: slice.camera };
+  if (testScene !== undefined) return { scene: testScene.scene, camera: testScene.camera };
+  throw new Error("no scene to render");
+}
+
 async function renderFrame(
   request: Extract<RenderWorkerRequest, { kind: "renderFrame" }>,
 ): Promise<void> {
-  if (renderer === undefined || testScene === undefined) {
+  await initDone;
+  if (renderer === undefined) {
     throw new Error("renderFrame before init");
   }
-  const pixels = await renderer.readPixels(testScene.scene, testScene.camera);
+  const { scene, camera } = currentScene();
+  const pixels = await renderer.readPixels(scene, camera);
   // Freshly allocated readback buffer (never shared) — safe to transfer.
   const buffer = pixels.buffer as ArrayBuffer;
   ctx.postMessage(
@@ -50,12 +66,39 @@ async function renderFrame(
   );
 }
 
+function decodeSliceField(payload: SliceFieldPayload): ScalarField {
+  const data =
+    payload.dtype === "f64" ? new Float64Array(payload.buffer) : new Float32Array(payload.buffer);
+  return { data, shape: payload.shape };
+}
+
+async function showSlice(
+  request: Extract<RenderWorkerRequest, { kind: "showSlice" }>,
+): Promise<void> {
+  await initDone;
+  if (renderer === undefined) {
+    throw new Error("showSlice before init");
+  }
+  // Release the prior slice's Data3DTexture before building the next — else each swap leaks one.
+  slice?.dispose();
+  slice = createSliceScene({
+    field: decodeSliceField(request.field),
+    colormap: request.colormap,
+    axis: request.axis,
+    position: request.position,
+  });
+  renderer.renderOnce(slice.scene, slice.camera);
+}
+
 function handle(request: RenderWorkerRequest): Promise<void> {
   switch (request.kind) {
     case "init":
-      return init(request);
+      initDone = init(request);
+      return initDone;
     case "renderFrame":
       return renderFrame(request);
+    case "showSlice":
+      return showSlice(request);
     default: {
       const unreachable: never = request;
       return Promise.reject(new Error(`unknown request: ${JSON.stringify(unreachable)}`));
@@ -72,6 +115,7 @@ ctx.onmessage = (event) => {
 };
 
 export function dispose(): void {
+  slice?.dispose();
   testScene?.dispose();
   renderer?.dispose();
   gpu?.dispose();
