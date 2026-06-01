@@ -1,6 +1,7 @@
 import { getDevice, installGpu } from "@gpu";
 import type { Camera, Object3D } from "three";
 import type { RenderWorkerRequest, RenderWorkerResponse, SliceFieldPayload } from "./messages.ts";
+import { createRaymarchScene, type RaymarchScene } from "./raymarchScene.ts";
 import { type InstalledRenderer, installRenderer } from "./renderer.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
 import { createSliceScene, type SliceScene } from "./sliceScene.ts";
@@ -17,6 +18,7 @@ let gpu: { dispose: () => void } | undefined;
 let renderer: InstalledRenderer | undefined;
 let testScene: TestScene | undefined; // boot frame (also the parity-test target)
 let slice: SliceScene | undefined; // active data-driven slice, once a field arrives
+let volume: RaymarchScene | undefined; // active raymarched volume, once one is shown
 let dims = { width: 0, height: 0 };
 // The init promise; renderFrame/showSlice await it so they can't race a half-built renderer
 // even if a future caller stops gating on the `ready` response.
@@ -36,8 +38,9 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
   ctx.postMessage({ kind: "ready", requestId: request.requestId });
 }
 
-// The data slice once one has been shown, else the boot triangle.
+// The most recently shown data scene (volume, then slice), else the boot triangle.
 function currentScene(): { scene: Object3D; camera: Camera } {
+  if (volume !== undefined) return { scene: volume.scene, camera: volume.camera };
   if (slice !== undefined) return { scene: slice.scene, camera: slice.camera };
   if (testScene !== undefined) return { scene: testScene.scene, camera: testScene.camera };
   throw new Error("no scene to render");
@@ -90,6 +93,25 @@ async function showSlice(
   renderer.renderOnce(slice.scene, slice.camera);
 }
 
+async function showVolume(
+  request: Extract<RenderWorkerRequest, { kind: "showVolume" }>,
+): Promise<void> {
+  await initDone;
+  if (renderer === undefined) {
+    throw new Error("showVolume before init");
+  }
+  // Release the prior volume's Data3DTexture before building the next — else each swap leaks one.
+  volume?.dispose();
+  volume = createRaymarchScene({
+    field: decodeSliceField(request.field),
+    colormap: request.colormap,
+    // exactOptionalPropertyTypes: only forward when set, so the scene's defaults apply.
+    ...(request.steps !== undefined ? { steps: request.steps } : {}),
+    ...(request.density !== undefined ? { density: request.density } : {}),
+  });
+  renderer.renderOnce(volume.scene, volume.camera);
+}
+
 function handle(request: RenderWorkerRequest): Promise<void> {
   switch (request.kind) {
     case "init":
@@ -99,6 +121,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return renderFrame(request);
     case "showSlice":
       return showSlice(request);
+    case "showVolume":
+      return showVolume(request);
     default: {
       const unreachable: never = request;
       return Promise.reject(new Error(`unknown request: ${JSON.stringify(unreachable)}`));
@@ -115,6 +139,7 @@ ctx.onmessage = (event) => {
 };
 
 export function dispose(): void {
+  volume?.dispose();
   slice?.dispose();
   testScene?.dispose();
   renderer?.dispose();

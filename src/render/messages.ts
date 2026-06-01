@@ -30,6 +30,14 @@ export type RenderWorkerRequest =
       readonly axis: SliceAxis;
       readonly position: number;
       readonly colormap: string;
+    }
+  | {
+      readonly kind: "showVolume";
+      readonly requestId: number;
+      readonly field: SliceFieldPayload;
+      readonly colormap: string;
+      readonly steps?: number;
+      readonly density?: number;
     };
 
 export type RenderWorkerResponse =

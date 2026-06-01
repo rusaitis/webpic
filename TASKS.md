@@ -38,7 +38,7 @@ Goal: read a Zarr store and render one themed orthogonal slice of `|B|`.
 
 ## M2 — Volume + perf gate
 Goal: single-scalar volume raymarcher hitting the perf gate; time-series scrub.
-- [ ] 1. WESL fragment raymarcher (`NodeMaterial` + `wgslFn`); analytic ray-box, early-α (≥0.98) termination
+- [x] 1. WESL fragment raymarcher (`NodeMaterial` + `wgslFn`); analytic ray-box, early-α (≥0.98) termination. `render/raymarchScene.ts` (TSL `Loop` + `wgslFn` `hitBox` + front-to-back composite); `rayBox.ts` TS twin + Node tests; worker `showVolume` + real-GPU smoke. Slice stays app default until the M2.2 UI toggle.
 - [ ] 2. **`ui/` scaffold** — hideable shell panels + dependency-free `Pane`/`Folder`/`Binding` controls facade (slider/select/checkbox/text, ported from `magviz/src/ui/controls`, no `tweakpane`) + `ControlDescriptor` schema-aware binder. `ui` dispatches typed store intents only — never imports `render` (DAG-enforced); embed renders without `@webpic/ui`. One smoke per panel. *(foundation for M2.3 `RangeControl`, M2.6 diagnostics panel, M6.5 theme switcher)*
 - [ ] 3. Transfer-function texture (256×1 `rgba16float`) + window/level via **owned `RangeControl`**
 - [ ] 4. **`ColormapBinding`** store/schema node — reified colormap registry (mirror `magviz/src/store/schema.ts` field-for-field: `kind`/`label`/`id` discriminators) so magviz session exports round-trip. **Land before v0.1 freeze.**
