@@ -19,8 +19,6 @@ import { z } from "zod";
 // stripped, not rejected — forward-compatible with newer pypic writers; missing
 // *required* structure throws loudly with the source label.
 
-// --- JSON-native sentinel decode (pypic.io.metadata.from_json_native) ---
-
 const PYPIC_CLASS = "__pypic_class__";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -43,6 +41,7 @@ export function fromJsonNative(value: unknown): unknown {
       const items = Array.isArray(value.items) ? value.items : [];
       return new Map(
         items.map((entry) => {
+          // keyed_dict items are [key, value] pairs per pypic's JSON encoding (items is an array).
           const [k, v] = entry as [unknown, unknown];
           return [fromJsonNative(k), fromJsonNative(v)] as const;
         }),
@@ -64,8 +63,7 @@ export function decodeSpeedOfLight(raw: unknown): number {
   return Number(raw);
 }
 
-// --- Zod schemas for the on-disk attr blocks (NOT the simulation.toml schema) ---
-
+// Zod schemas for the on-disk Zarr attr blocks — not the simulation.toml schema.
 const SchemaDiscriminatorSchema = z.object({ version: z.string() });
 
 const GridAttrsSchema = z.object({
@@ -163,8 +161,7 @@ function parseBlock<T>(schema: z.ZodType<T>, value: unknown, label: string): T {
   return result.data;
 }
 
-// --- Schema-version gate (pypic.io.zarr._open_store) ---
-
+// Schema-version gate; mirrors pypic.io.zarr._open_store.
 export function assertPypicSchema(rootAttrs: Record<string, unknown>, source: string): void {
   const parsed = SchemaDiscriminatorSchema.safeParse(rootAttrs.schema);
   if (!parsed.success) {
@@ -177,8 +174,6 @@ export function assertPypicSchema(rootAttrs: Record<string, unknown>, source: st
     );
   }
 }
-
-// --- Grid + coordinates ---
 
 const DEFAULT_AXIS_LABELS: Record<GeometryType, readonly string[]> = {
   cartesian: ["x", "y", "z"],
@@ -253,8 +248,6 @@ export function decodeGrid(rootAttrs: Record<string, unknown>, source: string): 
   };
 }
 
-// --- Normalization + physics ---
-
 export function decodeNormalization(
   rootAttrs: Record<string, unknown>,
   source: string,
@@ -294,8 +287,6 @@ export function decodePhysics(
   };
 }
 
-// --- Per-field attrs ---
-
 export function decodeReduction(raw: unknown): ReductionSpec | null {
   if (raw === undefined || raw === null) return null;
   const r = parseBlock(ReductionAttrsSchema, raw, "field.reduction");
@@ -323,8 +314,7 @@ export function decodeFieldAttrs(rawAttrs: unknown, name: string): DecodedFieldA
   };
 }
 
-// --- Canonical field-name resolution (species-suffix aware) ---
-
+// Canonical field-name resolution (species-suffix aware).
 // pypic's registry lists base canonical forms (B_1, V_1, P_11, n_s0) but synthesizes
 // per-species *component* names (V_s0_1, P_s0_11) via the species-suffix regex. Strip
 // the `_sN` infix while keeping the trailing component/magnitude suffix: V_s0_1 → V_1,

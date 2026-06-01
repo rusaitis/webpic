@@ -261,8 +261,8 @@ export async function installCache(options: CacheOptions = {}): Promise<Cache> {
       manifest.set(path, bytes.byteLength);
       totalBytes += bytes.byteLength;
       if (totalBytes > budgetBytes) {
-        // TODO: LRU eviction — DESIGN §Caching. The field cache is the first
-        // consumer to approach the budget; calibration scores never trip it.
+        // Eviction is deferred: the field cache is the first consumer to approach the budget
+        // (calibration scores never trip it); this branch is where LRU will hook in.
       }
     },
     has(key) {

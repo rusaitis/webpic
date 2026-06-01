@@ -7,6 +7,7 @@ const RAW_THEMES = import.meta.glob("./themes/*.toml", {
   query: "?raw",
   import: "default",
   eager: true,
+  // ?raw + eager yields raw file strings, but glob's generic return type is Record<string, unknown>.
 }) as Record<string, string>;
 
 export const DEFAULT_THEME_NAME = "dark";

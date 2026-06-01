@@ -68,10 +68,13 @@ interface StoreContents {
 }
 
 function hasContents(store: zarr.Readable): store is zarr.Readable & StoreContents {
+  // zarrita's Readable doesn't type the optional contents() listing — only consolidated /
+  // in-memory stores expose it; feature-detect.
   return typeof (store as Partial<StoreContents>).contents === "function";
 }
 
 function enumerableKeys(store: zarr.Readable): Iterable<string> | null {
+  // keys() is store-impl-specific (Map-backed stores expose it); not on zarrita's Readable.
   const keys = (store as { keys?: () => Iterable<string> }).keys;
   return typeof keys === "function" ? keys.call(store) : null;
 }
@@ -379,6 +382,7 @@ export function createZarrConfidence(openStore: StoreOpener = defaultOpenStore):
     try {
       const store = await openStore(handle);
       const root = await zarr.open(store, { kind: "group" });
+      // zarrita types attrs as opaque; read the schema-version discriminator structurally.
       const schema = (root.attrs as { schema?: { version?: unknown } }).schema;
       if (schema?.version !== SCHEMA_VERSION) return 0;
       await zarr.open(root.resolve("fields"), { kind: "group" });

@@ -1,20 +1,8 @@
 import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
 import type { FieldMeta, Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
+import { assertAllclose } from "../../tests/helpers.ts";
 import { averageAlong, destaggerArrayToCellCenters, destaggerToColocated } from "./stagger.ts";
-
-function assertAllclose(
-  actual: ArrayLike<number>,
-  expected: ArrayLike<number>,
-  { rtol = 1e-12, atol = 0 }: { rtol?: number; atol?: number } = {},
-): void {
-  expect(actual.length).toBe(expected.length);
-  for (let i = 0; i < actual.length; i++) {
-    const a = actual[i] ?? Number.NaN;
-    const e = expected[i] ?? Number.NaN;
-    expect(Math.abs(a - e)).toBeLessThanOrEqual(atol + rtol * Math.abs(e));
-  }
-}
 
 describe("averageAlong", () => {
   it("matches the pypic half-cell-average docstring example", () => {
