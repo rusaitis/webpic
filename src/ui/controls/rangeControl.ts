@@ -207,7 +207,6 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     cb(isInterval ? [lo, hi] : value);
   };
 
-  // --- drag ---
   type Drag = {
     kind: "value" | "lo" | "hi" | "pan";
     baseLo: number;
@@ -297,7 +296,6 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     emit(cfg.onChange);
   };
 
-  // --- keyboard (grips) ---
   const onKey = (e: KeyboardEvent, end: "value" | "lo" | "hi"): void => {
     const cur = end === "lo" ? lo : end === "hi" ? hi : value;
     // On log/symlog the value grip walks the decade grid (Shift = 10 cells); interval ends
@@ -330,7 +328,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     e.preventDefault();
   };
 
-  // --- text (precise, no snap) ---
+  // Text entry clamps without snapping — exact values, unlike the drag/keyboard step grid.
   const onTextA = (): void => {
     const n = Number(inputA?.value);
     if (!Number.isFinite(n)) {

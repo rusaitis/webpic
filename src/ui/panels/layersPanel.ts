@@ -13,6 +13,10 @@ import {
 // {center, width} (intervalToWindow at the seam). Colormap selection + the log/symlog scale
 // pick land with M2.4's ColormapBinding.
 
+// Narrowest window as a fraction of the data range — the UI-side floor that keeps the in-shader
+// width > 0 (parallels render's MIN_WIDTH in normalization.ts).
+const MIN_WINDOW_FRACTION = 1 / 1000;
+
 // Compact readout: exponential for very small/large magnitudes, ~4 sig figs otherwise.
 function formatValue(v: number): string {
   if (!Number.isFinite(v)) return String(v);
@@ -49,7 +53,7 @@ export function installLayersPanel(host: HTMLElement, store: SimulationStore): D
       range,
       scale: "linear",
       format: formatValue,
-      minGap: (bounds.max - bounds.min) / 1000, // keep width > 0 — a collapsed window divides by zero in-shader
+      minGap: (bounds.max - bounds.min) * MIN_WINDOW_FRACTION,
       onInput: dispatchWindow,
       onChange: dispatchWindow,
     });

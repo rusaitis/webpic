@@ -2,7 +2,7 @@ export { createPane } from "./pane.ts";
 export {
   intervalToWindow,
   type ScaleKind,
-  type Window,
+  type WindowLevel,
   windowToInterval,
 } from "./rangeMath.ts";
 export type {

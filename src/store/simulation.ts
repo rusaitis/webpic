@@ -19,8 +19,9 @@ export interface DataRange {
   readonly max: number;
 }
 
-// Value→color window in the canonical {center, width} form (no separate min/max); the M2.4
-// ColormapBinding reifies this per field.
+// Value→color window in the canonical {center, width} form (no separate min/max). Restated, not
+// shared, with the render-side WindowLevel (messages.ts / normalization.ts): the ui→store→render
+// DAG forbids store importing render. The M2.4 ColormapBinding reifies this per field.
 export interface WindowLevel {
   readonly center: number;
   readonly width: number;

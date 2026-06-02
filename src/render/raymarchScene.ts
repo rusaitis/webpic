@@ -20,9 +20,9 @@ import {
 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import { BACKGROUND_COLOR } from "./constants.ts";
+import { createNormalization, type WindowLevel } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
-import { createWindowLevel, type WindowLevel } from "./windowLevel.ts";
 
 // Single-pass volume raymarcher over the shared `uVolume`. The analytic ray-box clip is
 // `wgslFn hitBox` — the WGSL twin of rayBox.ts.
@@ -75,7 +75,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   const steps = opts.steps ?? DEFAULT_STEPS;
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const win = createWindowLevel(volume.min, volume.max, opts.windowLevel);
+  const norm = createNormalization(volume.min, volume.max, opts.windowLevel);
   const uDensity = uniform(opts.density ?? 1);
 
   const rgba = Fn(() => {
@@ -97,7 +97,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       // Object [-0.5,0.5]³ → texture [0,1]³. Texture axes are the reverse of field axes
       // (volumeTexture C-order): object x/y/z ↔ field axis 2/1/0 — the same reversal sliceScene maps.
       const sample = texture3D(volume.texture, pos.add(0.5)).r;
-      const t = win.normalize(sample);
+      const t = norm.toT(sample);
       // Opacity stays value-proportional (t·density); the LUT alpha channel is reserved
       // for the opacity transfer function, so color comes from the LUT but opacity doesn't.
       const sampleAlpha = t.mul(uDensity).mul(dt).saturate();
@@ -140,7 +140,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   return {
     scene,
     camera,
-    setWindowLevel: win.setWindowLevel,
+    setWindowLevel: norm.setWindow,
     dispose() {
       geometry.dispose();
       material.dispose();

@@ -2,9 +2,9 @@ import { Color, Mesh, OrthographicCamera, PlaneGeometry, Scene } from "three";
 import { texture, texture3D, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import { BACKGROUND_COLOR, FRUSTUM } from "./constants.ts";
+import { createNormalization, type WindowLevel } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
-import { createWindowLevel, type WindowLevel } from "./windowLevel.ts";
 
 // One orthogonal slice sampling the shared `uVolume` 3D texture (the raymarcher and further
 // slices sample the same texture).
@@ -57,12 +57,12 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   const tf = createTransferFunctionTexture(opts.colormap);
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const win = createWindowLevel(volume.min, volume.max, opts.windowLevel);
+  const norm = createNormalization(volume.min, volume.max, opts.windowLevel);
   const uPosition = uniform(opts.position);
 
   const coord = sliceCoord(opts.axis, uv().x, uv().y, uPosition);
   const raw = texture3D(volume.texture, coord).r;
-  const t = win.normalize(raw);
+  const t = norm.toT(raw);
 
   const material = new NodeMaterial();
   material.colorNode = texture(tf.texture, vec2(t, 0.5)).rgb;
@@ -88,7 +88,7 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   return {
     scene,
     camera,
-    setWindowLevel: win.setWindowLevel,
+    setWindowLevel: norm.setWindow,
     dispose() {
       geometry.dispose();
       material.dispose();

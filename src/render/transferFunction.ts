@@ -13,7 +13,7 @@ import { colormapColor } from "./colormap.ts";
 // ColormapBinding and the opacity transfer function build on a texture, not a node graph.
 // rgba16float is linear-filterable in core WebGPU — same half-float path the volume uses.
 
-const DEFAULT_SIZE = 256; // DESIGN §474: 256×1 transfer-function texture
+const DEFAULT_LUT_SIZE = 256; // conventional colormap LUT width (linear-interpolated texels)
 
 export interface TransferFunctionTexture {
   readonly texture: DataTexture;
@@ -23,7 +23,7 @@ export interface TransferFunctionTexture {
 /** Sample `name`'s colormap into a packed RGBA half-float LUT (`size` texels wide).
  *  Alpha is 1.0 throughout — the opacity transfer function (alpha curve) lands later;
  *  for now the slice is opaque and the raymarch keeps its value-proportional opacity. */
-export function buildTransferFunctionLut(name: string, size = DEFAULT_SIZE): Uint16Array {
+export function buildTransferFunctionLut(name: string, size = DEFAULT_LUT_SIZE): Uint16Array {
   const lut = new Uint16Array(size * 4);
   const one = DataUtils.toHalfFloat(1);
   const last = size - 1;
@@ -42,7 +42,7 @@ export function buildTransferFunctionLut(name: string, size = DEFAULT_SIZE): Uin
  *  shader interpolates between texels; clamp-to-edge holds the endpoint colors. */
 export function createTransferFunctionTexture(
   name: string,
-  size = DEFAULT_SIZE,
+  size = DEFAULT_LUT_SIZE,
 ): TransferFunctionTexture {
   const texture = new DataTexture(
     buildTransferFunctionLut(name, size),

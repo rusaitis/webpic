@@ -263,21 +263,20 @@ export function translateInterval(
   return [lo + d, hi + d];
 }
 
-// --- window/level boundary conversions ---------------------------------------------------
 // The RangeControl is a general [lo, hi] interval; the store's canonical window is
 // {center, width}. These convert at the panel↔store seam (no separate min/max in the store).
 
-export interface Window {
+export interface WindowLevel {
   readonly center: number;
   readonly width: number;
 }
 
 /** [lo, hi] → {center, width}. */
-export function intervalToWindow(lo: number, hi: number): Window {
+export function intervalToWindow(lo: number, hi: number): WindowLevel {
   return { center: (lo + hi) / 2, width: hi - lo };
 }
 
 /** {center, width} → [lo, hi]. */
-export function windowToInterval(w: Window): [number, number] {
+export function windowToInterval(w: WindowLevel): [number, number] {
   return [w.center - w.width / 2, w.center + w.width / 2];
 }

@@ -57,7 +57,7 @@ export const COLORMAP_COEFFS: Readonly<Record<ColormapName, Coeffs>> = {
 };
 
 /** Map any colormap name (matplotlib labels, theme `sequential`) to a supported fit;
- *  unsupported names (diverging maps, cividis, …) fall back to the theme default. */
+ *  unsupported names (diverging maps, cividis, …) fall back to inferno. */
 export function resolveColormapName(name: string): ColormapName {
   // hasOwn guards the cast: the four keys above are the only own properties.
   return Object.hasOwn(COLORMAP_COEFFS, name) ? (name as ColormapName) : "inferno";
