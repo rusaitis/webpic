@@ -1,6 +1,6 @@
 import { fieldInfo } from "@schema/registry.ts";
 import type { FieldName } from "@schema/types.ts";
-import type { ControlHandle, Folder, SelectOption } from "../controls/index.ts";
+import type { ControlHandle, Folder, SelectHandle, SelectOption } from "../controls/index.ts";
 
 // Schema-aware, declarative control binding. A descriptor's `canonicalName` resolves
 // its label from the field registry (loud throw on an unknown name — pypic's KeyError
@@ -62,10 +62,19 @@ function resolveLabel(desc: BaseDescriptor): string {
   throw new Error("ControlDescriptor requires either `label` or `canonicalName`");
 }
 
+// Overloaded so each descriptor returns its concrete handle — a select hands back a
+// usable `SelectHandle<V>`, not the union (whose `set` param would collapse to `never`).
+export function bindControl(folder: Folder, desc: SliderDescriptor): ControlHandle<number>;
+export function bindControl<V extends string>(
+  folder: Folder,
+  desc: SelectDescriptor<V>,
+): SelectHandle<V>;
+export function bindControl(folder: Folder, desc: CheckboxDescriptor): ControlHandle<boolean>;
+export function bindControl(folder: Folder, desc: TextDescriptor): ControlHandle<string>;
 export function bindControl(
   folder: Folder,
   desc: ControlDescriptor,
-): ControlHandle<number> | ControlHandle<string> | ControlHandle<boolean> {
+): ControlHandle<number> | ControlHandle<boolean> | ControlHandle<string> | SelectHandle<string> {
   const label = resolveLabel(desc);
   switch (desc.kind) {
     case "slider":

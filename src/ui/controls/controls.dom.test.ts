@@ -75,6 +75,33 @@ describe("select control", () => {
     expect(changes).toEqual(["b"]);
     pane.dispose();
   });
+
+  it("rebuilds options via setOptions, keeping a surviving value", () => {
+    const pane = createPane({ parent: mount() });
+    const folder = pane.addFolder({ title: "f" });
+    const handle = folder.addSelect<string>({
+      label: "Field",
+      value: "b",
+      options: [
+        { label: "Alpha", value: "a" },
+        { label: "Beta", value: "b" },
+      ],
+      onChange: () => {},
+    });
+    const select = handle.element.querySelector("select");
+    if (select === null) throw new Error("no select");
+
+    handle.setOptions([
+      { label: "Beta", value: "b" },
+      { label: "Gamma", value: "c" },
+    ]);
+    expect([...select.options].map((o) => o.value)).toEqual(["b", "c"]);
+    expect(select.value).toBe("b"); // survived the rebuild
+
+    handle.setOptions([{ label: "Gamma", value: "c" }]);
+    expect(select.value).toBe("c"); // old value gone → browser falls back to first option
+    pane.dispose();
+  });
 });
 
 describe("slider control", () => {

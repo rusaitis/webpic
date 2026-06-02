@@ -62,6 +62,7 @@ export function createSimulationStore() {
           recompute();
         },
         selectField(name) {
+          if (name === get().activeField) return; // recompute yields a fresh array — skip the no-op re-render
           set({ activeField: name });
           recompute();
         },

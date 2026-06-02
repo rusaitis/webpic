@@ -8,9 +8,11 @@ import type {
   ButtonOptions,
   CheckboxOptions,
   ControlHandle,
+  Disposer,
   Folder,
   FolderOptions,
   Pane,
+  SelectHandle,
   SelectOptions,
   SliderOptions,
   TextOptions,
@@ -21,10 +23,6 @@ import type {
 // sniffing), DOM built off `ownerDocument`. Structure:
 //   .webpic-pane > .webpic-folder > .webpic-folder_bar + .webpic-folder_body
 //                                     > .webpic-row > .webpic-row_label + _value
-
-interface Child {
-  dispose(): void;
-}
 
 function makeRow(doc: Document, label: string): { row: HTMLElement; valueCell: HTMLElement } {
   const row = makeEl(doc, "div", "webpic-row");
@@ -48,14 +46,15 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
   bar.addEventListener("click", onBar);
   element.append(bar, body);
 
-  const children: Child[] = [];
-  const detach = (child: Child): void => {
-    const i = children.indexOf(child);
-    if (i >= 0) children.splice(i, 1);
+  // Each child registers a self-removing disposer; folder teardown runs a snapshot so a
+  // disposer deleting itself mid-iteration can't skip a sibling.
+  const disposers = new Set<Disposer>();
+  const track = (dispose: Disposer): Disposer => {
+    disposers.add(dispose);
+    return dispose;
   };
 
-  // Wrap a widget in a labeled row; `child.dispose` is patched after the handle exists so
-  // disposing a control also unregisters it from this folder.
+  // Wrap a widget in a labeled row.
   function attach<T>(
     row: HTMLElement,
     valueCell: HTMLElement,
@@ -63,20 +62,17 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
   ): ControlHandle<T> {
     valueCell.appendChild(widget.element);
     body.appendChild(row);
-    const child: Child = { dispose: () => {} };
-    const handle: ControlHandle<T> = {
+    const dispose = track(() => {
+      widget.dispose();
+      row.remove();
+      disposers.delete(dispose);
+    });
+    return {
       element: row,
       set: (value) => widget.set(value),
       setDisabled: (disabled) => widget.setDisabled(disabled),
-      dispose: () => {
-        widget.dispose();
-        row.remove();
-        detach(child);
-      },
+      dispose,
     };
-    child.dispose = handle.dispose;
-    children.push(child);
-    return handle;
   }
 
   return {
@@ -89,9 +85,10 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
         createSlider(doc, o.value, o.min, o.max, o.step, o.format, o.onChange),
       );
     },
-    addSelect<V extends string>(o: SelectOptions<V>): ControlHandle<V> {
+    addSelect<V extends string>(o: SelectOptions<V>): SelectHandle<V> {
       const { row, valueCell } = makeRow(doc, o.label);
-      return attach(row, valueCell, createSelect<V>(doc, o.value, o.options, o.onChange));
+      const widget = createSelect<V>(doc, o.value, o.options, o.onChange);
+      return { ...attach(row, valueCell, widget), setOptions: (next) => widget.setOptions(next) };
     },
     addCheckbox(o: CheckboxOptions): ControlHandle<boolean> {
       const { row, valueCell } = makeRow(doc, o.label);
@@ -113,31 +110,30 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
         if (!button.disabled) o.onClick();
       };
       button.addEventListener("click", onClick);
-      const child: Child = { dispose: () => {} };
-      const handle: ButtonHandle = {
+      const dispose = track(() => {
+        button.removeEventListener("click", onClick);
+        wrap.remove();
+        disposers.delete(dispose);
+      });
+      return {
         element: wrap,
         setDisabled: (disabled) => {
           button.disabled = disabled;
         },
-        dispose: () => {
-          button.removeEventListener("click", onClick);
-          wrap.remove();
-          detach(child);
-        },
+        dispose,
       };
-      child.dispose = handle.dispose;
-      children.push(child);
-      return handle;
     },
     addFolder(o: FolderOptions): Folder {
       const sub = makeFolder(doc, o);
       body.appendChild(sub.element);
-      const child: Child = { dispose: () => sub.dispose() };
-      children.push(child);
-      return sub;
+      const dispose = track(() => {
+        sub.dispose();
+        disposers.delete(dispose);
+      });
+      return { ...sub, dispose };
     },
     dispose() {
-      for (const child of children.slice()) child.dispose();
+      for (const dispose of [...disposers]) dispose();
       bar.removeEventListener("click", onBar);
       element.remove();
     },

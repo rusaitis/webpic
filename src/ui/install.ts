@@ -69,8 +69,9 @@ export function installUi(opts: InstallUiOptions): () => void {
   doc.addEventListener("keydown", onKeyDown);
   disposers.push(() => doc.removeEventListener("keydown", onKeyDown));
 
-  // LIFO teardown: shortcut → panels → shell → styles, mirroring install order.
+  // LIFO teardown: shortcut → panels → shell → styles, mirroring install order. Snapshot
+  // so a defensive double-dispose can't re-reverse the live array.
   return () => {
-    for (const dispose of disposers.reverse()) dispose();
+    for (const dispose of [...disposers].reverse()) dispose();
   };
 }

@@ -8,6 +8,7 @@ export type {
   Folder,
   FolderOptions,
   Pane,
+  SelectHandle,
   SelectOption,
   SelectOptions,
   SliderOptions,

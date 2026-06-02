@@ -38,6 +38,14 @@ describe("simulationStore", () => {
     expect(Array.from(seen[0]?.data ?? [])).toEqual([5]);
   });
 
+  it("skips recompute when the field is re-selected (no new array, no re-render)", () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(bDataset());
+    const before = store.getState().computed;
+    store.getState().selectField("|B|"); // already active
+    expect(store.getState().computed).toBe(before); // same reference → subscribers don't fire
+  });
+
   it("reports an error for an unknown field without throwing", () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());

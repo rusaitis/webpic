@@ -26,6 +26,17 @@ export interface SelectOption<V extends string = string> {
   readonly value: V;
 }
 
+// A select's option list can change at runtime (e.g. a new dataset's fields); `setOptions`
+// rebuilds it and keeps the current value if it survives. The handle is a select-specific
+// `ControlHandle` so callers that need this stay typed.
+export interface SelectWidget<V extends string> extends Widget<V> {
+  setOptions(options: ReadonlyArray<SelectOption<V>>): void;
+}
+
+export interface SelectHandle<V extends string> extends ControlHandle<V> {
+  setOptions(options: ReadonlyArray<SelectOption<V>>): void;
+}
+
 export interface SliderOptions {
   readonly label: string;
   readonly value: number;
@@ -75,7 +86,7 @@ export interface FolderOptions {
 export interface Folder {
   readonly element: HTMLElement;
   addSlider(opts: SliderOptions): ControlHandle<number>;
-  addSelect<V extends string>(opts: SelectOptions<V>): ControlHandle<V>;
+  addSelect<V extends string>(opts: SelectOptions<V>): SelectHandle<V>;
   addCheckbox(opts: CheckboxOptions): ControlHandle<boolean>;
   addText(opts: TextOptions): ControlHandle<string>;
   addButton(opts: ButtonOptions): ButtonHandle;
