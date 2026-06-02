@@ -472,12 +472,12 @@ Each worker's `onmessage` handles `'pair'` once, storing the port. Worker-init i
 - **Pipeline compile:** `material.compileAsync(scene, camera)` at boot for the M0–M2 baseline scene; streamlines/particles compile lazily on toggle. First-frame: <500 ms cold, <100 ms warm.
 
 ### Volume rendering
-Single-pass WGSL fragment raymarcher with min-max mipmap empty-space skipping; gradient + Phong from M2.
+Single-pass WGSL fragment raymarcher; gradient + Phong from M2. Min-max mipmap empty-space skipping is a gate contingency (added only if the perf gate is missed — see below), not a baseline feature.
 
 - Front-face of bbox → analytic ray-box → march in normalized data space; early termination at α ≥ 0.98.
-- Min-max pyramid built on upload (4³ block, 2× per level) as `texture_3d<rg32float>` (or `rg16float` with `shader-f16`). Coarse step skips empty blocks; descend on hit.
+- **Empty-space skipping is a gate contingency** (M2.5), not unconditional — a space-filling turbulent field rarely trips "empty," so profile the plain march against the 8 ms gate first and add this only if it misses. When added: min-max pyramid built on upload (2³ block, 2× per level — the +33% budget below assumes 2³; 4³ is ~+4% but skips coarser) as `texture_3d<rg16float>` (or `rg32float`), **nearest-sampled** — no `float32-filterable` needed (that feature governs *linear* f32 filtering only; `shader-f16` is likewise irrelevant — it's the in-shader `f16` ALU type, not the texture format). Coarse step skips empty blocks; descend on hit. Note this converts the fixed-step march into a variable-step traversal — a raymarcher restructure, not an additive pass.
 - Transfer function: 256×1 `texture_2d<rgba16float>`, regenerated on colormap/window change.
-- **Gradient + Phong** via central differences (~20 lines WGSL, M2) — major shape-perception win on plasma blobs.
+- **Gradient + Phong** via central differences (~20 lines WGSL, M2) — major shape-perception win on plasma blobs. Ships as a **toggle**, off by default for quantitative work: the lit "surface" is a TF-dependent opacity isosurface, not a physical boundary. The 6 taps/step aren't free on a 256-step march — gate the gradient on sample opacity or precompute a gradient volume so it doesn't eat the 8 ms budget. Render-local lighting normal, deliberately *not* `coordinates/operators/gradient` (the physics operator) — don't dedupe them.
 - Volume texture: `r16float` preferred, `r8unorm` fallback. `shader-f16` opportunistic (Chrome M120+ stable; Safari 26 Metal v4+; Firefox 141+; Qualcomm excluded). The f16/f32 dual path is selected via TS string templating in v0.1; a WESL `#if SHADER_F16` would replace it cleanly once the WESL toolchain lands.
 - `NodeMaterial` wrapping hand-written WGSL via TSL's `wgslFn` escape hatch. Parallel raw-WebGPU raymarcher behind a flag as top-risk fallback.
 
@@ -508,7 +508,11 @@ Single-pass WGSL fragment raymarcher with min-max mipmap empty-space skipping; g
 - Spherical/cylindrical (post-v1.0): keep texture indexed by (r, θ, φ); raymarcher converts world-space sample position inside the fragment.
 
 ### Time-series playback
-`data/prefetch.ts` (in `data.worker.ts`): ring buffer of N timesteps around cursor. Direction from EWMA of recent step deltas (window=8, α=0.7); magnitude → prefetch count (1–5); 250 ms debounce on flips; stationary (2 s) → drop EWMA, prefetch ±1. Double-buffered GPU upload. Fuzz scrubber in `tests/prefetch.test.ts`.
+Streaming is mandatory at 256³ (~64 MiB/field/step; ring depth N≈1–5 per §GPU memory — can't hold 256), so "scrub without stalls" is a perf-gate clause, not a nicety. **Prerequisite chain:** the reader substrate is ready (`readTimestep`/`availableTimesteps`), but the store has no time cursor yet — it gains `currentStep`/`availableSteps` + a `setStep` intent, and `ui` a scrub `RangeControl`, before prefetch has anything to track.
+
+**Necessary core** (what passes the gate): ring buffer of N steps around cursor + prefetch ±1 + double-buffered GPU upload. Two workers: predict/read in `data.worker.ts`, transfer the decoded buffer over the `MessagePort` (§Worker-to-worker pairing), ping-pong two `Data3DTexture`s in the render worker. The ring vs CLAUDE.md's "transfer, don't clone" tension resolves as: hold until upload, transfer on upload (the buffer detaches), re-read evicted steps from the OPFS cache on scrub-back.
+
+**Profile-then-tune prediction** (`data/prefetch.ts`, added only if dumb ±1 stalls — "profile before tuning"): direction from EWMA of recent step deltas (window=8, α=0.7); magnitude → prefetch count (1–5); 250 ms debounce on flips; stationary (2 s) → drop EWMA, prefetch ±1. Fuzz scrubber in `tests/prefetch.test.ts`.
 
 ### Performance gate (not a budget)
 
