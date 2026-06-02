@@ -1,6 +1,7 @@
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import { fieldInfo } from "@schema/registry.ts";
 import type { FloatArray } from "@schema/types.ts";
+import type { RecipeMeta } from "../../recipe.ts";
 import { RECIPES, type RecipeKey } from "../../recipes.generated.ts";
 import { MAGNITUDE_FIELD_OPS } from "./magnitude.ts";
 
@@ -9,6 +10,20 @@ export type TsFieldOp = (inputs: readonly FieldArray[]) => FloatArray;
 // func-name → TS implementation. Each backend binds the codegen'd recipe `func` strings to
 // its own kernels; the WebGPU backend binds the same names to WGSL.
 const TS_FIELD_OPS: Record<string, TsFieldOp> = { ...MAGNITUDE_FIELD_OPS };
+
+// Can the TS backend evaluate this recipe at all (bound op, no unsupported features)?
+// Keep in sync with computeRecipeTs's guards below — used to build the selectable-field
+// list without attempting (and catching) a compute per candidate.
+export function isTsComputable(recipe: RecipeMeta): boolean {
+  return (
+    !recipe.needsGrid &&
+    !recipe.needsGamma &&
+    !recipe.needsC &&
+    recipe.component === null &&
+    recipe.speciesArgs === null &&
+    Object.hasOwn(TS_FIELD_OPS, recipe.func)
+  );
+}
 
 function sameShape(a: readonly number[], b: readonly number[]): boolean {
   if (a.length !== b.length) return false;

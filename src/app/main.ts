@@ -1,6 +1,7 @@
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
-import { createSimulationStore } from "@store";
+import { createSimulationStore, createUiStore } from "@store";
+import { installUi } from "@ui";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
 
 const DEFAULT_SIZE = 256;
@@ -15,8 +16,11 @@ export interface BootstrapOptions {
   readonly createCanvas?: () => HTMLCanvasElement;
   readonly mount?: (canvas: HTMLCanvasElement) => void;
   readonly spawnWorker?: () => Worker;
-  /** The dataset to render; defaults to the synthetic M1 scaffold. */
+  /** The dataset to render; defaults to the synthetic scaffold dataset. */
   readonly dataset?: FieldDataset;
+  /** Where the UI overlay mounts; defaults to document.body, skipped when there's no DOM
+   *  (the headless handshake test). Injectable so tests can mount into a scratch element. */
+  readonly uiParent?: HTMLElement;
   /** Fires when the worker reports its first rendered frame — the perf-gate signal. */
   readonly onFirstFrame?: () => void;
 }
@@ -50,6 +54,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   const worker = spawnWorker();
   const store = createSimulationStore();
+  const uiStore = createUiStore();
   let workerReady = false;
 
   // Serialize the computed field and hand it to the worker by transfer (never clone a large
@@ -105,7 +110,17 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   store.getState().setDataset(options.dataset ?? createSyntheticDataset());
 
+  // Mount the UI after the dataset so the field selector sees the computed
+  // availableFields. Skipped headless (no DOM) — the overlay is a sibling to the canvas,
+  // not in the render path, so the worker handshake is unaffected.
+  const uiParent =
+    options.uiParent ?? (typeof document !== "undefined" ? document.body : undefined);
+  const disposeUi = uiParent
+    ? installUi({ parent: uiParent, simulationStore: store, uiStore })
+    : undefined;
+
   return () => {
+    disposeUi?.();
     unsubscribe();
     worker.terminate();
   };

@@ -8,9 +8,8 @@ import type {
 import { fieldInfo } from "@schema/registry.ts";
 import type { FieldName } from "@schema/types.ts";
 
-// scaffold: a deterministic in-memory B field so M1 can render a real |B| slice with no
-// data source wired. Replaced by URL / UI data input in M2; the Zarr reader path is
-// already covered by its own tests.
+// Scaffold: a deterministic in-memory B field so the app renders a real |B| slice with no
+// data source wired (the Zarr reader path has its own tests).
 
 const N = 32;
 const SHAPE = [N, N, N] as const; // field axes (x, y, z), C-order (z fastest)

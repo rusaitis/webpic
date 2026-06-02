@@ -676,7 +676,8 @@ The `SubscribeRequest` JSON shape (mirror in `remote/protocol.ts` field-for-fiel
 - Its dependency-free `ui/controls` layer (a `RangeControl` slider + pure-DOM select/checkbox/text behind a tiny `Pane`/`Folder`/`Binding` facade) carries no `three`/scene/framework deps and lifts into `@webpic/ui/controls` unchanged. Dropped Tweakpane entirely (~50 KB + plugin) once the primitives landed.
 - The facade's `addBinding(target, key, opts)` is what the `ControlDescriptor` binder below targets; store contract is callbacks-out / `set()`-in (intent dispatch + selective subscribe — no two-way binding).
 - **Aim small** — magviz's TS UI tree (~3 kLoC) is the comparison, not a target. If the shell starts looking like a framework, stop.
-- **CSP:** control styles inject via a single `<style>` at init (`applyControlPaneStyles`); for strict-CSP hosts, ship extracted CSS via `<link>` with a nonce.
+- **CSP:** control styles inject via a single `<style>` at init (`applyControlStyles`); for strict-CSP hosts, ship extracted CSS via `<link>` with a nonce.
+- **v0.1 reality (M2.2):** the facade is `kind`-tagged callback methods (`addSlider`/`addSelect`/`addCheckbox`/`addText` + `set()`/`dispose()`), *not* magviz's mutate-the-target `addBinding(target, key)` — webpic's no-two-way-binding rule made the rewrite cleaner than the lift, and controls build DOM off `parent.ownerDocument` (no global `document`). `select` is a native `<select>`; the slider is a basic linear `<input type=range>` — the log/symlog/interval `RangeControl` (+ `rangeMath`) ports with M2.3 window/level, and magviz's body-portaled popover dropdown with M7. `ControlDescriptor` is a discriminated union; it resolves *labels* from the registry (`fieldInfo`), but numeric bounds come from the descriptor since `FieldMeta` carries no ranges. The field-selector's option list is the store's `availableFields` (UI can't reach `compute`).
 
 **Schema-aware bindings** via `ControlDescriptor`:
 
@@ -746,7 +747,7 @@ Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirr
 - **TypeScript:** `target: "ES2022"`, `module: "ESNext"`, `moduleResolution: "bundler"`, `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true`, `verbatimModuleSyntax: true`. Project references per package.
 - **Workers:** Vite `?worker` syntax. The compute pool is designed around `comlink` (~5 KB) for RPC + a 20-line round-robin pool over `new Worker(new URL(...), { type: 'module' })`, sized to `Math.min(navigator.hardwareConcurrency - 1, 8)` (not `tinypool` — Node-only). **v0.1 reality:** only `data.worker.ts` exists, using raw `postMessage`; `comlink` is added when the compute pool lands (M3+).
 - **Lint + format:** **Biome** (single binary, integrated formatter — replaces ESLint + Prettier). Layer enforcement is not a Biome plugin; see §Layered dependency DAG.
-- **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. Browser mode (`@vitest/browser` + Playwright provider) for WebGPU kernels. Playwright for 2–3 E2E flows.
+- **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. A `happy-dom` project (devDep) runs the `ui` facade smoke tests (`*.dom.test.ts`) — node mode can't construct DOM, and these are deterministic DOM-unit tests, not visual ones. Browser mode (`@vitest/browser` + Playwright provider) for WebGPU kernels. Playwright for 2–3 E2E flows.
 - **Docs:** TypeDoc from public exports.
 - **Bundle size:** `size-limit` with 1.0 MB ceiling on `@webpic/embed`, 1.6 MB on `@webpic/app` (gzipped).
 - **Shader validation:** `tint` validator in CI (planned, from M2 — when the first standalone WGSL kernels land).
