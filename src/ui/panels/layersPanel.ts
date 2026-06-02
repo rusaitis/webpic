@@ -49,6 +49,7 @@ export function installLayersPanel(host: HTMLElement, store: SimulationStore): D
       range,
       scale: "linear",
       format: formatValue,
+      minGap: (bounds.max - bounds.min) / 1000, // keep width > 0 — a collapsed window divides by zero in-shader
       onInput: dispatchWindow,
       onChange: dispatchWindow,
     });

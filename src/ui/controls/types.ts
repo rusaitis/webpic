@@ -74,6 +74,8 @@ export interface RangeControlOptions {
   readonly linthresh?: number;
   readonly ticks?: boolean | number;
   readonly format?: (value: number) => string;
+  /** Interval minimum gap (default = step ?? 0); keeps the two ends from collapsing. */
+  readonly minGap?: number;
   /** Live edits during drag/keyboard. */
   readonly onInput?: (value: RangeValue) => void;
   /** Committed edits on release / text entry. */

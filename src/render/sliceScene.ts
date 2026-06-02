@@ -4,6 +4,7 @@ import { type Node, NodeMaterial } from "three/webgpu";
 import { BACKGROUND_COLOR, FRUSTUM } from "./constants.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
+import { createWindowLevel, type WindowLevel } from "./windowLevel.ts";
 
 // One orthogonal slice sampling the shared `uVolume` 3D texture (the raymarcher and further
 // slices sample the same texture).
@@ -19,7 +20,7 @@ export interface SliceSceneOptions {
   /** Position along the fixed axis, in [0,1]. */
   readonly position: number;
   /** Value→color window; absent → the field's full finite range (identity normalization). */
-  readonly windowLevel?: { readonly center: number; readonly width: number };
+  readonly windowLevel?: WindowLevel;
   readonly background?: number;
 }
 
@@ -56,18 +57,12 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   const tf = createTransferFunctionTexture(opts.colormap);
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const window = opts.windowLevel ?? {
-    center: (volume.min + volume.max) / 2,
-    width: volume.max - volume.min,
-  };
+  const win = createWindowLevel(volume.min, volume.max, opts.windowLevel);
   const uPosition = uniform(opts.position);
-  const uWindowCenter = uniform(window.center);
-  const uWindowWidth = uniform(window.width);
 
   const coord = sliceCoord(opts.axis, uv().x, uv().y, uPosition);
   const raw = texture3D(volume.texture, coord).r;
-  // Window/level: map [center − width/2, center + width/2] → [0,1], then sample the LUT.
-  const t = raw.sub(uWindowCenter).div(uWindowWidth).add(0.5).saturate();
+  const t = win.normalize(raw);
 
   const material = new NodeMaterial();
   material.colorNode = texture(tf.texture, vec2(t, 0.5)).rgb;
@@ -93,10 +88,7 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   return {
     scene,
     camera,
-    setWindowLevel(center, width) {
-      uWindowCenter.value = center;
-      uWindowWidth.value = width;
-    },
+    setWindowLevel: win.setWindowLevel,
     dispose() {
       geometry.dispose();
       material.dispose();

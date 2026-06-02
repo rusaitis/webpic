@@ -215,9 +215,10 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     anchor: number;
   };
   let drag: Drag | null = null;
+  let dragRect: DOMRect | null = null; // the track box is fixed for a captured drag — measure once
 
-  const valueAt = (clientX: number): number =>
-    scale.toValue(pointerT(clientX, track.getBoundingClientRect()));
+  const valueAt = (clientX: number, rect: DOMRect = track.getBoundingClientRect()): number =>
+    scale.toValue(pointerT(clientX, rect));
 
   const applyGrip = (
     kind: "value" | "lo" | "hi",
@@ -232,7 +233,8 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
 
   const onDown = (e: PointerEvent): void => {
     if (e.button > 0) return; // left/touch/pen only
-    const raw = valueAt(e.clientX);
+    dragRect = track.getBoundingClientRect();
+    const raw = valueAt(e.clientX, dragRect);
     const base = { baseLo: lo, baseHi: hi, anchor: raw };
     if (isInterval) {
       // Intent from pointer position, not hit target, so the tall hit band works: grab a grip
@@ -270,12 +272,13 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
 
   const onMove = (e: PointerEvent): void => {
     if (!drag) return;
+    const rect = dragRect ?? track.getBoundingClientRect();
     if (drag.kind === "pan") {
-      const rawDelta = valueAt(e.clientX) - drag.anchor;
+      const rawDelta = valueAt(e.clientX, rect) - drag.anchor;
       const delta = step && step > 0 ? Math.round(rawDelta / step) * step : rawDelta;
       [lo, hi] = translateInterval(drag.baseLo, drag.baseHi, delta, min, max);
     } else {
-      applyGrip(drag.kind, valueAt(e.clientX));
+      applyGrip(drag.kind, valueAt(e.clientX, rect));
     }
     render();
     emit(cfg.onInput);
@@ -289,13 +292,13 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
       // already released / never captured
     }
     drag = null;
+    dragRect = null;
     root.classList.remove("is-dragging");
     emit(cfg.onChange);
   };
 
   // --- keyboard (grips) ---
-  const onKey = (e: KeyboardEvent): void => {
-    const end = (e.currentTarget as HTMLElement).dataset.end as "value" | "lo" | "hi";
+  const onKey = (e: KeyboardEvent, end: "value" | "lo" | "hi"): void => {
     const cur = end === "lo" ? lo : end === "hi" ? hi : value;
     // On log/symlog the value grip walks the decade grid (Shift = 10 cells); interval ends
     // and linear sliders keep the fine `step` nudge.
@@ -356,7 +359,12 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
   track.addEventListener("pointermove", onMove, { signal });
   track.addEventListener("pointerup", onUp, { signal });
   track.addEventListener("pointercancel", onUp, { signal });
-  for (const g of [gripValue, gripLo, gripHi]) g?.addEventListener("keydown", onKey, { signal });
+  const grips = [
+    [gripValue, "value"],
+    [gripLo, "lo"],
+    [gripHi, "hi"],
+  ] as const;
+  for (const [g, end] of grips) g?.addEventListener("keydown", (e) => onKey(e, end), { signal });
   inputA?.addEventListener("change", onTextA, { signal });
   inputB?.addEventListener("change", onTextB, { signal });
 
