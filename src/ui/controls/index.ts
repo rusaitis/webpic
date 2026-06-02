@@ -1,4 +1,10 @@
 export { createPane } from "./pane.ts";
+export {
+  intervalToWindow,
+  type ScaleKind,
+  type Window,
+  windowToInterval,
+} from "./rangeMath.ts";
 export type {
   ButtonHandle,
   ButtonOptions,
@@ -9,6 +15,8 @@ export type {
   FolderOptions,
   NoteHandle,
   Pane,
+  RangeControlOptions,
+  RangeValue,
   SelectHandle,
   SelectOption,
   SelectOptions,

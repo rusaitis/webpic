@@ -63,6 +63,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const forwardSlice = (field: FieldArray): void => {
     const dtype = field.data instanceof Float64Array ? "f64" : "f32";
     const buffer = field.data.buffer as ArrayBuffer;
+    const { windowLevel } = store.getState();
     const request: RenderWorkerRequest = {
       kind: "showSlice",
       requestId: SLICE_REQUEST_ID,
@@ -70,6 +71,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       axis: "z",
       position: 0.5,
       colormap: "inferno",
+      ...(windowLevel !== null ? { windowLevel } : {}),
     };
     worker.postMessage(request, [buffer]);
   };
@@ -80,6 +82,23 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     (state) => state.computed,
     (computed) => {
       if (workerReady && computed !== null) forwardSlice(computed);
+    },
+  );
+
+  // Window/level changes ride a cheap message (no field transfer) — the drag hot path is just
+  // a uniform retune + repaint. A field switch fires both this and `computed`; the resulting
+  // setWindowLevel is a redundant no-op over the freshly-built scene.
+  const unsubscribeWindow = store.subscribe(
+    (state) => state.windowLevel,
+    (windowLevel) => {
+      if (workerReady && windowLevel !== null) {
+        const request: RenderWorkerRequest = {
+          kind: "setWindowLevel",
+          requestId: SLICE_REQUEST_ID,
+          windowLevel,
+        };
+        worker.postMessage(request);
+      }
     },
   );
 
@@ -122,6 +141,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   return () => {
     disposeUi?.();
     unsubscribe();
+    unsubscribeWindow();
     worker.terminate();
   };
 }

@@ -91,6 +91,40 @@ const UI_CSS = `
 .webpic-slider { display: flex; align-items: center; gap: 6px; width: 100%; }
 .webpic-slider_input { flex: 1; min-width: 0; accent-color: var(--webpic-accent); }
 .webpic-slider_readout { flex: 0 0 auto; min-width: 36px; text-align: right; color: var(--webpic-muted); }
+.webpic-range { --gs: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; width: 100%; }
+.webpic-range.is-disabled { opacity: 0.5; pointer-events: none; }
+.webpic-range_track { position: relative; flex: 1 1 100%; min-width: 0; margin: 0 calc(var(--gs) / 2);
+  height: var(--gs); background: transparent; touch-action: none; cursor: pointer; }
+.webpic-range_track::before { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 4px;
+  transform: translateY(-50%); background: var(--webpic-border); border-radius: var(--webpic-radius);
+  pointer-events: none; }
+.webpic-range_fill { position: absolute; top: 50%; transform: translateY(-50%); height: 4px;
+  left: calc(var(--fa, 0) * 100%); width: calc((var(--fb, 0) - var(--fa, 0)) * 100%);
+  background: var(--webpic-accent); border-radius: var(--webpic-radius); pointer-events: none; }
+.webpic-range_fill[data-origin="left"] { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.webpic-range_fill[data-origin="right"] { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.webpic-range_ticks { position: absolute; inset: 0; pointer-events: none; }
+.webpic-range_tick { position: absolute; top: 50%; width: 1px; height: calc(var(--gs) * 2 / 3);
+  transform: translate(-50%, -50%); left: calc(var(--mt) * 100%); background: var(--webpic-muted); }
+.webpic-range_tick.is-minor { height: calc(var(--gs) / 3);
+  background: color-mix(in srgb, var(--webpic-muted) 45%, transparent); }
+.webpic-range_grip { position: absolute; top: 50%; width: var(--gs); height: var(--gs);
+  transform: translate(-50%, -50%); background: var(--webpic-input-bg); border-radius: var(--webpic-radius);
+  touch-action: none; cursor: grab; z-index: 1; }
+.webpic-range_grip[data-end="value"] { left: calc(var(--t, 0) * 100%); }
+.webpic-range_grip[data-end="lo"] { left: calc(var(--tlo, 0) * 100%); }
+.webpic-range_grip[data-end="hi"] { left: calc(var(--thi, 1) * 100%); }
+.webpic-range_grip::before { content: ""; position: absolute; inset: -8px; }
+.webpic-range_grip::after { content: ""; position: absolute; top: 50%; left: 50%;
+  width: calc(var(--gs) / 2); height: calc(var(--gs) / 2); transform: translate(-50%, -50%);
+  background: var(--webpic-accent); border-radius: calc(var(--webpic-radius) / 2); pointer-events: none; }
+.webpic-range_grip:focus-visible { outline: 1px solid color-mix(in srgb, var(--webpic-accent) 40%, transparent);
+  outline-offset: 2px; }
+.webpic-range.is-dragging .webpic-range_grip { cursor: grabbing; }
+.webpic-range_text { display: flex; gap: 4px; flex: 1 1 100%; justify-content: flex-end; }
+.webpic-range_input { width: 100%; min-width: 0; box-sizing: border-box; padding: 0 4px;
+  height: var(--webpic-unit); border: 1px solid var(--webpic-border); border-radius: var(--webpic-radius);
+  background: var(--webpic-input-bg); color: var(--webpic-fg); font: inherit; text-align: right; }
 .webpic-button_btn { width: 100%; height: var(--webpic-unit); border: 1px solid var(--webpic-border);
   border-radius: var(--webpic-radius); background: var(--webpic-input-bg); color: var(--webpic-fg);
   font: inherit; cursor: pointer; }

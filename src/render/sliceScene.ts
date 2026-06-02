@@ -1,8 +1,8 @@
 import { Color, Mesh, OrthographicCamera, PlaneGeometry, Scene } from "three";
-import { texture3D, uniform, uv, vec3 } from "three/tsl";
+import { texture, texture3D, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
-import { colormapNode } from "./colormapNode.ts";
 import { BACKGROUND_COLOR, FRUSTUM } from "./constants.ts";
+import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
 // One orthogonal slice sampling the shared `uVolume` 3D texture (the raymarcher and further
@@ -18,12 +18,16 @@ export interface SliceSceneOptions {
   readonly axis: SliceAxis;
   /** Position along the fixed axis, in [0,1]. */
   readonly position: number;
+  /** Value→color window; absent → the field's full finite range (identity normalization). */
+  readonly windowLevel?: { readonly center: number; readonly width: number };
   readonly background?: number;
 }
 
 export interface SliceScene {
   readonly scene: Scene;
   readonly camera: OrthographicCamera;
+  /** Update the value→color window in place (no texture re-upload). */
+  setWindowLevel(center: number, width: number): void;
   dispose(): void;
 }
 
@@ -49,17 +53,24 @@ function sliceCoord(
 /** Build a themed orthogonal-slice scene from a 3D scalar field. */
 export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   const volume = createVolumeTexture(opts.field);
+  const tf = createTransferFunctionTexture(opts.colormap);
 
+  // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
+  const window = opts.windowLevel ?? {
+    center: (volume.min + volume.max) / 2,
+    width: volume.max - volume.min,
+  };
   const uPosition = uniform(opts.position);
-  const uMin = uniform(volume.min);
-  const uMax = uniform(volume.max);
+  const uWindowCenter = uniform(window.center);
+  const uWindowWidth = uniform(window.width);
 
   const coord = sliceCoord(opts.axis, uv().x, uv().y, uPosition);
   const raw = texture3D(volume.texture, coord).r;
-  const normalized = raw.sub(uMin).div(uMax.sub(uMin)); // colormapNode clamps to [0,1]
+  // Window/level: map [center − width/2, center + width/2] → [0,1], then sample the LUT.
+  const t = raw.sub(uWindowCenter).div(uWindowWidth).add(0.5).saturate();
 
   const material = new NodeMaterial();
-  material.colorNode = colormapNode(opts.colormap)(normalized);
+  material.colorNode = texture(tf.texture, vec2(t, 0.5)).rgb;
 
   const geometry = new PlaneGeometry(2, 2);
   const mesh = new Mesh(geometry, material);
@@ -82,10 +93,15 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   return {
     scene,
     camera,
+    setWindowLevel(center, width) {
+      uWindowCenter.value = center;
+      uWindowWidth.value = width;
+    },
     dispose() {
       geometry.dispose();
       material.dispose();
       volume.dispose();
+      tf.dispose();
     },
   };
 }

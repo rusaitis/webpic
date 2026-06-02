@@ -1,5 +1,5 @@
-// Analytic colormaps: the source of truth for both the CPU reference and the GPU twin
-// (colormapNode.ts re-encodes these coefficients, matching within rounding). Each is a degree-6
+// Analytic colormaps: the source of truth for the GPU transfer-function LUT
+// (transferFunction.ts samples `colormapColor` into a 256×1 texture). Each is a degree-6
 // polynomial fit to the matplotlib sequentials (https://www.shadertoy.com/view/WlfXRN), evaluated
 // in Horner form. Unknown names fall back to inferno.
 
@@ -75,7 +75,7 @@ function channel(c: Coeffs, k: 0 | 1 | 2, t: number): number {
 }
 
 /** Sample a colormap at `t`; `t` is clamped to [0,1] and each channel saturated to [0,1].
- *  The reference the TSL `colormapNode` mirrors and the Node tests check against. */
+ *  The source the transfer-function LUT is baked from and the Node tests check against. */
 export function colormapColor(name: string, t: number): Rgb {
   const u = t < 0 ? 0 : t > 1 ? 1 : t;
   const c = COLORMAP_COEFFS[resolveColormapName(name)];

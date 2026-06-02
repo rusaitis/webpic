@@ -89,6 +89,8 @@ async function showSlice(
     colormap: request.colormap,
     axis: request.axis,
     position: request.position,
+    // exactOptionalPropertyTypes: only forward when set, so the scene's full-range default applies.
+    ...(request.windowLevel !== undefined ? { windowLevel: request.windowLevel } : {}),
   });
   renderer.renderOnce(slice.scene, slice.camera);
 }
@@ -106,10 +108,26 @@ async function showVolume(
     field: decodeSliceField(request.field),
     colormap: request.colormap,
     // exactOptionalPropertyTypes: only forward when set, so the scene's defaults apply.
+    ...(request.windowLevel !== undefined ? { windowLevel: request.windowLevel } : {}),
     ...(request.steps !== undefined ? { steps: request.steps } : {}),
     ...(request.density !== undefined ? { density: request.density } : {}),
   });
   renderer.renderOnce(volume.scene, volume.camera);
+}
+
+// Live window/level: retune the active scenes' uniforms and repaint, no scene rebuild.
+async function setWindowLevel(
+  request: Extract<RenderWorkerRequest, { kind: "setWindowLevel" }>,
+): Promise<void> {
+  await initDone;
+  if (renderer === undefined) {
+    throw new Error("setWindowLevel before init");
+  }
+  const { center, width } = request.windowLevel;
+  slice?.setWindowLevel(center, width);
+  volume?.setWindowLevel(center, width);
+  const { scene, camera } = currentScene();
+  renderer.renderOnce(scene, camera);
 }
 
 function handle(request: RenderWorkerRequest): Promise<void> {
@@ -123,6 +141,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return showSlice(request);
     case "showVolume":
       return showVolume(request);
+    case "setWindowLevel":
+      return setWindowLevel(request);
     default: {
       const unreachable: never = request;
       return Promise.reject(new Error(`unknown request: ${JSON.stringify(unreachable)}`));

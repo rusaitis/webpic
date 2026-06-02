@@ -9,6 +9,7 @@ import {
   max,
   modelWorldMatrixInverse,
   positionGeometry,
+  texture,
   texture3D,
   uniform,
   varying,
@@ -18,8 +19,8 @@ import {
   wgslFn,
 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
-import { colormapNode } from "./colormapNode.ts";
 import { BACKGROUND_COLOR } from "./constants.ts";
+import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
 // Single-pass volume raymarcher over the shared `uVolume`. The analytic ray-box clip is
@@ -29,6 +30,8 @@ export interface RaymarchSceneOptions {
   readonly field: ScalarField;
   /** Theme colormap name (`theme.colormaps.sequential`); unknown → inferno. */
   readonly colormap: string;
+  /** Value→color window; absent → the field's full finite range (identity normalization). */
+  readonly windowLevel?: { readonly center: number; readonly width: number };
   /** Fixed samples per ray across the clipped segment. */
   readonly steps?: number;
   /** Opacity scale for the emission-absorption transfer. */
@@ -39,6 +42,8 @@ export interface RaymarchSceneOptions {
 export interface RaymarchScene {
   readonly scene: Scene;
   readonly camera: PerspectiveCamera;
+  /** Update the value→color window in place (no texture re-upload). */
+  setWindowLevel(center: number, width: number): void;
   dispose(): void;
 }
 
@@ -65,12 +70,17 @@ const hitBox = wgslFn<{ orig: Node; dir: Node }>(`
 /** Build a themed single-pass raymarch scene from a 3D scalar field. */
 export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   const volume = createVolumeTexture(opts.field);
+  const tf = createTransferFunctionTexture(opts.colormap);
   const steps = opts.steps ?? DEFAULT_STEPS;
 
-  const uMin = uniform(volume.min);
-  const uMax = uniform(volume.max);
+  // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
+  const window = opts.windowLevel ?? {
+    center: (volume.min + volume.max) / 2,
+    width: volume.max - volume.min,
+  };
+  const uWindowCenter = uniform(window.center);
+  const uWindowWidth = uniform(window.width);
   const uDensity = uniform(opts.density ?? 1);
-  const color = colormapNode(opts.colormap);
 
   const rgba = Fn(() => {
     // Camera ray in object space; the box is axis-aligned there so the slab test is exact.
@@ -91,10 +101,14 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       // Object [-0.5,0.5]³ → texture [0,1]³. Texture axes are the reverse of field axes
       // (volumeTexture C-order): object x/y/z ↔ field axis 2/1/0 — the same reversal sliceScene maps.
       const sample = texture3D(volume.texture, pos.add(0.5)).r;
-      const t = sample.sub(uMin).div(uMax.sub(uMin)).saturate();
+      // Window/level: map [center − width/2, center + width/2] → [0,1], then sample the LUT.
+      const t = sample.sub(uWindowCenter).div(uWindowWidth).add(0.5).saturate();
+      // Opacity stays value-proportional (t·density); the LUT alpha channel is reserved
+      // for the opacity transfer function, so color comes from the LUT but opacity doesn't.
       const sampleAlpha = t.mul(uDensity).mul(dt).saturate();
       const weight = accumAlpha.oneMinus(); // front-to-back: (1 - accumulated)
-      accumColor.addAssign(color(t).mul(sampleAlpha).mul(weight));
+      const rgb = texture(tf.texture, vec2(t, 0.5)).rgb;
+      accumColor.addAssign(rgb.mul(sampleAlpha).mul(weight));
       accumAlpha.addAssign(sampleAlpha.mul(weight));
       If(accumAlpha.greaterThanEqual(EARLY_ALPHA), () => {
         Break(); // opaque enough — remaining samples can't change the pixel
@@ -131,10 +145,15 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   return {
     scene,
     camera,
+    setWindowLevel(center, width) {
+      uWindowCenter.value = center;
+      uWindowWidth.value = width;
+    },
     dispose() {
       geometry.dispose();
       material.dispose();
       volume.dispose();
+      tf.dispose();
     },
   };
 }

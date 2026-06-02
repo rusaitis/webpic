@@ -1,5 +1,6 @@
 import { createCheckbox } from "./checkbox.ts";
 import { makeEl } from "./dom.ts";
+import { createRangeControl } from "./rangeControl.ts";
 import { createSelect } from "./select.ts";
 import { createSlider } from "./slider.ts";
 import { createTextInput } from "./text.ts";
@@ -13,6 +14,8 @@ import type {
   FolderOptions,
   NoteHandle,
   Pane,
+  RangeControlOptions,
+  RangeValue,
   SelectHandle,
   SelectOptions,
   SliderOptions,
@@ -86,6 +89,11 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
         valueCell,
         createSlider(doc, o.value, o.min, o.max, o.step, o.format, o.onChange),
       );
+    },
+    addRangeControl(o: RangeControlOptions): ControlHandle<RangeValue> {
+      // `o` carries `label` (handled by makeRow); createRangeControl ignores it structurally.
+      const { row, valueCell } = makeRow(doc, o.label);
+      return attach(row, valueCell, createRangeControl(doc, o));
     },
     addSelect<V extends string>(o: SelectOptions<V>): SelectHandle<V> {
       const { row, valueCell } = makeRow(doc, o.label);

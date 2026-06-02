@@ -1,6 +1,7 @@
 import type { SimulationStore } from "@store";
 import type { Disposer } from "../controls/index.ts";
 import { installFieldPanel } from "./fieldPanel.ts";
+import { installLayersPanel } from "./layersPanel.ts";
 import { installPlaceholderPanel } from "./placeholderPanel.ts";
 
 // Panel name → installer. Adding a panel is one entry here; an unknown name (e.g. a theme's
@@ -10,7 +11,7 @@ export type PanelInstaller = (host: HTMLElement, store: SimulationStore) => Disp
 
 export const PANEL_REGISTRY: Readonly<Record<string, PanelInstaller>> = {
   field: installFieldPanel,
-  layers: (host) => installPlaceholderPanel(host, "Layers", "No layers yet"),
+  layers: installLayersPanel,
   diagnostics: (host) => installPlaceholderPanel(host, "Diagnostics", "GPU timing — coming soon"),
 };
 

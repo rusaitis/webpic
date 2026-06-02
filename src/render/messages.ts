@@ -14,6 +14,12 @@ export interface SliceFieldPayload {
   readonly shape: readonly number[];
 }
 
+// Value→color window (DESIGN M2.3): the canonical range form, not a separate min/max.
+export interface WindowLevel {
+  readonly center: number;
+  readonly width: number;
+}
+
 export type RenderWorkerRequest =
   | {
       readonly kind: "init";
@@ -30,14 +36,22 @@ export type RenderWorkerRequest =
       readonly axis: SliceAxis;
       readonly position: number;
       readonly colormap: string;
+      readonly windowLevel?: WindowLevel;
     }
   | {
       readonly kind: "showVolume";
       readonly requestId: number;
       readonly field: SliceFieldPayload;
       readonly colormap: string;
+      readonly windowLevel?: WindowLevel;
       readonly steps?: number;
       readonly density?: number;
+    }
+  // Live window/level update — no field buffer, so dragging never re-transfers the volume.
+  | {
+      readonly kind: "setWindowLevel";
+      readonly requestId: number;
+      readonly windowLevel: WindowLevel;
     };
 
 export type RenderWorkerResponse =
