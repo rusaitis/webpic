@@ -184,4 +184,18 @@ describe("pane/folder lifecycle", () => {
     expect(body.hidden).toBe(true);
     pane.dispose();
   });
+
+  it("renders a note inside the folder body and removes it on dispose", () => {
+    const pane = createPane({ parent: mount() });
+    const folder = pane.addFolder({ title: "Group" });
+    const body = folder.element.querySelector<HTMLElement>(".webpic-folder_body");
+    if (body === null) throw new Error("no folder body");
+    const note = folder.addNote("Coming soon");
+    // Lives in the body (not the folder root), so it collapses with the folder.
+    expect(note.element.parentElement).toBe(body);
+    expect(note.element.textContent).toBe("Coming soon");
+    note.dispose();
+    expect(body.querySelector(".webpic-placeholder")).toBeNull();
+    pane.dispose();
+  });
 });

@@ -11,8 +11,8 @@ export function createTextInput(
   input.spellcheck = false;
   input.value = value;
 
-  const handleChange = (): void => onChange(input.value);
-  input.addEventListener("change", handleChange);
+  const ac = new AbortController();
+  input.addEventListener("change", () => onChange(input.value), { signal: ac.signal });
 
   return {
     element: input,
@@ -24,7 +24,7 @@ export function createTextInput(
       input.disabled = disabled;
     },
     dispose() {
-      input.removeEventListener("change", handleChange);
+      ac.abort();
       input.remove();
     },
   };

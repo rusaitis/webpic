@@ -5,10 +5,6 @@ import { createPane, type Disposer } from "../controls/index.ts";
 
 export function installPlaceholderPanel(host: HTMLElement, title: string, note: string): Disposer {
   const pane = createPane({ parent: host, title });
-  const folder = pane.addFolder({ title });
-  const noteEl = host.ownerDocument.createElement("div");
-  noteEl.className = "webpic-placeholder";
-  noteEl.textContent = note;
-  folder.element.appendChild(noteEl);
+  pane.addFolder({ title }).addNote(note);
   return () => pane.dispose();
 }

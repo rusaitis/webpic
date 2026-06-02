@@ -31,8 +31,8 @@ export function createCheckbox(
 
   label.append(input, box);
 
-  const handleChange = (): void => onChange(input.checked);
-  input.addEventListener("change", handleChange);
+  const ac = new AbortController();
+  input.addEventListener("change", () => onChange(input.checked), { signal: ac.signal });
 
   return {
     element: label,
@@ -43,7 +43,7 @@ export function createCheckbox(
       input.disabled = disabled;
     },
     dispose() {
-      input.removeEventListener("change", handleChange);
+      ac.abort();
       label.remove();
     },
   };

@@ -11,6 +11,7 @@ import type {
   Disposer,
   Folder,
   FolderOptions,
+  NoteHandle,
   Pane,
   SelectHandle,
   SelectOptions,
@@ -40,10 +41,11 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
   bar.textContent = opts.title;
   const body = makeEl(doc, "div", "webpic-folder_body");
   if (opts.expanded === false) body.hidden = true;
+  const ac = new AbortController();
   const onBar = (): void => {
     body.hidden = !body.hidden;
   };
-  bar.addEventListener("click", onBar);
+  bar.addEventListener("click", onBar, { signal: ac.signal });
   element.append(bar, body);
 
   // Each child registers a self-removing disposer; folder teardown runs a snapshot so a
@@ -106,12 +108,11 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
       button.disabled = o.disabled ?? false;
       wrap.appendChild(button);
       body.appendChild(wrap);
-      const onClick = (): void => {
-        if (!button.disabled) o.onClick();
-      };
-      button.addEventListener("click", onClick);
+      // A native disabled <button> doesn't dispatch click, so no guard is needed.
+      const buttonAc = new AbortController();
+      button.addEventListener("click", o.onClick, { signal: buttonAc.signal });
       const dispose = track(() => {
-        button.removeEventListener("click", onClick);
+        buttonAc.abort();
         wrap.remove();
         disposers.delete(dispose);
       });
@@ -132,9 +133,19 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
       });
       return { ...sub, dispose };
     },
+    addNote(text: string): NoteHandle {
+      const note = makeEl(doc, "div", "webpic-placeholder");
+      note.textContent = text;
+      body.appendChild(note);
+      const dispose = track(() => {
+        note.remove();
+        disposers.delete(dispose);
+      });
+      return { element: note, dispose };
+    },
     dispose() {
       for (const dispose of [...disposers]) dispose();
-      bar.removeEventListener("click", onBar);
+      ac.abort();
       element.remove();
     },
   };

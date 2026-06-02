@@ -1,8 +1,7 @@
 import { DEFAULT_WEBPIC_CONFIG, type Theme } from "@schema/theme.ts";
 import type { SimulationStore, UiStore } from "@store";
 import type { Disposer } from "./controls/index.ts";
-import { installFieldPanel } from "./panels/fieldPanel.ts";
-import { installPlaceholderPanel } from "./panels/placeholderPanel.ts";
+import { mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
 import { applyControlStyles } from "./theme/styles.ts";
 
@@ -15,19 +14,6 @@ export interface InstallUiOptions {
   readonly simulationStore: SimulationStore;
   readonly uiStore: UiStore;
   readonly theme?: Theme;
-}
-
-function mountPanel(name: string, host: HTMLElement, store: SimulationStore): Disposer {
-  switch (name) {
-    case "field":
-      return installFieldPanel(host, store);
-    case "layers":
-      return installPlaceholderPanel(host, "Layers", "No layers yet");
-    case "diagnostics":
-      return installPlaceholderPanel(host, "Diagnostics", "GPU timing — coming soon");
-    default:
-      return installPlaceholderPanel(host, name, "Coming soon");
-  }
 }
 
 export function installUi(opts: InstallUiOptions): () => void {

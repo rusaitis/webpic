@@ -7,6 +7,7 @@ export type {
   Disposer,
   Folder,
   FolderOptions,
+  NoteHandle,
   Pane,
   SelectHandle,
   SelectOption,

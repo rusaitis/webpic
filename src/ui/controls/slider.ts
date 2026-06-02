@@ -26,12 +26,13 @@ export function createSlider(
   readout.textContent = fmt(value);
   wrap.append(input, readout);
 
+  const ac = new AbortController();
   const handleInput = (): void => {
     const next = input.valueAsNumber;
     readout.textContent = fmt(next);
     onChange(next);
   };
-  input.addEventListener("input", handleInput);
+  input.addEventListener("input", handleInput, { signal: ac.signal });
 
   return {
     element: wrap,
@@ -43,7 +44,7 @@ export function createSlider(
       input.disabled = disabled;
     },
     dispose() {
-      input.removeEventListener("input", handleInput);
+      ac.abort();
       wrap.remove();
     },
   };

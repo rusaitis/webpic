@@ -78,6 +78,13 @@ export interface ButtonHandle {
   dispose(): void;
 }
 
+// A static, value-less text row (caption / placeholder). No `set`/`setDisabled` — it only
+// renders and tears down.
+export interface NoteHandle {
+  readonly element: HTMLElement;
+  dispose(): void;
+}
+
 export interface FolderOptions {
   readonly title: string;
   readonly expanded?: boolean;
@@ -91,6 +98,7 @@ export interface Folder {
   addText(opts: TextOptions): ControlHandle<string>;
   addButton(opts: ButtonOptions): ButtonHandle;
   addFolder(opts: FolderOptions): Folder;
+  addNote(text: string): NoteHandle;
   dispose(): void;
 }
 
