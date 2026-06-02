@@ -38,7 +38,7 @@ Goal: read a Zarr store and render one themed orthogonal slice of `|B|`.
 
 ## M2 — Volume + perf gate
 Goal: single-scalar volume raymarcher hitting the perf gate; time-series scrub.
-- [x] 1. WESL fragment raymarcher (`NodeMaterial` + `wgslFn`); analytic ray-box, early-α (≥0.98) termination. `render/raymarchScene.ts` (TSL `Loop` + `wgslFn` `hitBox` + front-to-back composite); `rayBox.ts` TS twin + Node tests; worker `showVolume` + real-GPU smoke. Slice stays app default until the M2.2 UI toggle.
+- [x] 1. Single-pass volume raymarcher (TSL `NodeMaterial` + `wgslFn`, render-local — not a shared kernel); analytic ray-box, early-α (≥0.98) termination. `render/raymarchScene.ts` (TSL `Loop` + `wgslFn` `hitBox` + front-to-back composite); `rayBox.ts` TS twin + Node tests; worker `showVolume` + real-GPU smoke. Slice stays app default until the M2.2 UI toggle.
 - [ ] 2. **`ui/` scaffold** — hideable shell panels + dependency-free `Pane`/`Folder`/`Binding` controls facade (slider/select/checkbox/text, ported from `magviz/src/ui/controls`, no `tweakpane`) + `ControlDescriptor` schema-aware binder. `ui` dispatches typed store intents only — never imports `render` (DAG-enforced); embed renders without `@webpic/ui`. One smoke per panel. *(foundation for M2.3 `RangeControl`, M2.6 diagnostics panel, M6.5 theme switcher)*
 - [ ] 3. Transfer-function texture (256×1 `rgba16float`) + window/level via **owned `RangeControl`**
 - [ ] 4. **`ColormapBinding`** store/schema node — reified colormap registry (mirror `magviz/src/store/schema.ts` field-for-field: `kind`/`label`/`id` discriminators) so magviz session exports round-trip. **Land before v0.1 freeze.**
@@ -46,13 +46,13 @@ Goal: single-scalar volume raymarcher hitting the perf gate; time-series scrub.
 - [ ] 6. Gradient + Phong central-difference shading (~20 lines WGSL — shape-perception win)
 - [ ] 7. `timestamp-query` diagnostics panel (+ `performance.now` fallback)
 - [ ] 8. Time-series prefetcher `data/prefetch.ts`: EWMA direction + debounce, double-buffered GPU upload
-- [ ] 9. Eager `material.compileAsync` at boot; WESL HMR (edit shader, keep camera pose)
+- [ ] 9. Eager `material.compileAsync` at boot; shader HMR (edit shader, keep camera pose)
 - [ ] 10. **Package-split checkpoint** — decide: promote `src/<layer>/` → `@webpic/<layer>` packages vs. collapse math-y layers into one `@webpic/core` (see `docs/DESIGN.md` §Package shape)
 - [ ] **Exit gate:** 256³ × 256-step dataset @ ≤8 ms/frame raymarch on M2 Pro — else defer 512³ to v0.2 + LOD bricks; scrub without stalls
 
 ## M3 — WebGPU compute + parity
 Goal: GPU compute backend agreeing with pypic goldens. (WASM backend deferred → M9.)
-- [ ] 1. `compute/backends/webgpu` for `field.{magnitude,curl,divergence}` (imports `shaders` + `gpu`)
+- [ ] 1. `compute/backends/webgpu` for `field.{magnitude,curl,divergence}` — kernels authored as standalone WGSL in `shaders/` (shared w/ rustpic, tested vs the `coordinates/` TS twin); imports `shaders` + `gpu`
 - [ ] 2. `tests/tolerances.ts` — per-kernel, per-precision tolerance table (honest f32/f16 bounds)
 - [ ] 3. Cross-backend equivalence harness: `ts` vs `webgpu` per kernel
 - [ ] 4. `gen-fixtures.ts` — pypic golden outputs checked into `tests/fixtures/v1/`
@@ -63,7 +63,7 @@ Goal: GPU compute backend agreeing with pypic goldens. (WASM backend deferred �
 Goal: cancellable GPU streamlines matching pypic's Dormand-Prince traces.
 - [ ] 1. `numerics/integrators`: port pypic `dormand_prince_step` + `i_step_controller` (CPU reference)
 - [ ] 2. `numerics/tracing.ts`: `trace_field_line[s]_adaptive` + `TerminationReason` (mirror `pypic.traces`)
-- [ ] 3. WESL streamline compute kernel — **DP5(4) + PI step control**, one invocation/seed; shared-shader scaffold w/ rustpic
+- [ ] 3. WGSL streamline compute kernel (standalone `shaders/` asset, shared w/ rustpic) — **DP5(4) + PI step control**, one invocation/seed
 - [ ] 4. Raycast seed picking against slice/volume bounds
 - [ ] 5. `Line2`/`LineSegments2` indirect-draw render (no per-frame readback)
 - [ ] 6. `AbortSignal` cancellation through the dispatcher (cancel mid-trace)

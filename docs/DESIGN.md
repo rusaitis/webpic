@@ -19,7 +19,7 @@
 ### Why now / why this shape
 - pypic's schema and reader infrastructure are stable. The schema CLI (`pypic schema export | validate | diff`) ships today, so codegen invokes it directly rather than shelling into Python or reimplementing the export.
 - pypic's codegen-surface modules are public — `pypic.{aliases,compute,numerics,traces,server}` (full symbol inventory in §Critical files & references). webpic codegen reads them directly — no underscore-prefixed imports.
-- rustpic's plan reserves `@rustpic/plasma-wasm` and `@rustpic/shaders` for webpic to consume; neither exists today, so v0.1 ships **TS-only compute** and adopts WASM / shared shaders as they land. We adopt WESL syntax now so rustpic can publish shared shaders without rewriting.
+- rustpic's plan reserves `@rustpic/plasma-wasm` and `@rustpic/shaders` for webpic to consume; neither exists today, so v0.1 ships **TS-only compute** and adopts WASM / shared shaders as they land. Shared kernels are authored as **standalone WGSL** in `shaders/` — WGSL is a strict subset of WESL, so they migrate to WESL (`@if`, imports) for free if rustpic later publishes `@rustpic/shaders` that way. The WESL *toolchain* (`wesl-js`/`wesl-rs`) is deferred until there's a real cross-language kernel to share (see §Shader sharing with rustpic).
 - WebGPU is shipped in Chrome/Edge (since 2023), Safari 18+ (2024), and behind a flag in Firefox. Coverage is solid enough to make it the only path and skip the WebGL2 twin.
 
 ### Versioning scheme
@@ -71,7 +71,7 @@ numerics    ──►  containers                   interp (trilinear, tricubic)
 reductions  ──►  schema, containers,          reduce() — mirrors pypic.reductions;
                  coordinates                  Reduction Literal re-exported from schema
                                               (round-trip semantics: see §Data layer)
-shaders     ──►  (none)                       WESL/WGSL string assets
+shaders     ──►  (none)                       WGSL string assets (WESL-ready; see §Shader sharing)
 gpu         ──►  (none)                       GPUDevice, capabilities, device.lost, profiler
 derived     ──►  coordinates, numerics,       recipe-math (|B|, beta, v_A, …) — mirrors pypic.derived
                  containers, schema
@@ -110,7 +110,7 @@ embed       ──►  (re-export facade only)      public lib surface; never
 - `gpu/` owns the singleton `GPUDevice`. Both `compute/backends/webgpu/` and `render/` import from it. `gpu/` owns `device.lost` recovery, capability probing, and `timestamp-query` profiling.
 - `ui/` talks to `render` only through `store` intents. UI never calls `scene.add(...)`.
 - `data/` produces canonical-named typed-array payloads in `FieldDataset` containers; it does not know what's plotted.
-- **WebGPU backend runs inline on main thread** (`GPUDevice` can't transfer to workers). TS/WASM backends run in a `comlink`-backed worker pool. The dispatcher routes based on selected backend.
+- **WebGPU backend runs inline on main thread** (`GPUDevice` can't transfer to workers). TS/WASM backends are *designed* to run in a `comlink`-backed worker pool; v0.1 runs the single TS backend synchronously on the main thread (one cheap `|B|` op), and the pool lands when compute gets heavy (M3+). The dispatcher routes based on selected backend.
 - Boundary violations are CI errors.
 
 ### First load walkthrough
@@ -150,7 +150,7 @@ webpic/
   pnpm-workspace.yaml
   tsconfig.base.json
   biome.json                      # lint + format config
-  vite.config.ts                  # COOP/COEP headers; OffscreenCanvas plumbing; vite-plugin-wesl
+  vite.config.ts                  # COOP/COEP headers; OffscreenCanvas plumbing (vite-plugin-wesl deferred — see §Build)
   vitest.config.ts
   index.html
   packages/
@@ -194,7 +194,7 @@ webpic/
         capabilities.ts           #   shader-f16, timestamp-query, subgroups probing
         profiler.ts               #   timestamp-query wrapper + performance.now() fallback
         memory.ts                 #   alloc with pressure response
-    shaders/                      # @webpic/shaders — WESL files (compile to WGSL at build)
+    shaders/                      # @webpic/shaders — WGSL string assets (WESL-ready; toolchain deferred)
       src/
         kernels/                  #   shared with rustpic via @rustpic/shaders later
         visual/                   #   webpic-only rendering shaders
@@ -425,12 +425,12 @@ await computeField('|B|', dataset, ctx?);
 // _recipes.get(name, { datasetId, step, structuredHash(params) })
 //   - Memo key: (recipeName, datasetId, step, structuredHash(params))
 //   - Invalidation: counter bumped by store mutations; recompute on next pull
-//   - Params hashed via xxhash-wasm (~10 KB) or FNV-1a; stable-stringify first
+//   - Params hashed via inline FNV-1a; stable-stringify first (xxhash-wasm not a v0.1 dep)
 // Not exported from @webpic/compute's barrel. Callers only see computeField.
 ```
 
 - **Selection policy.** `ctx.prefer` overrides; else per-kernel scores from `calibration.ts`. Heuristic exceptions for driver pathologies (e.g. `vendor === 'apple' && size < 1<<14` → avoid webgpu for tiny kernels). Local backends only — remote streaming emits `FieldDataset` into `@webpic/data`, not kernel-level dispatch.
-- **Worker routing.** `GPUDevice` can't transfer, so `webgpu` runs inline on main; `ts`/`wasm` dispatch to a `comlink` pool sized `Math.min(hardwareConcurrency - 1, 8)` (cap avoids thrashing render/data workers). Transferable typed arrays; SharedArrayBuffer when COOP/COEP set.
+- **Worker routing.** `GPUDevice` can't transfer, so `webgpu` runs inline on main; `ts`/`wasm` are designed to dispatch to a `comlink` pool sized `Math.min(hardwareConcurrency - 1, 8)` (cap avoids thrashing render/data workers), with transferable typed arrays + SharedArrayBuffer when COOP/COEP set. **v0.1 reality:** the only worker is `data.worker.ts` (OPFS writes, raw `postMessage`); TS compute runs inline on main until an op is heavy enough to need the pool.
 - **Boundary discipline.** Callers get a `Float32Array`; backends marshal internally.
 - **Cross-backend equivalence.** Every kernel runs `ts` and (when available) `webgpu`, asserting agreement within per-kernel per-precision tolerance (see §Testing).
 
@@ -478,7 +478,7 @@ Single-pass WGSL fragment raymarcher with min-max mipmap empty-space skipping; g
 - Min-max pyramid built on upload (4³ block, 2× per level) as `texture_3d<rg32float>` (or `rg16float` with `shader-f16`). Coarse step skips empty blocks; descend on hit.
 - Transfer function: 256×1 `texture_2d<rgba16float>`, regenerated on colormap/window change.
 - **Gradient + Phong** via central differences (~20 lines WGSL, M2) — major shape-perception win on plasma blobs.
-- Volume texture: `r16float` preferred, `r8unorm` fallback. `shader-f16` opportunistic (Chrome M120+ stable; Safari 26 Metal v4+; Firefox 141+; Qualcomm excluded). WESL `#if SHADER_F16` keeps both paths.
+- Volume texture: `r16float` preferred, `r8unorm` fallback. `shader-f16` opportunistic (Chrome M120+ stable; Safari 26 Metal v4+; Firefox 141+; Qualcomm excluded). The f16/f32 dual path is selected via TS string templating in v0.1; a WESL `#if SHADER_F16` would replace it cleanly once the WESL toolchain lands.
 - `NodeMaterial` wrapping hand-written WGSL via TSL's `wgslFn` escape hatch. Parallel raw-WebGPU raymarcher behind a flag as top-risk fallback.
 
 ### Slicing
@@ -665,7 +665,7 @@ The `SubscribeRequest` JSON shape (mirror in `remote/protocol.ts` field-for-fiel
 - **CORS for untrusted Zarr URLs.** Require CORS preflight; surface a banner on failure (no opaque-response inference). Document `Access-Control-Allow-Origin` requirement for self-hosted Zarr stores.
 - **TOML rendering.** User-supplied TOML never goes through `innerHTML` or template-string DOM injection. Field labels render via `textContent` only. Zod validates every field name against the canonical registry before display.
 - **JSON schema fetched from server (v0.2).** Validates against checked-in Zod schema before binding to UI. Rejects on schema mismatch with a banner.
-- **Shader provenance.** WGSL strings from `@rustpic/shaders` are not user-controllable; rejected at build if not from the pinned npm version. WESL source files in `packages/shaders/` are part of the bundle and tamper-evident via build hash.
+- **Shader provenance.** WGSL strings from `@rustpic/shaders` are not user-controllable; rejected at build if not from the pinned npm version. Shader source files in `packages/shaders/` (WGSL today, WESL-ready) are part of the bundle and tamper-evident via build hash.
 - **No execution of remote code.** No `eval`, no dynamic `import()` from non-bundled URLs.
 
 ---
@@ -741,17 +741,17 @@ Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirr
 
 ## Build system & tooling
 
-- **Vite 5+** with `vite-plugin-wasm`, `vite-plugin-top-level-await`, **`vite-plugin-wesl`** (custom plugin with `handleHotUpdate`: recompiles `.wesl` → WGSL, sends via `import.meta.hot`, renderer recreates affected `GPUShaderModule` and rebuilds pipeline without page reload). Vite dev config sets COOP/COEP headers for SharedArrayBuffer.
-- **WESL toolchain:** pre-1.0 community WGSL preprocessor; pin exact version in `package.json`. If WESL maturity stalls, swap to raw WGSL + 80-line custom preprocessor — kernels written in WESL subset (imports + `#if`) lower cleanly.
+- **Vite 5+** with `vite-plugin-wasm`, `vite-plugin-top-level-await`. Vite dev config sets COOP/COEP headers for SharedArrayBuffer. *(Deferred with the WESL toolchain: a custom `vite-plugin-wesl` `handleHotUpdate` that recompiles `.wesl` → WGSL over `import.meta.hot` and rebuilds the affected `GPUShaderModule` without page reload; v0.1 ships WGSL strings and HMRs them directly.)*
+- **WESL toolchain (deferred):** `wesl-js`/`wesl-rs` are a pre-1.0 (`2026_pre`) community WGSL superset. v0.1 ships **standalone WGSL** instead — WGSL is a strict subset of WESL, so kernels migrate for free. Adoption is gated on rustpic publishing compute kernels to share across the Rust + TS paths (see §Shader sharing), *not* on f16 (TS templating covers that). Pin an exact `wesl-js` version on adoption so `2026_pre` churn can't surprise the build.
 - **TypeScript:** `target: "ES2022"`, `module: "ESNext"`, `moduleResolution: "bundler"`, `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true`, `verbatimModuleSyntax: true`. Project references per package.
-- **Workers:** Vite `?worker` syntax. `comlink` (~5 KB) for RPC + 20-line round-robin pool over `new Worker(new URL(...), { type: 'module' })`, sized to `Math.min(navigator.hardwareConcurrency - 1, 8)`. (Not `tinypool` — that's Node-only.)
+- **Workers:** Vite `?worker` syntax. The compute pool is designed around `comlink` (~5 KB) for RPC + a 20-line round-robin pool over `new Worker(new URL(...), { type: 'module' })`, sized to `Math.min(navigator.hardwareConcurrency - 1, 8)` (not `tinypool` — Node-only). **v0.1 reality:** only `data.worker.ts` exists, using raw `postMessage`; `comlink` is added when the compute pool lands (M3+).
 - **Lint + format:** **Biome** (single binary, integrated formatter — replaces ESLint + Prettier). Layer enforcement is not a Biome plugin; see §Layered dependency DAG.
 - **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. Browser mode (`@vitest/browser` + Playwright provider) for WebGPU kernels. Playwright for 2–3 E2E flows.
 - **Docs:** TypeDoc from public exports.
 - **Bundle size:** `size-limit` with 1.0 MB ceiling on `@webpic/embed`, 1.6 MB on `@webpic/app` (gzipped).
-- **Shader validation:** `tint` validator in CI from M2.
+- **Shader validation:** `tint` validator in CI (planned, from M2 — when the first standalone WGSL kernels land).
 
-**Key dependencies:** `three` (exact pin carrying #31607, not a floating range), `zarrita`, `zod/v4-mini` (embed) + `zod` (app), `smol-toml`, `gl-matrix`, `comlink`, `zustand`, `xxhash-wasm`. Control widgets are owned, not a dependency — see §UI (magviz dropped `tweakpane` + `@tweakpane/plugin-essentials` once its `ui/controls` primitives landed).
+**Key dependencies.** *Shipped in v0.1:* `three` (exact pin carrying #31607, not a floating range), `zarrita`, `zod` (app), `smol-toml`, `zustand`. *Adopted when their layer lands:* `gl-matrix` (with `coordinates`/`numerics`), `comlink` (with the compute worker pool, M3+), `zod/v4-mini` (the embed build), `xxhash-wasm` (only if FNV-1a proves insufficient — it currently doesn't), `wesl-js` (gated on rustpic shared kernels). Control widgets are owned, not a dependency — see §UI (magviz dropped `tweakpane` + `@tweakpane/plugin-essentials` once its `ui/controls` primitives landed).
 
 ---
 
@@ -804,11 +804,14 @@ Header documents derivation: 1e-6 rel on f32 is fiction for curl on 256³ — O(
 
 ## Shader sharing with rustpic
 
-**Adopt WESL syntax from day one.** Even with trivial bundler in v0.1, WESL gives imports, conditional compilation (`#if SHADER_F16`), and packaging — exactly what rustpic's planned `@rustpic/shaders` will need.
+**v0.1 ships standalone WGSL; WESL is the *eventual* shared format, not a day-one dependency.** Separate the *format* decision from the *toolchain* decision:
 
-Bootstrap: `scripts/sync-shaders.ts` copies WESL/WGSL files from a local rustpic checkout into `packages/shaders/src/kernels/`. CI diff check makes drift visible. Once rustpic publishes `@rustpic/shaders`, webpic adds it as a normal npm dep and the sync script retires.
+- **Format (now):** shared numeric kernels (`field.{magnitude,curl,divergence}` at M3; the DP5(4) streamline step at M4) live in `shaders/src/kernels/` as **standalone WGSL** strings, imported by `compute/backends/webgpu` and any render path needing the same math, and cross-backend-tested against their `coordinates/`/`numerics/` TS reference twins. WGSL is a **strict subset of WESL**, so these carry *zero* rewrite cost toward WESL — rename `.wgsl`→`.wesl` and add `@if`/imports when there's a reason to.
+- **Toolchain (gated on rustpic):** `wesl-js`/`wesl-rs`, a `vite-plugin-wesl` HMR step, and `scripts/sync-shaders.ts` (copy kernels from a rustpic checkout into `shaders/src/kernels/`, CI diff-checked) land **only when rustpic publishes compute kernels** to share across the Rust + TS paths — that's the moment imports + dual npm/cargo packaging earn their keep. *Not* f16: the f16/f32 dual path is handled by TS string templating in v0.1 with no preprocessor. Pin an exact `wesl-js` version on adoption so `2026_pre` churn is contained. Once rustpic publishes `@rustpic/shaders`, webpic adds it as a normal npm dep and the sync script retires.
 
-Visual-only shaders (raymarcher, particle billboard, axes gizmo) live in `packages/shaders/src/visual/` and stay webpic-private.
+**Where a kernel lives:** `shaders/` (standalone WGSL, shared, TS-twin-tested) iff it's a numeric operator with a TS reference impl *or* rustpic would want it; otherwise it stays render-local TSL `wgslFn` in `render/`.
+
+Render-only shaders (raymarch compositing, ray-box, transfer function, Phong, particle billboard, axes gizmo) are webpic-private; v0.1 authors them as inline TSL `wgslFn` in `render/` (e.g. `render/raymarchScene.ts`), graduating to `shaders/src/visual/` only if a non-TSL consumer needs them.
 
 ---
 
@@ -826,9 +829,9 @@ Scope per §Versioning scheme; M9 contingent on rustpic shipping plasma-wasm. Ea
 |---|---|---|
 | **M0 — Foundation** | Vite + TS strict + Biome + pnpm + Vitest; schema/aliases/recipes codegen (§Schema sharing); `@webpic/{containers,coordinates,numerics,gpu}` scaffolds; `check-boundaries.ts`; OffscreenCanvas-on-Worker scaffold; theme loader; OPFS cache; backend microbench in background | Cold-start: page paint <500 ms; first frame <1500 ms on M2 Pro Chrome stable |
 | **M1 — Static slice** | `data/readers/zarr.ts` (zarrita.js) implementing `SimulationReader`+`FieldListingReader`; `_registry.ts` with `openSimulation()`; `magnitude` operator registered as `'|B|'`; TS backend; one orthogonal slice with themed colormap | `computeField('|B|', dataset)` end-to-end; schema-parity (`pypic schema diff` + Vitest) + additive-compat tests green |
-| **M2 — Volume + perf gate** | WESL fragment raymarcher (NodeMaterial + `wgslFn`), single-scalar volume; transfer-function texture + window/level (owned RangeControl); min-max mipmap empty-space skipping; gradient + Phong shading; `timestamp-query` diagnostics; time-series prefetcher (EWMA + debounce); eager `compileAsync`; WESL HMR | **Perf gate:** 256³ × 256-step dataset @ 8 ms per-frame raymarch on M2 Pro by end of M2. 512³ deferred to v0.2 if missed |
+| **M2 — Volume + perf gate** | single-pass TSL raymarcher (NodeMaterial + `wgslFn`), single-scalar volume; transfer-function texture + window/level (owned RangeControl); min-max mipmap empty-space skipping; gradient + Phong shading; `timestamp-query` diagnostics; time-series prefetcher (EWMA + debounce); eager `compileAsync`; shader HMR | **Perf gate:** 256³ × 256-step dataset @ 8 ms per-frame raymarch on M2 Pro by end of M2. 512³ deferred to v0.2 if missed |
 | **M3 — WebGPU compute + parity** | WebGPU backend for `field.{magnitude,curl,divergence}`; cross-backend equivalence (TS vs WebGPU) at per-precision tolerances; pypic fixture suite checked in; Orszag-Tang + Harris synthetic fixtures. WASM backend deferred to M9 | Cross-backend parity within tolerance against pypic goldens |
-| **M4 — Field lines** | WESL streamline compute (Dormand-Prince 5(4) + PI step control), shared-shader scaffold; raycast seed picking against slice/volume bounds; Line2 indirect-draw render; `AbortSignal`-cancellable mid-trace | Cancellable traces match pypic golden traces |
+| **M4 — Field lines** | WGSL streamline compute (Dormand-Prince 5(4) + PI step control) as a standalone `shaders/` kernel shared w/ rustpic; raycast seed picking against slice/volume bounds; Line2 indirect-draw render; `AbortSignal`-cancellable mid-trace | Cancellable traces match pypic golden traces |
 | **M6 — Writers + export** | Zarr v3 writer for derived fields; PNG screenshot (`canvas.toBlob`); `simulation.toml` round-trip; reduction-provenance round-trip (see §Data layer › Reduction provenance round-trip); theme switcher; TypeDoc from public exports; `size-limit` CI gate | 1.0 MB embed / 1.6 MB app (gzipped) |
 
 **M0 detail.**
@@ -840,7 +843,7 @@ Scope per §Versioning scheme; M9 contingent on rustpic shipping plasma-wasm. Ea
 
 **M2 detail.**
 - Perf gate per §Performance gate (8 ms = raymarch only; 256 = disk depth).
-- WESL HMR working — edit raymarcher color, see update without losing camera pose.
+- Shader HMR working — edit raymarcher color, see update without losing camera pose.
 - Gradient + Phong is ~20 lines for a scientific quality win. `timestamp-query` panel falls back to `performance.now()`.
 
 **M4 detail.** Reference implementations to mirror in `@webpic/numerics`:
@@ -873,11 +876,11 @@ Scope per §Versioning scheme; M9 contingent on rustpic shipping plasma-wasm. Ea
 
 **Top risks (ordered)**
 
-1. **TSL `wgslFn` escape hatch instability.** The volume raymarcher and shared compute kernels depend on it. Three deprecating it would break us. Mitigation: parallel raw-WebGPU raymarcher behind a flag.
+1. **TSL `wgslFn` escape hatch instability.** The volume raymarcher depends on it (shared *compute* kernels are standalone WGSL pipelines, not TSL, so they're insulated). Three deprecating it would break the raymarcher. Mitigation: parallel raw-WebGPU raymarcher behind a flag.
 2. **Schema codegen drift.** Mitigation: semantic parity (every fixture validates against regenerated + checked-in schema) + additive-compatibility test against prior N versions.
-3. **WebGPU adapter quirks.** Storage texture formats vary; `shader-f16` is Chrome-mostly with Qualcomm exclusion. Mitigation: capability matrix in `gpu/capabilities.ts`, WESL `#if SHADER_F16` for f32 fallback, `?backend=ts` URL override for triage.
+3. **WebGPU adapter quirks.** Storage texture formats vary; `shader-f16` is Chrome-mostly with Qualcomm exclusion. Mitigation: capability matrix in `gpu/capabilities.ts`, TS-templated f32/f16 kernel variants (a WESL `#if SHADER_F16` once the toolchain lands), `?backend=ts` URL override for triage.
 4. **Perf gate may fail.** 256³ × 256 steps at 8 ms is not guaranteed. Mitigation: measure end of M2; defer 512³ to v0.2 with LOD bricks if needed.
-5. **WESL pre-1.0 churn.** Mitigation: the version pin + raw-WGSL preprocessor swap in §Build.
+5. **WESL pre-1.0 (`2026_pre`) churn.** v0.1 takes no WESL dependency (ships standalone WGSL), so this risk stays dormant until adoption is triggered by rustpic shared kernels; the mitigation then is the exact `wesl-js` version pin (§Build).
 6. **Three.js OffscreenCanvas worker bugs.** Mitigation: the exact-version pin in §Renderer + worker-vs-main parity smoke test in CI.
 7. **`render/adapters/` god-module risk.** Magviz failure mode. Mitigation: one adapter file per scene concern, boundary-check enforced.
 
