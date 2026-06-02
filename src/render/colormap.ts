@@ -1,9 +1,7 @@
-// Pure analytic colormaps — the THREE-free source of truth for both the CPU reference
-// (Node-testable) and the TSL node (colormapNode.ts), which re-encodes the same
-// coefficients so GPU output matches this within rounding. Each map is a degree-6
-// polynomial fit to the matplotlib perceptually-uniform sequentials (Matt Zucker,
-// https://www.shadertoy.com/view/WlfXRN), evaluated in Horner form per channel. Unknown
-// names fall back to the default sequential (inferno).
+// Analytic colormaps: the source of truth for both the CPU reference and the GPU twin
+// (colormapNode.ts re-encodes these coefficients, matching within rounding). Each is a degree-6
+// polynomial fit to the matplotlib sequentials (https://www.shadertoy.com/view/WlfXRN), evaluated
+// in Horner form. Unknown names fall back to inferno.
 
 export type Rgb = readonly [number, number, number];
 export type ColormapName = "inferno" | "viridis" | "plasma" | "magma";

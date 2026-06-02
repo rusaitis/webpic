@@ -5,9 +5,8 @@ import { colormapNode } from "./colormapNode.ts";
 import { BACKGROUND_COLOR, FRUSTUM } from "./constants.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
-// One orthogonal slice through the shared `uVolume`: a unit quad whose NodeMaterial
-// samples the 3D texture at a plane, normalizes the scalar, and maps it through a themed
-// colormap. A volume raymarcher and further slices can sample the same texture.
+// One orthogonal slice sampling the shared `uVolume` 3D texture (the raymarcher and further
+// slices sample the same texture).
 
 export type SliceAxis = "x" | "y" | "z";
 

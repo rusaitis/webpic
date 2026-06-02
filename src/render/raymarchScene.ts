@@ -22,11 +22,8 @@ import { colormapNode } from "./colormapNode.ts";
 import { BACKGROUND_COLOR } from "./constants.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
-// Single-pass volume raymarcher over the shared `uVolume`: front faces of a unit box spawn
-// rays, an analytic ray-box (wgslFn `hitBox`, the WGSL twin of rayBox.ts) clips each to the
-// volume, and a fixed-step march samples the 3D texture, normalizes via min/max, colors each
-// sample through the themed colormap, and composites front-to-back with early-α termination.
-// Transfer-function texture, empty-space skipping, and Phong shading refine this later.
+// Single-pass volume raymarcher over the shared `uVolume`. The analytic ray-box clip is
+// `wgslFn hitBox` — the WGSL twin of rayBox.ts.
 
 export interface RaymarchSceneOptions {
   readonly field: ScalarField;

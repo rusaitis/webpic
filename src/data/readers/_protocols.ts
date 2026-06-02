@@ -1,10 +1,9 @@
 import type { FieldDataset } from "@containers/field_dataset.ts";
 import type { FieldName } from "@schema/types.ts";
 
-// Stackable reader protocols (mirrors pypic.readers). Readers implement whichever
-// subset they support; structural typing, no inheritance. The confidence probe that
-// ranks readers belongs to the registry (_registry.ts), not the reader — so a
-// reader stays protocol-shaped and registration carries the probe.
+// Stackable reader protocols (mirrors pypic.readers): structural typing, no inheritance — readers
+// implement whichever subset they support. The confidence probe that ranks readers lives in the
+// registry (_registry.ts), not the reader, so a reader stays protocol-shaped.
 
 // Format-agnostic source locator. A plain serializable value (it lives in the store),
 // so zarrita/HDF5 store objects never leak into the protocol layer — each reader builds

@@ -1,13 +1,9 @@
 import type { ConfidenceFn, DataHandle, SimulationReader } from "./_protocols.ts";
 
-// Confidence-ranked reader dispatch (mirrors pypic.readers._registry.open_simulation). A caller
-// hands over a DataHandle and the registry picks the reader without naming a format: every
-// registered reader's probe scores the handle, highest wins.
-//
-// This module is deliberately reader-free — it imports no concrete reader (no zarr.ts). The
-// built-in reader wiring lives in builtins.ts so that a consumer importing only `openSimulation`
-// tree-shakes zarrita away unless they opt in via registerBuiltinReaders. Keeps the embed surface
-// lean (DESIGN §Package shape: data/readers is exported; zarrita is not free).
+// Confidence-ranked reader dispatch (mirrors pypic.readers._registry.open_simulation): every
+// registered reader's probe scores the DataHandle, highest wins — no format named by the caller.
+// Deliberately reader-free (imports no concrete reader); built-in wiring lives in builtins.ts so
+// importing `openSimulation` alone tree-shakes zarrita away (DESIGN §Package shape).
 
 // One reader's probe outcome — surfaced in the no-match error and available to UI/diagnostics via
 // probeReaders(). Mirrors pypic.readers._registry.ProbeResult.

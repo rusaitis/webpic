@@ -1,15 +1,12 @@
 import type { GpuAdapterSummary } from "@gpu";
 import { z } from "zod";
 
-// Background backend microbench + calibration cache. On install: warm-start from
-// cached per-adapter scores (skip the bench), else seed hardcoded heuristics so the
-// dispatcher has scores immediately while a background bench refines them and writes
-// back. The dispatcher consumes these scores; there is no dispatcher yet and only the
-// `ts` path is real, so the bench times one synthetic magnitude probe that the real
-// |B| kernel will replace. See docs/DESIGN.md §Caching + first-load walkthrough.
+// Background backend microbench + calibration cache. On install: warm-start from cached
+// per-adapter scores, else seed hardcoded heuristics so the dispatcher has scores immediately
+// while a background bench refines and writes them back. See docs/DESIGN.md §Caching.
 //
-// `compute` may not import `data` (DAG), so the OPFS cache is injected as a structural
-// port (CalibrationCache) — the real @data Cache is assignable; the app wires it.
+// `compute` may not import `data` (DAG), so the OPFS cache is injected as a structural port
+// (CalibrationCache) — the real @data Cache is assignable; the app wires it.
 
 export const CALIBRATION_VERSION = "1"; // bump on kernel/bench change → silent invalidation
 export const CALIBRATION_NAMESPACE = "calibration";

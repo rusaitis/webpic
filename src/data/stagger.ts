@@ -1,12 +1,10 @@
 import type { FieldArray, FieldDataset, GridInfo, StaggerInfo } from "@containers/field_dataset.ts";
 import type { FieldName, FloatArray } from "@schema/types.ts";
 
-// Destagger Yee-mesh fields to a co-located cell-centered grid on load. Mirrors
-// pypic._stagger: linear half-cell averaging driven by the openPMD ED-PIC `position`
-// offset (per-component, in [0, 1)). Each axis whose source offset differs from the 0.5
-// cell-center target is half-cell averaged (0.5*(arr[:-1] + arr[1:])), shrinking that axis
-// by one element. Offsets must be 0.0 or 0.5 — divergence-preserving constrained-transport
-// reconstruction (vector-potential schemes) is out of scope.
+// Destagger Yee-mesh fields to a co-located cell-centered grid on load (mirrors pypic._stagger).
+// Each axis whose openPMD `position` offset differs from the 0.5 cell-center target is half-cell
+// averaged (0.5*(arr[:-1] + arr[1:])), shrinking it by one element. Offsets must be 0.0 or 0.5 —
+// constrained-transport (vector-potential) reconstruction is out of scope.
 
 const CELL_CENTER = 0.5;
 const OFFSET_ATOL = 1e-9;
@@ -23,7 +21,7 @@ function isClose(a: number, b: number): boolean {
   return Math.abs(a - b) <= OFFSET_ATOL;
 }
 
-/** Linear half-cell average along `axis`; output is one element shorter along that axis. */
+// Linear half-cell average along `axis`; output is one element shorter along that axis.
 export function averageAlong(
   data: FloatArray,
   shape: readonly number[],
@@ -59,11 +57,9 @@ export function averageAlong(
   return { data: out, shape: outShape };
 }
 
-/**
- * Linearly interpolate one Yee-staggered array to cell centers (target offset 0.5 on every
- * axis). Composes a half-cell average along each axis where `source` differs from 0.5.
- * Returns the input array unchanged (same reference) when no axis shifts.
- */
+// Linearly interpolate one Yee-staggered array to cell centers (target offset 0.5 on every axis):
+// compose a half-cell average along each axis where `source` differs from 0.5. Returns the input
+// array unchanged (same reference) when no axis shifts.
 export function destaggerArrayToCellCenters(
   data: FloatArray,
   shape: readonly number[],
@@ -103,7 +99,7 @@ function computeStrides(shape: readonly number[]): number[] {
   return strides;
 }
 
-/** Trim trailing samples per axis so a C-order `data`/`shape` array fits `target` (≤ shape). */
+// Trim trailing samples per axis so a C-order `data`/`shape` array fits `target` (≤ shape).
 function cropToShape(
   data: FloatArray,
   shape: readonly number[],

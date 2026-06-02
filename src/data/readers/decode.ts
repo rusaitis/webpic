@@ -25,12 +25,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Reverse pypic's JSON coercion: tuples, non-string-keyed dicts, and StaggerInfo
- * carry a `__pypic_class__` tag. Recurses through plain containers. The `"inf"`
- * sentinel is intentionally NOT decoded here — only speed_of_light special-cases it
- * (see decodeSpeedOfLight), matching pypic's _decode_c.
- */
+// Reverse pypic's JSON coercion: tuples, non-string-keyed dicts, and StaggerInfo carry a
+// `__pypic_class__` tag; recurse through plain containers. The `"inf"` sentinel is NOT decoded
+// here — only speed_of_light special-cases it (decodeSpeedOfLight), matching pypic's _decode_c.
 export function fromJsonNative(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(fromJsonNative);
   if (!isRecord(value)) return value;
@@ -326,7 +323,7 @@ function deSpecies(name: string): string | null {
   return name.slice(0, match.index) + suffix;
 }
 
-/** Registry meta for a canonical name, resolving per-species components to their base. */
+// Registry meta for a canonical name, resolving per-species components to their base.
 export function resolveFieldMeta(name: string): FieldMeta | undefined {
   const direct = FIELD_REGISTRY[name];
   if (direct !== undefined) return direct;

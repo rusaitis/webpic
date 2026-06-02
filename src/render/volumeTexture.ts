@@ -8,9 +8,8 @@ import {
   RedFormat,
 } from "three";
 
-// Upload a scalar field as the shared `uVolume` 3D texture. R16F (half-float) holds
-// physical values and is filterable in core WebGPU (r32float would need the
-// `float32-filterable` feature we don't request), so the shader normalizes via min/max
+// R16F (half-float) holds physical values and is filterable in core WebGPU (r32float would
+// need the `float32-filterable` feature we don't request), so the shader normalizes via min/max
 // uniforms — physical values stay resident for later window/level without re-uploading.
 
 // Just the typed array + shape the upload needs — a `FieldArray` is structurally assignable,
