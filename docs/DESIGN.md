@@ -475,7 +475,7 @@ Each worker's `onmessage` handles `'pair'` once, storing the port. Worker-init i
 Single-pass WGSL fragment raymarcher; gradient + Phong from M2. Min-max mipmap empty-space skipping is a gate contingency (added only if the perf gate is missed — see below), not a baseline feature.
 
 - Front-face of bbox → analytic ray-box → march in normalized data space; early termination at α ≥ 0.98.
-- **Empty-space skipping is a gate contingency** (M2.5), not unconditional — a space-filling turbulent field rarely trips "empty," so profile the plain march against the 8 ms gate first and add this only if it misses. When added: min-max pyramid built on upload (2³ block, 2× per level — the +33% budget below assumes 2³; 4³ is ~+4% but skips coarser) as `texture_3d<rg16float>` (or `rg32float`), **nearest-sampled** — no `float32-filterable` needed (that feature governs *linear* f32 filtering only; `shader-f16` is likewise irrelevant — it's the in-shader `f16` ALU type, not the texture format). Coarse step skips empty blocks; descend on hit. Note this converts the fixed-step march into a variable-step traversal — a raymarcher restructure, not an additive pass.
+- **Empty-space skipping is a gate contingency** (M2.6), not unconditional — a space-filling turbulent field rarely trips "empty," so profile the plain march against the 8 ms gate first and add this only if it misses. When added: min-max pyramid built on upload (2³ block, 2× per level — the +33% budget below assumes 2³; 4³ is ~+4% but skips coarser) as `texture_3d<rg16float>` (or `rg32float`), **nearest-sampled** — no `float32-filterable` needed (that feature governs *linear* f32 filtering only; `shader-f16` is likewise irrelevant — it's the in-shader `f16` ALU type, not the texture format). Coarse step skips empty blocks; descend on hit. Note this converts the fixed-step march into a variable-step traversal — a raymarcher restructure, not an additive pass.
 - Transfer function: 256×1 `texture_2d<rgba16float>`, regenerated on colormap/window change.
 - **Gradient + Phong** via central differences (~20 lines WGSL, M2) — major shape-perception win on plasma blobs. Ships as a **toggle**, off by default for quantitative work: the lit "surface" is a TF-dependent opacity isosurface, not a physical boundary. The 6 taps/step aren't free on a 256-step march — gate the gradient on sample opacity or precompute a gradient volume so it doesn't eat the 8 ms budget. Render-local lighting normal, deliberately *not* `coordinates/operators/gradient` (the physics operator) — don't dedupe them.
 - Volume texture: `r16float` preferred, `r8unorm` fallback. `shader-f16` opportunistic (Chrome M120+ stable; Safari 26 Metal v4+; Firefox 141+; Qualcomm excluded). The f16/f32 dual path is selected via TS string templating in v0.1; a WESL `#if SHADER_F16` would replace it cleanly once the WESL toolchain lands.
@@ -676,6 +676,34 @@ The `SubscribeRequest` JSON shape (mirror in `remote/protocol.ts` field-for-fiel
 
 ## UI
 
+**Layout — "the visualization is the product."** Full-bleed 3D canvas with thin, translucent floating overlays over a fixed icon rail — never a docked frame that steals canvas area. *magviz's skin, instance-first bones*: keep magviz's full-bleed look (left icon rail, draggable floating colorbar, bottom gnomon/coords) and borrow only the instance-first *data model* (below) from napari — explicitly **not** napari's layout, whose layer dock + controls consume ~half the viewport (disqualifying under this philosophy). Overlays are translucent and content-sized, not window-sized. **Embed** degrades by hiding/toggling overlays — same components, fewer of them (`[webpic.embed]`) — not by reflowing; panels are container-agnostic (`install(host) → Disposer`, intents out), so a docked container for very cramped embeds is a possible v0.2 fallback. **v0.1 reality (M2.2):** today's `shell` is a *docked* hideable container — the scaffold, not the target. The rail + Layers panel + instance-first layer model land across M2.5a (model + render composite) and M4 (the UI); from M4 the overlays are **fixed-position translucent** (the immersive *look*, cheap — no window manager), and only user **drag/resize/persist/focus** (magviz's `windowManager` + `draggablePanels`) defers to M7/v0.2. Until M4 lands, panels mount in the docked scaffold.
+
+**Layers & navigation (instance-first).** The scene is a flat, ordered list of *renderable instances* — each volume, slice, fieldline set, or particle cloud is one layer carrying its own visibility, opacity, `ColormapBinding`, and draw order. You navigate by instance ("the things on screen"), not by type ("the volume pane") — the one idea worth taking from napari.
+
+- **Rail** (left, fixed, translucent): magviz's per-primitive buttons, verb shifted to *add*. `+Volume`/`+Slice`/`+Field lines`/`+Particles` open a **hover-preview, click-to-pin** panel (tap-pin on touch) that lists existing instances of that type as quick-jumps **plus** "Add new" — create and navigate from one seam. Tool buttons below (`Reductions`, `Selections`, `Diagnostics`, `Theme`) open their own overlays — *operations/instruments, never layers*. A dedicated **Layers** button toggles the Layers overlay.
+- **Layers panel**: a *collapsible* floating overlay (rail-toggled — not an always-open dock, which would betray the full-bleed philosophy). One row per layer with an **eye** (show/hide) and a **gear**; the gear opens a *separate* small floating settings panel for that layer — the rail create-panel's controls **plus** opacity, draw order, remove. Create-panel and gear-panel are **one settings component, two entry points** (create vs. edit existing), so a layer is never configured in two places — closing the seam magviz had between its visibility checklist and its typed panes.
+- **Viewport = always-on composite**: like a Photoshop canvas it is *always* the blend of every visible layer by draw order + opacity — no "combine" action, no row-merge. Two volumes are two rows; reordering changes blend order. A layer driven by two fields (`|B|` color × `n_e` opacity — a 2-field TF) is a **per-layer property**, not a merge of rows. Layer groups/folders defer to v0.2.
+- **Colorbar** (top-right): draggable + hideable (magviz). Content = the ≤2 *distinct* `ColormapBinding`s among visible layers — "max two for sanity" is a property of the stack, exactly what the M2.5b registry models.
+- **Bottom-left**: projection toggle (persp/ortho) + coordinate readout + camera gnomon (magviz).
+- **Top bar** (thin, translucent): dataset, the **timestep scrubber** (global — not per-layer), camera/projection, export. Coarse and infrequent.
+- **Boundary**: the layer stack lives in the store; every panel dispatches typed intents and never imports `render` or touches the scene graph (DAG-enforced — the discipline that let magviz's UI port here at all).
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│ ▸run-001    t ▬▬●▬▬ 42/256        persp ⤓ ⚙         │ top bar (translucent)
+│ ┌──┐ ┌── Layers ──────────┐                ┌────────┐      │
+│ │▦◀┼─┤ ◉ Volume |B|    ⚙ │                │ |B|    │      │
+│ │+▤│ │ ◉ Slice  B_z    ⚙ │                │ ▮▮▮▮   │◀ colorbar
+│ │+≣│ │ ○ Lines  |J|    ⚙ │                │ 0   12 │  (drag/hide)
+│ │+✳│ └─────────────────────┘                └────────┘      │
+│ │≋ │   ▦ Layers toggle · +X add (hover/pin) · ⚙ settings    │
+│ │⬚ │                                                        │
+│ │⏱ │          full-bleed 3D canvas — the composite          │
+│ └──┘                                                        │
+│  persp ⟲   (0.42, 0.10, 0.88)                     ⌖ gnomon │ bottom-left
+└────────────────────────────────────────────────────────────┘
+```
+
 **Own the control primitives; custom code for shell + palette + keymap + theme.** magviz proved this out:
 - Its dependency-free `ui/controls` layer (a `RangeControl` slider + pure-DOM select/checkbox/text behind a tiny `Pane`/`Folder`/`Binding` facade) carries no `three`/scene/framework deps and lifts into `@webpic/ui/controls` unchanged. Dropped Tweakpane entirely (~50 KB + plugin) once the primitives landed.
 - The facade's `addBinding(target, key, opts)` is what the `ControlDescriptor` binder below targets; store contract is callbacks-out / `set()`-in (intent dispatch + selective subscribe — no two-way binding).
@@ -713,14 +741,20 @@ Runtime introspection — no codegen. Schema changes propagate without rebuild.
 [webpic]
 version = 1
 
+# Rail + translucent floating overlays (instance-first Layers). webpic is a *consumer* of
+# these themes, so this is a proposed *additive* bump to coordinate upstream — the shipped v1
+# keys (default-panels/docked-side/panel-collapsed-default) still read as the docked fallback.
 [webpic.layout]
-default-panels = ["field", "layers", "diagnostics"]
-docked-side = "right"
-panel-collapsed-default = false
+rail-side = "left"
+rail-items = ["volume", "slice", "fieldlines", "particles", "reductions", "selections", "diagnostics", "layers"]
+overlay-opacity = 0.92
+layers-collapsed-default = true
+colorbar-visible = true
 
 [webpic.shortcuts]
 toggle-volume = "V"
 toggle-slices = "S"
+toggle-layers = "L"
 toggle-ui = "F"
 command-palette = "Cmd+K"
 
@@ -736,7 +770,7 @@ default-controls-visible = true
 
 Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirror pypic's set (7): `dark`, `light`, `catppuccin-mocha`, `lcars`, `synthwave`, `andromeda`, `anuppuccin-light`.
 
-**Shortcuts.** Hand-rolled registry, remappable via OPFS JSON. Defaults: `V`/`S`/`T`/`P` toggle volume/slices/streamlines/particles, `F` toggle UI, `?` shortcut overlay, `Cmd-K` palette (v0.2), `[`/`]` step.
+**Shortcuts.** Hand-rolled registry, remappable via OPFS JSON. Defaults: `V`/`S`/`T`/`P` add volume/slice/streamlines/particles, `L` toggle Layers, `F` toggle UI, `?` shortcut overlay, `Cmd-K` palette (v0.2), `[`/`]` step.
 
 **Accessibility.** Tab order, focus rings, palette keyboard nav, ARIA roles. High-contrast theme to v0.2.
 
