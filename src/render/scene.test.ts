@@ -21,9 +21,6 @@ describe("createTestScene", () => {
     const a = createTestScene();
     const b = createTestScene();
 
-    for (const key of ["left", "right", "top", "bottom", "near", "far"] as const) {
-      expect(a.camera[key]).toBe(b.camera[key]);
-    }
     expect(a.scene.children).toHaveLength(1);
     expect(b.scene.children).toHaveLength(1);
 

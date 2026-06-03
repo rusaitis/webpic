@@ -1,4 +1,4 @@
-import { BoxGeometry, Color, FrontSide, Mesh, PerspectiveCamera, Scene } from "three";
+import { BoxGeometry, Color, FrontSide, Mesh, Scene } from "three";
 import {
   Break,
   cameraPosition,
@@ -42,7 +42,6 @@ export interface RaymarchSceneOptions {
 
 export interface RaymarchScene {
   readonly scene: Scene;
-  readonly camera: PerspectiveCamera;
   /** Update the value→color window in place (no texture re-upload). */
   setWindowLevel(center: number, width: number): void;
   dispose(): void;
@@ -131,15 +130,8 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   scene.background = new Color(opts.background ?? BACKGROUND_COLOR);
   scene.add(mesh);
 
-  // aspect = 1: render targets are square today; thread width/height through when camera/resize
-  // handling lands so non-square viewports don't stretch.
-  const camera = new PerspectiveCamera(45, 1, 0.01, 10);
-  camera.position.set(1.4, 1.1, 1.6);
-  camera.lookAt(0, 0, 0);
-
   return {
     scene,
-    camera,
     setWindowLevel: norm.setWindow,
     dispose() {
       geometry.dispose();

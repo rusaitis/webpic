@@ -7,6 +7,7 @@ import { createSyntheticDataset } from "./syntheticDataset.ts";
 const DEFAULT_SIZE = 256;
 const INIT_REQUEST_ID = 1;
 const SLICE_REQUEST_ID = 2;
+const POSE_REQUEST_ID = 3;
 
 // Seams default to the real DOM/Worker; the handshake test injects fakes so
 // bootstrap runs headless in Node.
@@ -102,6 +103,23 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     },
   );
 
+  // Camera pose rides the same cheap-message pattern. Pose is always present (DEFAULT_POSE), and the
+  // worker already applied it at init, so there's no catch-up post on `ready` — this fires only on
+  // user-driven changes (M2.4b pointer input). Until then it's inert.
+  const unsubscribePose = store.subscribe(
+    (state) => state.cameraPose,
+    (pose) => {
+      if (workerReady) {
+        const request: RenderWorkerRequest = {
+          kind: "setCameraPose",
+          requestId: POSE_REQUEST_ID,
+          pose,
+        };
+        worker.postMessage(request);
+      }
+    },
+  );
+
   worker.onmessage = (event: MessageEvent<RenderWorkerResponse>) => {
     const message = event.data;
     if (message.kind === "ready") {
@@ -142,6 +160,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     disposeUi?.();
     unsubscribe();
     unsubscribeWindow();
+    unsubscribePose();
     worker.terminate();
   };
 }

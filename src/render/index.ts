@@ -1,5 +1,15 @@
+export {
+  applyPose,
+  createOrthographicCamera,
+  createPerspectiveCamera,
+} from "./camera.ts";
 export { type ColormapName, colormapColor, type Rgb } from "./colormap.ts";
-export type { RenderWorkerRequest, RenderWorkerResponse, WindowLevel } from "./messages.ts";
+export type {
+  CameraPose,
+  RenderWorkerRequest,
+  RenderWorkerResponse,
+  WindowLevel,
+} from "./messages.ts";
 export {
   createRaymarchScene,
   type RaymarchScene,

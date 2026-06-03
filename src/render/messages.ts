@@ -1,3 +1,4 @@
+import type { Vec3 } from "@schema/types.ts";
 import type { SliceAxis } from "./sliceScene.ts";
 
 // Typed protocol for the OffscreenCanvas render worker. Discriminated unions both
@@ -18,6 +19,15 @@ export interface SliceFieldPayload {
 export interface WindowLevel {
   readonly center: number;
   readonly width: number;
+}
+
+// Orbit camera pose on the wire (DESIGN §443 StoreToRender). Restates the store-side CameraPose
+// (store/camera.ts) — the store can't import render. Vec3 itself is shared from @schema.
+export interface CameraPose {
+  readonly target: Vec3;
+  readonly azimuth: number;
+  readonly elevation: number;
+  readonly distance: number;
 }
 
 export type RenderWorkerRequest =
@@ -52,6 +62,12 @@ export type RenderWorkerRequest =
       readonly kind: "setWindowLevel";
       readonly requestId: number;
       readonly windowLevel: WindowLevel;
+    }
+  // Camera pose update — high-frequency, delta-only (DESIGN §443); the worker re-applies + repaints.
+  | {
+      readonly kind: "setCameraPose";
+      readonly requestId: number;
+      readonly pose: CameraPose;
     };
 
 export type RenderWorkerResponse =

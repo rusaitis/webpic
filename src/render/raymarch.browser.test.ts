@@ -51,19 +51,20 @@ function rampAlongObjectXField(): ScalarField {
 async function renderVolume(field: ScalarField, straightOn = false): Promise<Uint8Array> {
   const { installRenderer } = await import("./renderer.ts");
   const { createRaymarchScene } = await import("./raymarchScene.ts");
+  const { applyPose, createPerspectiveCamera, DEFAULT_POSE } = await import("./camera.ts");
   const renderer = await installRenderer({
     canvas: new OffscreenCanvas(SIZE, SIZE),
     width: SIZE,
     height: SIZE,
   });
   const volume = createRaymarchScene({ field, colormap: "inferno", density: 4 });
-  let camera = volume.camera;
-  if (straightOn) {
-    const { PerspectiveCamera } = await import("three");
-    camera = new PerspectiveCamera(45, 1, 0.01, 10);
-    camera.position.set(0, 0, 2);
-    camera.lookAt(0, 0, 0);
-  }
+  // The worker owns the camera now; build the same default oblique view here, or a straight-on
+  // view (looking down −z from +z) for the orientation case.
+  const camera = createPerspectiveCamera();
+  applyPose(
+    camera,
+    straightOn ? { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } : DEFAULT_POSE,
+  );
   try {
     return await renderer.readPixels(volume.scene, camera);
   } finally {

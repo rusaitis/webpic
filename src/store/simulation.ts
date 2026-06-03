@@ -3,6 +3,7 @@ import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import type { FieldName, FloatArray } from "@schema/types.ts";
 import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
+import { type CameraPose, DEFAULT_POSE } from "./camera.ts";
 
 // The simulation store: holds the loaded dataset + active field, and recomputes the
 // derived field whenever either changes. UI dispatches `setDataset`/`selectField`; the
@@ -37,11 +38,15 @@ export interface SimulationState {
   // The active field's finite extent (slider bounds) and the current value→color window.
   readonly dataRange: DataRange | null;
   readonly windowLevel: WindowLevel | null;
+  // Orbit camera pose. Non-nullable — DEFAULT_POSE is always valid; the app streams it to the
+  // render worker. M2.4b's pointer controls dispatch setCameraPose; the worker derives the camera.
+  readonly cameraPose: CameraPose;
   readonly status: SimulationStatus;
   readonly error: string | null;
   setDataset(dataset: FieldDataset): void;
   selectField(name: FieldName): void;
   setWindowLevel(center: number, width: number): void;
+  setCameraPose(pose: CameraPose): void;
 }
 
 // Finite-only min/max in one pass (mirrors volumeTexture.ts; the store can't import `render`,
@@ -103,6 +108,7 @@ export function createSimulationStore() {
         computed: null,
         dataRange: null,
         windowLevel: null,
+        cameraPose: DEFAULT_POSE,
         status: "empty",
         error: null,
         setDataset(dataset) {
@@ -116,6 +122,9 @@ export function createSimulationStore() {
         },
         setWindowLevel(center, width) {
           set({ windowLevel: { center, width } });
+        },
+        setCameraPose(pose) {
+          set({ cameraPose: pose }); // fresh object each call so subscribeWithSelector fires
         },
       };
     }),

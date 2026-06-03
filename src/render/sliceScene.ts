@@ -1,7 +1,7 @@
-import { Color, Mesh, OrthographicCamera, PlaneGeometry, Scene } from "three";
+import { Color, Mesh, PlaneGeometry, Scene } from "three";
 import { texture, texture3D, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
-import { BACKGROUND_COLOR, FRUSTUM } from "./constants.ts";
+import { BACKGROUND_COLOR } from "./constants.ts";
 import { createNormalization, type WindowLevel } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
@@ -26,7 +26,6 @@ export interface SliceSceneOptions {
 
 export interface SliceScene {
   readonly scene: Scene;
-  readonly camera: OrthographicCamera;
   /** Update the value→color window in place (no texture re-upload). */
   setWindowLevel(center: number, width: number): void;
   dispose(): void;
@@ -74,20 +73,8 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   scene.background = new Color(opts.background ?? BACKGROUND_COLOR);
   scene.add(mesh);
 
-  const camera = new OrthographicCamera(
-    FRUSTUM.left,
-    FRUSTUM.right,
-    FRUSTUM.top,
-    FRUSTUM.bottom,
-    FRUSTUM.near,
-    FRUSTUM.far,
-  );
-  camera.position.set(0, 0, 1);
-  camera.lookAt(0, 0, 0);
-
   return {
     scene,
-    camera,
     setWindowLevel: norm.setWindow,
     dispose() {
       geometry.dispose();

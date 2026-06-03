@@ -1,17 +1,8 @@
-import {
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  Mesh,
-  MeshBasicMaterial,
-  OrthographicCamera,
-  Scene,
-} from "three";
-import { BACKGROUND_COLOR, FRUSTUM } from "./constants.ts";
+import { BufferAttribute, BufferGeometry, Color, Mesh, MeshBasicMaterial, Scene } from "three";
+import { BACKGROUND_COLOR } from "./constants.ts";
 
 export interface TestScene {
   readonly scene: Scene;
-  readonly camera: OrthographicCamera;
   dispose(): void;
 }
 
@@ -33,20 +24,8 @@ export function createTestScene(): TestScene {
   scene.background = new Color(BACKGROUND_COLOR);
   scene.add(mesh);
 
-  const camera = new OrthographicCamera(
-    FRUSTUM.left,
-    FRUSTUM.right,
-    FRUSTUM.top,
-    FRUSTUM.bottom,
-    FRUSTUM.near,
-    FRUSTUM.far,
-  );
-  camera.position.set(0, 0, 1);
-  camera.lookAt(0, 0, 0);
-
   return {
     scene,
-    camera,
     dispose() {
       geometry.dispose();
       material.dispose();
