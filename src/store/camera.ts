@@ -22,3 +22,65 @@ export const DEFAULT_POSE: CameraPose = {
   elevation: 0.4773,
   distance: 2.3937,
 };
+
+// Dolly bounds for the unit-box scene; well outside the box yet never through the target.
+export const DISTANCE_MIN = 0.1;
+export const DISTANCE_MAX = 50;
+
+// Pointer sensitivities. All tunable math lives here so ui/pointerCamera carries none — it just
+// forwards raw pixel/wheel deltas. Screen-relative, so the feel is resolution-independent enough.
+const ORBIT_SENS = 0.005; // rad / px
+const DOLLY_SENS = 0.0015; // per wheel-delta unit (geometric → uniform zoom feel at any distance)
+const PAN_SENS = 0.0015; // screen-fraction / px, scaled by distance so the world tracks the cursor
+
+function clamp(value: number, lo: number, hi: number): number {
+  return Math.min(Math.max(value, lo), hi);
+}
+
+// Keep azimuth in (-π, π] so the readout stays bounded as a drag accumulates turns.
+function wrapAngle(angle: number): number {
+  const twoPi = 2 * Math.PI;
+  return ((((angle + Math.PI) % twoPi) + twoPi) % twoPi) - Math.PI;
+}
+
+// Drag → orbit: horizontal pixels spin azimuth (grab-and-spin — drag right turns the view right),
+// vertical pixels tilt elevation, clamped off the poles. Fresh object so subscribeWithSelector fires.
+export function orbitPose(pose: CameraPose, dxPx: number, dyPx: number): CameraPose {
+  return {
+    target: pose.target,
+    azimuth: wrapAngle(pose.azimuth - dxPx * ORBIT_SENS),
+    elevation: clamp(pose.elevation - dyPx * ORBIT_SENS, -ELEVATION_LIMIT, ELEVATION_LIMIT),
+    distance: pose.distance,
+  };
+}
+
+// Wheel → dolly: geometric, so each notch is a constant fraction of the current distance.
+// Scroll up (deltaY < 0) zooms in (distance shrinks). Clamped to the dolly bounds.
+export function dollyPose(pose: CameraPose, wheelDeltaY: number): CameraPose {
+  return {
+    target: pose.target,
+    azimuth: pose.azimuth,
+    elevation: pose.elevation,
+    distance: clamp(pose.distance * Math.exp(wheelDeltaY * DOLLY_SENS), DISTANCE_MIN, DISTANCE_MAX),
+  };
+}
+
+// Shift-drag → pan: slide the look-at target across the view plane, scaled by distance so the world
+// tracks the cursor at any zoom. Basis from the pose (worldUp = +y): screenRight is the horizontal
+// perpendicular to the view azimuth; screenUp reduces to +y when the view is level (elevation 0).
+export function panPose(pose: CameraPose, dxPx: number, dyPx: number): CameraPose {
+  const ce = Math.cos(pose.elevation);
+  const se = Math.sin(pose.elevation);
+  const sa = Math.sin(pose.azimuth);
+  const ca = Math.cos(pose.azimuth);
+  const scale = pose.distance * PAN_SENS;
+  const kr = -dxPx * scale; // drag right pushes the world right ⇒ target slides left
+  const ku = dyPx * scale; // drag down pushes the world down ⇒ target slides up
+  const [tx, ty, tz] = pose.target;
+  return {
+    target: [tx + kr * ca - ku * se * sa, ty + ku * ce, tz - kr * sa - ku * se * ca],
+    azimuth: pose.azimuth,
+    elevation: pose.elevation,
+    distance: pose.distance,
+  };
+}

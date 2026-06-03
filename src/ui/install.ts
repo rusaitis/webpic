@@ -1,5 +1,6 @@
 import { DEFAULT_WEBPIC_CONFIG, type Theme } from "@schema/theme.ts";
 import type { SimulationStore, UiStore } from "@store";
+import { installCameraChrome } from "./cameraChrome.ts";
 import type { Disposer } from "./controls/index.ts";
 import { mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
@@ -35,6 +36,10 @@ export function installUi(opts: InstallUiOptions): () => void {
   for (const name of panels) {
     disposers.push(mountPanel(name, shell.panelHost(name), opts.simulationStore));
   }
+
+  // The camera HUD (readout + gnomon) is a fixed bottom-left overlay, not a docked panel — it sits
+  // outside the shell so it stays put when panels collapse, and hides with the global UI toggle.
+  disposers.push(installCameraChrome(opts.parent, opts.simulationStore, opts.uiStore));
 
   // Global UI toggle bound to the theme's bare-key shortcut (default "F"); ignore it while
   // typing in a control and when modifiers are held (those are reserved for the palette).

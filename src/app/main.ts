@@ -1,7 +1,7 @@
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import { createSimulationStore, createUiStore } from "@store";
-import { installUi } from "@ui";
+import { installPointerCamera, installUi } from "@ui";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
 
 const DEFAULT_SIZE = 256;
@@ -57,6 +57,13 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const store = createSimulationStore();
   const uiStore = createUiStore();
   let workerReady = false;
+
+  // Orbit/dolly/pan input. transferControlToOffscreen() moves only the drawing surface — the
+  // <canvas> element still receives DOM pointer/wheel events on the main thread, so listeners attach
+  // here and dispatch setCameraPose. Guarded so the headless handshake test's fake canvas (no
+  // addEventListener) is left untouched.
+  const disposePointer =
+    typeof canvas.addEventListener === "function" ? installPointerCamera(canvas, store) : undefined;
 
   // Serialize the computed field and hand it to the worker by transfer (never clone a large
   // typed array). The magnitude is freshly allocated, so its buffer is offset-0 and an
@@ -158,6 +165,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   return () => {
     disposeUi?.();
+    disposePointer?.();
     unsubscribe();
     unsubscribeWindow();
     unsubscribePose();

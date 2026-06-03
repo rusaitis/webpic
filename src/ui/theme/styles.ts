@@ -130,4 +130,19 @@ const UI_CSS = `
   font: inherit; cursor: pointer; }
 .webpic-shell :disabled { opacity: 0.5; cursor: default; }
 .webpic-placeholder { padding: 2px 4px; color: var(--webpic-muted); font-style: italic; }
+.webpic-chrome { position: fixed; left: 12px; bottom: 12px; z-index: 9; pointer-events: none;
+  display: flex; align-items: flex-end; gap: 10px; color: var(--webpic-fg);
+  font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace; }
+.webpic-chrome[hidden] { display: none; }
+.webpic-readout { padding: 4px 8px; border: 1px solid var(--webpic-border);
+  border-radius: var(--webpic-radius, 4px); background: var(--webpic-bg);
+  color: var(--webpic-muted); white-space: nowrap; }
+.webpic-gnomon { position: relative; flex: 0 0 auto; width: 56px; height: 56px; perspective: 220px; }
+.webpic-gnomon_scene { position: absolute; inset: 0; transform-style: preserve-3d;
+  transform-origin: 50% 50%; }
+.webpic-gnomon_axis { position: absolute; top: 50%; left: 50%; width: 24px; height: 2px;
+  transform-origin: 0 50%; border-radius: 1px; }
+.webpic-gnomon_axis.is-x { transform: rotateZ(0deg); background: #e06c75; }
+.webpic-gnomon_axis.is-y { transform: rotateZ(-90deg); background: #98c379; }
+.webpic-gnomon_axis.is-z { transform: rotateY(90deg); background: #61afef; }
 `;
