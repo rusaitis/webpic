@@ -39,23 +39,33 @@ export type RenderWorkerRequest =
       readonly height: number;
     }
   | { readonly kind: "renderFrame"; readonly requestId: number }
+  // Build or rebuild one layer's scene (instance-first composite). Transfers the field buffer;
+  // `layerKind` is the renderable kind (the message `kind` is the discriminant). Kind-specific
+  // params are optional — omitted ones fall back to the scene factory defaults.
   | {
-      readonly kind: "showSlice";
+      readonly kind: "upsertLayer";
       readonly requestId: number;
-      readonly field: SliceFieldPayload;
-      readonly axis: SliceAxis;
-      readonly position: number;
-      readonly colormap: string;
-      readonly windowLevel?: WindowLevel;
-    }
-  | {
-      readonly kind: "showVolume";
-      readonly requestId: number;
+      readonly id: string;
+      readonly layerKind: "slice" | "volume";
       readonly field: SliceFieldPayload;
       readonly colormap: string;
+      readonly opacity: number;
       readonly windowLevel?: WindowLevel;
+      readonly axis?: SliceAxis;
+      readonly position?: number;
       readonly steps?: number;
       readonly density?: number;
+    }
+  | { readonly kind: "removeLayer"; readonly requestId: number; readonly id: string }
+  // Cheap reorder/visibility/opacity over the full ordered list — no field transfer.
+  | {
+      readonly kind: "setComposite";
+      readonly requestId: number;
+      readonly order: readonly {
+        readonly id: string;
+        readonly visible: boolean;
+        readonly opacity: number;
+      }[];
     }
   // Live window/level update — no field buffer, so dragging never re-transfers the volume.
   | {

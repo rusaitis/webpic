@@ -71,7 +71,7 @@ export interface Theme {
 export const DEFAULT_WEBPIC_CONFIG: WebpicThemeConfig = {
   version: 1,
   layout: {
-    defaultPanels: ["field", "layers", "diagnostics"],
+    defaultPanels: ["field", "colormap", "diagnostics"],
     dockedSide: "right",
     panelCollapsedDefault: false,
   },

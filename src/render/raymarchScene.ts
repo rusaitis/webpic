@@ -1,4 +1,4 @@
-import { BoxGeometry, Color, FrontSide, Mesh, Scene } from "three";
+import { BoxGeometry, FrontSide, Mesh, Scene } from "three";
 import {
   Break,
   cameraPosition,
@@ -19,7 +19,6 @@ import {
   wgslFn,
 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
-import { BACKGROUND_COLOR } from "./constants.ts";
 import { createNormalization, type WindowLevel } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
@@ -37,13 +36,16 @@ export interface RaymarchSceneOptions {
   readonly steps?: number;
   /** Opacity scale for the emission-absorption transfer. */
   readonly density?: number;
-  readonly background?: number;
+  /** Per-layer opacity multiplier on the composited alpha (composite fade), [0,1]; default 1. */
+  readonly opacity?: number;
 }
 
 export interface RaymarchScene {
   readonly scene: Scene;
   /** Update the value→color window in place (no texture re-upload). */
   setWindowLevel(center: number, width: number): void;
+  /** Update the per-layer opacity in place (uniform only, no rebuild). */
+  setOpacity(opacity: number): void;
   dispose(): void;
 }
 
@@ -76,6 +78,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
   const norm = createNormalization(volume.min, volume.max, opts.windowLevel);
   const uDensity = uniform(opts.density ?? 1);
+  const uLayerOpacity = uniform(opts.opacity ?? 1);
 
   const rgba = Fn(() => {
     // Camera ray in object space; the box is axis-aligned there so the slab test is exact.
@@ -111,8 +114,9 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     });
 
     // accumColor is premultiplied (Σ color·α·weight); un-premultiply so the default normal
-    // blend (src·α + dst·(1−α)) composites it correctly over the cleared background.
-    return vec4(accumColor.div(max(accumAlpha, 1e-4)), accumAlpha);
+    // blend (src·α + dst·(1−α)) composites it correctly over the cleared background. The
+    // per-layer opacity scales the whole layer's emitted alpha — a uniform composite fade.
+    return vec4(accumColor.div(max(accumAlpha, 1e-4)), accumAlpha.mul(uLayerOpacity));
     // One shared temp: colorNode/opacityNode read .rgb/.a from it, so the march runs once.
   })().toVar();
 
@@ -126,13 +130,17 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   const geometry = new BoxGeometry(1, 1, 1);
   const mesh = new Mesh(geometry, material);
 
+  // No scene.background — the renderer owns the clear color so layers composite over one
+  // background (a per-scene Color background would force a clear and wipe earlier layers).
   const scene = new Scene();
-  scene.background = new Color(opts.background ?? BACKGROUND_COLOR);
   scene.add(mesh);
 
   return {
     scene,
     setWindowLevel: norm.setWindow,
+    setOpacity(opacity) {
+      uLayerOpacity.value = opacity;
+    },
     dispose() {
       geometry.dispose();
       material.dispose();

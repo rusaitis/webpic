@@ -1,7 +1,6 @@
-import { Color, Mesh, PlaneGeometry, Scene } from "three";
+import { Mesh, PlaneGeometry, Scene } from "three";
 import { texture, texture3D, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
-import { BACKGROUND_COLOR } from "./constants.ts";
 import { createNormalization, type WindowLevel } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
@@ -21,13 +20,16 @@ export interface SliceSceneOptions {
   readonly position: number;
   /** Value→color window; absent → the field's full finite range (identity normalization). */
   readonly windowLevel?: WindowLevel;
-  readonly background?: number;
+  /** Per-layer opacity multiplier on the composited output, [0,1]; default 1 (opaque). */
+  readonly opacity?: number;
 }
 
 export interface SliceScene {
   readonly scene: Scene;
   /** Update the value→color window in place (no texture re-upload). */
   setWindowLevel(center: number, width: number): void;
+  /** Update the per-layer opacity in place (uniform only, no rebuild). */
+  setOpacity(opacity: number): void;
   dispose(): void;
 }
 
@@ -58,6 +60,7 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
   const norm = createNormalization(volume.min, volume.max, opts.windowLevel);
   const uPosition = uniform(opts.position);
+  const uLayerOpacity = uniform(opts.opacity ?? 1);
 
   const coord = sliceCoord(opts.axis, uv().x, uv().y, uPosition);
   const raw = texture3D(volume.texture, coord).r;
@@ -65,17 +68,26 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
 
   const material = new NodeMaterial();
   material.colorNode = texture(tf.texture, vec2(t, 0.5)).rgb;
+  // Explicit opacityNode + always-transparent: lets per-layer opacity ride a uniform (no runtime
+  // `transparent` toggle / pipeline recompile). At opacity 1 over an opaque cleared background the
+  // composite is identical to the old opaque quad.
+  material.opacityNode = uLayerOpacity;
+  material.transparent = true;
 
   const geometry = new PlaneGeometry(2, 2);
   const mesh = new Mesh(geometry, material);
 
+  // No scene.background — the renderer owns the clear color so layers composite over one
+  // background (a per-scene Color background would force a clear and wipe earlier layers).
   const scene = new Scene();
-  scene.background = new Color(opts.background ?? BACKGROUND_COLOR);
   scene.add(mesh);
 
   return {
     scene,
     setWindowLevel: norm.setWindow,
+    setOpacity(opacity) {
+      uLayerOpacity.value = opacity;
+    },
     dispose() {
       geometry.dispose();
       material.dispose();

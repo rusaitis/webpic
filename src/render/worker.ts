@@ -1,5 +1,5 @@
 import { getDevice, installGpu } from "@gpu";
-import type { Camera, Object3D, OrthographicCamera, PerspectiveCamera } from "three";
+import type { OrthographicCamera, PerspectiveCamera } from "three";
 import {
   applyPose,
   createOrthographicCamera,
@@ -13,10 +13,22 @@ import type {
   SliceFieldPayload,
 } from "./messages.ts";
 import { createRaymarchScene, type RaymarchScene } from "./raymarchScene.ts";
-import { type InstalledRenderer, installRenderer } from "./renderer.ts";
+import { type CompositeItem, type InstalledRenderer, installRenderer } from "./renderer.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
 import { createSliceScene, type SliceScene } from "./sliceScene.ts";
 import type { ScalarField } from "./volumeTexture.ts";
+
+// One renderable layer's scene + its kind (the kind picks the camera at composite time).
+interface LayerEntry {
+  readonly scene: SliceScene | RaymarchScene;
+  readonly kind: "slice" | "volume";
+}
+// The ordered visibility/opacity view of the layer stack (draw order = array order).
+interface CompositeEntry {
+  readonly id: string;
+  readonly visible: boolean;
+  readonly opacity: number;
+}
 
 // Worker-scope view of `self`. The DOM lib types `self` as Window (whose
 // postMessage wants a targetOrigin), so narrow it to the dedicated-worker surface.
@@ -27,16 +39,18 @@ const ctx = self as unknown as {
 
 let gpu: { dispose: () => void } | undefined;
 let renderer: InstalledRenderer | undefined;
-let testScene: TestScene | undefined; // boot frame (also the parity-test target)
-let slice: SliceScene | undefined; // active data-driven slice, once a field arrives
-let volume: RaymarchScene | undefined; // active raymarched volume, once one is shown
+let testScene: TestScene | undefined; // boot frame + empty fallback (also the parity-test target)
+// The instance-first layer registry: per-id scenes + the ordered visibility/opacity view. The
+// worker composites the visible layers (M2.5a); pre-M4 the app drives exactly one.
+const layers = new Map<string, LayerEntry>();
+let composite: readonly CompositeEntry[] = [];
 // The worker owns the cameras (lifted out of the scene factories): the perspective camera is
-// pose-driven for the volume; the orthographic one is screen-aligned for the slice + boot triangle.
+// pose-driven for volumes; the orthographic one is screen-aligned for slices + the boot triangle.
 let perspCamera: PerspectiveCamera | undefined;
 let orthoCamera: OrthographicCamera | undefined;
 let pose: CameraPose = DEFAULT_POSE;
 let dims = { width: 0, height: 0 };
-// The init promise; renderFrame/showSlice await it so they can't race a half-built renderer
+// The init promise; renderFrame/upsertLayer await it so they can't race a half-built renderer
 // even if a future caller stops gating on the `ready` response.
 let initDone: Promise<void> | undefined;
 
@@ -70,16 +84,27 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
   startRenderLoop();
 }
 
-// The most recently shown data scene (volume, then slice), else the boot triangle — paired with the
-// camera its projection needs: perspective for the volume, orthographic for the slice/boot frame.
-function currentScene(): { scene: Object3D; camera: Camera } {
+// The visible layers in draw order, each paired with the camera its projection needs (perspective
+// for volumes, orthographic for slices), else the boot triangle. The renderer composites the list.
+function paintItems(): CompositeItem[] {
   if (perspCamera === undefined || orthoCamera === undefined) {
     throw new Error("render before init");
   }
-  if (volume !== undefined) return { scene: volume.scene, camera: perspCamera };
-  if (slice !== undefined) return { scene: slice.scene, camera: orthoCamera };
-  if (testScene !== undefined) return { scene: testScene.scene, camera: orthoCamera };
-  throw new Error("no scene to render");
+  const items: CompositeItem[] = [];
+  for (const entry of composite) {
+    if (!entry.visible) continue;
+    const layer = layers.get(entry.id);
+    if (layer === undefined) continue; // composite ahead of its upsert — heals on the upsert repaint
+    items.push({
+      scene: layer.scene.scene,
+      camera: layer.kind === "volume" ? perspCamera : orthoCamera,
+    });
+  }
+  if (items.length === 0) {
+    if (testScene !== undefined) return [{ scene: testScene.scene, camera: orthoCamera }];
+    throw new Error("no scene to render");
+  }
+  return items;
 }
 
 // The single repaint entry point for message handlers. Sets the dirty flag for the loop; if no loop
@@ -87,8 +112,7 @@ function currentScene(): { scene: Object3D; camera: Camera } {
 function requestRender(): void {
   needsRender = true;
   if (rafId === undefined && renderer !== undefined) {
-    const { scene, camera } = currentScene();
-    renderer.renderOnce(scene, camera);
+    renderer.renderComposite(paintItems());
     needsRender = false;
   }
 }
@@ -100,8 +124,7 @@ function renderTick(): void {
   // timestamp-query measurement; today the loop is purely on-demand.
   if (!needsRender || readbackInFlight || renderer === undefined) return;
   needsRender = false;
-  const { scene, camera } = currentScene();
-  renderer.renderOnce(scene, camera);
+  renderer.renderComposite(paintItems());
 }
 
 function startRenderLoop(): void {
@@ -117,13 +140,13 @@ async function renderFrame(
   if (renderer === undefined) {
     throw new Error("renderFrame before init");
   }
-  const { scene, camera } = currentScene();
+  const items = paintItems();
   // Deterministic readback renders to an offscreen target, then awaits the GPU. The only async gap
   // in the worker's single thread is that await — block the display loop's swapchain render across
   // it, else a rAF frame between the readback render and its await would corrupt the read pixels.
   readbackInFlight = true;
   try {
-    const pixels = await renderer.readPixels(scene, camera);
+    const pixels = await renderer.readCompositePixels(items);
     // Freshly allocated readback buffer (never shared) — safe to transfer.
     const buffer = pixels.buffer as ArrayBuffer;
     ctx.postMessage(
@@ -148,47 +171,69 @@ function decodeSliceField(payload: SliceFieldPayload): ScalarField {
   return { data, shape: payload.shape };
 }
 
-async function showSlice(
-  request: Extract<RenderWorkerRequest, { kind: "showSlice" }>,
+// Build or rebuild one layer's scene from a transferred field. Releases the prior scene's
+// Data3DTexture before replacing it — else each swap leaks one.
+async function upsertLayer(
+  request: Extract<RenderWorkerRequest, { kind: "upsertLayer" }>,
 ): Promise<void> {
   await initDone;
   if (renderer === undefined) {
-    throw new Error("showSlice before init");
+    throw new Error("upsertLayer before init");
   }
-  // Release the prior slice's Data3DTexture before building the next — else each swap leaks one.
-  slice?.dispose();
-  slice = createSliceScene({
-    field: decodeSliceField(request.field),
-    colormap: request.colormap,
-    axis: request.axis,
-    position: request.position,
-    // exactOptionalPropertyTypes: only forward when set, so the scene's full-range default applies.
-    ...(request.windowLevel !== undefined ? { windowLevel: request.windowLevel } : {}),
-  });
+  layers.get(request.id)?.scene.dispose();
+  const field = decodeSliceField(request.field);
+  // exactOptionalPropertyTypes: only forward kind params that are set, so the scene defaults apply.
+  const windowLevel = request.windowLevel !== undefined ? { windowLevel: request.windowLevel } : {};
+  if (request.layerKind === "slice") {
+    const scene = createSliceScene({
+      field,
+      colormap: request.colormap,
+      axis: request.axis ?? "z",
+      position: request.position ?? 0.5,
+      opacity: request.opacity,
+      ...windowLevel,
+    });
+    layers.set(request.id, { scene, kind: "slice" });
+  } else {
+    const scene = createRaymarchScene({
+      field,
+      colormap: request.colormap,
+      opacity: request.opacity,
+      ...windowLevel,
+      ...(request.steps !== undefined ? { steps: request.steps } : {}),
+      ...(request.density !== undefined ? { density: request.density } : {}),
+    });
+    layers.set(request.id, { scene, kind: "volume" });
+  }
   requestRender();
 }
 
-async function showVolume(
-  request: Extract<RenderWorkerRequest, { kind: "showVolume" }>,
+async function removeLayer(
+  request: Extract<RenderWorkerRequest, { kind: "removeLayer" }>,
 ): Promise<void> {
   await initDone;
-  if (renderer === undefined) {
-    throw new Error("showVolume before init");
-  }
-  // Release the prior volume's Data3DTexture before building the next — else each swap leaks one.
-  volume?.dispose();
-  volume = createRaymarchScene({
-    field: decodeSliceField(request.field),
-    colormap: request.colormap,
-    // exactOptionalPropertyTypes: only forward when set, so the scene's defaults apply.
-    ...(request.windowLevel !== undefined ? { windowLevel: request.windowLevel } : {}),
-    ...(request.steps !== undefined ? { steps: request.steps } : {}),
-    ...(request.density !== undefined ? { density: request.density } : {}),
-  });
+  layers.get(request.id)?.scene.dispose();
+  layers.delete(request.id);
   requestRender();
 }
 
-// Live window/level: retune the active scenes' uniforms and repaint, no scene rebuild.
+// Cheap reorder/visibility/opacity over the full ordered list — retune per-layer opacity uniforms
+// (no rebuild) and repaint. Field data rides the heavier upsertLayer.
+async function setComposite(
+  request: Extract<RenderWorkerRequest, { kind: "setComposite" }>,
+): Promise<void> {
+  await initDone;
+  const previous = new Map(composite.map((entry) => [entry.id, entry.opacity]));
+  for (const entry of request.order) {
+    if (previous.get(entry.id) !== entry.opacity)
+      layers.get(entry.id)?.scene.setOpacity(entry.opacity);
+  }
+  composite = request.order;
+  requestRender();
+}
+
+// Live window/level: retune every layer's uniforms and repaint, no scene rebuild. Global for
+// M2.5a; M2.5b's per-layer ColormapBinding splits it.
 async function setWindowLevel(
   request: Extract<RenderWorkerRequest, { kind: "setWindowLevel" }>,
 ): Promise<void> {
@@ -197,13 +242,12 @@ async function setWindowLevel(
     throw new Error("setWindowLevel before init");
   }
   const { center, width } = request.windowLevel;
-  slice?.setWindowLevel(center, width);
-  volume?.setWindowLevel(center, width);
+  for (const layer of layers.values()) layer.scene.setWindowLevel(center, width);
   requestRender();
 }
 
-// Live camera pose: re-aim the perspective camera and repaint. Only the volume is pose-driven, so a
-// pose change while a screen-aligned slice/boot view is showing is a no-op repaint we skip.
+// Live camera pose: re-aim the perspective camera and repaint. Only volumes are pose-driven, so a
+// pose change with no visible volume layer is a no-op repaint we skip.
 async function setCameraPose(
   request: Extract<RenderWorkerRequest, { kind: "setCameraPose" }>,
 ): Promise<void> {
@@ -213,7 +257,9 @@ async function setCameraPose(
   }
   pose = request.pose;
   applyPose(perspCamera, pose, aspect());
-  if (volume !== undefined) requestRender();
+  if (composite.some((entry) => entry.visible && layers.get(entry.id)?.kind === "volume")) {
+    requestRender();
+  }
 }
 
 function handle(request: RenderWorkerRequest): Promise<void> {
@@ -223,10 +269,12 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return initDone;
     case "renderFrame":
       return renderFrame(request);
-    case "showSlice":
-      return showSlice(request);
-    case "showVolume":
-      return showVolume(request);
+    case "upsertLayer":
+      return upsertLayer(request);
+    case "removeLayer":
+      return removeLayer(request);
+    case "setComposite":
+      return setComposite(request);
     case "setWindowLevel":
       return setWindowLevel(request);
     case "setCameraPose":
@@ -251,8 +299,8 @@ export function dispose(): void {
     cancelAnimationFrame(rafId);
     rafId = undefined;
   }
-  volume?.dispose();
-  slice?.dispose();
+  for (const layer of layers.values()) layer.scene.dispose();
+  layers.clear();
   testScene?.dispose();
   renderer?.dispose();
   gpu?.dispose();

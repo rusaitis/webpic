@@ -8,10 +8,11 @@ import {
   windowToInterval,
 } from "../controls/index.ts";
 
-// The Layers panel's window/level control: a linear interval RangeControl over the active
+// The Colormap panel's window/level control: a linear interval RangeControl over the active
 // field's full extent. Emits an [lo, hi] interval; the store stores the canonical
 // {center, width} (intervalToWindow at the seam). Colormap selection + the log/symlog scale
-// pick land with M2.4's ColormapBinding.
+// pick land with M2.5b's ColormapBinding. (Renamed from the mislabeled "layers" panel — the real
+// layer list is an M4 overlay; `layers` is now the store's instance registry.)
 
 // Narrowest window as a fraction of the data range — the UI-side floor that keeps the in-shader
 // width > 0 (parallels render's MIN_WIDTH in normalization.ts).
@@ -25,8 +26,8 @@ function formatValue(v: number): string {
   return Number(v.toPrecision(4)).toString();
 }
 
-export function installLayersPanel(host: HTMLElement, store: SimulationStore): Disposer {
-  const pane = createPane({ parent: host, title: "Layers" });
+export function installColormapPanel(host: HTMLElement, store: SimulationStore): Disposer {
+  const pane = createPane({ parent: host, title: "Colormap" });
   const folder = pane.addFolder({ title: "Display range" });
 
   let control: ControlHandle<RangeValue> | null = null;

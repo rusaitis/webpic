@@ -15,10 +15,10 @@ describe("uiStore", () => {
     const store = createUiStore({ field: true });
     store.getState().togglePanel("field");
     expect(store.getState().panels.field).toBe(false);
-    store.getState().togglePanel("layers"); // unseen → defaults visible, so toggles to false
-    expect(store.getState().panels.layers).toBe(false);
-    store.getState().setPanelVisible("layers", true);
-    expect(store.getState().panels.layers).toBe(true);
+    store.getState().togglePanel("colormap"); // unseen → defaults visible, so toggles to false
+    expect(store.getState().panels.colormap).toBe(false);
+    store.getState().setPanelVisible("colormap", true);
+    expect(store.getState().panels.colormap).toBe(true);
   });
 
   it("fires selective subscribers on the relevant slice only", () => {

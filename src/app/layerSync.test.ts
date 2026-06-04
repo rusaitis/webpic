@@ -1,0 +1,109 @@
+import type { RenderWorkerRequest } from "@render";
+import { createSimulationStore, makeDefaultLayer } from "@store";
+import { describe, expect, it } from "vitest";
+import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import { installLayerSync } from "./layerSync.ts";
+
+interface Post {
+  readonly message: RenderWorkerRequest;
+  readonly transfer: Transferable[] | undefined;
+}
+
+// |B| = 5 and |E| = 10 — two computable magnitudes for the field-switch test.
+const beDataset = () =>
+  makeDataset({
+    B_1: fieldArray("B_1", new Float32Array([3]), [1]),
+    B_2: fieldArray("B_2", new Float32Array([4]), [1]),
+    B_3: fieldArray("B_3", new Float32Array([0]), [1]),
+    E_1: fieldArray("E_1", new Float32Array([6]), [1]),
+    E_2: fieldArray("E_2", new Float32Array([8]), [1]),
+    E_3: fieldArray("E_3", new Float32Array([0]), [1]),
+  });
+
+function harness(ready: boolean) {
+  const posts: Post[] = [];
+  const worker = {
+    postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
+      posts.push({ message, transfer });
+    },
+  } as unknown as Worker;
+  let isReady = ready;
+  const store = createSimulationStore();
+  const sync = installLayerSync({ store, worker, isReady: () => isReady });
+  return {
+    store,
+    posts,
+    sync,
+    setReady: (v: boolean) => {
+      isReady = v;
+    },
+  };
+}
+
+const kinds = (posts: readonly Post[]) => posts.map((p) => p.message.kind);
+
+describe("installLayerSync", () => {
+  it("stays silent until the worker is ready", () => {
+    const { store, posts } = harness(false);
+    store.getState().setDataset(beDataset()); // seeds layer-0, fires computed + layers
+    expect(posts).toHaveLength(0);
+  });
+
+  it("flushAll posts the field (transferred) and the composite", () => {
+    const { store, posts, sync, setReady } = harness(false);
+    store.getState().setDataset(beDataset());
+    setReady(true);
+    sync.flushAll();
+
+    const upsert = posts.find((p) => p.message.kind === "upsertLayer");
+    if (upsert === undefined || upsert.message.kind !== "upsertLayer") {
+      throw new Error("expected an upsertLayer");
+    }
+    expect(upsert.message.layerKind).toBe("volume");
+    expect(upsert.message.field.dtype).toBe("f32");
+    expect(upsert.transfer).toEqual([upsert.message.field.buffer]); // transferred, not cloned
+
+    const composite = posts.find((p) => p.message.kind === "setComposite");
+    if (composite === undefined || composite.message.kind !== "setComposite") {
+      throw new Error("expected a setComposite");
+    }
+    expect(composite.message.order).toEqual([{ id: "layer-0", visible: true, opacity: 1 }]);
+  });
+
+  it("re-uploads the field exactly once on a field switch", () => {
+    const { store, posts, setReady } = harness(true);
+    store.getState().setDataset(beDataset());
+    posts.length = 0; // ignore the initial upload
+    setReady(true);
+    store.getState().selectField("|E|");
+
+    const upserts = posts.filter((p) => p.message.kind === "upsertLayer");
+    expect(upserts).toHaveLength(1); // one layer, one transfer — never a detached double-send
+    expect(upserts[0]?.transfer).toHaveLength(1);
+  });
+
+  it("rides visibility/opacity changes on setComposite (no field re-transfer)", () => {
+    const { store, posts } = harness(true);
+    store.getState().setDataset(beDataset());
+    posts.length = 0;
+    store.getState().setLayerVisible("layer-0", false);
+    store.getState().setLayerOpacity("layer-0", 0.5);
+    expect(kinds(posts)).toEqual(["setComposite", "setComposite"]);
+    const last = posts[posts.length - 1];
+    if (last?.message.kind !== "setComposite") throw new Error("expected setComposite");
+    expect(last.message.order[0]).toEqual({ id: "layer-0", visible: false, opacity: 0.5 });
+  });
+
+  it("posts removeLayer when a layer is removed", () => {
+    const { store, posts } = harness(true);
+    store.getState().setDataset(beDataset()); // layer-0
+    store.getState().addLayer(makeDefaultLayer("ignored", "|B|", "slice")); // layer-1
+    posts.length = 0;
+    store.getState().removeLayer("layer-1");
+    const remove = posts.find((p) => p.message.kind === "removeLayer");
+    if (remove === undefined || remove.message.kind !== "removeLayer") {
+      throw new Error("expected a removeLayer");
+    }
+    expect(remove.message.id).toBe("layer-1");
+  });
+});

@@ -8,7 +8,7 @@ interface Post {
   readonly transfer: Transferable[] | undefined;
 }
 
-// Single-cell B = (3, 4, 0) so |B| = 5; f32 so the showSlice payload keeps the f32 dtype.
+// Single-cell B = (3, 4, 0) so |B| = 5; f32 so the upsertLayer payload keeps the f32 dtype.
 const tinyDataset = () => vectorTriple("B", { array: Float32Array, dims: [1, 1, 1] });
 
 describe("bootstrap OffscreenCanvas handshake", () => {
@@ -58,7 +58,7 @@ describe("bootstrap OffscreenCanvas handshake", () => {
 });
 
 describe("bootstrap store → compute → render", () => {
-  it("computes |B| and posts a showSlice carrying the field once the worker is ready", () => {
+  it("computes |B| and posts an upsertLayer + setComposite once the worker is ready", () => {
     const offscreen = { tag: "offscreen" } as unknown as OffscreenCanvas;
     const canvas = {
       width: 0,
@@ -90,15 +90,24 @@ describe("bootstrap store → compute → render", () => {
     const ready = { data: { kind: "ready", requestId: 1 } } as MessageEvent<RenderWorkerResponse>;
     worker.onmessage?.(ready);
 
-    const slice = posts.find((p) => p.message.kind === "showSlice");
-    if (slice === undefined || slice.message.kind !== "showSlice") {
-      throw new Error("expected a showSlice message");
+    // The auto-seeded layer is a volume; its field rides an upsertLayer (buffer transferred).
+    const upsert = posts.find((p) => p.message.kind === "upsertLayer");
+    if (upsert === undefined || upsert.message.kind !== "upsertLayer") {
+      throw new Error("expected an upsertLayer message");
     }
-    expect(slice.message.field.dtype).toBe("f32");
-    expect(slice.message.field.shape).toEqual([1, 1, 1]);
-    expect(Array.from(new Float32Array(slice.message.field.buffer))).toEqual([5]);
+    expect(upsert.message.layerKind).toBe("volume");
+    expect(upsert.message.field.dtype).toBe("f32");
+    expect(upsert.message.field.shape).toEqual([1, 1, 1]);
+    expect(Array.from(new Float32Array(upsert.message.field.buffer))).toEqual([5]);
     // The field buffer is transferred, not cloned.
-    expect(slice.transfer).toEqual([slice.message.field.buffer]);
+    expect(upsert.transfer).toEqual([upsert.message.field.buffer]);
+
+    // The composite carries the one visible, full-opacity layer in draw order.
+    const composite = posts.find((p) => p.message.kind === "setComposite");
+    if (composite === undefined || composite.message.kind !== "setComposite") {
+      throw new Error("expected a setComposite message");
+    }
+    expect(composite.message.order).toEqual([{ id: upsert.message.id, visible: true, opacity: 1 }]);
 
     dispose();
   });

@@ -1,7 +1,7 @@
 import { createSimulationStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
 import { fieldArray, makeDataset } from "../../../tests/fixtures.ts";
-import { installLayersPanel } from "./layersPanel.ts";
+import { installColormapPanel } from "./colormapPanel.ts";
 
 // B triple → |B| = 5 (constant) → finite range widened to [5, 6], window {center 5.5, width 1}.
 const bTriple = () =>
@@ -19,13 +19,13 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("layers panel (window/level)", () => {
+describe("colormap panel (window/level)", () => {
   it("is disabled until a field's range is known, then rebuilds enabled on setDataset", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
 
-    const dispose = installLayersPanel(host, store); // no dataset yet
+    const dispose = installColormapPanel(host, store); // no dataset yet
     expect(host.querySelector(".webpic-range")?.classList.contains("is-disabled")).toBe(true);
     for (const input of rangeInputs(host)) expect(input.disabled).toBe(true);
 
@@ -44,7 +44,7 @@ describe("layers panel (window/level)", () => {
     document.body.appendChild(host);
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
-    const dispose = installLayersPanel(host, store);
+    const dispose = installColormapPanel(host, store);
 
     const [lo, hi] = rangeInputs(host);
     if (!lo || !hi) throw new Error("interval window needs two inputs");

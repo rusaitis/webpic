@@ -77,7 +77,7 @@ rounding = 0.0
 version = 1
 
 [webpic.layout]
-default-panels = ["field", "layers", "diagnostics"]
+default-panels = ["field", "colormap", "diagnostics"]
 docked-side = "left"          # LCARS canon: panels on the left
 panel-collapsed-default = false
 

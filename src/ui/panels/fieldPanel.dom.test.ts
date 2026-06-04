@@ -66,8 +66,8 @@ describe("placeholder panel", () => {
   it("renders its note and cleans up on dispose", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
-    const dispose = installPlaceholderPanel(host, "Layers", "No layers yet");
-    expect(host.querySelector(".webpic-placeholder")?.textContent).toBe("No layers yet");
+    const dispose = installPlaceholderPanel(host, "Streamlines", "No streamlines yet");
+    expect(host.querySelector(".webpic-placeholder")?.textContent).toBe("No streamlines yet");
     dispose();
     expect(host.querySelector(".webpic-pane")).toBeNull();
   });

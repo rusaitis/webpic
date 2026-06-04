@@ -15,7 +15,12 @@ export {
   type RaymarchScene,
   type RaymarchSceneOptions,
 } from "./raymarchScene.ts";
-export { type InstalledRenderer, installRenderer, type RendererOptions } from "./renderer.ts";
+export {
+  type CompositeItem,
+  type InstalledRenderer,
+  installRenderer,
+  type RendererOptions,
+} from "./renderer.ts";
 export { createTestScene, type TestScene } from "./scene.ts";
 export {
   createSliceScene,

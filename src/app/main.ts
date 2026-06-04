@@ -1,12 +1,13 @@
-import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
+import type { FieldDataset } from "@containers/field_dataset.ts";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import { createSimulationStore, createUiStore } from "@store";
 import { installPointerCamera, installUi } from "@ui";
+import { installLayerSync } from "./layerSync.ts";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
 
 const DEFAULT_SIZE = 256;
 const INIT_REQUEST_ID = 1;
-const SLICE_REQUEST_ID = 2;
+const WINDOW_REQUEST_ID = 2;
 const POSE_REQUEST_ID = 3;
 
 // Seams default to the real DOM/Worker; the handshake test injects fakes so
@@ -65,33 +66,10 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const disposePointer =
     typeof canvas.addEventListener === "function" ? installPointerCamera(canvas, store) : undefined;
 
-  // Serialize the computed field and hand it to the worker by transfer (never clone a large
-  // typed array). The magnitude is freshly allocated, so its buffer is offset-0 and an
-  // ArrayBuffer (not the SharedArrayBuffer that ArrayBufferLike also admits).
-  const forwardSlice = (field: FieldArray): void => {
-    const dtype = field.data instanceof Float64Array ? "f64" : "f32";
-    const buffer = field.data.buffer as ArrayBuffer;
-    const { windowLevel } = store.getState();
-    const request: RenderWorkerRequest = {
-      kind: "showSlice",
-      requestId: SLICE_REQUEST_ID,
-      field: { buffer, dtype, shape: field.shape },
-      axis: "z",
-      position: 0.5,
-      colormap: "inferno",
-      ...(windowLevel !== null ? { windowLevel } : {}),
-    };
-    worker.postMessage(request, [buffer]);
-  };
-
-  // Subscribe before dispatching so the first compute is never missed; gate on the worker
-  // being ready (covers the compute-finishes-after-ready ordering, e.g. a later selectField).
-  const unsubscribe = store.subscribe(
-    (state) => state.computed,
-    (computed) => {
-      if (workerReady && computed !== null) forwardSlice(computed);
-    },
-  );
+  // The layer registry → worker bridge (instance-first composite). Owns the `computed`/`layers`
+  // subscriptions: a fresh field transfers its buffer via upsertLayer; structure changes ride the
+  // cheap setComposite. Gated on `workerReady` so nothing is posted before the renderer is live.
+  const layerSync = installLayerSync({ store, worker, isReady: () => workerReady });
 
   // Window/level changes ride a cheap message (no field transfer) — the drag hot path is just
   // a uniform retune + repaint. A field switch fires both this and `computed`; the resulting
@@ -102,7 +80,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       if (workerReady && windowLevel !== null) {
         const request: RenderWorkerRequest = {
           kind: "setWindowLevel",
-          requestId: SLICE_REQUEST_ID,
+          requestId: WINDOW_REQUEST_ID,
           windowLevel,
         };
         worker.postMessage(request);
@@ -131,9 +109,9 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     const message = event.data;
     if (message.kind === "ready") {
       workerReady = true;
-      // The compute typically finished before init; show it now that the renderer is live.
-      const { computed } = store.getState();
-      if (computed !== null) forwardSlice(computed);
+      // The compute typically finished before init; push the full layer state now that the
+      // renderer is live (upsert each active-field layer + the composite).
+      layerSync.flushAll();
       // The mark's startTime is ms since navigation, which scripts/perf-gate.ts reads
       // alongside First Contentful Paint to check the gate.
       performance.mark("webpic:first-frame");
@@ -166,7 +144,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   return () => {
     disposeUi?.();
     disposePointer?.();
-    unsubscribe();
+    layerSync.dispose();
     unsubscribeWindow();
     unsubscribePose();
     worker.terminate();

@@ -1,4 +1,4 @@
-import { Color, Mesh, MeshBasicMaterial } from "three";
+import { Mesh, MeshBasicMaterial } from "three";
 import { describe, expect, it, vi } from "vitest";
 import type { TestScene } from "./scene.ts";
 import { createTestScene } from "./scene.ts";
@@ -32,10 +32,10 @@ describe("createTestScene", () => {
       );
     }
 
-    expect(a.scene.background).toBeInstanceOf(Color);
-    const bgA = a.scene.background as Color;
-    const bgB = b.scene.background as Color;
-    expect(bgA.getHex()).toBe(bgB.getHex());
+    // No per-scene background — the renderer's clear color now provides the background uniformly
+    // (so composited layers don't each wipe the target). The parity precondition is the geometry.
+    expect(a.scene.background).toBeNull();
+    expect(b.scene.background).toBeNull();
 
     a.dispose();
     b.dispose();

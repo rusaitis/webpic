@@ -1,5 +1,4 @@
-import { BufferAttribute, BufferGeometry, Color, Mesh, MeshBasicMaterial, Scene } from "three";
-import { BACKGROUND_COLOR } from "./constants.ts";
+import { BufferAttribute, BufferGeometry, Mesh, MeshBasicMaterial, Scene } from "three";
 
 export interface TestScene {
   readonly scene: Scene;
@@ -20,8 +19,9 @@ export function createTestScene(): TestScene {
   const material = new MeshBasicMaterial({ vertexColors: true });
   const mesh = new Mesh(geometry, material);
 
+  // No scene.background — the renderer's clear color provides the background uniformly across
+  // the boot frame and the composited layers.
   const scene = new Scene();
-  scene.background = new Color(BACKGROUND_COLOR);
   scene.add(mesh);
 
   return {

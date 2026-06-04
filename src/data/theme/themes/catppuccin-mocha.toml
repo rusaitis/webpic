@@ -65,7 +65,7 @@ rounding = 2.0
 version = 1
 
 [webpic.layout]
-default-panels = ["field", "layers", "diagnostics"]
+default-panels = ["field", "colormap", "diagnostics"]
 docked-side = "right"
 panel-collapsed-default = false
 
