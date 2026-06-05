@@ -62,6 +62,10 @@ describe("installLayerSync", () => {
     expect(upsert.message.layerKind).toBe("volume");
     expect(upsert.message.field.dtype).toBe("f32");
     expect(upsert.transfer).toEqual([upsert.message.field.buffer]); // transferred, not cloned
+    // Colormap/window/scale come from the seeded binding — not the old hardcoded inferno/global.
+    expect(upsert.message.colormap).toBe("inferno");
+    expect(upsert.message.scale).toBe("linear");
+    expect(upsert.message.windowLevel).toEqual({ center: 5.5, width: 1 }); // |B| = 5 → [5, 6]
 
     const composite = posts.find((p) => p.message.kind === "setComposite");
     if (composite === undefined || composite.message.kind !== "setComposite") {
@@ -92,6 +96,30 @@ describe("installLayerSync", () => {
     const last = posts[posts.length - 1];
     if (last?.message.kind !== "setComposite") throw new Error("expected setComposite");
     expect(last.message.order[0]).toEqual({ id: "layer-0", visible: false, opacity: 0.5 });
+  });
+
+  it("posts setLayerColormap when the bound binding is edited (the live color path)", () => {
+    const { store, posts } = harness(true);
+    store.getState().setDataset(beDataset()); // seeds layer-0 + binding-0
+    posts.length = 0; // ignore the seed traffic (binding rides the upsert, not this channel)
+    const bindingId = store.getState().layers[0]?.colormapBindingId ?? "";
+    store.getState().setBindingColormap(bindingId, "viridis");
+
+    const msg = posts.find((p) => p.message.kind === "setLayerColormap");
+    if (msg === undefined || msg.message.kind !== "setLayerColormap") {
+      throw new Error("expected a setLayerColormap");
+    }
+    expect(msg.message.id).toBe("layer-0");
+    expect(msg.message.colormap).toBe("viridis");
+    expect(msg.message.scale).toBe("linear");
+    expect(msg.message.windowLevel).toEqual({ center: 5.5, width: 1 });
+    expect(msg.transfer).toBeUndefined(); // no field buffer — the live path never re-transfers
+  });
+
+  it("does not post setLayerColormap for a freshly seeded binding (rides the upsert)", () => {
+    const { store, posts } = harness(true);
+    store.getState().setDataset(beDataset());
+    expect(kinds(posts)).not.toContain("setLayerColormap");
   });
 
   it("posts removeLayer when a layer is removed", () => {

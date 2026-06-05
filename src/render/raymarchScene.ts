@@ -1,3 +1,4 @@
+import type { ColorScale } from "@schema/colormap.ts";
 import { BoxGeometry, FrontSide, Mesh, Scene } from "three";
 import {
   Break,
@@ -32,6 +33,8 @@ export interface RaymarchSceneOptions {
   readonly colormap: string;
   /** Value→color window; absent → the field's full finite range (identity normalization). */
   readonly windowLevel?: WindowLevel;
+  /** Value→color scale within the window; default linear. */
+  readonly scale?: ColorScale;
   /** Fixed samples per ray across the clipped segment. */
   readonly steps?: number;
   /** Opacity scale for the emission-absorption transfer. */
@@ -44,6 +47,10 @@ export interface RaymarchScene {
   readonly scene: Scene;
   /** Update the value→color window in place (no texture re-upload). */
   setWindowLevel(center: number, width: number): void;
+  /** Rebake the colormap LUT in place (idempotent on an unchanged name). */
+  setColormap(name: string): void;
+  /** Switch the value→color scale in place (uniform only). */
+  setScale(scale: ColorScale): void;
   /** Update the per-layer opacity in place (uniform only, no rebuild). */
   setOpacity(opacity: number): void;
   dispose(): void;
@@ -76,7 +83,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   const steps = opts.steps ?? DEFAULT_STEPS;
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const norm = createNormalization(volume.min, volume.max, opts.windowLevel);
+  const norm = createNormalization(volume.min, volume.max, opts.windowLevel, opts.scale);
   const uDensity = uniform(opts.density ?? 1);
   const uLayerOpacity = uniform(opts.opacity ?? 1);
 
@@ -138,6 +145,8 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   return {
     scene,
     setWindowLevel: norm.setWindow,
+    setColormap: tf.setColormap,
+    setScale: norm.setScale,
     setOpacity(opacity) {
       uLayerOpacity.value = opacity;
     },

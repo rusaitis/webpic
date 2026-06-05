@@ -3,8 +3,12 @@
 // polynomial fit to the matplotlib sequentials (https://www.shadertoy.com/view/WlfXRN), evaluated
 // in Horner form. Unknown names fall back to inferno.
 
+import type { ColormapId } from "@schema/colormap.ts";
+
 export type Rgb = readonly [number, number, number];
-export type ColormapName = "inferno" | "viridis" | "plasma" | "magma";
+// The id union is owned by @schema (the authority); typing COLORMAP_COEFFS by it makes TS enforce
+// that schema's COLORMAP_IDS and render's polynomial fits stay in lockstep.
+export type ColormapName = ColormapId;
 
 // c0..c6 — the polynomial coefficients, one Rgb per power of t.
 type Coeffs = readonly [Rgb, Rgb, Rgb, Rgb, Rgb, Rgb, Rgb];
@@ -49,7 +53,7 @@ const MAGMA: Coeffs = [
   [18.65570506591883, -11.48977351997711, -5.601961508734096],
 ];
 
-export const COLORMAP_COEFFS: Readonly<Record<ColormapName, Coeffs>> = {
+export const COLORMAP_COEFFS: Readonly<Record<ColormapId, Coeffs>> = {
   inferno: INFERNO,
   viridis: VIRIDIS,
   plasma: PLASMA,

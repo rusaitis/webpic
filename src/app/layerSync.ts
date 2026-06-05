@@ -1,5 +1,6 @@
 import type { FieldArray } from "@containers/field_dataset.ts";
 import type { RenderWorkerRequest } from "@render";
+import { type ColormapBinding, DEFAULT_COLORMAP } from "@schema/colormap.ts";
 import type { Layer, SimulationStore } from "@store";
 
 // Bridges the store's instance-first layer registry to the render worker (app-only: it imports both
@@ -26,6 +27,14 @@ export interface LayerSync {
 export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   const { store, worker, isReady } = opts;
   let lastLayers: readonly Layer[] = store.getState().layers; // snapshot for the removal diff
+  let lastBindings = store.getState().colormapBindings; // snapshot for the per-binding change diff
+
+  // The layer's ColormapBinding, or undefined if it references none (defensive — post-M2.5b every
+  // renderable layer is seeded with one).
+  const bindingFor = (layer: Layer): ColormapBinding | undefined =>
+    layer.colormapBindingId !== null
+      ? store.getState().colormapBindings[layer.colormapBindingId]
+      : undefined;
 
   const sendUpsert = (layer: Layer, field: FieldArray): void => {
     // Only slice/volume are renderable; fieldlines/particles (M4/M5) have no scene yet.
@@ -34,7 +43,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     // Freshly computed magnitude → an offset-0 ArrayBuffer (not the SharedArrayBuffer that
     // ArrayBufferLike also admits), so it transfers wholesale.
     const buffer = field.data.buffer as ArrayBuffer;
-    const { windowLevel } = store.getState();
+    const binding = bindingFor(layer);
     const kindParams =
       layer.kind === "slice"
         ? { axis: layer.axis, position: layer.position }
@@ -48,12 +57,27 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       id: layer.id,
       layerKind: layer.kind,
       field: { buffer, dtype, shape: field.shape },
-      colormap: "inferno", // per-layer colormap arrives with M2.5b's ColormapBinding
+      colormap: binding?.colormap ?? DEFAULT_COLORMAP,
+      scale: binding?.scale ?? "linear",
       opacity: layer.opacity,
-      ...(windowLevel !== null ? { windowLevel } : {}), // global window/level until M2.5b
+      ...(binding !== undefined ? { windowLevel: binding.window } : {}),
       ...kindParams,
     };
     worker.postMessage(request, [buffer]);
+  };
+
+  // Live per-layer color update — colormap + window/level + scale, no field transfer.
+  const sendLayerColormap = (layer: Layer, binding: ColormapBinding): void => {
+    if (layer.kind !== "slice" && layer.kind !== "volume") return;
+    const request: RenderWorkerRequest = {
+      kind: "setLayerColormap",
+      requestId: LAYER_REQUEST_ID,
+      id: layer.id,
+      colormap: binding.colormap,
+      windowLevel: binding.window,
+      scale: binding.scale,
+    };
+    worker.postMessage(request);
   };
 
   const sendComposite = (): void => {
@@ -125,11 +149,36 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     },
   );
 
+  // Bindings channel — the live color hot path (colormap / window-drag / scale). Diffs the registry
+  // by reference and posts setLayerColormap for each layer whose binding object changed. Pre-M4 it's
+  // the one layer, same cadence as the old global setWindowLevel; the upsert carries the binding for
+  // a fresh layer, so this fires only on edits to an existing one.
+  const unsubscribeBindings = store.subscribe(
+    (state) => state.colormapBindings,
+    (bindings) => {
+      if (!isReady()) {
+        lastBindings = bindings; // keep the snapshot current so a later diff isn't spurious
+        return;
+      }
+      for (const layer of store.getState().layers) {
+        if (layer.colormapBindingId === null) continue;
+        const binding = bindings[layer.colormapBindingId];
+        const prev = lastBindings[layer.colormapBindingId];
+        // Skip a brand-new binding — its color rides the same-tick upsert (seed/field switch). Fire
+        // only for edits to an existing one (the colormap / window-drag / scale hot path).
+        if (binding === undefined || prev === undefined || binding === prev) continue;
+        sendLayerColormap(layer, binding);
+      }
+      lastBindings = bindings;
+    },
+  );
+
   return {
     flushAll,
     dispose() {
       unsubscribeComputed();
       unsubscribeLayers();
+      unsubscribeBindings();
     },
   };
 }

@@ -1,11 +1,15 @@
 import { computableFields, computeField } from "@compute";
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
+import type { ColormapBinding, ColormapId, ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { FieldName, FloatArray } from "@schema/types.ts";
 import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 import { type CameraPose, DEFAULT_POSE } from "./camera.ts";
+import * as colormapOps from "./colormap.ts";
 import type { Layer, LayerKind, LayerSpec } from "./layers.ts";
 import * as layerOps from "./layers.ts";
+
+export type { WindowLevel };
 
 // The simulation store: holds the loaded dataset + active field, recomputes the derived field
 // whenever either changes, and owns the instance-first `layers` registry. UI dispatches
@@ -26,14 +30,6 @@ export interface DataRange {
   readonly max: number;
 }
 
-// Value→color window in the canonical {center, width} form (no separate min/max). Restated, not
-// shared, with the render-side WindowLevel (messages.ts / normalization.ts): the ui→store→render
-// DAG forbids store importing render. The M2.4 ColormapBinding reifies this per field.
-export interface WindowLevel {
-  readonly center: number;
-  readonly width: number;
-}
-
 export interface SimulationState {
   readonly dataset: FieldDataset | null;
   readonly activeField: FieldName;
@@ -41,9 +37,11 @@ export interface SimulationState {
   // (the UI can't reach `compute` directly, so the store derives them on load).
   readonly availableFields: readonly FieldName[];
   readonly computed: FieldArray | null;
-  // The active field's finite extent (slider bounds) and the current value→color window.
+  // The active field's finite extent — the slider track bounds (independent of any binding).
   readonly dataRange: DataRange | null;
-  readonly windowLevel: WindowLevel | null;
+  // The ColormapBinding registry (DESIGN §1010): the color-mapping layers reference by id, owning
+  // colormap + window/level + scale. Layers share or split bindings; GC/merge wait for the M4 UI.
+  readonly colormapBindings: Readonly<Record<string, ColormapBinding>>;
   // Orbit camera pose. Non-nullable — DEFAULT_POSE is always valid; the app streams it to the
   // render worker. M2.4b's pointer controls dispatch setCameraPose; the worker derives the camera.
   readonly cameraPose: CameraPose;
@@ -55,7 +53,9 @@ export interface SimulationState {
   readonly error: string | null;
   setDataset(dataset: FieldDataset): void;
   selectField(name: FieldName): void;
-  setWindowLevel(center: number, width: number): void;
+  setBindingColormap(id: string, colormap: ColormapId): void;
+  setBindingWindow(id: string, center: number, width: number): void;
+  setBindingScale(id: string, scale: ColorScale): void;
   setCameraPose(pose: CameraPose): void;
   addLayer(spec: LayerSpec): void;
   removeLayer(id: string): void;
@@ -93,43 +93,64 @@ export type SimulationStore = ReturnType<typeof createSimulationStore>;
 export function createSimulationStore() {
   return createStore<SimulationState>()(
     subscribeWithSelector((set, get) => {
-      // Per-store monotonic id (resets with each store → deterministic, test-isolated).
+      // Per-store monotonic ids (reset with each store → deterministic, test-isolated).
       let layerIdSeq = 0;
+      let bindingIdSeq = 0;
       const nextLayerId = (): string => `layer-${layerIdSeq++}`;
+      const nextBindingId = (): string => `binding-${bindingIdSeq++}`;
+
+      // Window when a field has no finite samples (all-NaN) — a unit window so the binding stays valid.
+      const FALLBACK_WINDOW: WindowLevel = { center: 0, width: 1 };
 
       const recompute = (): void => {
         const { dataset, activeField } = get();
         if (dataset === null) {
-          // Leave `layers`/`selectedLayerId` untouched — a transient empty/error state shouldn't
-          // tear down the layer the field selector targets.
-          set({ computed: null, status: "empty", error: null, dataRange: null, windowLevel: null });
+          // Leave `layers`/`colormapBindings`/`selectedLayerId` untouched — a transient empty/error
+          // state shouldn't tear down the layer + binding the field selector targets.
+          set({ computed: null, status: "empty", error: null, dataRange: null });
           return;
         }
         try {
           const computed = computeField(activeField, dataset);
-          // Reset the window to the new field's full range — a fresh quantity has a fresh
-          // value scale. M2.5b's ColormapBinding will persist per-field windows instead.
+          // A fresh quantity has a fresh value scale — reset the bound window to its full range.
           const dataRange = finiteRange(computed.data);
-          const windowLevel = dataRange ? fullRangeWindow(dataRange) : null;
-          // Pre-M4 (no Layers UI): auto-seed one layer for the active field so the field selector +
-          // window/level panel still drive the scene. Only when empty — re-selecting a field or
-          // reloading must not spawn duplicates.
-          const seed = get().layers.length === 0;
-          const layers = seed
-            ? layerOps.addLayer(
-                get().layers,
-                layerOps.makeDefaultLayer(nextLayerId(), activeField, DEFAULT_LAYER_KIND),
-              )
-            : get().layers;
-          const selectedLayerId = seed ? (layers[0]?.id ?? null) : get().selectedLayerId;
+          const window = dataRange ? fullRangeWindow(dataRange) : FALLBACK_WINDOW;
+          const state = get();
+          // Pre-M4 (no Layers UI): auto-seed one volume layer + its binding for the active field so
+          // the field selector + colormap panel still drive the scene. Only when empty — re-selecting
+          // a field or reloading must not spawn duplicates.
+          const seed = state.layers.length === 0;
+          let { layers, selectedLayerId, colormapBindings } = state;
+          if (seed) {
+            const bindingId = nextBindingId();
+            colormapBindings = colormapOps.upsertBinding(
+              colormapBindings,
+              colormapOps.makeDefaultBinding(bindingId, activeField, window),
+            );
+            const layer = layerOps.makeDefaultLayer(nextLayerId(), activeField, DEFAULT_LAYER_KIND);
+            layers = layerOps.addLayer(layers, { ...layer, colormapBindingId: bindingId });
+            selectedLayerId = layers[0]?.id ?? null;
+          } else {
+            // Field switch: repoint the selected layer's binding at the new field + full range,
+            // keeping its colormap + scale (the user's color choices outlive a field change).
+            const bindingId =
+              layers.find((layer) => layer.id === selectedLayerId)?.colormapBindingId ?? null;
+            if (bindingId !== null)
+              colormapBindings = colormapOps.retargetBinding(
+                colormapBindings,
+                bindingId,
+                activeField,
+                window,
+              );
+          }
           set({
             computed,
             status: "ready",
             error: null,
             dataRange,
-            windowLevel,
             layers,
             selectedLayerId,
+            colormapBindings,
           });
         } catch (err) {
           set({
@@ -137,7 +158,6 @@ export function createSimulationStore() {
             status: "error",
             error: err instanceof Error ? err.message : String(err),
             dataRange: null,
-            windowLevel: null,
           });
         }
       };
@@ -148,7 +168,7 @@ export function createSimulationStore() {
         availableFields: [],
         computed: null,
         dataRange: null,
-        windowLevel: null,
+        colormapBindings: {},
         cameraPose: DEFAULT_POSE,
         layers: [],
         selectedLayerId: null,
@@ -172,18 +192,51 @@ export function createSimulationStore() {
           set({ activeField: name, ...(repointed !== layers ? { layers: repointed } : {}) });
           recompute();
         },
-        setWindowLevel(center, width) {
-          set({ windowLevel: { center, width } });
+        setBindingColormap(id, colormap) {
+          const { colormapBindings } = get();
+          const next = colormapOps.setBindingColormap(colormapBindings, id, colormap);
+          if (next === colormapBindings) return; // missing id / unchanged → no fire
+          set({ colormapBindings: next });
+        },
+        setBindingWindow(id, center, width) {
+          const { colormapBindings } = get();
+          const next = colormapOps.setBindingWindow(colormapBindings, id, center, width);
+          if (next === colormapBindings) return;
+          set({ colormapBindings: next });
+        },
+        setBindingScale(id, scale) {
+          const { colormapBindings } = get();
+          const next = colormapOps.setBindingScale(colormapBindings, id, scale);
+          if (next === colormapBindings) return;
+          set({ colormapBindings: next });
         },
         setCameraPose(pose) {
           set({ cameraPose: pose }); // fresh object each call so subscribeWithSelector fires
         },
         addLayer(spec) {
           // The spec is already a valid union member sans id; stamping the id reconstructs it.
-          const layer = { ...spec, id: nextLayerId() } as Layer;
-          set({ layers: layerOps.addLayer(get().layers, layer), selectedLayerId: layer.id });
+          const id = nextLayerId();
+          let { colormapBindings } = get();
+          // Every renderable layer needs a binding — mint one for its field if the spec carries none.
+          let bindingId = spec.colormapBindingId;
+          if (bindingId === null) {
+            bindingId = nextBindingId();
+            const { dataRange } = get();
+            const window = dataRange ? fullRangeWindow(dataRange) : FALLBACK_WINDOW;
+            colormapBindings = colormapOps.upsertBinding(
+              colormapBindings,
+              colormapOps.makeDefaultBinding(bindingId, spec.field, window),
+            );
+          }
+          const layer = { ...spec, id, colormapBindingId: bindingId } as Layer;
+          set({
+            layers: layerOps.addLayer(get().layers, layer),
+            selectedLayerId: layer.id,
+            colormapBindings,
+          });
         },
         removeLayer(id) {
+          // Orphaned bindings are left in the registry — GC/merge wait for the M4 multi-layer UI.
           const { layers, selectedLayerId } = get();
           const next = layerOps.removeLayer(layers, id);
           if (next === layers) return; // absent id → no-op

@@ -1,9 +1,17 @@
 import type { FieldArray } from "@containers/field_dataset.ts";
+import type { ColormapBinding } from "@schema/colormap.ts";
 import { describe, expect, it } from "vitest";
 import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
-import { createSimulationStore } from "./simulation.ts";
+import { createSimulationStore, type SimulationStore } from "./simulation.ts";
 
 const bDataset = () => vectorTriple("B", { array: Float32Array });
+
+// The binding the selected layer references — the unit the colormap panel + layerSync resolve.
+function activeBinding(store: SimulationStore): ColormapBinding | undefined {
+  const { selectedLayerId, layers, colormapBindings } = store.getState();
+  const id = layers.find((layer) => layer.id === selectedLayerId)?.colormapBindingId;
+  return id != null ? colormapBindings[id] : undefined;
+}
 
 // |B| = 5 and |E| = 10 — two computable magnitudes with distinct ranges, for the field-switch test.
 const beDataset = () =>
@@ -67,39 +75,73 @@ describe("simulationStore", () => {
     expect(computed).toBeNull();
   });
 
-  it("derives the data range and a full-range window on setDataset", () => {
+  it("derives the data range and seeds a full-range binding on setDataset", () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
-    const { dataRange, windowLevel } = store.getState();
+    const { dataRange, layers, selectedLayerId } = store.getState();
     // |B| = 5 everywhere (constant field) → widened to [5, 6] so the window has finite width.
     expect(dataRange).toEqual({ min: 5, max: 6 });
-    expect(windowLevel).toEqual({ center: 5.5, width: 1 });
+    expect(layers).toHaveLength(1);
+    const layer = layers[0];
+    expect(layer?.id).toBe(selectedLayerId);
+    expect(layer?.colormapBindingId).not.toBeNull(); // seeded, not the pre-M2.5b null
+    const binding = activeBinding(store);
+    expect(binding).toMatchObject({
+      field: "|B|",
+      colormap: "inferno",
+      scale: "linear",
+      window: { center: 5.5, width: 1 },
+    });
   });
 
-  it("setWindowLevel updates the window without touching the data range", () => {
+  it("setBindingWindow updates the binding window without touching the data range", () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
-    store.getState().setWindowLevel(10, 2);
-    const { windowLevel, dataRange } = store.getState();
-    expect(windowLevel).toEqual({ center: 10, width: 2 });
-    expect(dataRange).toEqual({ min: 5, max: 6 }); // unchanged
+    const id = activeBinding(store)?.id ?? "";
+    store.getState().setBindingWindow(id, 10, 2);
+    expect(activeBinding(store)?.window).toEqual({ center: 10, width: 2 });
+    expect(store.getState().dataRange).toEqual({ min: 5, max: 6 }); // unchanged
   });
 
-  it("resets the window to the new field's full range on a field switch", () => {
+  it("setBindingColormap and setBindingScale patch the bound binding", () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(bDataset());
+    const id = activeBinding(store)?.id ?? "";
+    store.getState().setBindingColormap(id, "viridis");
+    store.getState().setBindingScale(id, "log");
+    expect(activeBinding(store)).toMatchObject({ colormap: "viridis", scale: "log" });
+  });
+
+  it("a no-op binding intent keeps the registry reference (no spurious fire)", () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(bDataset());
+    const before = store.getState().colormapBindings;
+    store.getState().setBindingColormap(activeBinding(store)?.id ?? "", "inferno"); // already inferno
+    expect(store.getState().colormapBindings).toBe(before);
+  });
+
+  it("repoints the binding to the new field (full range) on a field switch, keeping the colormap", () => {
     const store = createSimulationStore();
     store.getState().setDataset(beDataset());
-    store.getState().setWindowLevel(0, 2); // user-narrowed window on |B|
+    const id = activeBinding(store)?.id ?? "";
+    store.getState().setBindingColormap(id, "magma");
+    store.getState().setBindingWindow(id, 0, 2); // user-narrowed window on |B|
     store.getState().selectField("|E|"); // |E| = 10 → constant → range [10, 11]
-    const { dataRange, windowLevel } = store.getState();
-    expect(dataRange).toEqual({ min: 10, max: 11 });
-    expect(windowLevel).toEqual({ center: 10.5, width: 1 });
+    expect(store.getState().dataRange).toEqual({ min: 10, max: 11 });
+    // same binding instance, repointed: field + window reset, colormap preserved.
+    expect(activeBinding(store)).toMatchObject({
+      field: "|E|",
+      colormap: "magma",
+      window: { center: 10.5, width: 1 },
+    });
   });
 
-  it("clears the range and window when compute fails", () => {
+  it("clears the range when compute fails (the binding survives the transient error)", () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
     store.getState().selectField("not-a-recipe");
     expect(store.getState().dataRange).toBeNull();
-    expect(store.getState().windowLevel).toBeNull();
+    expect(store.getState().computed).toBeNull();
+    expect(activeBinding(store)).toBeDefined(); // layers/bindings untouched on error
   });
 });

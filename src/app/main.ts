@@ -7,7 +7,6 @@ import { createSyntheticDataset } from "./syntheticDataset.ts";
 
 const DEFAULT_SIZE = 256;
 const INIT_REQUEST_ID = 1;
-const WINDOW_REQUEST_ID = 2;
 const POSE_REQUEST_ID = 3;
 
 // Seams default to the real DOM/Worker; the handshake test injects fakes so
@@ -71,22 +70,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // cheap setComposite. Gated on `workerReady` so nothing is posted before the renderer is live.
   const layerSync = installLayerSync({ store, worker, isReady: () => workerReady });
 
-  // Window/level changes ride a cheap message (no field transfer) — the drag hot path is just
-  // a uniform retune + repaint. A field switch fires both this and `computed`; the resulting
-  // setWindowLevel is a redundant no-op over the freshly-built scene.
-  const unsubscribeWindow = store.subscribe(
-    (state) => state.windowLevel,
-    (windowLevel) => {
-      if (workerReady && windowLevel !== null) {
-        const request: RenderWorkerRequest = {
-          kind: "setWindowLevel",
-          requestId: WINDOW_REQUEST_ID,
-          windowLevel,
-        };
-        worker.postMessage(request);
-      }
-    },
-  );
+  // Per-layer color (colormap / window-drag / scale) is owned by layerSync's bindings channel —
+  // it resolves a changed ColormapBinding to the layers that reference it and posts setLayerColormap.
 
   // Camera pose rides the same cheap-message pattern. Pose is always present (DEFAULT_POSE), and the
   // worker already applied it at init, so there's no catch-up post on `ready` — this fires only on
@@ -145,7 +130,6 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     disposeUi?.();
     disposePointer?.();
     layerSync.dispose();
-    unsubscribeWindow();
     unsubscribePose();
     worker.terminate();
   };

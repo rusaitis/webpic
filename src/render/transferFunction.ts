@@ -17,6 +17,9 @@ const DEFAULT_LUT_SIZE = 256; // conventional colormap LUT width (linear-interpo
 
 export interface TransferFunctionTexture {
   readonly texture: DataTexture;
+  /** Rebake the LUT for a new colormap in place (no reallocation). Idempotent — a repeated name is
+   *  a no-op, so a window-drag message carrying the unchanged colormap costs nothing. */
+  setColormap(name: string): void;
   dispose(): void;
 }
 
@@ -56,8 +59,15 @@ export function createTransferFunctionTexture(
   texture.wrapS = ClampToEdgeWrapping;
   texture.wrapT = ClampToEdgeWrapping;
   texture.needsUpdate = true; // mandatory — the backend never uploads otherwise
+  let current = name;
   return {
     texture,
+    setColormap(next) {
+      if (next === current) return; // idempotent — skip the rebake on an unchanged colormap
+      current = next;
+      (texture.image.data as Uint16Array).set(buildTransferFunctionLut(next, size));
+      texture.needsUpdate = true;
+    },
     dispose() {
       texture.dispose();
     },

@@ -14,8 +14,9 @@ export type SliceAxis = "x" | "y" | "z";
 interface LayerBase {
   readonly id: string;
   readonly field: FieldName;
-  // The ColormapBinding this layer references; null until M2.5b reifies the registry. Pre-M2.5b
-  // colormap + window/level are global, so a null binding renders with the global defaults.
+  // The ColormapBinding (store/colormap.ts) this layer references for colormap + window/level +
+  // scale. The store seeds one with each renderable layer; null only before a layer is bound (a
+  // null binding renders with the DEFAULT_COLORMAP / linear / full-range fallback).
   readonly colormapBindingId: string | null;
   readonly visible: boolean;
   readonly opacity: number; // [0, 1]

@@ -1,5 +1,8 @@
+import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { SliceAxis } from "./sliceScene.ts";
+
+export type { WindowLevel };
 
 // Typed protocol for the OffscreenCanvas render worker. Discriminated unions both
 // ways; `requestId` correlates a response to its request and pre-stages the
@@ -13,12 +16,6 @@ export interface SliceFieldPayload {
   readonly buffer: ArrayBuffer;
   readonly dtype: "f32" | "f64";
   readonly shape: readonly number[];
-}
-
-// Value→color window (DESIGN M2.3): the canonical range form, not a separate min/max.
-export interface WindowLevel {
-  readonly center: number;
-  readonly width: number;
 }
 
 // Orbit camera pose on the wire (DESIGN §443 StoreToRender). Restates the store-side CameraPose
@@ -49,6 +46,7 @@ export type RenderWorkerRequest =
       readonly layerKind: "slice" | "volume";
       readonly field: SliceFieldPayload;
       readonly colormap: string;
+      readonly scale: ColorScale;
       readonly opacity: number;
       readonly windowLevel?: WindowLevel;
       readonly axis?: SliceAxis;
@@ -67,11 +65,16 @@ export type RenderWorkerRequest =
         readonly opacity: number;
       }[];
     }
-  // Live window/level update — no field buffer, so dragging never re-transfers the volume.
+  // Live per-layer color update — colormap + window/level + scale (one layer's ColormapBinding,
+  // resolved to the layer it draws). No field buffer, so dragging never re-transfers the volume;
+  // the worker keys scenes by layer id, so the wire is layer-addressed (not binding-addressed).
   | {
-      readonly kind: "setWindowLevel";
+      readonly kind: "setLayerColormap";
       readonly requestId: number;
+      readonly id: string;
+      readonly colormap: string;
       readonly windowLevel: WindowLevel;
+      readonly scale: ColorScale;
     }
   // Camera pose update — high-frequency, delta-only (DESIGN §443); the worker re-applies + repaints.
   | {

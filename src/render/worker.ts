@@ -188,6 +188,7 @@ async function upsertLayer(
     const scene = createSliceScene({
       field,
       colormap: request.colormap,
+      scale: request.scale,
       axis: request.axis ?? "z",
       position: request.position ?? 0.5,
       opacity: request.opacity,
@@ -198,6 +199,7 @@ async function upsertLayer(
     const scene = createRaymarchScene({
       field,
       colormap: request.colormap,
+      scale: request.scale,
       opacity: request.opacity,
       ...windowLevel,
       ...(request.steps !== undefined ? { steps: request.steps } : {}),
@@ -232,17 +234,21 @@ async function setComposite(
   requestRender();
 }
 
-// Live window/level: retune every layer's uniforms and repaint, no scene rebuild. Global for
-// M2.5a; M2.5b's per-layer ColormapBinding splits it.
-async function setWindowLevel(
-  request: Extract<RenderWorkerRequest, { kind: "setWindowLevel" }>,
+// Live per-layer color: one layer's resolved ColormapBinding (colormap + window/level + scale).
+// Colormap rebake is idempotent, so a window-drag stream carrying the unchanged name is just a
+// uniform retune + repaint — no scene rebuild.
+async function setLayerColormap(
+  request: Extract<RenderWorkerRequest, { kind: "setLayerColormap" }>,
 ): Promise<void> {
   await initDone;
   if (renderer === undefined) {
-    throw new Error("setWindowLevel before init");
+    throw new Error("setLayerColormap before init");
   }
-  const { center, width } = request.windowLevel;
-  for (const layer of layers.values()) layer.scene.setWindowLevel(center, width);
+  const entry = layers.get(request.id);
+  if (entry === undefined) return; // binding update ahead of its upsert — heals on the upsert repaint
+  entry.scene.setColormap(request.colormap);
+  entry.scene.setWindowLevel(request.windowLevel.center, request.windowLevel.width);
+  entry.scene.setScale(request.scale);
   requestRender();
 }
 
@@ -275,8 +281,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return removeLayer(request);
     case "setComposite":
       return setComposite(request);
-    case "setWindowLevel":
-      return setWindowLevel(request);
+    case "setLayerColormap":
+      return setLayerColormap(request);
     case "setCameraPose":
       return setCameraPose(request);
     default: {

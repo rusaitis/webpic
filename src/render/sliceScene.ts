@@ -1,3 +1,4 @@
+import type { ColorScale } from "@schema/colormap.ts";
 import { Mesh, PlaneGeometry, Scene } from "three";
 import { texture, texture3D, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
@@ -20,6 +21,8 @@ export interface SliceSceneOptions {
   readonly position: number;
   /** Value→color window; absent → the field's full finite range (identity normalization). */
   readonly windowLevel?: WindowLevel;
+  /** Value→color scale within the window; default linear. */
+  readonly scale?: ColorScale;
   /** Per-layer opacity multiplier on the composited output, [0,1]; default 1 (opaque). */
   readonly opacity?: number;
 }
@@ -28,6 +31,10 @@ export interface SliceScene {
   readonly scene: Scene;
   /** Update the value→color window in place (no texture re-upload). */
   setWindowLevel(center: number, width: number): void;
+  /** Rebake the colormap LUT in place (idempotent on an unchanged name). */
+  setColormap(name: string): void;
+  /** Switch the value→color scale in place (uniform only). */
+  setScale(scale: ColorScale): void;
   /** Update the per-layer opacity in place (uniform only, no rebuild). */
   setOpacity(opacity: number): void;
   dispose(): void;
@@ -58,7 +65,7 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   const tf = createTransferFunctionTexture(opts.colormap);
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const norm = createNormalization(volume.min, volume.max, opts.windowLevel);
+  const norm = createNormalization(volume.min, volume.max, opts.windowLevel, opts.scale);
   const uPosition = uniform(opts.position);
   const uLayerOpacity = uniform(opts.opacity ?? 1);
 
@@ -85,6 +92,8 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   return {
     scene,
     setWindowLevel: norm.setWindow,
+    setColormap: tf.setColormap,
+    setScale: norm.setScale,
     setOpacity(opacity) {
       uLayerOpacity.value = opacity;
     },
