@@ -1,0 +1,40 @@
+// Per-frame GPU timing for the diagnostics panel, render-local (like raymarchScene.ts) — NOT the
+// gpu/profiler.ts path, which times an *owned* compute pass and can't reach three's internally
+// managed render encoder.
+//
+// Wall-clock only: performance.now() bracketing device.queue.onSubmittedWorkDone(). Render-pass
+// timestamp-query was removed — three writes timestampWrites into every pass incl. the swapchain
+// present, and resolving them (resolveTimestampsAsync → resultBuffer.mapAsync) loses the device on
+// Metal. The measurement is coarser (includes JS/queue latency), so the panel labels it distinctly
+// and never reads it as pure GPU time.
+
+export type FrameClock = "wallclock";
+
+export interface FrameTimer {
+  readonly mode: FrameClock;
+  /** Call before the render submit; stamps the wall clock. */
+  beginFrame(): void;
+  /** Bracket time for the just-submitted frame in ms; NaN to skip (a read still in flight). */
+  sampleAfterSubmit(): Promise<number>;
+}
+
+export function createFrameTimer(device: GPUDevice): FrameTimer {
+  let startMs = Number.NaN;
+  let reading = false;
+  return {
+    mode: "wallclock",
+    beginFrame() {
+      startMs = performance.now();
+    },
+    async sampleAfterSubmit() {
+      if (reading) return Number.NaN; // a previous bracket is still draining; skip this frame
+      reading = true;
+      try {
+        await device.queue.onSubmittedWorkDone();
+        return performance.now() - startMs;
+      } finally {
+        reading = false;
+      }
+    },
+  };
+}

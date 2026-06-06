@@ -8,6 +8,39 @@ import { createSyntheticDataset } from "./syntheticDataset.ts";
 const DEFAULT_SIZE = 256;
 const INIT_REQUEST_ID = 1;
 const POSE_REQUEST_ID = 3;
+const CONTINUOUS_REQUEST_ID = 4;
+const RESIZE_REQUEST_ID = 5;
+// Cap the drawing-buffer scale: a raymarcher's cost is per physical pixel, so honor Retina (2×)
+// but don't quadruple the work on 3×+ panels.
+const MAX_DEVICE_PIXEL_RATIO = 2;
+
+function currentDevicePixelRatio(): number {
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
+  return Math.max(1, Math.min(dpr || 1, MAX_DEVICE_PIXEL_RATIO));
+}
+
+// Terminal GPU-loss state: the worker's recovery circuit-breaker gave up. Replace the dead view with
+// a reload prompt rather than leaving a frozen canvas. Idempotent; skipped headless (no DOM).
+function showGpuLostBanner(message: string): void {
+  if (typeof document === "undefined" || document.getElementById("webpic-gpu-lost") !== null)
+    return;
+  const banner = document.createElement("div");
+  banner.id = "webpic-gpu-lost";
+  banner.setAttribute("role", "alert");
+  banner.style.cssText =
+    "position:fixed;inset:0;z-index:1000;display:grid;place-items:center;gap:1rem;padding:2rem;text-align:center;background:rgba(16,24,32,0.94);color:#e8eef4;font:500 14px/1.5 system-ui,sans-serif;";
+  const text = document.createElement("p");
+  text.style.cssText = "margin:0;max-width:40rem;";
+  text.textContent = `GPU device lost and could not recover. ${message}`;
+  const reload = document.createElement("button");
+  reload.type = "button";
+  reload.textContent = "Reload";
+  reload.style.cssText =
+    "padding:0.5rem 1.25rem;font:inherit;cursor:pointer;border-radius:6px;border:1px solid #4a5a6a;background:#1c2a38;color:inherit;";
+  reload.addEventListener("click", () => location.reload());
+  banner.append(text, reload);
+  document.body.appendChild(banner);
+}
 
 // Seams default to the real DOM/Worker; the handshake test injects fakes so
 // bootstrap runs headless in Node.
@@ -51,6 +84,15 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   const canvas = createCanvas();
   mount(canvas);
+
+  // Logical (CSS) size from the mounted, full-viewport element; explicit options win for the
+  // headless handshake test. The worker scales these by devicePixelRatio for the drawing buffer.
+  const logicalSize = (): { width: number; height: number } => ({
+    width: options.width ?? (canvas.clientWidth || DEFAULT_SIZE),
+    height: options.height ?? (canvas.clientHeight || DEFAULT_SIZE),
+  });
+  const initial = logicalSize();
+
   const offscreen = canvas.transferControlToOffscreen();
 
   const worker = spawnWorker();
@@ -90,6 +132,25 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     },
   );
 
+  // Viewport/DPR tracking. ResizeObserver is frame-aligned, so post directly (no extra debounce).
+  // Guarded like installPointerCamera so the headless fake canvas (no addEventListener) is untouched.
+  let disposeResize: (() => void) | undefined;
+  if (typeof canvas.addEventListener === "function" && typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(() => {
+      if (!workerReady) return; // init carried the first layout; a pre-ready resize is vanishingly rare
+      const size = logicalSize();
+      worker.postMessage({
+        kind: "resize",
+        requestId: RESIZE_REQUEST_ID,
+        width: size.width,
+        height: size.height,
+        devicePixelRatio: currentDevicePixelRatio(),
+      } satisfies RenderWorkerRequest);
+    });
+    observer.observe(canvas);
+    disposeResize = () => observer.disconnect();
+  }
+
   worker.onmessage = (event: MessageEvent<RenderWorkerResponse>) => {
     const message = event.data;
     if (message.kind === "ready") {
@@ -97,21 +158,50 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       // The compute typically finished before init; push the full layer state now that the
       // renderer is live (upsert each active-field layer + the composite).
       layerSync.flushAll();
+      // Catch-up: the pose subscription drops posts while !workerReady, so replay the current pose
+      // once — a drag during worker init updates the store + gnomon but would otherwise be lost.
+      worker.postMessage({
+        kind: "setCameraPose",
+        requestId: POSE_REQUEST_ID,
+        pose: store.getState().cameraPose,
+      } satisfies RenderWorkerRequest);
       // The mark's startTime is ms since navigation, which scripts/perf-gate.ts reads
       // alongside First Contentful Paint to check the gate.
       performance.mark("webpic:first-frame");
       options.onFirstFrame?.();
+    } else if (message.kind === "frameTiming") {
+      store.getState().setFrameTiming(message.gpuTimeMs, message.clock);
     } else if (message.kind === "error") {
       console.error("[render worker]", message.message);
+    } else if (message.kind === "gpuRecoveryFailed") {
+      console.error(`[render worker] GPU unrecoverable (${message.reason}):`, message.message);
+      showGpuLostBanner(message.message);
     }
   };
+
+  // Diagnostics: the panel's "Measure" toggle drives the worker's continuous-repaint mode for
+  // sustained GPU timing. Same cheap-message pattern as pose; guarded on workerReady.
+  const unsubscribeContinuous = store.subscribe(
+    (state) => state.isMeasuringContinuous,
+    (continuous) => {
+      if (workerReady) {
+        const request: RenderWorkerRequest = {
+          kind: "setContinuous",
+          requestId: CONTINUOUS_REQUEST_ID,
+          continuous,
+        };
+        worker.postMessage(request);
+      }
+    },
+  );
 
   const request: RenderWorkerRequest = {
     kind: "init",
     requestId: INIT_REQUEST_ID,
     canvas: offscreen,
-    width,
-    height,
+    width: initial.width,
+    height: initial.height,
+    devicePixelRatio: currentDevicePixelRatio(),
   };
   worker.postMessage(request, [offscreen]); // transfer the OffscreenCanvas
 
@@ -129,8 +219,10 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   return () => {
     disposeUi?.();
     disposePointer?.();
+    disposeResize?.();
     layerSync.dispose();
     unsubscribePose();
+    unsubscribeContinuous();
     worker.terminate();
   };
 }

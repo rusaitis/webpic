@@ -7,6 +7,7 @@ import {
   RenderTarget,
   RGBAFormat,
   UnsignedByteType,
+  Vector2,
 } from "three";
 import { texture, uv } from "three/tsl";
 import { NodeMaterial, WebGPURenderer } from "three/webgpu";
@@ -18,8 +19,11 @@ export interface RendererOptions {
   // makes its own. Avoids an HTMLCanvasElement (DOM-lib) dependency so this module
   // also type-checks in a worker context.
   readonly canvas: OffscreenCanvas;
+  // Logical (CSS) pixel size; the drawing buffer is this × devicePixelRatio.
   readonly width: number;
   readonly height: number;
+  // Drawing-buffer scale (1 in the parity test / headless embed; window.devicePixelRatio live).
+  readonly devicePixelRatio?: number;
   // Inject the gpu/ singleton device so render + compute share one device and one
   // device.lost recovery path. Omit to let Three self-acquire (e.g. headless embed).
   // A GPUDevice can't transfer across threads, so a worker installs its own first.
@@ -41,6 +45,8 @@ export interface InstalledRenderer {
   renderComposite(items: readonly CompositeItem[]): void;
   /** Deterministic readback of the composited layers — the testable compositing primitive. */
   readCompositePixels(items: readonly CompositeItem[]): Promise<Uint8Array>;
+  /** Resize the swapchain + readback/composite targets to a new logical size and DPR. */
+  setSize(width: number, height: number, devicePixelRatio?: number): void;
   dispose(): void;
 }
 
@@ -48,20 +54,33 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
   const renderer = new WebGPURenderer({
     canvas: opts.canvas,
     antialias: false, // MSAA resolve is a nondeterminism source; off for parity
+    // No trackTimestamp: it writes timestampWrites into *every* render pass incl. the swapchain
+    // present, and the per-frame resolveTimestampsAsync/mapAsync loses the device on Metal (the
+    // adaptive timer demotes on garbage values, not on a device-lost throw). GPU timing is
+    // wall-clock instead (render/frameTimer.ts) — no querySet, no mapAsync.
     ...(opts.device ? { device: opts.device } : {}),
   });
+  renderer.setPixelRatio(opts.devicePixelRatio ?? 1); // before setSize: drawing buffer = logical × DPR
   renderer.setSize(opts.width, opts.height, false); // no style: OffscreenCanvas has none
   // The scenes no longer carry a background; the renderer owns the one clear color so layers
   // composite over a single background and the boot/parity frame is unchanged.
   renderer.setClearColor(new Color(BACKGROUND_COLOR), 1);
   await renderer.init();
 
+  // Readback/composite targets track the *drawing-buffer* (physical) size, not the logical size,
+  // so a DPR>1 composite/readback stays full-resolution. setPixelRatio folds DPR into this.
+  const drawingBuffer = (): { width: number; height: number } => {
+    const size = renderer.getDrawingBufferSize(new Vector2());
+    return { width: size.x, height: size.y };
+  };
+  let buffer = drawingBuffer();
+
   // Readback target: an UnsignedByte RGBA texture both paths read identically,
   // sidestepping any swapchain-presentation differences between worker and main.
   // Annotated as the bare RenderTarget: @types/three treats the generic as
   // invariant, so the inferred RenderTarget<Texture<unknown>> would not match
   // readRenderTargetPixelsAsync's RenderTarget parameter without this.
-  const readTarget: RenderTarget = new RenderTarget(opts.width, opts.height, {
+  const readTarget: RenderTarget = new RenderTarget(buffer.width, buffer.height, {
     format: RGBAFormat,
     type: UnsignedByteType,
   });
@@ -74,10 +93,15 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
 
   const ensurePresent = (): { target: RenderTarget; quad: Mesh; camera: OrthographicCamera } => {
     if (compositeTarget === undefined || presentQuad === undefined || presentCamera === undefined) {
-      compositeTarget = new RenderTarget(opts.width, opts.height, {
+      compositeTarget = new RenderTarget(buffer.width, buffer.height, {
         format: RGBAFormat,
         type: UnsignedByteType,
       });
+      // Prime the fresh RenderTarget before the present material samples it: WebGPU/Metal validates
+      // the binding at shader-compile and an unwritten target reads back as the magenta sentinel.
+      renderer.setRenderTarget(compositeTarget);
+      renderer.clear();
+      renderer.setRenderTarget(null);
       const material = new NodeMaterial();
       material.colorNode = texture(compositeTarget.texture, uv());
       material.depthTest = false;
@@ -118,8 +142,8 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
         readTarget,
         0,
         0,
-        opts.width,
-        opts.height,
+        buffer.width,
+        buffer.height,
       );
       renderer.setRenderTarget(null);
       // Compact, offset-0 buffer so the worker can transfer pixels.buffer wholesale.
@@ -147,11 +171,18 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
         readTarget,
         0,
         0,
-        opts.width,
-        opts.height,
+        buffer.width,
+        buffer.height,
       );
       renderer.setRenderTarget(null);
       return toTransferablePixels(data);
+    },
+    setSize(width, height, devicePixelRatio) {
+      if (devicePixelRatio !== undefined) renderer.setPixelRatio(devicePixelRatio);
+      renderer.setSize(width, height, false);
+      buffer = drawingBuffer();
+      readTarget.setSize(buffer.width, buffer.height);
+      compositeTarget?.setSize(buffer.width, buffer.height);
     },
     dispose() {
       // The gpu-layer device is intentionally NOT destroyed here — its lifetime

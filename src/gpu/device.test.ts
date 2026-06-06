@@ -129,10 +129,29 @@ describe("device.lost recovery", () => {
     gpu.resolveLost(lostInfo("unknown", "reset"));
     await flush();
 
-    expect(lost).toHaveBeenCalledWith({ kind: "unknown", message: "reset" });
+    expect(lost).toHaveBeenCalledWith({ kind: "unknown", message: "reset", terminal: false });
     expect(restored).toHaveBeenCalledTimes(1);
     expect(getDevice()).not.toBe(firstDevice);
     expect(gpu.adapterCount()).toBe(2); // install + recovery
+  });
+
+  it("trips the breaker after repeated rapid losses and stops re-acquiring", async () => {
+    const gpu = makeFakeGpu();
+    await install(gpu);
+    const lost = vi.fn();
+    onDeviceLost(lost);
+
+    // Each loss mints a fresh device (recovery), so resolveLost targets the latest. Fire 3 rapid.
+    for (let i = 0; i < 3; i++) {
+      gpu.resolveLost(lostInfo("unknown", `loss ${i}`));
+      await flush();
+    }
+
+    const events = lost.mock.calls.map((call) => call[0] as { terminal: boolean });
+    // First two recovered (terminal:false); the third trips the breaker (terminal:true, no re-acquire).
+    expect(events.filter((e) => !e.terminal)).toHaveLength(2);
+    expect(events.filter((e) => e.terminal)).toHaveLength(1);
+    expect(gpu.adapterCount()).toBe(3); // install + 2 recoveries; the terminal loss does not re-acquire
   });
 
   it("emits an intentional loss on dispose and does not recover", async () => {
@@ -145,7 +164,11 @@ describe("device.lost recovery", () => {
 
     handle.dispose();
     expect(gpu.wasDestroyed()).toBe(true);
-    expect(lost).toHaveBeenCalledWith({ kind: "intentional", message: expect.any(String) });
+    expect(lost).toHaveBeenCalledWith({
+      kind: "intentional",
+      message: expect.any(String),
+      terminal: false,
+    });
 
     // The pending lost promise resolving afterward must not double-fire or recover.
     gpu.resolveLost(lostInfo("destroyed"));

@@ -4,10 +4,13 @@
 
 // Features webpic opportunistically requests at device creation. Kept as one tuple
 // so the requested set and the union of probed flags stay in a single place.
+// `float32-filterable` lets the volume texture be R32F with linear (trilinear) sampling —
+// f16 trilinear is unreliable on Metal (device loss), so full-float is the stable path.
+// shader-f16/subgroups are intentionally NOT requested: nothing consumes them, and an
+// enabled-but-unused feature is a needless device-creation risk surface on some drivers.
 export const DESIRED_FEATURES = [
   "timestamp-query",
-  "shader-f16",
-  "subgroups",
+  "float32-filterable",
 ] as const satisfies readonly GPUFeatureName[];
 
 export interface GpuLimitsSummary {
@@ -30,6 +33,7 @@ export interface GpuCapabilities {
   readonly hasTimestampQuery: boolean;
   readonly hasShaderF16: boolean;
   readonly hasSubgroups: boolean;
+  readonly hasFloat32Filterable: boolean; // R32F linear (trilinear) sampling — the volume texture path
   readonly limits: GpuLimitsSummary;
   readonly adapter: GpuAdapterSummary;
 }
@@ -58,6 +62,7 @@ export function probeCapabilities(adapter: GPUAdapter, device: GPUDevice): GpuCa
     hasTimestampQuery: features.has("timestamp-query"),
     hasShaderF16: features.has("shader-f16"),
     hasSubgroups: features.has("subgroups"),
+    hasFloat32Filterable: features.has("float32-filterable"),
     limits: {
       maxTextureDimension2D: limits.maxTextureDimension2D,
       maxTextureDimension3D: limits.maxTextureDimension3D,

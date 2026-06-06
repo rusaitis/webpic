@@ -24,6 +24,11 @@ const DEFAULT_LAYER_KIND: LayerKind = "volume";
 
 export type SimulationStatus = "empty" | "ready" | "error";
 
+// Which clock produced a frame-timing sample — the diagnostics panel labels them distinctly so
+// wall-clock (incl. JS/queue latency) never reads as the pure-GPU timestamp-query number. Restates
+// render/frameTimer's FrameClock (the store can't import render — the DAG forbids it).
+export type FrameClock = "timestamp" | "wallclock";
+
 // Full finite extent of the active field — the slider track bounds.
 export interface DataRange {
   readonly min: number;
@@ -51,6 +56,12 @@ export interface SimulationState {
   readonly selectedLayerId: string | null;
   readonly status: SimulationStatus;
   readonly error: string | null;
+  // Render diagnostics (M2.8): the latest GPU frame time + its clock, and the panel's explicit
+  // "Measure" toggle (drives the worker's continuous-repaint mode for sustained timing). `null`
+  // until the first frame; the app forwards `frameTiming` worker replies via setFrameTiming.
+  readonly frameTimeMs: number | null;
+  readonly frameTimeClock: FrameClock | null;
+  readonly isMeasuringContinuous: boolean;
   setDataset(dataset: FieldDataset): void;
   selectField(name: FieldName): void;
   setBindingColormap(id: string, colormap: ColormapId): void;
@@ -63,6 +74,8 @@ export interface SimulationState {
   reorderLayer(id: string, toIndex: number): void;
   setLayerVisible(id: string, visible: boolean): void;
   setLayerOpacity(id: string, opacity: number): void;
+  setFrameTiming(ms: number, clock: FrameClock): void;
+  setMeasuringContinuous(on: boolean): void;
 }
 
 // Finite-only min/max in one pass (mirrors volumeTexture.ts; the store can't import `render`,
@@ -174,6 +187,9 @@ export function createSimulationStore() {
         selectedLayerId: null,
         status: "empty",
         error: null,
+        frameTimeMs: null,
+        frameTimeClock: null,
+        isMeasuringContinuous: false,
         setDataset(dataset) {
           set({ dataset, availableFields: computableFields(dataset) });
           recompute();
@@ -267,6 +283,15 @@ export function createSimulationStore() {
           const next = layerOps.setLayerOpacity(layers, id, opacity);
           if (next === layers) return;
           set({ layers: next });
+        },
+        setFrameTiming(ms, clock) {
+          const { frameTimeMs, frameTimeClock } = get();
+          if (frameTimeMs === ms && frameTimeClock === clock) return; // identical sample → no fire
+          set({ frameTimeMs: ms, frameTimeClock: clock });
+        },
+        setMeasuringContinuous(on) {
+          if (get().isMeasuringContinuous === on) return;
+          set({ isMeasuringContinuous: on });
         },
       };
     }),

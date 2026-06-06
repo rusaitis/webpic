@@ -34,8 +34,8 @@ describe("selectFeatures", () => {
   });
 
   it("defaults to DESIRED_FEATURES and returns all when supported", () => {
-    const adapter = fakeAdapter(["timestamp-query", "shader-f16", "subgroups"]);
-    expect(selectFeatures(adapter)).toEqual(["timestamp-query", "shader-f16", "subgroups"]);
+    const adapter = fakeAdapter(["timestamp-query", "float32-filterable"]);
+    expect(selectFeatures(adapter)).toEqual(["timestamp-query", "float32-filterable"]);
   });
 
   it("returns an empty list when nothing matches", () => {
@@ -51,6 +51,14 @@ describe("probeCapabilities", () => {
     expect(caps.hasShaderF16).toBe(true);
     expect(caps.hasTimestampQuery).toBe(false);
     expect(caps.hasSubgroups).toBe(false);
+  });
+
+  it("reports float32-filterable — the R32F trilinear volume path", () => {
+    const adapter = fakeAdapter(["float32-filterable"]);
+    expect(
+      probeCapabilities(adapter, fakeDevice(["float32-filterable"])).hasFloat32Filterable,
+    ).toBe(true);
+    expect(probeCapabilities(adapter, fakeDevice([])).hasFloat32Filterable).toBe(false);
   });
 
   it("summarizes the limits the volume path gates on", () => {

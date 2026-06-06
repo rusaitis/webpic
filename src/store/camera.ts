@@ -44,12 +44,13 @@ function wrapAngle(angle: number): number {
 }
 
 // Drag → orbit: horizontal pixels spin azimuth (grab-and-spin — drag right turns the view right),
-// vertical pixels tilt elevation, clamped off the poles. Fresh object so subscribeWithSelector fires.
+// vertical pixels tilt elevation, clamped off the poles. Drag down raises elevation (camera rises to
+// look down on top), matching three's OrbitControls. Fresh object so subscribeWithSelector fires.
 export function orbitPose(pose: CameraPose, dxPx: number, dyPx: number): CameraPose {
   return {
     target: pose.target,
     azimuth: wrapAngle(pose.azimuth - dxPx * ORBIT_SENS),
-    elevation: clamp(pose.elevation - dyPx * ORBIT_SENS, -ELEVATION_LIMIT, ELEVATION_LIMIT),
+    elevation: clamp(pose.elevation + dyPx * ORBIT_SENS, -ELEVATION_LIMIT, ELEVATION_LIMIT),
     distance: pose.distance,
   };
 }

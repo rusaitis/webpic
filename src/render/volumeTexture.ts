@@ -3,14 +3,17 @@ import {
   ClampToEdgeWrapping,
   Data3DTexture,
   DataUtils,
+  FloatType,
   HalfFloatType,
   LinearFilter,
   RedFormat,
 } from "three";
 
-// R16F (half-float) holds physical values and is filterable in core WebGPU (r32float would
-// need the `float32-filterable` feature we don't request), so the shader normalizes via min/max
-// uniforms — physical values stay resident for later window/level without re-uploading.
+// The volume holds physical values; the shader normalizes via min/max uniforms so values stay
+// resident for later window/level without re-uploading. Format depends on the device:
+//   • float32-filterable present → R32F + linear (trilinear). The stable Metal path: f16 trilinear
+//     3D sampling is unreliable on some Metal drivers (returns NaN / loses the device).
+//   • absent → R16F (half-float) + linear, the core-filterable fallback.
 
 // Just the typed array + shape the upload needs — a `FieldArray` is structurally assignable,
 // and it lets the render worker reconstruct a slice input from a transferred buffer without
@@ -28,8 +31,8 @@ export interface VolumeTexture {
   dispose(): void;
 }
 
-/** Build a half-float `Data3DTexture` + finite range from a 3D scalar field. */
-export function createVolumeTexture(field: ScalarField): VolumeTexture {
+/** Build a `Data3DTexture` (R32F when `float32Filterable`, else R16F) + finite range from a field. */
+export function createVolumeTexture(field: ScalarField, float32Filterable = false): VolumeTexture {
   const { data, shape } = field;
   if (shape.length !== 3) {
     throw new Error(`createVolumeTexture: expected a 3D field, got shape [${shape.join(", ")}]`);
@@ -57,15 +60,24 @@ export function createVolumeTexture(field: ScalarField): VolumeTexture {
     max = min + 1; // constant field — keep the normalization divide finite
   }
 
-  const packed = new Uint16Array(width * height * depth);
-  for (let i = 0; i < packed.length; i++) {
-    const v = data[i];
-    packed[i] = DataUtils.toHalfFloat(v === undefined || !Number.isFinite(v) ? min : v);
-  }
+  // Non-finite samples pack to `min` so a stray NaN/inf can't poison a filtered neighborhood.
+  const clean = (v: number | undefined): number =>
+    v === undefined || !Number.isFinite(v) ? min : v;
+  const voxels = width * height * depth;
 
-  const texture = new Data3DTexture(packed, width, height, depth);
+  let texture: Data3DTexture;
+  if (float32Filterable) {
+    const packed = new Float32Array(voxels);
+    for (let i = 0; i < voxels; i++) packed[i] = clean(data[i]);
+    texture = new Data3DTexture(packed, width, height, depth);
+    texture.type = FloatType;
+  } else {
+    const packed = new Uint16Array(voxels);
+    for (let i = 0; i < voxels; i++) packed[i] = DataUtils.toHalfFloat(clean(data[i]));
+    texture = new Data3DTexture(packed, width, height, depth);
+    texture.type = HalfFloatType;
+  }
   texture.format = RedFormat;
-  texture.type = HalfFloatType;
   // Data3DTexture defaults to NearestFilter; Linear gives the trilinear interpolation the
   // slice samples across.
   texture.minFilter = LinearFilter;

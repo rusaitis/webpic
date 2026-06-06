@@ -37,7 +37,7 @@ describe("installPointerCamera", () => {
     expect(afterX.target).toBe(start.target); // orbit never moves the target
 
     target.dispatchEvent(pointer("pointermove", 160, 140)); // then drag down
-    expect(store.getState().cameraPose.elevation).toBeLessThan(afterX.elevation);
+    expect(store.getState().cameraPose.elevation).toBeGreaterThan(afterX.elevation); // down ⇒ rises
   });
 
   it("pans on shift-drag: only the target moves", () => {

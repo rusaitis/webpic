@@ -1,4 +1,5 @@
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
+import { DEFAULT_POSE } from "@store";
 import { describe, expect, it } from "vitest";
 import { vectorTriple } from "../../tests/fixtures.ts";
 import { bootstrap } from "./main.ts";
@@ -108,6 +109,78 @@ describe("bootstrap store → compute → render", () => {
       throw new Error("expected a setComposite message");
     }
     expect(composite.message.order).toEqual([{ id: upsert.message.id, visible: true, opacity: 1 }]);
+
+    dispose();
+  });
+
+  it("carries devicePixelRatio in the init message so the worker can size the drawing buffer", () => {
+    const offscreen = { tag: "offscreen" } as unknown as OffscreenCanvas;
+    const canvas = {
+      width: 0,
+      height: 0,
+      transferControlToOffscreen: () => offscreen,
+    } as unknown as HTMLCanvasElement;
+
+    const posts: Post[] = [];
+    const worker = {
+      onmessage: null,
+      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
+        posts.push({ message, transfer });
+      },
+      terminate: () => {},
+    } as unknown as Worker;
+
+    const dispose = bootstrap({
+      width: 64,
+      height: 48,
+      createCanvas: () => canvas,
+      mount: () => {},
+      spawnWorker: () => worker,
+    });
+
+    const init = posts[0];
+    if (init === undefined || init.message.kind !== "init")
+      throw new Error("expected init message");
+    expect(init.message.devicePixelRatio).toBeGreaterThanOrEqual(1);
+
+    dispose();
+  });
+
+  it("replays the camera pose on ready so a drag during worker init isn't dropped", () => {
+    const offscreen = { tag: "offscreen" } as unknown as OffscreenCanvas;
+    const canvas = {
+      width: 0,
+      height: 0,
+      transferControlToOffscreen: () => offscreen,
+    } as unknown as HTMLCanvasElement;
+
+    const posts: Post[] = [];
+    const worker = {
+      onmessage: null,
+      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
+        posts.push({ message, transfer });
+      },
+      terminate: () => {},
+    } as unknown as Worker;
+
+    const dispose = bootstrap({
+      width: 64,
+      height: 48,
+      createCanvas: () => canvas,
+      mount: () => {},
+      spawnWorker: () => worker,
+      dataset: tinyDataset(),
+    });
+
+    // The pose subscription drops posts pre-ready; the ready handler must replay the live store pose.
+    const ready = { data: { kind: "ready", requestId: 1 } } as MessageEvent<RenderWorkerResponse>;
+    worker.onmessage?.(ready);
+
+    const posePost = posts.find((p) => p.message.kind === "setCameraPose");
+    if (posePost === undefined || posePost.message.kind !== "setCameraPose") {
+      throw new Error("expected a setCameraPose catch-up on ready");
+    }
+    expect(posePost.message.pose).toEqual(DEFAULT_POSE);
 
     dispose();
   });

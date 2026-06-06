@@ -1,6 +1,7 @@
 import type { SimulationStore } from "@store";
 import type { Disposer } from "../controls/index.ts";
 import { installColormapPanel } from "./colormapPanel.ts";
+import { installDiagnosticsPanel } from "./diagnosticsPanel.ts";
 import { installFieldPanel } from "./fieldPanel.ts";
 import { installPlaceholderPanel } from "./placeholderPanel.ts";
 
@@ -12,7 +13,7 @@ export type PanelInstaller = (host: HTMLElement, store: SimulationStore) => Disp
 export const PANEL_REGISTRY: Readonly<Record<string, PanelInstaller>> = {
   field: installFieldPanel,
   colormap: installColormapPanel,
-  diagnostics: (host) => installPlaceholderPanel(host, "Diagnostics", "GPU timing — coming soon"),
+  diagnostics: installDiagnosticsPanel,
 };
 
 export function mountPanel(name: string, host: HTMLElement, store: SimulationStore): Disposer {

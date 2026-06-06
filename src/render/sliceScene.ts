@@ -25,6 +25,8 @@ export interface SliceSceneOptions {
   readonly scale?: ColorScale;
   /** Per-layer opacity multiplier on the composited output, [0,1]; default 1 (opaque). */
   readonly opacity?: number;
+  /** Device supports R32F linear sampling — picks the volume texture format. */
+  readonly float32Filterable?: boolean;
 }
 
 export interface SliceScene {
@@ -61,7 +63,7 @@ function sliceCoord(
 
 /** Build a themed orthogonal-slice scene from a 3D scalar field. */
 export function createSliceScene(opts: SliceSceneOptions): SliceScene {
-  const volume = createVolumeTexture(opts.field);
+  const volume = createVolumeTexture(opts.field, opts.float32Filterable);
   const tf = createTransferFunctionTexture(opts.colormap);
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.

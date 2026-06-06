@@ -38,6 +38,9 @@ export type DeviceLossKind = "intentional" | "destroyed" | "unknown";
 export interface DeviceLossEvent {
   readonly kind: DeviceLossKind;
   readonly message: string;
+  /** No further auto-recovery will be attempted: the breaker tripped (too many rapid losses) or
+   *  re-acquisition failed (no adapter). Listeners should surface a terminal "reload" state. */
+  readonly terminal: boolean;
 }
 
 export type DeviceLostListener = (event: DeviceLossEvent) => void;
@@ -68,6 +71,23 @@ interface GpuSingleton {
 let current: GpuSingleton | undefined;
 const lostListeners = new Set<DeviceLostListener>();
 const restoredListeners = new Set<DeviceRestoredListener>();
+
+// Circuit-breaker: a device that dies repeatedly (a render the GPU can't survive) must NOT be
+// re-acquired forever — hammering requestAdapter exhausts the GPU process (Safari → no-adapter).
+// After MAX_LOSSES within WINDOW, stop auto-recovery and emit a terminal loss. This is a safety
+// limit (mechanism), not retry policy — when/how to surface "reload" stays with the caller.
+const LOSS_WINDOW_MS = 5000;
+const MAX_LOSSES_IN_WINDOW = 3;
+const recentLosses: number[] = [];
+
+function recordLossAndAllowRecovery(): boolean {
+  const now = performance.now();
+  recentLosses.push(now);
+  while (recentLosses.length > 0 && now - (recentLosses[0] ?? now) > LOSS_WINDOW_MS) {
+    recentLosses.shift();
+  }
+  return recentLosses.length < MAX_LOSSES_IN_WINDOW;
+}
 
 function navigatorGpu(): GPU | undefined {
   // @webgpu/types declares navigator.gpu as required, but it is absent on
@@ -183,17 +203,23 @@ async function watchForLoss(singleton: GpuSingleton, options?: GpuRequestOptions
   if (singleton.settled) return; // dispose() already handled this device synchronously
   singleton.settled = true;
   const kind: DeviceLossKind = info.reason === "destroyed" ? "destroyed" : "unknown";
-  emitLost({ kind, message: info.message });
   if (current === singleton) current = undefined;
-  if (options?.reacquireOnLoss ?? true) void recover(options);
+  // Recover only if the caller opted in AND the breaker hasn't tripped. A tripped breaker is terminal.
+  const reacquire = (options?.reacquireOnLoss ?? true) && recordLossAndAllowRecovery();
+  emitLost({ kind, message: info.message, terminal: !reacquire });
+  if (reacquire) void recover(options);
 }
 
 async function recover(options?: GpuRequestOptions): Promise<void> {
   const support = await requestGpu(options);
   if (!support.ok) {
-    // One attempt only; surface failure as a synthetic loss so the UI banner stays
+    // One attempt only; surface failure as a terminal synthetic loss so the UI banner stays
     // up. Retry policy belongs to app/, not gpu/ — never loop here.
-    emitLost({ kind: "unknown", message: `GPU recovery failed: ${support.message}` });
+    emitLost({
+      kind: "unknown",
+      message: `GPU recovery failed: ${support.message}`,
+      terminal: true,
+    });
     return;
   }
   const singleton = adopt(support.adapter, support.device, options);
@@ -201,15 +227,22 @@ async function recover(options?: GpuRequestOptions): Promise<void> {
 }
 
 function dispose(): void {
+  recentLosses.length = 0; // a disposed session starts the breaker fresh on re-install
   const singleton = current;
-  if (singleton === undefined) return;
-  singleton.isDisposing = true;
-  if (!singleton.settled) {
-    singleton.settled = true; // suppress the pending watchForLoss for this device
-    emitLost({ kind: "intentional", message: "GPU device destroyed by dispose()." });
-  }
   current = undefined;
-  singleton.device.destroy();
+  if (singleton !== undefined) {
+    singleton.isDisposing = true;
+    if (!singleton.settled) {
+      singleton.settled = true; // suppress the pending watchForLoss for this device
+      // Intentional teardown — not a GPU failure; nothing to recover or banner.
+      emitLost({
+        kind: "intentional",
+        message: "GPU device destroyed by dispose().",
+        terminal: false,
+      });
+    }
+    singleton.device.destroy();
+  }
   lostListeners.clear();
   restoredListeners.clear();
 }

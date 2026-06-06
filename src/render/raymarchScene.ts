@@ -41,6 +41,8 @@ export interface RaymarchSceneOptions {
   readonly density?: number;
   /** Per-layer opacity multiplier on the composited alpha (composite fade), [0,1]; default 1. */
   readonly opacity?: number;
+  /** Device supports R32F linear sampling — picks the volume texture format. */
+  readonly float32Filterable?: boolean;
 }
 
 export interface RaymarchScene {
@@ -60,12 +62,14 @@ const DEFAULT_STEPS = 256; // perf-gate depth; mipmap empty-space skipping comes
 const EARLY_ALPHA = 0.98;
 
 // Object space is the unit box [-0.5, 0.5]³ (BoxGeometry centered at origin); texture coords
-// are `pos + 0.5`. Branch-free `1/dir` slab — valid for camera rays (no zero component).
+// are `pos + 0.5`. Branch-free slab test. An axis-parallel ray has a ~0 dir component, where a
+// plain 1/dir is ±Inf and `(box - orig) * Inf` becomes 0*Inf = NaN bounds; guard it to a large
+// finite slope so that axis stays effectively unbounded (the other two axes clip the ray).
 const hitBox = wgslFn<{ orig: Node; dir: Node }>(`
   fn hitBox( orig: vec3<f32>, dir: vec3<f32> ) -> vec2<f32> {
     let box_min = vec3<f32>( -0.5 );
     let box_max = vec3<f32>(  0.5 );
-    let inv_dir = 1.0 / dir;
+    let inv_dir = select( vec3<f32>( 1.0e30 ), 1.0 / dir, abs( dir ) > vec3<f32>( 1.0e-8 ) );
     let tmin_tmp = ( box_min - orig ) * inv_dir;
     let tmax_tmp = ( box_max - orig ) * inv_dir;
     let tmn = min( tmin_tmp, tmax_tmp );
@@ -78,7 +82,7 @@ const hitBox = wgslFn<{ orig: Node; dir: Node }>(`
 
 /** Build a themed single-pass raymarch scene from a 3D scalar field. */
 export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
-  const volume = createVolumeTexture(opts.field);
+  const volume = createVolumeTexture(opts.field, opts.float32Filterable);
   const tf = createTransferFunctionTexture(opts.colormap);
   const steps = opts.steps ?? DEFAULT_STEPS;
 
@@ -94,7 +98,10 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
 
     // wgslFn returns an untyped `Node`; the WGSL signature returns vec2<f32> (entry, exit).
     const bounds = (hitBox({ orig: rayOrigin, dir: rayDir }) as Node<"vec2">).toVar();
-    bounds.x.greaterThan(bounds.y).discard(); // ray misses the box
+    // Discard unless the ray has a positive segment through the box. `NOT (exit > entry)` also
+    // catches grazing (exit == entry, dt would be 0) and any NaN bounds (NaN > x is false), so the
+    // march only runs on a valid finite interval.
+    bounds.y.greaterThan(bounds.x).not().discard();
     bounds.assign(vec2(max(bounds.x, 0.0), bounds.y)); // clamp entry to the camera
 
     const dt = bounds.y.sub(bounds.x).div(steps).toVar();
@@ -102,10 +109,18 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     const accumColor = vec3(0).toVar();
     const accumAlpha = float(0).toVar();
 
-    Loop({ type: "float", start: bounds.x, end: bounds.y, update: dt }, () => {
+    // Fixed integer count: `pos` marches `steps` times by `dt` from entry to exit. An integer counter
+    // always terminates, unlike a float counter `for(i=entry; i<exit; i+=dt)` which can stall when dt
+    // falls below the float ULP at entry's (world-distance) magnitude — a GPU hang → device loss.
+    Loop(steps, () => {
       // Object [-0.5,0.5]³ → texture [0,1]³. Texture axes are the reverse of field axes
       // (volumeTexture C-order): object x/y/z ↔ field axis 2/1/0 — the same reversal sliceScene maps.
-      const sample = texture3D(volume.texture, pos.add(0.5)).r;
+      const raw = texture3D(volume.texture, pos.add(0.5)).r;
+      // Trilinear sampling near volume edges can yield non-finite values on some drivers; both NaN
+      // and ±Inf must be neutralized before the front-to-back accumulation (a non-finite α drives the
+      // un-premultiply divide to an out-of-range/magenta fragment). `|raw| < 1e30` is false for both
+      // NaN and Inf, so either swaps to 0. Mirrors the CPU min-substitution in volumeTexture.ts.
+      const sample = raw.abs().lessThan(float(1e30)).select(raw, float(0));
       const t = norm.toT(sample);
       // Opacity stays value-proportional (t·density); the LUT alpha channel is reserved
       // for the opacity transfer function, so color comes from the LUT but opacity doesn't.

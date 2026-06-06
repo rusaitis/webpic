@@ -7,6 +7,7 @@ function caps(hasTimestampQuery: boolean): GpuCapabilities {
     hasTimestampQuery,
     hasShaderF16: false,
     hasSubgroups: false,
+    hasFloat32Filterable: false,
     limits: {
       maxTextureDimension2D: 0,
       maxTextureDimension3D: 0,

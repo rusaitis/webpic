@@ -16,14 +16,14 @@ describe("orbitPose", () => {
   it("spins azimuth opposite the horizontal drag and tilts elevation off the vertical", () => {
     const next = orbitPose(DEFAULT_POSE, 100, -40);
     expect(next.azimuth).toBeLessThan(DEFAULT_POSE.azimuth); // drag right ⇒ azimuth decreases
-    expect(next.elevation).toBeGreaterThan(DEFAULT_POSE.elevation); // drag up ⇒ elevation rises
+    expect(next.elevation).toBeLessThan(DEFAULT_POSE.elevation); // drag up ⇒ elevation drops (OrbitControls)
     expect(next.distance).toBe(DEFAULT_POSE.distance);
     expect(next.target).toBe(DEFAULT_POSE.target); // target untouched by orbit
   });
 
   it("clamps elevation to ±ELEVATION_LIMIT at the poles", () => {
-    expect(orbitPose(LEVEL, 0, -1e6).elevation).toBeCloseTo(ELEVATION_LIMIT, 12);
-    expect(orbitPose(LEVEL, 0, 1e6).elevation).toBeCloseTo(-ELEVATION_LIMIT, 12);
+    expect(orbitPose(LEVEL, 0, 1e6).elevation).toBeCloseTo(ELEVATION_LIMIT, 12); // drag down ⇒ rises
+    expect(orbitPose(LEVEL, 0, -1e6).elevation).toBeCloseTo(-ELEVATION_LIMIT, 12); // drag up ⇒ falls
   });
 
   it("wraps azimuth into (-π, π] so it never runs away over a long drag", () => {
