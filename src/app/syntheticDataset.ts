@@ -11,20 +11,7 @@ import type { FieldName } from "@schema/types.ts";
 // Scaffold: a deterministic in-memory B field so the app renders a real |B| slice with no
 // data source wired (the Zarr reader path has its own tests).
 
-const N = 32;
-const SHAPE = [N, N, N] as const; // field axes (x, y, z), C-order (z fastest)
-
-const GRID: GridInfo = {
-  dimensions: [N, N, N],
-  spacing: [1, 1, 1],
-  origin: [0, 0, 0],
-  geometry: "cartesian",
-  axisLabels: ["x", "y", "z"],
-  dt: null,
-  boundary: null,
-  survivingAxes: null,
-  stagger: null,
-};
+const DEFAULT_SIZE = 32;
 
 const NORMALIZATION: Normalization = {
   lengthRef: 1,
@@ -40,28 +27,45 @@ const NORMALIZATION: Normalization = {
 
 const PHYSICS: PhysicsParams = { gamma: 1, c: 1, relativistic: false, extra: {} };
 
-function wrapComponent(name: FieldName, data: Float32Array): FieldArray {
+function wrapComponent(name: FieldName, data: Float32Array, shape: readonly number[]): FieldArray {
   const meta = fieldInfo(name);
-  return { data, shape: SHAPE, meta, units: meta.siUnit, latex: meta.latex, reduction: null };
+  return { data, shape, meta, units: meta.siUnit, latex: meta.latex, reduction: null };
 }
 
-/** A Gaussian flux rope along z: axial B_3 + azimuthal B_1/B_2, so |B| is a centered blob. */
-export function createSyntheticDataset(): FieldDataset {
-  const center = (N - 1) / 2;
-  const sigma2 = 2 * 0.35 * 0.35;
-  const b1 = new Float32Array(N * N * N);
-  const b2 = new Float32Array(N * N * N);
-  const b3 = new Float32Array(N * N * N);
+/**
+ * A Gaussian flux rope along z: axial B_3 + azimuthal B_1/B_2, so |B| is a centered blob.
+ * `n` is the per-axis resolution (n³ cells); the default is the small render scaffold, while a
+ * larger `n` (e.g. 256) feeds the M2 256³ raymarch gate / empty-space-skipping profiling.
+ */
+export function createSyntheticDataset(n: number = DEFAULT_SIZE): FieldDataset {
+  const shape: readonly number[] = [n, n, n]; // field axes (x, y, z), C-order (z fastest)
+  const grid: GridInfo = {
+    dimensions: [n, n, n],
+    spacing: [1, 1, 1],
+    origin: [0, 0, 0],
+    geometry: "cartesian",
+    axisLabels: ["x", "y", "z"],
+    dt: null,
+    boundary: null,
+    survivingAxes: null,
+    stagger: null,
+  };
 
-  for (let ix = 0; ix < N; ix++) {
+  const center = (n - 1) / 2;
+  const sigma2 = 2 * 0.35 * 0.35;
+  const b1 = new Float32Array(n * n * n);
+  const b2 = new Float32Array(n * n * n);
+  const b3 = new Float32Array(n * n * n);
+
+  for (let ix = 0; ix < n; ix++) {
     const x = (ix - center) / center;
-    for (let iy = 0; iy < N; iy++) {
+    for (let iy = 0; iy < n; iy++) {
       const y = (iy - center) / center;
       const envelope = Math.exp(-(x * x + y * y) / sigma2);
       const aziX = -y * envelope;
       const aziY = x * envelope;
-      for (let iz = 0; iz < N; iz++) {
-        const i = iz + N * (iy + N * ix); // C-order: z fastest (matches volumeTexture upload)
+      for (let iz = 0; iz < n; iz++) {
+        const i = iz + n * (iy + n * ix); // C-order: z fastest (matches volumeTexture upload)
         b1[i] = aziX;
         b2[i] = aziY;
         b3[i] = envelope;
@@ -70,14 +74,14 @@ export function createSyntheticDataset(): FieldDataset {
   }
 
   const fields = new Map<FieldName, FieldArray>([
-    ["B_1", wrapComponent("B_1", b1)],
-    ["B_2", wrapComponent("B_2", b2)],
-    ["B_3", wrapComponent("B_3", b3)],
+    ["B_1", wrapComponent("B_1", b1, shape)],
+    ["B_2", wrapComponent("B_2", b2, shape)],
+    ["B_3", wrapComponent("B_3", b3, shape)],
   ]);
 
   return {
     fields,
-    grid: GRID,
+    grid,
     normalization: NORMALIZATION,
     species: [],
     physics: PHYSICS,

@@ -46,9 +46,33 @@ function rampAlongObjectXField(): ScalarField {
   return { data, shape: [nz, ny, nx] };
 }
 
+// A unit-valued ball at the volume center, exactly 0 outside `radius` — most of the volume is empty,
+// so a small brick size skips it while one brick (≥ the volume) marches every lattice step. The
+// zero exterior makes the two output-identical (a skipped brick and a marched-but-zero brick both
+// contribute nothing), giving an exact image-parity reference for empty-space skipping.
+function centralBallField(n: number, radius: number): ScalarField {
+  const data = new Float32Array(n * n * n);
+  for (let z = 0; z < n; z++) {
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const dx = (x + 0.5) / n - 0.5;
+        const dy = (y + 0.5) / n - 0.5;
+        const dz = (z + 0.5) / n - 0.5;
+        data[x + n * (y + n * z)] = Math.sqrt(dx * dx + dy * dy + dz * dz) < radius ? 1 : 0;
+      }
+    }
+  }
+  return { data, shape: [n, n, n] };
+}
+
 // Render a field, optionally from a straight-on camera (object-x → screen-x) instead of the
 // scene's default oblique view, so the orientation case can assert a screen-space direction.
-async function renderVolume(field: ScalarField, straightOn = false): Promise<Uint8Array> {
+// `march` opts in to empty-space skipping (default off — the fixed march) and tunes its brick size.
+async function renderVolume(
+  field: ScalarField,
+  straightOn = false,
+  march: { readonly skipEmptySpace?: boolean; readonly brickSize?: number } = {},
+): Promise<Uint8Array> {
   const { installRenderer } = await import("./renderer.ts");
   const { createRaymarchScene } = await import("./raymarchScene.ts");
   const { applyPose, createPerspectiveCamera, DEFAULT_POSE } = await import("./camera.ts");
@@ -57,7 +81,7 @@ async function renderVolume(field: ScalarField, straightOn = false): Promise<Uin
     width: SIZE,
     height: SIZE,
   });
-  const volume = createRaymarchScene({ field, colormap: "inferno", density: 4 });
+  const volume = createRaymarchScene({ field, colormap: "inferno", density: 4, ...march });
   // The worker owns the camera now; build the same default oblique view here, or a straight-on
   // view (looking down −z from +z) for the orientation case.
   const camera = createPerspectiveCamera();
@@ -107,4 +131,27 @@ describe("raymarch scene render", () => {
     expect(lum(right)).toBeGreaterThan(lum(left) + 15);
     expect(right[0]).toBeGreaterThan(right[2]); // warm (inferno), not greyscale
   });
+
+  it.skipIf(!hasRealGpu)(
+    "empty-space skipping matches the fixed march pixel-for-pixel",
+    async () => {
+      const field = centralBallField(32, 0.18); // most of the 32³ volume is empty around the ball
+      const skipped = await renderVolume(field, false, { skipEmptySpace: true, brickSize: 4 });
+      const fixed = await renderVolume(field, false, {}); // default fixed march — the reference
+
+      expect(skipped.length).toBe(fixed.length);
+      // Snapping keeps occupied samples on the same lattice and the exterior is exactly 0, so the two
+      // accumulate the identical non-zero sequence — equal within byte rounding, not merely close.
+      let maxDiff = 0;
+      let nonBackground = 0;
+      for (let i = 0; i < fixed.length; i += 4) {
+        for (let c = 0; c < 3; c++) {
+          maxDiff = Math.max(maxDiff, Math.abs((skipped[i + c] ?? 0) - (fixed[i + c] ?? 0)));
+        }
+        if ((fixed[i] ?? 0) > 40) nonBackground++; // the ball must actually render, else parity is vacuous
+      }
+      expect(nonBackground).toBeGreaterThan(20);
+      expect(maxDiff).toBeLessThanOrEqual(2);
+    },
+  );
 });

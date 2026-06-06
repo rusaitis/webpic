@@ -3,6 +3,7 @@ import { BoxGeometry, FrontSide, Mesh, Scene } from "three";
 import {
   Break,
   cameraPosition,
+  ceil,
   Fn,
   float,
   If,
@@ -20,12 +21,20 @@ import {
   wgslFn,
 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
+import { buildMinMaxGrid, createSkipTexture } from "./minMaxGrid.ts";
 import { createNormalization, type WindowLevel } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
 // Single-pass volume raymarcher over the shared `uVolume`. The analytic ray-box clip is
 // `wgslFn hitBox` — the WGSL twin of rayBox.ts.
+//
+// Two march paths (M2.6): the default fixed-step `Loop`, and an opt-in (`skipEmptySpace`) two-level
+// coarse-skip / fine-march over a min-max brick grid (minMaxGrid.ts) that jumps transparent bricks
+// while keeping occupied samples on the fixed lattice (output-equivalent). Skipping is OFF by default
+// because it only pays off on *sparse* fields: on space-filling |B| (the common case) almost nothing
+// is below the opacity floor, so the per-step skip-grid fetch is pure overhead — profiled ~1.7×
+// slower on the synthetic flux rope. Enable it for genuinely sparse data (vacuum, isolated ropes).
 
 export interface RaymarchSceneOptions {
   readonly field: ScalarField;
@@ -35,8 +44,14 @@ export interface RaymarchSceneOptions {
   readonly windowLevel?: WindowLevel;
   /** Value→color scale within the window; default linear. */
   readonly scale?: ColorScale;
-  /** Fixed samples per ray across the clipped segment. */
+  /** Fine samples per ray across the clipped segment (also the empty-space-skip lattice). */
   readonly steps?: number;
+  /** Opt in to empty-space skipping (default false). A net win only for sparse fields — on
+   *  space-filling |B| it costs ~1.7× (the skip-grid fetch buys no skips). See the file header. */
+  readonly skipEmptySpace?: boolean;
+  /** Empty-space-skip brick edge in voxels (only when `skipEmptySpace`); larger = coarser skips.
+   *  Default 8. */
+  readonly brickSize?: number;
   /** Opacity scale for the emission-absorption transfer. */
   readonly density?: number;
   /** Per-layer opacity multiplier on the composited alpha (composite fade), [0,1]; default 1. */
@@ -58,8 +73,15 @@ export interface RaymarchScene {
   dispose(): void;
 }
 
-const DEFAULT_STEPS = 256; // perf-gate depth; mipmap empty-space skipping comes later
+const DEFAULT_STEPS = 256; // fine-march / perf-gate depth
+const DEFAULT_BRICK_SIZE = 8; // empty-space-skip brick edge (voxels); (256/8)³ = 32³ skip grid
 const EARLY_ALPHA = 0.98;
+// A brick is "empty" when its max value maps below one 8-bit color step — its samples can't move the
+// pixel, so the march jumps it. Window-aware (norm.toT is uniform-driven), recomputed live.
+const EMPTY_T = 1 / 255;
+// Object-space nudge past a brick face so the post-skip floor() lands in the next brick. The crossing
+// axis has non-zero ray dir (else its face is unreachable, not the nearest), so any ε > 0 crosses it.
+const BRICK_EPS = 1e-4;
 
 // Object space is the unit box [-0.5, 0.5]³ (BoxGeometry centered at origin); texture coords
 // are `pos + 0.5`. Branch-free slab test. An axis-parallel ray has a ~0 dir component, where a
@@ -80,11 +102,42 @@ const hitBox = wgslFn<{ orig: Node; dir: Node }>(`
   }
 `);
 
+// Ray-t distance from `tex_pos` (∈[0,1]³) to the far face of its current skip-grid brick — the slab
+// test against one brick, the empty-space-skip step. `grid` is the brick counts per axis. An axis
+// (near-)parallel to its faces can't bound the brick, so it's forced past the others (1e30). The TS
+// twin (tested) is brickStep.ts `brickAdvanceDistance`, the rayBox.ts ↔ hitBox precedent.
+const brickAdvance = wgslFn<{ tex_pos: Node; dir: Node; grid: Node }>(`
+  fn brickAdvance( tex_pos: vec3<f32>, dir: vec3<f32>, grid: vec3<f32> ) -> f32 {
+    let cell = floor( tex_pos * grid );
+    let stepf = select( vec3<f32>( 0.0 ), vec3<f32>( 1.0 ), dir > vec3<f32>( 0.0 ) );
+    let face = ( cell + stepf ) / grid;
+    let near_zero = abs( dir ) <= vec3<f32>( 1.0e-8 );
+    let safe_dir = select( dir, vec3<f32>( 1.0 ), near_zero );
+    let t_raw = ( face - tex_pos ) / safe_dir;
+    let t_face = select( t_raw, vec3<f32>( 1.0e30 ), near_zero );
+    return min( t_face.x, min( t_face.y, t_face.z ) );
+  }
+`);
+
 /** Build a themed single-pass raymarch scene from a 3D scalar field. */
 export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   const volume = createVolumeTexture(opts.field, opts.float32Filterable);
   const tf = createTransferFunctionTexture(opts.colormap);
   const steps = opts.steps ?? DEFAULT_STEPS;
+
+  // Empty-space-skip acceleration structure, built only when opted in — the default fixed march pays
+  // no CPU reduction, no texture upload, and no per-step skip-grid fetch. `volume.min` is the brick
+  // fallback so all-NaN bricks map to the colormap floor (skippable), matching the volume's NaN→min.
+  const skipState = opts.skipEmptySpace
+    ? (() => {
+        const grid = buildMinMaxGrid(opts.field, opts.brickSize ?? DEFAULT_BRICK_SIZE, volume.min);
+        const tex = createSkipTexture(grid);
+        const [gw, gh, gd] = grid.dims;
+        // Bound: fine steps ride the lattice (≤ steps), a ray crosses ≤ gw+gh+gd bricks. Integer-bounded
+        // → guaranteed termination (a float `while` can stall below its ULP and hang the GPU).
+        return { tex, gridDims: vec3(gw, gh, gd), maxIters: steps + gw + gh + gd + 2 };
+      })()
+    : undefined;
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
   const norm = createNormalization(volume.min, volume.max, opts.windowLevel, opts.scale);
@@ -102,38 +155,79 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     // catches grazing (exit == entry, dt would be 0) and any NaN bounds (NaN > x is false), so the
     // march only runs on a valid finite interval.
     bounds.y.greaterThan(bounds.x).not().discard();
-    bounds.assign(vec2(max(bounds.x, 0.0), bounds.y)); // clamp entry to the camera
 
-    const dt = bounds.y.sub(bounds.x).div(steps).toVar();
-    const pos = rayOrigin.add(bounds.x.mul(rayDir)).toVar();
+    const tEntry = max(bounds.x, 0.0); // clamp the entry to the camera
+    const tExit = bounds.y;
+    const dt = tExit.sub(tEntry).div(steps).toVar(); // fine step; the lattice is tEntry + k·dt
     const accumColor = vec3(0).toVar();
     const accumAlpha = float(0).toVar();
 
-    // Fixed integer count: `pos` marches `steps` times by `dt` from entry to exit. An integer counter
-    // always terminates, unlike a float counter `for(i=entry; i<exit; i+=dt)` which can stall when dt
-    // falls below the float ULP at entry's (world-distance) magnitude — a GPU hang → device loss.
-    Loop(steps, () => {
-      // Object [-0.5,0.5]³ → texture [0,1]³. Texture axes are the reverse of field axes
-      // (volumeTexture C-order): object x/y/z ↔ field axis 2/1/0 — the same reversal sliceScene maps.
-      const raw = texture3D(volume.texture, pos.add(0.5)).r;
-      // Trilinear sampling near volume edges can yield non-finite values on some drivers; both NaN
-      // and ±Inf must be neutralized before the front-to-back accumulation (a non-finite α drives the
-      // un-premultiply divide to an out-of-range/magenta fragment). `|raw| < 1e30` is false for both
-      // NaN and Inf, so either swaps to 0. Mirrors the CPU min-substitution in volumeTexture.ts.
+    // One front-to-back emission-absorption sample at a texture-space position — shared by both march
+    // paths so the accumulation math lives once. Object [-0.5,0.5]³ → texture [0,1]³; texture axes are
+    // the reverse of field axes (volumeTexture C-order: object x/y/z ↔ field axis 2/1/0).
+    const accumulate = (texPos: Node): void => {
+      const raw = texture3D(volume.texture, texPos).r;
+      // Trilinear sampling near volume edges can yield non-finite values on some drivers; both NaN and
+      // ±Inf must be neutralized before accumulation (a non-finite α drives the un-premultiply divide
+      // to a magenta fragment). `|raw| < 1e30` is false for both, so either swaps to 0.
       const sample = raw.abs().lessThan(float(1e30)).select(raw, float(0));
       const t = norm.toT(sample);
-      // Opacity stays value-proportional (t·density); the LUT alpha channel is reserved
-      // for the opacity transfer function, so color comes from the LUT but opacity doesn't.
+      // Opacity stays value-proportional (t·density); the LUT alpha channel is reserved for the
+      // opacity transfer function, so color comes from the LUT but opacity doesn't.
       const sampleAlpha = t.mul(uDensity).mul(dt).saturate();
       const weight = accumAlpha.oneMinus(); // front-to-back: (1 - accumulated)
       const rgb = texture(tf.texture, vec2(t, 0.5)).rgb;
       accumColor.addAssign(rgb.mul(sampleAlpha).mul(weight));
       accumAlpha.addAssign(sampleAlpha.mul(weight));
-      If(accumAlpha.greaterThanEqual(EARLY_ALPHA), () => {
-        Break(); // opaque enough — remaining samples can't change the pixel
+    };
+
+    if (skipState !== undefined) {
+      // Two-level traversal: read the coarse brick max; fine-march occupied bricks, jump empty ones
+      // to their far face *snapped back onto the lattice* so occupied samples land exactly where the
+      // fixed march would — output-equivalent, not merely close.
+      const { tex, gridDims, maxIters } = skipState;
+      const tCur = tEntry.toVar();
+      Loop(maxIters, () => {
+        If(tCur.greaterThanEqual(tExit), () => {
+          Break();
+        });
+        const texPos = rayOrigin.add(rayDir.mul(tCur)).add(0.5);
+        // norm.toT is monotonic in value, so a brick whose max maps below EMPTY_T has every sample
+        // below it: skipping it can't change the pixel (window-aware, recomputed live).
+        const occupied = norm.toT(texture3D(tex.texture, texPos).r).greaterThan(EMPTY_T);
+        If(occupied, () => {
+          accumulate(texPos);
+          tCur.addAssign(dt);
+        });
+        If(occupied.not(), () => {
+          // Jump to the brick's far face, then snap up to the next lattice point so the fine grid
+          // stays globally aligned. BRICK_EPS pushes strictly past the face (its axis has non-zero
+          // dir), so the next floor() lands in the following brick, never this one again.
+          const adv = brickAdvance({
+            tex_pos: texPos,
+            dir: rayDir,
+            grid: gridDims,
+          }) as Node<"float">;
+          const tSkip = tCur.add(adv).add(BRICK_EPS);
+          tCur.assign(tEntry.add(ceil(tSkip.sub(tEntry).div(dt)).mul(dt)));
+        });
+        If(accumAlpha.greaterThanEqual(EARLY_ALPHA), () => {
+          Break();
+        });
       });
-      pos.addAssign(rayDir.mul(dt));
-    });
+    } else {
+      // Fixed march (default): `pos` steps `steps` times by `dt` from entry to exit. An integer
+      // counter always terminates, unlike a float `for(i=entry; i<exit; i+=dt)` which can stall when
+      // dt falls below the float ULP at entry's world-distance magnitude — a GPU hang → device loss.
+      const pos = rayOrigin.add(tEntry.mul(rayDir)).toVar();
+      Loop(steps, () => {
+        accumulate(pos.add(0.5));
+        If(accumAlpha.greaterThanEqual(EARLY_ALPHA), () => {
+          Break(); // opaque enough — remaining samples can't change the pixel
+        });
+        pos.addAssign(rayDir.mul(dt));
+      });
+    }
 
     // accumColor is premultiplied (Σ color·α·weight); un-premultiply so the default normal
     // blend (src·α + dst·(1−α)) composites it correctly over the cleared background. The
@@ -169,6 +263,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       geometry.dispose();
       material.dispose();
       volume.dispose();
+      skipState?.tex.dispose();
       tf.dispose();
     },
   };
