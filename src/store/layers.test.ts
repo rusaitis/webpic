@@ -7,6 +7,7 @@ import {
   removeLayer,
   reorderLayer,
   setLayerOpacity,
+  setLayerShading,
   setLayerVisible,
 } from "./layers.ts";
 import { createSimulationStore } from "./simulation.ts";
@@ -39,6 +40,7 @@ describe("layer helpers", () => {
       kind: "volume",
       steps: null,
       density: null,
+      shaded: false,
     });
     const slc = makeDefaultLayer("b", "n_e", "slice");
     expect(slc).toMatchObject({ kind: "slice", axis: "z", position: 0.5, field: "n_e" });
@@ -80,6 +82,18 @@ describe("layer helpers", () => {
     expect(faded[0]?.opacity).toBeCloseTo(0.3);
     expect(setLayerOpacity(before, "a", -1)[0]?.opacity).toBe(0); // clamp lo
     expect(setLayerOpacity(before, "a", 9)[0]?.opacity).toBe(1); // clamp hi
+  });
+
+  it("setLayerShading flips only a matching volume layer", () => {
+    const vol = makeDefaultLayer("v", "|B|", "volume");
+    const before = [slice("s"), vol] as const;
+    const shaded = setLayerShading(before, "v", true);
+    expect(shaded[0]).toBe(before[0]); // sibling identity preserved
+    const v = shaded[1];
+    expect(v?.kind === "volume" && v.shaded).toBe(true);
+    expect(setLayerShading(shaded, "v", true)).toBe(shaded); // unchanged → identity
+    expect(setLayerShading(before, "s", true)).toBe(before); // slice has no shading → identity
+    expect(setLayerShading(before, "missing", true)).toBe(before); // absent id → identity
   });
 });
 

@@ -35,6 +35,7 @@ interface LayerSource {
   colormap: string;
   scale: ColorScale;
   windowLevel?: WindowLevel;
+  shaded?: boolean; // volume Phong toggle — mutable so a device-restore rebuild keeps the live state
   opacity: number;
 }
 
@@ -303,6 +304,7 @@ function buildScene(source: LayerSource): LayerEntry {
     ...windowLevel,
     ...(source.steps !== undefined ? { steps: source.steps } : {}),
     ...(source.density !== undefined ? { density: source.density } : {}),
+    ...(source.shaded !== undefined ? { shaded: source.shaded } : {}),
   });
   return { scene, kind: "volume", source };
 }
@@ -328,6 +330,7 @@ async function upsertLayer(
     ...(request.position !== undefined ? { position: request.position } : {}),
     ...(request.steps !== undefined ? { steps: request.steps } : {}),
     ...(request.density !== undefined ? { density: request.density } : {}),
+    ...(request.shaded !== undefined ? { shaded: request.shaded } : {}),
   };
   layers.set(request.id, buildScene(source));
   // Swap-then-defer: the new scene is live in the map before the old one's GPUTextures are released,
@@ -389,6 +392,23 @@ async function setLayerColormap(
   entry.source.windowLevel = request.windowLevel;
   entry.source.scale = request.scale;
   requestRender();
+}
+
+// Live per-layer Phong toggle — a uniform flip on the volume scene, no rebuild/re-upload. Slice
+// layers have no shading normal, so the message is inert for them (no scene method to call).
+async function setLayerShading(
+  request: Extract<RenderWorkerRequest, { kind: "setLayerShading" }>,
+): Promise<void> {
+  await initDone;
+  const entry = layers.get(request.id);
+  if (entry === undefined) return; // toggle ahead of its upsert — heals on the upsert (carries shaded)
+  // `setShading` exists only on RaymarchScene; the `in` check narrows the SliceScene | RaymarchScene
+  // union (and silently no-ops a slice — it has no normal to light).
+  if ("setShading" in entry.scene) {
+    entry.scene.setShading(request.shaded);
+    entry.source.shaded = request.shaded; // retain for a device-restore rebuild
+    requestRender();
+  }
 }
 
 // Live camera pose: re-aim the perspective camera and repaint. Always repaints — a volume-only
@@ -477,6 +497,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return setComposite(request);
     case "setLayerColormap":
       return setLayerColormap(request);
+    case "setLayerShading":
+      return setLayerShading(request);
     case "setCameraPose":
       return setCameraPose(request);
     case "resize":

@@ -6,7 +6,7 @@ import {
   type ColorScale,
   DEFAULT_COLORMAP,
 } from "@schema/colormap.ts";
-import type { DataRange, SimulationStore } from "@store";
+import type { DataRange, Layer, SimulationStore } from "@store";
 import {
   type ControlHandle,
   createPane,
@@ -53,6 +53,10 @@ interface ActiveBinding {
 export function installColormapPanel(host: HTMLElement, store: SimulationStore): Disposer {
   const pane = createPane({ parent: host, title: "Colormap" });
   const folder = pane.addFolder({ title: "Display range" });
+  // Shading is a per-layer (not per-binding) property — a render toggle, not a color choice — so it
+  // lives in its own folder. Pre-M4 this is the only per-layer control; it migrates to M4's
+  // per-layer settings component when the Layers UI lands.
+  const shadingFolder = pane.addFolder({ title: "Shading" });
 
   let colormapControl: SelectHandle<ColormapId> | null = null;
   let scaleControl: SelectHandle<ColorScale> | null = null;
@@ -60,16 +64,37 @@ export function installColormapPanel(host: HTMLElement, store: SimulationStore):
   let currentBindingId: string | null = null;
   let currentScale: ColorScale | null = null;
 
+  // The selected layer, or null before one exists.
+  const activeLayer = (): Layer | null => {
+    const { selectedLayerId, layers } = store.getState();
+    if (selectedLayerId === null) return null;
+    return layers.find((layer) => layer.id === selectedLayerId) ?? null;
+  };
+
   // The selected layer's binding (+ id and the active field's bounds), or null before a layer exists.
   const active = (): ActiveBinding | null => {
-    const { selectedLayerId, layers, colormapBindings, dataRange } = store.getState();
-    if (selectedLayerId === null) return null;
-    const bindingId =
-      layers.find((layer) => layer.id === selectedLayerId)?.colormapBindingId ?? null;
+    const { colormapBindings, dataRange } = store.getState();
+    const bindingId = activeLayer()?.colormapBindingId ?? null;
     if (bindingId === null) return null;
     const binding = colormapBindings[bindingId];
     if (binding === undefined) return null;
     return { id: bindingId, binding, bounds: dataRange };
+  };
+
+  // Phong is volume-only (a slice has no depth gradient to light); the checkbox disables otherwise.
+  const shadingControl = shadingFolder.addCheckbox({
+    label: "Phong",
+    value: false,
+    onChange: (on) => {
+      const layer = activeLayer();
+      if (layer?.kind === "volume") store.getState().setLayerShading(layer.id, on);
+    },
+  });
+  const syncShading = (): void => {
+    const layer = activeLayer();
+    const isVolume = layer?.kind === "volume";
+    shadingControl.set(isVolume ? layer.shaded : false);
+    shadingControl.setDisabled(!isVolume);
   };
 
   const dispatchColormap = (colormap: ColormapId): void => {
@@ -159,15 +184,25 @@ export function installColormapPanel(host: HTMLElement, store: SimulationStore):
   };
 
   rebuild();
+  syncShading();
 
-  const unsubSelected = store.subscribe((s) => s.selectedLayerId, rebuild);
+  const unsubSelected = store.subscribe(
+    (s) => s.selectedLayerId,
+    () => {
+      rebuild();
+      syncShading();
+    },
+  );
   const unsubRange = store.subscribe((s) => s.dataRange, rebuild); // new extent → re-bake the track
   const unsubBindings = store.subscribe((s) => s.colormapBindings, sync);
+  const unsubLayers = store.subscribe((s) => s.layers, syncShading); // reflect an external shaded flip
 
   return () => {
+    unsubLayers();
     unsubBindings();
     unsubRange();
     unsubSelected();
+    shadingControl.dispose();
     windowControl?.dispose();
     scaleControl?.dispose();
     colormapControl?.dispose();

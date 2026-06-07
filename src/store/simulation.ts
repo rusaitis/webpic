@@ -74,6 +74,7 @@ export interface SimulationState {
   reorderLayer(id: string, toIndex: number): void;
   setLayerVisible(id: string, visible: boolean): void;
   setLayerOpacity(id: string, opacity: number): void;
+  setLayerShading(id: string, shaded: boolean): void;
   setFrameTiming(ms: number, clock: FrameClock): void;
   setMeasuringContinuous(on: boolean): void;
 }
@@ -281,6 +282,12 @@ export function createSimulationStore() {
         setLayerOpacity(id, opacity) {
           const { layers } = get();
           const next = layerOps.setLayerOpacity(layers, id, opacity);
+          if (next === layers) return;
+          set({ layers: next });
+        },
+        setLayerShading(id, shaded) {
+          const { layers } = get();
+          const next = layerOps.setLayerShading(layers, id, shaded);
           if (next === layers) return;
           set({ layers: next });
         },

@@ -65,6 +65,7 @@ export type RenderWorkerRequest =
       readonly position?: number;
       readonly steps?: number;
       readonly density?: number;
+      readonly shaded?: boolean; // volume-only Phong toggle
     }
   | { readonly kind: "removeLayer"; readonly requestId: number; readonly id: string }
   // Cheap reorder/visibility/opacity over the full ordered list — no field transfer.
@@ -87,6 +88,14 @@ export type RenderWorkerRequest =
       readonly colormap: string;
       readonly windowLevel: WindowLevel;
       readonly scale: ColorScale;
+    }
+  // Live per-layer Phong toggle (volume-only). A uniform flip — no rebuild, no field re-transfer —
+  // so it can't blow the budget on the 64 MiB volume. Ignored by slice layers (they have no normal).
+  | {
+      readonly kind: "setLayerShading";
+      readonly requestId: number;
+      readonly id: string;
+      readonly shaded: boolean;
     }
   // Camera pose update — high-frequency, delta-only (DESIGN §443); the worker re-applies + repaints.
   | {

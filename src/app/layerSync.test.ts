@@ -122,6 +122,39 @@ describe("installLayerSync", () => {
     expect(kinds(posts)).not.toContain("setLayerColormap");
   });
 
+  it("upsert carries the volume layer's shaded flag (default off)", () => {
+    const { store, posts, sync, setReady } = harness(false);
+    store.getState().setDataset(beDataset());
+    setReady(true);
+    sync.flushAll();
+    const upsert = posts.find((p) => p.message.kind === "upsertLayer");
+    if (upsert === undefined || upsert.message.kind !== "upsertLayer") {
+      throw new Error("expected an upsertLayer");
+    }
+    expect(upsert.message.shaded).toBe(false);
+  });
+
+  it("posts setLayerShading when an existing volume layer is toggled (no field re-transfer)", () => {
+    const { store, posts } = harness(true);
+    store.getState().setDataset(beDataset()); // seeds layer-0 (volume)
+    posts.length = 0; // ignore the seed traffic (shaded rides the upsert, not this channel)
+    store.getState().setLayerShading("layer-0", true);
+
+    const msg = posts.find((p) => p.message.kind === "setLayerShading");
+    if (msg === undefined || msg.message.kind !== "setLayerShading") {
+      throw new Error("expected a setLayerShading");
+    }
+    expect(msg.message.id).toBe("layer-0");
+    expect(msg.message.shaded).toBe(true);
+    expect(msg.transfer).toBeUndefined(); // uniform flip — never re-transfers the volume
+  });
+
+  it("does not post setLayerShading for a freshly seeded layer (rides the upsert)", () => {
+    const { store, posts } = harness(true);
+    store.getState().setDataset(beDataset());
+    expect(kinds(posts)).not.toContain("setLayerShading");
+  });
+
   it("posts removeLayer when a layer is removed", () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset()); // layer-0

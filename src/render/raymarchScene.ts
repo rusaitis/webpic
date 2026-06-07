@@ -23,6 +23,7 @@ import {
 import { type Node, NodeMaterial } from "three/webgpu";
 import { buildMinMaxGrid, createSkipTexture } from "./minMaxGrid.ts";
 import { createNormalization, type WindowLevel } from "./normalization.ts";
+import { GRAD_EPS, PHONG } from "./shading.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
@@ -54,6 +55,10 @@ export interface RaymarchSceneOptions {
   readonly brickSize?: number;
   /** Opacity scale for the emission-absorption transfer. */
   readonly density?: number;
+  /** Opt in to Phong shading (default false). A render-local lighting normal from the field
+   *  gradient — a shape-perception aid, *not* quantitative (the lit surface is a TF-dependent
+   *  opacity isosurface). The 6 gradient taps/step are gated on sample opacity (see the march). */
+  readonly shaded?: boolean;
   /** Per-layer opacity multiplier on the composited alpha (composite fade), [0,1]; default 1. */
   readonly opacity?: number;
   /** Device supports R32F linear sampling — picks the volume texture format. */
@@ -68,6 +73,8 @@ export interface RaymarchScene {
   setColormap(name: string): void;
   /** Switch the value→color scale in place (uniform only). */
   setScale(scale: ColorScale): void;
+  /** Toggle Phong shading in place (uniform only, no rebuild — the volume stays uploaded). */
+  setShading(enabled: boolean): void;
   /** Update the per-layer opacity in place (uniform only, no rebuild). */
   setOpacity(opacity: number): void;
   dispose(): void;
@@ -79,6 +86,10 @@ const EARLY_ALPHA = 0.98;
 // A brick is "empty" when its max value maps below one 8-bit color step — its samples can't move the
 // pixel, so the march jumps it. Window-aware (norm.toT is uniform-driven), recomputed live.
 const EMPTY_T = 1 / 255;
+// Phong is gated on per-sample opacity `t` (the dt-free form of sampleAlpha): a sample mapping below
+// one color step can't move the pixel, so it skips the 6 gradient taps — the gate that keeps shading
+// off the 8 ms budget. Reusing EMPTY_T's threshold keeps "transparent here" one definition.
+const SHADE_T_FLOOR = EMPTY_T;
 // Object-space nudge past a brick face so the post-skip floor() lands in the next brick. The crossing
 // axis has non-zero ray dir (else its face is unreachable, not the nearest), so any ε > 0 crosses it.
 const BRICK_EPS = 1e-4;
@@ -143,11 +154,25 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   const norm = createNormalization(volume.min, volume.max, opts.windowLevel, opts.scale);
   const uDensity = uniform(opts.density ?? 1);
   const uLayerOpacity = uniform(opts.opacity ?? 1);
+  const uShade = uniform(opts.shaded ? 1 : 0); // live Phong toggle; 0 ⇒ the gradient taps never run
+
+  // Texture-space voxel step for central-difference gradient taps. Texture axes are (width, height,
+  // depth) = field axes (2, 1, 0) reversed (volumeTexture C-order), so the step per texPos axis is
+  // 1/that-axis-size. ClampToEdge means boundary taps saturate (gradient → 0 at the very face).
+  const fieldShape = opts.field.shape;
+  const voxelStep = vec3(
+    1 / (fieldShape[2] ?? 1),
+    1 / (fieldShape[1] ?? 1),
+    1 / (fieldShape[0] ?? 1),
+  );
 
   const rgba = Fn(() => {
     // Camera ray in object space; the box is axis-aligned there so the slab test is exact.
     const rayOrigin = varying(modelWorldMatrixInverse.mul(vec4(cameraPosition, 1.0)).xyz);
     const rayDir = positionGeometry.sub(rayOrigin).normalize();
+    // Headlight view direction (surface → camera). The Phong light coincides with it, so whatever
+    // faces the camera is lit and orbiting reveals shape (no scene light to manage pre-M4).
+    const viewDir = rayDir.negate();
 
     // wgslFn returns an untyped `Node`; the WGSL signature returns vec2<f32> (entry, exit).
     const bounds = (hitBox({ orig: rayOrigin, dir: rayDir }) as Node<"vec2">).toVar();
@@ -162,21 +187,51 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     const accumColor = vec3(0).toVar();
     const accumAlpha = float(0).toVar();
 
+    // Sample the raw field at a texture-space position with the non-finite guard. Trilinear sampling
+    // near volume edges can yield NaN/±Inf on some drivers; both must be neutralized before they enter
+    // accumulation or the gradient (a non-finite α drives the un-premultiply divide to a magenta
+    // fragment). `|raw| < 1e30` is false for either, so both swap to 0. Shared by the sample + the taps.
+    const sampleRawAt = (p: Node<"vec3">): Node<"float"> => {
+      const raw = texture3D(volume.texture, p).r;
+      return raw.abs().lessThan(float(1e30)).select(raw, float(0));
+    };
+
     // One front-to-back emission-absorption sample at a texture-space position — shared by both march
     // paths so the accumulation math lives once. Object [-0.5,0.5]³ → texture [0,1]³; texture axes are
     // the reverse of field axes (volumeTexture C-order: object x/y/z ↔ field axis 2/1/0).
-    const accumulate = (texPos: Node): void => {
-      const raw = texture3D(volume.texture, texPos).r;
-      // Trilinear sampling near volume edges can yield non-finite values on some drivers; both NaN and
-      // ±Inf must be neutralized before accumulation (a non-finite α drives the un-premultiply divide
-      // to a magenta fragment). `|raw| < 1e30` is false for both, so either swaps to 0.
-      const sample = raw.abs().lessThan(float(1e30)).select(raw, float(0));
-      const t = norm.toT(sample);
+    const accumulate = (texPos: Node<"vec3">): void => {
+      const t = norm.toT(sampleRawAt(texPos));
       // Opacity stays value-proportional (t·density); the LUT alpha channel is reserved for the
       // opacity transfer function, so color comes from the LUT but opacity doesn't.
       const sampleAlpha = t.mul(uDensity).mul(dt).saturate();
       const weight = accumAlpha.oneMinus(); // front-to-back: (1 - accumulated)
-      const rgb = texture(tf.texture, vec2(t, 0.5)).rgb;
+      const rgb = texture(tf.texture, vec2(t, 0.5)).rgb.toVar();
+
+      // Phong (opt-in via uShade): a render-local lighting normal from the field gradient. Gated on
+      // uShade AND a contributing opacity `t` so transparent samples skip the 6 gradient taps — the
+      // gate that keeps shading off the 8 ms budget (shading.ts is the pure twin of this math).
+      If(uShade.greaterThan(0.5).and(t.greaterThan(SHADE_T_FLOOR)), () => {
+        const dx = vec3(voxelStep.x, 0, 0);
+        const dy = vec3(0, voxelStep.y, 0);
+        const dz = vec3(0, 0, voxelStep.z);
+        const grad = vec3(
+          sampleRawAt(texPos.add(dx)).sub(sampleRawAt(texPos.sub(dx))),
+          sampleRawAt(texPos.add(dy)).sub(sampleRawAt(texPos.sub(dy))),
+          sampleRawAt(texPos.add(dz)).sub(sampleRawAt(texPos.sub(dz))),
+        );
+        const gradLen = grad.dot(grad).sqrt();
+        // Locally flat (|grad| ≈ 0) → no surface; face the viewer so it renders lit-but-flat, not NaN.
+        const normal = gradLen.greaterThan(GRAD_EPS).select(grad.div(gradLen), viewDir);
+        // Two-sided: an opacity isosurface has no consistent winding, so flip toward the viewer. With
+        // a headlight (light = view = half-vector), n·l = n·h = |n·v| ≡ ndl.
+        const faced = normal.dot(viewDir).lessThan(0).select(normal.negate(), normal);
+        const ndl = faced.dot(viewDir).max(0);
+        const shade = float(PHONG.ambient)
+          .add(ndl.mul(PHONG.diffuse))
+          .add(ndl.pow(PHONG.shininess).mul(PHONG.specular));
+        rgb.assign(rgb.mul(shade));
+      });
+
       accumColor.addAssign(rgb.mul(sampleAlpha).mul(weight));
       accumAlpha.addAssign(sampleAlpha.mul(weight));
     };
@@ -256,6 +311,9 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     setWindowLevel: norm.setWindow,
     setColormap: tf.setColormap,
     setScale: norm.setScale,
+    setShading(enabled) {
+      uShade.value = enabled ? 1 : 0;
+    },
     setOpacity(opacity) {
       uLayerOpacity.value = opacity;
     },

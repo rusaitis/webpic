@@ -48,6 +48,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       layer.kind === "slice"
         ? { axis: layer.axis, position: layer.position }
         : {
+            shaded: layer.shaded,
             ...(layer.steps !== null ? { steps: layer.steps } : {}),
             ...(layer.density !== null ? { density: layer.density } : {}),
           };
@@ -76,6 +77,18 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       colormap: binding.colormap,
       windowLevel: binding.window,
       scale: binding.scale,
+    };
+    worker.postMessage(request);
+  };
+
+  // Live per-layer Phong toggle (volume-only) — a uniform flip, no field transfer.
+  const sendLayerShading = (layer: Layer): void => {
+    if (layer.kind !== "volume") return;
+    const request: RenderWorkerRequest = {
+      kind: "setLayerShading",
+      requestId: LAYER_REQUEST_ID,
+      id: layer.id,
+      shaded: layer.shaded,
     };
     worker.postMessage(request);
   };
@@ -125,8 +138,9 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     },
   );
 
-  // Structure channel — removals + the cheap composite. No upsert here: a new layer's field data
-  // rides the same-tick `computed` change (M4's per-layer compute adds a real upsert path).
+  // Structure channel — removals, the per-layer shading toggle, and the cheap composite. No upsert
+  // here: a new layer's field data (and its initial `shaded`) ride the same-tick `computed` change
+  // (M4's per-layer compute adds a real upsert path).
   const unsubscribeLayers = store.subscribe(
     (state) => state.layers,
     (layers) => {
@@ -134,8 +148,9 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
         lastLayers = layers; // keep the snapshot current so a later diff isn't spurious
         return;
       }
+      const prevLayers = lastLayers;
       const liveIds = new Set(layers.map((layer) => layer.id));
-      for (const prev of lastLayers) {
+      for (const prev of prevLayers) {
         if (liveIds.has(prev.id)) continue;
         const request: RenderWorkerRequest = {
           kind: "removeLayer",
@@ -143,6 +158,16 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
           id: prev.id,
         };
         worker.postMessage(request);
+      }
+      // Per-layer Phong diff: a brand-new layer's `shaded` rides the upsert, so fire only when an
+      // existing volume layer's flag flipped.
+      const prevById = new Map(prevLayers.map((layer) => [layer.id, layer]));
+      for (const layer of layers) {
+        if (layer.kind !== "volume") continue;
+        const before = prevById.get(layer.id);
+        if (before === undefined) continue; // new layer → its shaded rides the upsert
+        if (before.kind === "volume" && before.shaded === layer.shaded) continue;
+        sendLayerShading(layer);
       }
       lastLayers = layers;
       sendComposite();

@@ -28,6 +28,9 @@ export type Layer =
       readonly kind: "volume";
       readonly steps: number | null;
       readonly density: number | null;
+      // Phong shading toggle (M2.7): a shape-perception aid, off by default for quantitative work
+      // (the lit surface is a TF-dependent opacity isosurface, not a physical boundary).
+      readonly shaded: boolean;
     })
   | (LayerBase & { readonly kind: "fieldlines" })
   | (LayerBase & { readonly kind: "particles" });
@@ -51,7 +54,7 @@ export function makeDefaultLayer(id: string, field: FieldName, kind: LayerKind):
     case "slice":
       return { ...base, kind, axis: "z", position: 0.5 };
     case "volume":
-      return { ...base, kind, steps: null, density: null };
+      return { ...base, kind, steps: null, density: null, shaded: false };
     case "fieldlines":
       return { ...base, kind };
     case "particles":
@@ -109,6 +112,22 @@ export function setLayerOpacity(
     if (layer.id !== id || layer.opacity === clamped) return layer;
     changed = true;
     return { ...layer, opacity: clamped };
+  });
+  return changed ? next : list;
+}
+
+// Toggle Phong shading on a volume layer. A no-op (identity) for a missing id, a non-volume kind
+// (only volumes carry a shading normal), or an unchanged flag — so no spurious subscriber fire.
+export function setLayerShading(
+  list: readonly Layer[],
+  id: string,
+  shaded: boolean,
+): readonly Layer[] {
+  let changed = false;
+  const next = list.map((layer) => {
+    if (layer.id !== id || layer.kind !== "volume" || layer.shaded === shaded) return layer;
+    changed = true;
+    return { ...layer, shaded };
   });
   return changed ? next : list;
 }

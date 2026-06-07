@@ -27,6 +27,16 @@ function pick(select: HTMLSelectElement, value: string): void {
   select.value = value;
   select.dispatchEvent(new Event("change"));
 }
+function shadingCheckbox(host: HTMLElement): HTMLInputElement {
+  const input = host.querySelector<HTMLInputElement>(".webpic-checkbox_input");
+  if (input === null) throw new Error("no shading checkbox");
+  return input;
+}
+function shadedFlag(store: SimulationStore): boolean {
+  const { selectedLayerId, layers } = store.getState();
+  const layer = layers.find((l) => l.id === selectedLayerId);
+  return layer?.kind === "volume" ? layer.shaded : false;
+}
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -114,6 +124,40 @@ describe("colormap panel (binding)", () => {
     expect(activeBinding(store)?.scale).toBe("log");
     // Window control survived the scale-triggered rebuild (still a two-grip interval).
     expect(rangeInputs(host)).toHaveLength(2);
+
+    dispose();
+  });
+
+  it("shading checkbox is disabled until a volume layer exists", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const store = createSimulationStore();
+    const dispose = installColormapPanel(host, store); // no dataset → no layer yet
+    expect(shadingCheckbox(host).disabled).toBe(true);
+
+    store.getState().setDataset(bTriple()); // seeds a volume layer
+    expect(shadingCheckbox(host).disabled).toBe(false);
+
+    dispose();
+  });
+
+  it("shading checkbox toggles the volume layer's Phong flag and reflects external changes", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const store = createSimulationStore();
+    store.getState().setDataset(bTriple());
+    const dispose = installColormapPanel(host, store);
+
+    const box = shadingCheckbox(host);
+    expect(box.checked).toBe(false); // Phong off by default for quantitative work
+    expect(shadedFlag(store)).toBe(false);
+
+    box.checked = true;
+    box.dispatchEvent(new Event("change"));
+    expect(shadedFlag(store)).toBe(true);
+
+    store.getState().setLayerShading(store.getState().selectedLayerId ?? "", false);
+    expect(box.checked).toBe(false); // external reflect, no feedback loop
 
     dispose();
   });
