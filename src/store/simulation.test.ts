@@ -146,6 +146,62 @@ describe("simulationStore", () => {
   });
 });
 
+describe("simulationStore time cursor", () => {
+  it("starts at step 0 with an empty domain", () => {
+    const { currentStep, availableSteps } = createSimulationStore().getState();
+    expect(currentStep).toBe(0);
+    expect(availableSteps).toEqual([]);
+  });
+
+  it("tracks the loaded step and seeds a 1-element domain on setDataset", () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(bDataset()); // fixture step = 0
+    expect(store.getState().currentStep).toBe(0);
+    expect(store.getState().availableSteps).toEqual([0]); // a direct load gets a valid cursor domain
+  });
+
+  it("setAvailableSteps replaces the domain and keeps a reader-populated list across reloads", () => {
+    const store = createSimulationStore();
+    store.getState().setAvailableSteps([0, 1, 2, 3, 4]);
+    expect(store.getState().availableSteps).toEqual([0, 1, 2, 3, 4]);
+    store.getState().setDataset(bDataset()); // non-empty domain survives — setDataset doesn't clobber it
+    expect(store.getState().availableSteps).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("setStep moves the cursor, ignores an out-of-domain step, and identity-skips a no-op", () => {
+    const store = createSimulationStore();
+    store.getState().setAvailableSteps([0, 2, 4]);
+    let fires = 0;
+    const unsub = store.subscribe(
+      (s) => s.currentStep,
+      () => fires++,
+    );
+    store.getState().setStep(2);
+    expect(store.getState().currentStep).toBe(2);
+    store.getState().setStep(2); // unchanged → no fire
+    store.getState().setStep(3); // not in [0,2,4] → ignored
+    unsub();
+    expect(store.getState().currentStep).toBe(2);
+    expect(fires).toBe(1);
+  });
+
+  it("setAvailableSteps snaps the cursor into the new domain and identity-skips an identical one", () => {
+    const store = createSimulationStore();
+    store.getState().setAvailableSteps([0, 10, 20, 30]);
+    store.getState().setStep(30);
+    let fires = 0;
+    const unsub = store.subscribe(
+      (s) => s.availableSteps,
+      () => fires++,
+    );
+    store.getState().setAvailableSteps([0, 5, 10]); // 30 is gone → snap to the nearest survivor (10)
+    expect(store.getState().currentStep).toBe(10);
+    store.getState().setAvailableSteps([0, 5, 10]); // identical domain → no fire
+    unsub();
+    expect(fires).toBe(1);
+  });
+});
+
 describe("simulationStore diagnostics", () => {
   it("starts with no frame timing and continuous measurement off", () => {
     const { frameTimeMs, frameTimeClock, isMeasuringContinuous } =

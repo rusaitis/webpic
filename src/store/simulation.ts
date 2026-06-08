@@ -50,6 +50,12 @@ export interface SimulationState {
   // Orbit camera pose. Non-nullable — DEFAULT_POSE is always valid; the app streams it to the
   // render worker. M2.4b's pointer controls dispatch setCameraPose; the worker derives the camera.
   readonly cameraPose: CameraPose;
+  // Time cursor (M2.9): the active timestep + the discrete domain the scrub control walks. The
+  // reader's availableTimesteps seeds `availableSteps` (setAvailableSteps); setStep moves the cursor,
+  // tracking the loaded dataset's `step`. Pre-M2.10 nothing re-reads on a step change — this lands
+  // the state + control the streaming core will react to (the cursor is inert until then).
+  readonly currentStep: number;
+  readonly availableSteps: readonly number[];
   // The instance-first scene: an ordered list of renderable layers (draw order = array order) and
   // the selected one. Pre-M4 the store auto-seeds exactly one layer for the active field.
   readonly layers: readonly Layer[];
@@ -68,6 +74,8 @@ export interface SimulationState {
   setBindingWindow(id: string, center: number, width: number): void;
   setBindingScale(id: string, scale: ColorScale): void;
   setCameraPose(pose: CameraPose): void;
+  setStep(step: number): void;
+  setAvailableSteps(steps: readonly number[]): void;
   addLayer(spec: LayerSpec): void;
   removeLayer(id: string): void;
   selectLayer(id: string | null): void;
@@ -98,6 +106,29 @@ function finiteRange(data: FloatArray): DataRange | null {
 
 function fullRangeWindow(range: DataRange): WindowLevel {
   return { center: (range.min + range.max) / 2, width: range.max - range.min };
+}
+
+// Element-wise step-domain equality, for identity-skipping a no-op setAvailableSteps.
+function sameSteps(a: readonly number[], b: readonly number[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+// Closest member of a domain (ties → the lower index), to keep the cursor valid when the
+// available-step domain changes under it. An empty domain leaves the step unchanged.
+function nearestStep(step: number, steps: readonly number[]): number {
+  let best = step;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const s of steps) {
+    const d = Math.abs(step - s);
+    if (d < bestDist) {
+      best = s;
+      bestDist = d;
+    }
+  }
+  return best;
 }
 
 // Inferred from the factory so the `subscribeWithSelector` overload (selector + listener)
@@ -184,6 +215,8 @@ export function createSimulationStore() {
         dataRange: null,
         colormapBindings: {},
         cameraPose: DEFAULT_POSE,
+        currentStep: 0,
+        availableSteps: [],
         layers: [],
         selectedLayerId: null,
         status: "empty",
@@ -192,7 +225,15 @@ export function createSimulationStore() {
         frameTimeClock: null,
         isMeasuringContinuous: false,
         setDataset(dataset) {
-          set({ dataset, availableFields: computableFields(dataset) });
+          // The cursor tracks the loaded step; a direct/synthetic load (no reader listing) still
+          // needs a valid 1-element domain, while a reader-populated one (setAvailableSteps) stays.
+          const { availableSteps } = get();
+          set({
+            dataset,
+            availableFields: computableFields(dataset),
+            currentStep: dataset.step,
+            ...(availableSteps.length === 0 ? { availableSteps: [dataset.step] } : {}),
+          });
           recompute();
         },
         selectField(name) {
@@ -229,6 +270,21 @@ export function createSimulationStore() {
         },
         setCameraPose(pose) {
           set({ cameraPose: pose }); // fresh object each call so subscribeWithSelector fires
+        },
+        setStep(step) {
+          const { currentStep, availableSteps } = get();
+          if (step === currentStep) return; // unchanged → no fire
+          if (!availableSteps.includes(step)) return; // outside the domain → ignore (controls emit only valid steps)
+          set({ currentStep: step });
+        },
+        setAvailableSteps(steps) {
+          const { availableSteps, currentStep } = get();
+          if (sameSteps(availableSteps, steps)) return; // identical domain → no fire
+          const snapped = nearestStep(currentStep, steps); // keep the cursor inside the new domain
+          set({
+            availableSteps: [...steps], // own a copy — external mutation can't corrupt the cursor domain
+            ...(snapped !== currentStep ? { currentStep: snapped } : {}),
+          });
         },
         addLayer(spec) {
           // The spec is already a valid union member sans id; stamping the id reconstructs it.

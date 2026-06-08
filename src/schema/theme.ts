@@ -67,11 +67,13 @@ export interface Theme {
   readonly webpic: WebpicThemeConfig;
 }
 
-// Used verbatim when a theme omits `[webpic]` (DESIGN: fall back silently).
+// Used verbatim when a theme omits `[webpic]` (DESIGN: fall back silently). `defaultPanels` is
+// webpic's own fallback and may lead the vendored pypic theme TOMLs (synced via scripts/sync-themes),
+// e.g. the M2.9 "time" panel until pypic's `[webpic.layout]` blocks pick it up.
 export const DEFAULT_WEBPIC_CONFIG: WebpicThemeConfig = {
   version: 1,
   layout: {
-    defaultPanels: ["field", "colormap", "diagnostics"],
+    defaultPanels: ["field", "time", "colormap", "diagnostics"],
     dockedSide: "right",
     panelCollapsedDefault: false,
   },
