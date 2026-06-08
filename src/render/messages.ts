@@ -106,7 +106,12 @@ export type RenderWorkerRequest =
   // Diagnostics: force sustained every-frame repaints so the GPU timer yields a live stream (the
   // exit-gate workload). Off by default — timing is sampled only while continuous, so on-demand
   // interactive frames skip the per-frame GPU sync.
-  | { readonly kind: "setContinuous"; readonly requestId: number; readonly continuous: boolean };
+  | { readonly kind: "setContinuous"; readonly requestId: number; readonly continuous: boolean }
+  // Time-series streaming (M2.10a): the data worker's end of a private MessageChannel. The worker
+  // reads + computes each scrubbed step off-main and posts StreamStepMessage (from @data) over this
+  // port, so the 64 MiB scalar flows data → render with no main-thread hop. Stored on receipt; the
+  // port's own onmessage handles the field swaps.
+  | { readonly kind: "pair"; readonly requestId: number; readonly port: MessagePort };
 
 export type RenderWorkerResponse =
   | { readonly kind: "ready"; readonly requestId: number }

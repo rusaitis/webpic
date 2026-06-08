@@ -1,5 +1,6 @@
+import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
-import { DEFAULT_POSE } from "@store";
+import { createSimulationStore, DEFAULT_POSE } from "@store";
 import { describe, expect, it } from "vitest";
 import { vectorTriple } from "../../tests/fixtures.ts";
 import { bootstrap } from "./main.ts";
@@ -7,6 +8,20 @@ import { bootstrap } from "./main.ts";
 interface Post {
   readonly message: RenderWorkerRequest;
   readonly transfer: Transferable[] | undefined;
+}
+
+interface DataPost {
+  readonly message: DataStreamRequest;
+  readonly transfer: Transferable[] | undefined;
+}
+
+function fakeCanvas(): HTMLCanvasElement {
+  const offscreen = { tag: "offscreen" } as unknown as OffscreenCanvas;
+  return {
+    width: 0,
+    height: 0,
+    transferControlToOffscreen: () => offscreen,
+  } as unknown as HTMLCanvasElement;
 }
 
 // Single-cell B = (3, 4, 0) so |B| = 5; f32 so the upsertLayer payload keeps the f32 dtype.
@@ -182,6 +197,102 @@ describe("bootstrap store → compute → render", () => {
     }
     expect(posePost.message.pose).toEqual(DEFAULT_POSE);
 
+    dispose();
+  });
+});
+
+describe("bootstrap streaming (M2.10a)", () => {
+  it("pairs the data worker, opens the stream, relays the domain, and drives the cursor", () => {
+    const canvas = fakeCanvas();
+    const renderPosts: Post[] = [];
+    const renderWorker = {
+      onmessage: null,
+      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) =>
+        renderPosts.push({ message, transfer }),
+      terminate: () => {},
+    } as unknown as Worker;
+
+    const dataPosts: DataPost[] = [];
+    let dataTerminated = 0;
+    const dataWorker = {
+      onmessage: null,
+      postMessage: (message: DataStreamRequest, transfer?: Transferable[]) =>
+        dataPosts.push({ message, transfer }),
+      terminate: () => {
+        dataTerminated += 1;
+      },
+    } as unknown as Worker;
+
+    const store = createSimulationStore();
+    const dispose = bootstrap({
+      width: 64,
+      height: 48,
+      createCanvas: () => canvas,
+      mount: () => {},
+      spawnWorker: () => renderWorker,
+      spawnDataWorker: () => dataWorker,
+      streamSource: syntheticHandle(8, 4),
+      dataset: tinyDataset(),
+      store,
+    });
+
+    // `open` is posted after the store seeds its layer, carrying the layer id + active field + a port.
+    const open = dataPosts.find((p) => p.message.kind === "open");
+    if (open === undefined || open.message.kind !== "open")
+      throw new Error("expected an open message");
+    expect(open.message.activeField).toBe("|B|");
+    expect(open.message.layerId).toBe(store.getState().selectedLayerId);
+    expect(open.transfer).toHaveLength(1); // the MessagePort, transferred
+
+    // Render `ready` pairs the streaming port into the render worker (port transferred).
+    renderWorker.onmessage?.({
+      data: { kind: "ready", requestId: 1 },
+    } as MessageEvent<RenderWorkerResponse>);
+    const paired = renderPosts.find((p) => p.message.kind === "pair");
+    expect(paired?.message.kind).toBe("pair");
+    expect(paired?.transfer).toHaveLength(1);
+
+    // The worker reports the timestep domain → store.availableSteps (overrides the 1-element seed).
+    dataWorker.onmessage?.({
+      data: { kind: "opened", steps: [0, 1, 2, 3] },
+    } as unknown as MessageEvent<DataStreamResponse>);
+    expect(store.getState().availableSteps).toEqual([0, 1, 2, 3]);
+
+    // Scrubbing the cursor drives setCursor to the data worker (off-main read + stream).
+    store.getState().setStep(2);
+    const cursor = dataPosts.find((p) => p.message.kind === "setCursor");
+    if (cursor === undefined || cursor.message.kind !== "setCursor") {
+      throw new Error("expected a setCursor message");
+    }
+    expect(cursor.message.step).toBe(2);
+
+    dispose();
+    expect(dataTerminated).toBe(1);
+  });
+
+  it("spawns no data worker without a streamSource (single-step, scrub disabled)", () => {
+    const canvas = fakeCanvas();
+    const renderWorker = {
+      onmessage: null,
+      postMessage: () => {},
+      terminate: () => {},
+    } as unknown as Worker;
+    let dataSpawns = 0;
+
+    const dispose = bootstrap({
+      width: 64,
+      height: 48,
+      createCanvas: () => canvas,
+      mount: () => {},
+      spawnWorker: () => renderWorker,
+      spawnDataWorker: () => {
+        dataSpawns += 1;
+        return { onmessage: null, postMessage: () => {}, terminate: () => {} } as unknown as Worker;
+      },
+      dataset: tinyDataset(),
+    });
+
+    expect(dataSpawns).toBe(0); // no streamSource → no streaming worker
     dispose();
   });
 });

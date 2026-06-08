@@ -1,6 +1,7 @@
 import type { FieldDataset } from "@containers/field_dataset.ts";
+import type { DataHandle, DataStreamRequest, DataStreamResponse } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
-import { createSimulationStore, createUiStore } from "@store";
+import { createSimulationStore, createUiStore, type SimulationStore } from "@store";
 import { installPointerCamera, installUi } from "@ui";
 import { installLayerSync } from "./layerSync.ts";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
@@ -10,6 +11,8 @@ const INIT_REQUEST_ID = 1;
 const POSE_REQUEST_ID = 3;
 const CONTINUOUS_REQUEST_ID = 4;
 const RESIZE_REQUEST_ID = 5;
+const PAIR_REQUEST_ID = 6;
+const STREAM_REQUEST_ID = 7;
 // Cap the drawing-buffer scale: a raymarcher's cost is per physical pixel, so honor Retina (2×)
 // but don't quadruple the work on 3×+ panels.
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -50,8 +53,17 @@ export interface BootstrapOptions {
   readonly createCanvas?: () => HTMLCanvasElement;
   readonly mount?: (canvas: HTMLCanvasElement) => void;
   readonly spawnWorker?: () => Worker;
+  /** Spawns the data/streaming worker (M2.10a); only spawned when `streamSource` is set. */
+  readonly spawnDataWorker?: () => Worker;
+  /** A multi-step source to stream timesteps from (the scrub cursor drives it). Omit → no streaming
+   *  (single-step dataset; the scrub control stays disabled). The default app entry passes the
+   *  synthetic flux-rope handle. */
+  readonly streamSource?: DataHandle;
   /** The dataset to render; defaults to the synthetic scaffold dataset. */
   readonly dataset?: FieldDataset;
+  /** The simulation store; defaults to a fresh one. Injectable so a test can drive intents
+   *  (e.g. setStep) and observe the resulting worker messages. */
+  readonly store?: SimulationStore;
   /** Where the UI overlay mounts; defaults to document.body, skipped when there's no DOM
    *  (the headless handshake test). Injectable so tests can mount into a scratch element. */
   readonly uiParent?: HTMLElement;
@@ -96,9 +108,39 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const offscreen = canvas.transferControlToOffscreen();
 
   const worker = spawnWorker();
-  const store = createSimulationStore();
+  const store = options.store ?? createSimulationStore();
   const uiStore = createUiStore();
   let workerReady = false;
+
+  // Streaming worker (M2.10a): spawned only when a multi-step source is given. It reads + computes
+  // each scrubbed step off-main and streams the scalar straight to the render worker over a private
+  // MessageChannel (no main hop); main only relays the timestep domain (→ setAvailableSteps) and
+  // drives the cursor. The channel's port2 pairs into the render worker on `ready`; port1 rides the
+  // `open` message to the data worker after the store seeds its layer.
+  const streamSource = options.streamSource;
+  const dataWorker =
+    streamSource !== undefined
+      ? (
+          options.spawnDataWorker ??
+          (() =>
+            new Worker(new URL("../workers/data.worker.ts", import.meta.url), {
+              type: "module",
+            }))
+        )()
+      : undefined;
+  const streamChannel = dataWorker !== undefined ? new MessageChannel() : undefined;
+  let dataWorkerOpened = false; // gates cursor/field posts until the worker has its reader
+  if (dataWorker !== undefined) {
+    dataWorker.onmessage = (event: MessageEvent<DataStreamResponse>) => {
+      const message = event.data;
+      if (message.kind === "opened") {
+        store.getState().setAvailableSteps(message.steps); // override the 1-element seed
+      } else if (message.kind === "streamError") {
+        console.error("[data worker]", message.message);
+      }
+      // stepLoaded: reserved for a future loading indicator.
+    };
+  }
 
   // Orbit/dolly/pan input. transferControlToOffscreen() moves only the drawing surface — the
   // <canvas> element still receives DOM pointer/wheel events on the main thread, so listeners attach
@@ -165,6 +207,18 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
         requestId: POSE_REQUEST_ID,
         pose: store.getState().cameraPose,
       } satisfies RenderWorkerRequest);
+      // Pair the data worker's streaming port (M2.10a) now the renderer is live, so streamed steps
+      // flow data → render directly. Buffered until the render worker sets the port's onmessage.
+      if (streamChannel !== undefined) {
+        worker.postMessage(
+          {
+            kind: "pair",
+            requestId: PAIR_REQUEST_ID,
+            port: streamChannel.port2,
+          } satisfies RenderWorkerRequest,
+          [streamChannel.port2],
+        );
+      }
       // The mark's startTime is ms since navigation, which scripts/perf-gate.ts reads
       // alongside First Contentful Paint to check the gate.
       performance.mark("webpic:first-frame");
@@ -195,6 +249,36 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     },
   );
 
+  // Streaming cursor + active-field → data worker. The scrub control moves `currentStep`; the field
+  // selector moves `activeField`. Both ride the same guarded cheap-message pattern as pose; the
+  // worker re-reads + re-streams off-main. Gated on `dataWorkerOpened` so nothing posts before the
+  // worker has its reader (`setDataset` sets currentStep = dataset.step, which is the default 0 → no
+  // pre-open fire). Subscriptions are inert when no data worker was spawned.
+  const unsubscribeStep = store.subscribe(
+    (state) => state.currentStep,
+    (step) => {
+      if (dataWorker !== undefined && dataWorkerOpened) {
+        dataWorker.postMessage({
+          kind: "setCursor",
+          requestId: STREAM_REQUEST_ID,
+          step,
+        } satisfies DataStreamRequest);
+      }
+    },
+  );
+  const unsubscribeActiveField = store.subscribe(
+    (state) => state.activeField,
+    (field) => {
+      if (dataWorker !== undefined && dataWorkerOpened) {
+        dataWorker.postMessage({
+          kind: "setActiveField",
+          requestId: STREAM_REQUEST_ID,
+          field,
+        } satisfies DataStreamRequest);
+      }
+    },
+  );
+
   const request: RenderWorkerRequest = {
     kind: "init",
     requestId: INIT_REQUEST_ID,
@@ -206,6 +290,26 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   worker.postMessage(request, [offscreen]); // transfer the OffscreenCanvas
 
   store.getState().setDataset(options.dataset ?? createSyntheticDataset());
+
+  // Open the streaming source now the store has seeded its layer (streamed fields address it by id).
+  // port1 rides the open (transferred); the worker reports the timestep domain via `opened`.
+  if (dataWorker !== undefined && streamChannel !== undefined && streamSource !== undefined) {
+    const layerId = store.getState().selectedLayerId;
+    if (layerId !== null) {
+      dataWorker.postMessage(
+        {
+          kind: "open",
+          requestId: STREAM_REQUEST_ID,
+          handle: streamSource,
+          activeField: store.getState().activeField,
+          layerId,
+          port: streamChannel.port1,
+        } satisfies DataStreamRequest,
+        [streamChannel.port1],
+      );
+      dataWorkerOpened = true;
+    }
+  }
 
   // Mount the UI after the dataset so the field selector sees the computed
   // availableFields. Skipped headless (no DOM) — the overlay is a sibling to the canvas,
@@ -223,6 +327,9 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     layerSync.dispose();
     unsubscribePose();
     unsubscribeContinuous();
+    unsubscribeStep();
+    unsubscribeActiveField();
+    dataWorker?.terminate();
     worker.terminate();
   };
 }

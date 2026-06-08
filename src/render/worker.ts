@@ -1,3 +1,4 @@
+import type { StreamStepMessage } from "@data";
 import { getCapabilities, getDevice, installGpu, onDeviceLost, onDeviceRestored } from "@gpu";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { OrthographicCamera, PerspectiveCamera } from "three";
@@ -97,6 +98,10 @@ let lastErrorMessage: string | undefined; // dedupe so a persistent bad frame ca
 // One scene whose dispose is deferred by a swap so the rAF loop can't sample a GPUTexture that
 // upsertLayer just released mid-rebuild (use-after-free reads back as the magenta sentinel).
 let pendingDispose: LayerEntry | undefined;
+
+// The data worker's end of the streaming MessageChannel (M2.10a). Stored on `pair`; its onmessage
+// applies streamed timestep fields (data → render, no main hop). Closed on dispose.
+let streamPort: MessagePort | undefined;
 
 // Surface a worker-side fault without flooding: identical consecutive messages post once.
 function reportError(message: string): void {
@@ -309,8 +314,20 @@ function buildScene(source: LayerSource): LayerEntry {
   return { scene, kind: "volume", source };
 }
 
-// Build or rebuild one layer's scene from a transferred field. Releases the prior scene's
-// Data3DTexture before replacing it — else each swap leaks one.
+// Install a layer's scene from a fully-specified source, releasing the prior scene's Data3DTexture
+// without leaking. Swap-then-defer: the new scene is live in the map before the old one's GPUTextures
+// are released, and the release waits one rebuild so an in-flight rAF frame never samples a destroyed
+// texture. The single seam shared by upsertLayer (main) and swapLayerField (streamed step); M2.10b
+// turns the streamed path into an in-place ping-pong texture swap here.
+function replaceLayer(id: string, source: LayerSource): void {
+  const previous = layers.get(id);
+  layers.set(id, buildScene(source));
+  pendingDispose?.scene.dispose();
+  pendingDispose = previous;
+  requestRender();
+}
+
+// Build or rebuild one layer's scene from a transferred field (main → render).
 async function upsertLayer(
   request: Extract<RenderWorkerRequest, { kind: "upsertLayer" }>,
 ): Promise<void> {
@@ -318,7 +335,6 @@ async function upsertLayer(
   if (renderer === undefined) {
     throw new Error("upsertLayer before init");
   }
-  const previous = layers.get(request.id);
   const source: LayerSource = {
     layerKind: request.layerKind,
     field: decodeSliceField(request.field),
@@ -332,12 +348,17 @@ async function upsertLayer(
     ...(request.density !== undefined ? { density: request.density } : {}),
     ...(request.shaded !== undefined ? { shaded: request.shaded } : {}),
   };
-  layers.set(request.id, buildScene(source));
-  // Swap-then-defer: the new scene is live in the map before the old one's GPUTextures are released,
-  // and the release waits one rebuild so an in-flight rAF frame never samples a destroyed texture.
-  pendingDispose?.scene.dispose();
-  pendingDispose = previous;
-  requestRender();
+  replaceLayer(request.id, source);
+}
+
+// A streamed timestep's scalar (data worker → render, over the paired port): swap only the field on
+// an existing layer, keeping its retained look (colormap/scale/window/opacity/shaded). The layer is
+// created by main's initial upsertLayer; a step arriving before it (or after a remove) is ignored —
+// it heals on the next upsert, mirroring setLayerColormap.
+function swapLayerField(message: StreamStepMessage): void {
+  const entry = layers.get(message.id);
+  if (entry === undefined) return;
+  replaceLayer(message.id, { ...entry.source, field: decodeSliceField(message.field) });
 }
 
 async function removeLayer(
@@ -482,6 +503,21 @@ async function setContinuous(
   if (continuous) needsRender = true;
 }
 
+// Pair with the data worker's streaming port (M2.10a). Assigning onmessage implicitly starts the
+// port, so streamStep messages posted before this pairing drain here in order — no lost frames.
+async function pair(request: Extract<RenderWorkerRequest, { kind: "pair" }>): Promise<void> {
+  await initDone;
+  streamPort?.close();
+  streamPort = request.port;
+  streamPort.onmessage = (event: MessageEvent<StreamStepMessage>) => {
+    try {
+      swapLayerField(event.data);
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : String(error));
+    }
+  };
+}
+
 function handle(request: RenderWorkerRequest): Promise<void> {
   switch (request.kind) {
     case "init":
@@ -505,6 +541,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return resize(request);
     case "setContinuous":
       return setContinuous(request);
+    case "pair":
+      return pair(request);
     default: {
       const unreachable: never = request;
       return Promise.reject(new Error(`unknown request: ${JSON.stringify(unreachable)}`));
@@ -523,6 +561,8 @@ ctx.onmessage = (event) => {
 export function dispose(): void {
   unsubscribeGpu?.();
   unsubscribeGpu = undefined;
+  streamPort?.close();
+  streamPort = undefined;
   stopRenderLoop();
   for (const layer of layers.values()) layer.scene.dispose();
   layers.clear();

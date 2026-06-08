@@ -31,12 +31,27 @@ export {
   registerBuiltinReaders,
 } from "./readers/builtins.ts";
 export {
+  createSyntheticReader,
+  DEFAULT_SYNTHETIC_N,
+  DEFAULT_SYNTHETIC_STEPS,
+  registerSyntheticReader,
+  syntheticConfidence,
+  syntheticHandle,
+  syntheticStep,
+} from "./readers/synthetic.ts";
+export {
   createZarrConfidence,
   createZarrReader,
   type StoreOpener,
   type ZarrReaderOptions,
   zarrConfidence,
 } from "./readers/zarr.ts";
+export type {
+  DataStreamRequest,
+  DataStreamResponse,
+  StreamFieldPayload,
+  StreamStepMessage,
+} from "./streamMessages.ts";
 export {
   BUNDLED_THEME_NAMES,
   type BundledThemeName,
