@@ -1,6 +1,6 @@
 import type { ColorScale } from "@schema/colormap.ts";
 import { Mesh, PlaneGeometry, Scene } from "three";
-import { texture, texture3D, uniform, uv, vec2, vec3 } from "three/tsl";
+import { texture, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import { createNormalization, type WindowLevel } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
@@ -39,6 +39,9 @@ export interface SliceScene {
   setScale(scale: ColorScale): void;
   /** Update the per-layer opacity in place (uniform only, no rebuild). */
   setOpacity(opacity: number): void;
+  /** Ping-pong a new timestep's field into the volume in place (no rebuild). Returns false on a shape
+   *  change (the caller rebuilds). */
+  setField(field: ScalarField): boolean;
   dispose(): void;
 }
 
@@ -72,7 +75,7 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
   const uLayerOpacity = uniform(opts.opacity ?? 1);
 
   const coord = sliceCoord(opts.axis, uv().x, uv().y, uPosition);
-  const raw = texture3D(volume.texture, coord).r;
+  const raw = volume.node.sample(coord).r; // swappable node so a streamed step re-binds the sample
   const t = norm.toT(raw);
 
   const material = new NodeMaterial();
@@ -98,6 +101,9 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
     setScale: norm.setScale,
     setOpacity(opacity) {
       uLayerOpacity.value = opacity;
+    },
+    setField(field) {
+      return volume.setField(field);
     },
     dispose() {
       geometry.dispose();

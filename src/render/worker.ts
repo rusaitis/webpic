@@ -22,13 +22,14 @@ import { createSliceScene, type SliceAxis, type SliceScene } from "./sliceScene.
 import type { ScalarField } from "./volumeTexture.ts";
 
 // Everything needed to rebuild a layer's scene without the main thread: the decoded field (its CPU
-// buffer survives a GPU device loss) plus the live build params. colormap/scale/window/opacity are
-// mutable — setLayerColormap/setComposite update them so a device-loss rebuild reproduces the
-// current look, not the stale upsert-time one. Retaining the field doubles its residency (CPU +
-// GPU); fine for v0.1's one small volume, and the price of self-contained recovery (no reseed wire).
+// buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity
+// are mutable — swapLayerField/setLayerColormap/setComposite update them so a device-loss rebuild
+// reproduces the current state (the live timestep + look), not the stale upsert-time one. Retaining
+// the field doubles its residency (CPU + GPU); fine for v0.1's one small volume, and the price of
+// self-contained recovery (no reseed wire).
 interface LayerSource {
   readonly layerKind: "slice" | "volume";
-  readonly field: ScalarField;
+  field: ScalarField; // mutable: a streamed timestep swaps it in place (see swapLayerField)
   readonly axis?: SliceAxis;
   readonly position?: number;
   readonly steps?: number;
@@ -317,8 +318,8 @@ function buildScene(source: LayerSource): LayerEntry {
 // Install a layer's scene from a fully-specified source, releasing the prior scene's Data3DTexture
 // without leaking. Swap-then-defer: the new scene is live in the map before the old one's GPUTextures
 // are released, and the release waits one rebuild so an in-flight rAF frame never samples a destroyed
-// texture. The single seam shared by upsertLayer (main) and swapLayerField (streamed step); M2.10b
-// turns the streamed path into an in-place ping-pong texture swap here.
+// texture. Used by upsertLayer (main) and as swapLayerField's fallback when an in-place ping-pong
+// upload can't apply (the common streamed step takes the in-place path, not this rebuild).
 function replaceLayer(id: string, source: LayerSource): void {
   const previous = layers.get(id);
   layers.set(id, buildScene(source));
@@ -355,10 +356,27 @@ async function upsertLayer(
 // an existing layer, keeping its retained look (colormap/scale/window/opacity/shaded). The layer is
 // created by main's initial upsertLayer; a step arriving before it (or after a remove) is ignored —
 // it heals on the next upsert, mirroring setLayerColormap.
+//
+// The swap is an in-place ping-pong (M2.10b): the scene uploads the field into its inactive
+// Data3DTexture and re-binds — reusing geometry/material/transfer-function, no 64 MiB pipeline
+// rebuild per step. We retain the field on the source so a device-restore rebuild reproduces the
+// *live* timestep. If the scene declines the in-place swap (a shape change, or an empty-space-skip
+// volume whose acceleration grid would go stale), fall back to a full rebuild.
 function swapLayerField(message: StreamStepMessage): void {
   const entry = layers.get(message.id);
   if (entry === undefined) return;
-  replaceLayer(message.id, { ...entry.source, field: decodeSliceField(message.field) });
+  const field = decodeSliceField(message.field);
+  if (entry.scene.setField(field)) {
+    // Retain the live step so a device-restore rebuild reproduces the on-screen field (not stale
+    // step 0). The retained windowLevel keeps the colors fixed too — EXCEPT on the defensive
+    // no-window path (source.windowLevel undefined), where a rebuild would renormalize to the live
+    // step's range (buildScene → createNormalization → full-range). That can't happen in the app:
+    // a streamed layer always carries a seeded binding's window (layerSync), so windowLevel is set.
+    entry.source.field = field;
+    requestRender();
+    return;
+  }
+  replaceLayer(message.id, { ...entry.source, field });
 }
 
 async function removeLayer(

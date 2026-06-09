@@ -1,13 +1,16 @@
-// Render-side streaming (M2.10a): the data worker pairs a MessagePort into the render worker and
-// posts streamStep messages over it; the worker must route them through swapLayerField — rebuilding
-// the existing layer's scene from the streamed field while keeping its retained look. three/webgpu
-// can't load in node, so the renderer + scene factories + the gpu seam are mocked (same pattern as
-// worker.recovery.test.ts). Flow: init → upsert layer-0 → pair port → streamStep over the port.
+// Render-side streaming (M2.10a/b): the data worker pairs a MessagePort into the render worker and
+// posts streamStep messages over it; the worker routes them through swapLayerField — an in-place
+// ping-pong upload onto the existing scene (scene.setField), keeping its retained look and avoiding a
+// pipeline rebuild. When setField declines (shape change / skip-grid volume) it falls back to a full
+// rebuild. three/webgpu can't load in node, so the renderer + scene factories + the gpu seam are
+// mocked (same pattern as worker.recovery.test.ts). Flow: init → upsert layer-0 → pair → streamStep.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = vi.hoisted(() => {
+  // setField returns true by default (in-place swap accepted); a test overrides it to force the
+  // rebuild fallback. The mock is per-scene so each created scene carries its own spy.
   const makeScene = () => ({
     scene: {},
     setWindowLevel: vi.fn(),
@@ -15,6 +18,7 @@ const h = vi.hoisted(() => {
     setScale: vi.fn(),
     setShading: vi.fn(),
     setOpacity: vi.fn(),
+    setField: vi.fn(() => true),
     dispose: vi.fn(),
   });
   return {
@@ -56,7 +60,7 @@ afterAll(() => {
   delete (globalThis as unknown as { self?: unknown }).self;
 });
 
-it("routes a streamStep over the paired port through swapLayerField (rebuilds with the new field)", async () => {
+it("applies a streamStep in place via scene.setField (no scene rebuild)", async () => {
   onmessage({
     data: {
       kind: "init",
@@ -83,6 +87,9 @@ it("routes a streamStep over the paired port through swapLayerField (rebuilds wi
     },
   });
   await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
+  const scene = h.createRaymarchScene.mock.results[0]?.value as {
+    setField: ReturnType<typeof vi.fn>;
+  };
 
   // Pair the streaming port, then stream a new step's scalar over it (distinct shape [2,2,2]).
   const channel = new MessageChannel();
@@ -98,10 +105,52 @@ it("routes a streamStep over the paired port through swapLayerField (rebuilds wi
     [buffer],
   );
 
-  // The streamed field rebuilds the layer's scene (#2) — keeping its retained colormap/scale.
-  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(2));
-  expect(h.createRaymarchScene.mock.calls[1]?.[0]).toMatchObject({
-    colormap: "inferno",
+  // The streamed field is uploaded in place (scene.setField) — the scene is NOT rebuilt.
+  await vi.waitFor(() => expect(scene.setField).toHaveBeenCalledTimes(1));
+  expect(scene.setField.mock.calls[0]?.[0]).toMatchObject({ shape: [2, 2, 2] });
+  expect(h.createRaymarchScene).toHaveBeenCalledTimes(1); // ping-pong, not a rebuild
+  channel.port1.close();
+});
+
+it("falls back to a scene rebuild when setField declines the in-place swap", async () => {
+  // A second layer so layer-0 is untouched; force its scene to decline the in-place swap.
+  const before = h.createRaymarchScene.mock.calls.length;
+  onmessage({
+    data: {
+      kind: "upsertLayer",
+      requestId: 5,
+      id: "layer-1",
+      layerKind: "volume",
+      field: { buffer: new Float32Array([7]).buffer, dtype: "f32", shape: [1, 1, 1] },
+      colormap: "viridis",
+      scale: "linear",
+      opacity: 1,
+    },
+  });
+  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(before + 1));
+  const scene = h.createRaymarchScene.mock.results[before]?.value as {
+    setField: ReturnType<typeof vi.fn>;
+  };
+  scene.setField.mockReturnValue(false); // e.g. shape change / skip-grid volume
+
+  const channel = new MessageChannel();
+  onmessage({ data: { kind: "pair", requestId: 6, port: channel.port2 } });
+  const buffer = new Float32Array([1, 2, 3, 4, 5, 6, 7, 8]).buffer;
+  channel.port1.postMessage(
+    {
+      kind: "streamStep",
+      id: "layer-1",
+      step: 2,
+      field: { buffer, dtype: "f32", shape: [2, 2, 2] },
+    },
+    [buffer],
+  );
+
+  // Declined → rebuild (one more scene) carrying the new field + the retained look.
+  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(before + 2));
+  expect(scene.setField).toHaveBeenCalledTimes(1); // consulted first
+  expect(h.createRaymarchScene.mock.calls.at(-1)?.[0]).toMatchObject({
+    colormap: "viridis",
     field: { shape: [2, 2, 2] },
   });
   channel.port1.close();

@@ -77,6 +77,10 @@ export interface RaymarchScene {
   setShading(enabled: boolean): void;
   /** Update the per-layer opacity in place (uniform only, no rebuild). */
   setOpacity(opacity: number): void;
+  /** Ping-pong a new timestep's field into the volume in place (no rebuild — time-series scrub).
+   *  Returns false when the in-place swap can't apply (shape change, or an empty-space-skip volume
+   *  whose acceleration grid would go stale); the caller then rebuilds the scene. */
+  setField(field: ScalarField): boolean;
   dispose(): void;
 }
 
@@ -192,7 +196,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     // accumulation or the gradient (a non-finite α drives the un-premultiply divide to a magenta
     // fragment). `|raw| < 1e30` is false for either, so both swap to 0. Shared by the sample + the taps.
     const sampleRawAt = (p: Node<"vec3">): Node<"float"> => {
-      const raw = texture3D(volume.texture, p).r;
+      const raw = volume.node.sample(p).r; // one swappable node so a streamed step re-binds all taps
       return raw.abs().lessThan(float(1e30)).select(raw, float(0));
     };
 
@@ -316,6 +320,12 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     },
     setOpacity(opacity) {
       uLayerOpacity.value = opacity;
+    },
+    setField(field) {
+      // The empty-space-skip grid is built once from the construction field; a streamed step would
+      // leave it stale, so force a rebuild there. Default (no skip) takes the in-place ping-pong.
+      if (skipState !== undefined) return false;
+      return volume.setField(field);
     },
     dispose() {
       geometry.dispose();
