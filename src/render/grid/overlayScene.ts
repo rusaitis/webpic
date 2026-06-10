@@ -11,8 +11,8 @@ import {
   Sprite,
   type Texture,
 } from "three";
-import { texture, uv } from "three/tsl";
-import { LineBasicNodeMaterial, SpriteNodeMaterial } from "three/webgpu";
+import { cameraPosition, positionWorld, texture, uv, vec3 } from "three/tsl";
+import { LineBasicNodeMaterial, type Node, SpriteNodeMaterial } from "three/webgpu";
 import type { SceneOverlayConfig } from "../messages.ts";
 import { niceTicks } from "./niceTicks.ts";
 import { fieldAxisToThree, formatTick, physicalToObject } from "./overlayRemap.ts";
@@ -36,6 +36,21 @@ const LABEL_AXIS_OFFSET = 0.07;
 const LABEL_FONT_PX = 30; // supersampled (×SS) for crisp text at this world size
 const LABEL_SUPERSAMPLE = 2;
 const LABEL_FONT = (px: number): string => `600 ${px}px "Helvetica Neue", Arial, sans-serif`;
+
+// Labels along an axis pile up unreadably once that axis points nearly at the camera (every tick
+// projects to the same spot). Fade them with the view angle: full opacity beyond 35° off the row
+// axis, gone within 15°. Per-fragment from the sprite's own view ray (not the camera forward), so
+// panned / cursor-anchored views fade correctly — and no per-pose CPU update is needed. The band
+// is wide because the near end of an edge-on row still sits ~13° off-axis (edge offset / distance)
+// — a narrower band leaves that end ghosting; the default 3/4 view's rows are ~51° off, untouched.
+const LABEL_FADE_START_COS = Math.cos((35 * Math.PI) / 180);
+const LABEL_FADE_FULL_COS = Math.cos((15 * Math.PI) / 180);
+
+function edgeOnFade(axis: number): Node<"float"> {
+  const rowDir = vec3(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0);
+  const edgeOn = positionWorld.sub(cameraPosition).normalize().dot(rowDir).abs();
+  return edgeOn.smoothstep(LABEL_FADE_START_COS, LABEL_FADE_FULL_COS).oneMinus();
+}
 
 // THREE-axis triplet for each drawable plane: the two in-plane axes (a, b) and the held out-of-plane
 // axis (h). Under z-up the horizontal/equatorial plane is xy (z held); the default-on plane lives in
@@ -116,14 +131,20 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
   const heldValue =
     config.planePosition === "center" ? 0 : config.planePosition === "min" ? -0.5 : 0.5;
 
-  const addLabel = (text: string, position: readonly [number, number, number]): void => {
+  // `fadeAxis` is the THREE axis the label's row runs along (its tick axis, or the named axis
+  // itself) — the label fades as that direction goes edge-on to the view.
+  const addLabel = (
+    text: string,
+    position: readonly [number, number, number],
+    fadeAxis: number,
+  ): void => {
     if (text.length === 0) return;
     const made = makeLabelTexture(text, config.labelColor);
     if (made === null) return;
     const sampled = texture(made.texture, uv());
     const material = new SpriteNodeMaterial();
     material.colorNode = sampled.rgb;
-    material.opacityNode = sampled.a;
+    material.opacityNode = sampled.a.mul(edgeOnFade(fadeAxis));
     material.transparent = true;
     material.depthWrite = false;
     material.alphaTest = 0.01;
@@ -181,21 +202,22 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       scene.add(new LineSegments(geometry, gridMaterial));
       geometries.push(geometry);
 
-      // Tick-value labels along each in-plane edge, in the grid plane (billboarded).
+      // Tick-value labels along each in-plane edge, in the grid plane (billboarded). Each row fades
+      // by its own tick axis — the direction the row of labels runs along.
       if (config.show.labels) {
         for (const t of ticksA) {
           const pos: [number, number, number] = [0, 0, 0];
           pos[plane.a] = t.obj;
           pos[plane.b] = -0.5 - LABEL_EDGE_OFFSET;
           pos[plane.h] = heldValue;
-          addLabel(formatTick(t.value, axisData[plane.a]?.decimals ?? 0), pos);
+          addLabel(formatTick(t.value, axisData[plane.a]?.decimals ?? 0), pos, plane.a);
         }
         for (const t of ticksB) {
           const pos: [number, number, number] = [0, 0, 0];
           pos[plane.b] = t.obj;
           pos[plane.a] = -0.5 - LABEL_EDGE_OFFSET;
           pos[plane.h] = heldValue;
-          addLabel(formatTick(t.value, axisData[plane.b]?.decimals ?? 0), pos);
+          addLabel(formatTick(t.value, axisData[plane.b]?.decimals ?? 0), pos, plane.b);
         }
       }
     }
@@ -225,7 +247,9 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       if (config.show.labels) {
         const pos: [number, number, number] = [-0.5, -0.5, -0.5];
         pos[axis] = 0.5 + LABEL_AXIS_OFFSET;
-        addLabel(axisData[axis]?.label ?? "", pos);
+        // The name label fades with its own axis — pointing at the camera it floats mid-screen
+        // over the data (and over its ticks' pile point), telling the viewer nothing.
+        addLabel(axisData[axis]?.label ?? "", pos, axis);
       }
     }
   }
