@@ -9,10 +9,12 @@ import {
   DEFAULT_POSE,
 } from "./camera.ts";
 import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
+import { createSceneOverlay, type SceneOverlay } from "./grid/overlayScene.ts";
 import type {
   CameraPose,
   RenderWorkerRequest,
   RenderWorkerResponse,
+  SceneOverlayConfig,
   SliceFieldPayload,
 } from "./messages.ts";
 import { createRaymarchScene, type RaymarchScene } from "./raymarchScene.ts";
@@ -100,6 +102,12 @@ let lastErrorMessage: string | undefined; // dedupe so a persistent bad frame ca
 // upsertLayer just released mid-rebuild (use-after-free reads back as the magenta sentinel).
 let pendingDispose: LayerEntry | undefined;
 
+// The themeable axes + grid overlay (composited last, over the volume) + the config it was built from.
+// overlaySource is retained so a device-restore rebuild reproduces the live overlay, mirroring how a
+// layer retains its LayerSource. Labels are auto-billboarding Sprites, so no per-pose update is needed.
+let overlay: SceneOverlay | undefined;
+let overlaySource: SceneOverlayConfig | undefined;
+
 // The data worker's end of the streaming MessageChannel (M2.10a). Stored on `pair`; its onmessage
 // applies streamed timestep fields (data → render, no main hop). Closed on dispose.
 let streamPort: MessagePort | undefined;
@@ -182,6 +190,12 @@ function paintItems(): CompositeItem[] {
   if (items.length === 0) {
     if (testScene !== undefined) return [{ scene: testScene.scene, camera: orthoCamera }];
     throw new Error("no scene to render");
+  }
+  // The overlay composites last (on top), paired with the perspective camera — but only when a
+  // perspective (volume) layer is present. A 3D axes overlay over a flat ortho slice or the boot
+  // triangle is meaningless; a volume whose upsert hasn't landed yet heals on its upsert repaint.
+  if (overlay !== undefined && items.some((item) => item.camera === perspCamera)) {
+    items.push({ scene: overlay.scene, camera: perspCamera });
   }
   return items;
 }
@@ -490,6 +504,7 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
     renderer?.dispose();
     for (const layer of layers.values()) layer.scene.dispose();
     pendingDispose?.scene.dispose();
+    overlay?.dispose();
     testScene?.dispose();
   } catch {
     // a lost device throws on teardown — ignore; we're replacing everything anyway
@@ -507,6 +522,9 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   if (perspCamera !== undefined) applyPose(perspCamera, pose, aspect());
   // Replace each layer's scene in place (Map.set on an existing key is safe mid-iteration).
   for (const [id, entry] of layers) layers.set(id, buildScene(entry.source));
+  // Replay the overlay from its retained config on the fresh device (its line buffers + CanvasTextures
+  // belonged to the dead device). Sprites re-billboard on the next render.
+  overlay = overlaySource !== undefined ? createSceneOverlay(overlaySource) : undefined;
   deviceLost = false;
   requestRender();
 }
@@ -519,6 +537,27 @@ async function setContinuous(
   await initDone;
   continuous = request.continuous;
   if (continuous) needsRender = true;
+}
+
+// Build/replace the axes + grid overlay from a config (or tear it down on null). New scene live before
+// the old one's GPU resources are freed — the overlay has no readback-borrowed texture, so a same-tick
+// dispose is safe (unlike replaceLayer's deferral). Retains the source for a device-restore rebuild.
+function buildOverlay(config: SceneOverlayConfig | null): void {
+  const previous = overlay;
+  overlay = config !== null ? createSceneOverlay(config) : undefined;
+  overlaySource = config ?? undefined;
+  previous?.dispose();
+  requestRender();
+}
+
+async function setSceneOverlay(
+  request: Extract<RenderWorkerRequest, { kind: "setSceneOverlay" }>,
+): Promise<void> {
+  await initDone;
+  if (renderer === undefined) {
+    throw new Error("setSceneOverlay before init");
+  }
+  buildOverlay(request.overlay);
 }
 
 // Pair with the data worker's streaming port (M2.10a). Assigning onmessage implicitly starts the
@@ -559,6 +598,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return resize(request);
     case "setContinuous":
       return setContinuous(request);
+    case "setSceneOverlay":
+      return setSceneOverlay(request);
     case "pair":
       return pair(request);
     default: {
@@ -586,6 +627,9 @@ export function dispose(): void {
   layers.clear();
   pendingDispose?.scene.dispose();
   pendingDispose = undefined;
+  overlay?.dispose();
+  overlay = undefined;
+  overlaySource = undefined;
   testScene?.dispose();
   renderer?.dispose();
   gpu?.dispose();

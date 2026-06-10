@@ -1,9 +1,11 @@
 import type { FieldDataset } from "@containers/field_dataset.ts";
 import type { DataHandle, DataStreamRequest, DataStreamResponse } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
+import type { Theme } from "@schema/theme.ts";
 import { createSimulationStore, createUiStore, type SimulationStore } from "@store";
 import { installPointerCamera, installUi } from "@ui";
 import { installLayerSync } from "./layerSync.ts";
+import { installSceneSync } from "./sceneSync.ts";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
 
 const DEFAULT_SIZE = 256;
@@ -61,6 +63,8 @@ export interface BootstrapOptions {
   readonly streamSource?: DataHandle;
   /** The dataset to render; defaults to the synthetic scaffold dataset. */
   readonly dataset?: FieldDataset;
+  /** Theme for overlay colors (axes/grid/labels). Omitted → the gnomon-matching fallback palette. */
+  readonly theme?: Theme;
   /** The simulation store; defaults to a fresh one. Injectable so a test can drive intents
    *  (e.g. setStep) and observe the resulting worker messages. */
   readonly store?: SimulationStore;
@@ -154,6 +158,15 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // cheap setComposite. Gated on `workerReady` so nothing is posted before the renderer is live.
   const layerSync = installLayerSync({ store, worker, isReady: () => workerReady });
 
+  // The scene-overlay (axes + grid) bridge: forwards the store's overlay flags + the dataset bounds +
+  // the resolved theme palette to the worker. Same workerReady gating + ready-time flushAll as layerSync.
+  const sceneSync = installSceneSync({
+    store,
+    worker,
+    isReady: () => workerReady,
+    ...(options.theme !== undefined ? { theme: options.theme } : {}),
+  });
+
   // Per-layer color (colormap / window-drag / scale) is owned by layerSync's bindings channel —
   // it resolves a changed ColormapBinding to the layers that reference it and posts setLayerColormap.
 
@@ -200,6 +213,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       // The compute typically finished before init; push the full layer state now that the
       // renderer is live (upsert each active-field layer + the composite).
       layerSync.flushAll();
+      // Catch-up the overlay too: its subscription drops posts pre-ready, and setDataset already ran.
+      sceneSync.flushAll();
       // Catch-up: the pose subscription drops posts while !workerReady, so replay the current pose
       // once — a drag during worker init updates the store + gnomon but would otherwise be lost.
       worker.postMessage({
@@ -325,6 +340,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     disposePointer?.();
     disposeResize?.();
     layerSync.dispose();
+    sceneSync.dispose();
     unsubscribePose();
     unsubscribeContinuous();
     unsubscribeStep();

@@ -4,10 +4,14 @@ export {
   createPerspectiveCamera,
 } from "./camera.ts";
 export { type ColormapName, colormapColor, type Rgb } from "./colormap.ts";
+export { type NiceTicks, niceTicks } from "./grid/niceTicks.ts";
+export { createSceneOverlay, type SceneOverlay } from "./grid/overlayScene.ts";
 export type {
   CameraPose,
+  OverlayAxis,
   RenderWorkerRequest,
   RenderWorkerResponse,
+  SceneOverlayConfig,
   WindowLevel,
 } from "./messages.ts";
 export {

@@ -16,12 +16,21 @@ function formatPose(pose: CameraPose): string {
   return `az ${az}°  el ${el}°  d ${pose.distance.toFixed(2)}  ·  [${target}]`;
 }
 
-// World axes seen from the camera = the inverse of the camera orientation. With fixed world-up the
-// camera is rotateY(azimuth)·rotateX(elevation), so the gnomon (the inverse) is rotateX(-el)·rotateY(-az).
-function gnomonTransform(pose: CameraPose): string {
-  const x = (-pose.elevation * RAD_TO_DEG).toFixed(2);
-  const y = (-pose.azimuth * RAD_TO_DEG).toFixed(2);
-  return `rotateX(${x}deg) rotateY(${y}deg)`;
+// The gnomon shows the world axes as the camera sees them. The arms are a fixed CSS triad — is-x→right,
+// is-y→into-screen, is-z→up at rest (the .is-* CSS) — and this shared transform rotates that triad into
+// the current view. It's the world→screen rotation of the z-up orbit camera (camera.ts applyPose),
+// written straight as matrix3d so it tracks the camera exactly: a rotateX·rotateY Euler form mirrored x/y
+// and spun azimuth backwards under z-up. Columns map the arms' scene-space directions (is-x=+x̂,
+// is-y=−ẑ, is-z=−ŷ) onto each world axis' screen projection; CSS y is down, so the up component flips.
+export function gnomonTransform(pose: CameraPose): string {
+  const sa = Math.sin(pose.azimuth);
+  const ca = Math.cos(pose.azimuth);
+  const se = Math.sin(pose.elevation);
+  const ce = Math.cos(pose.elevation);
+  // Column-major (det +1, a proper rotation): col1 = world-x dir, −col3 = world-y dir, −col2 = world-z
+  // dir, all in CSS coords. screenRight=(−sa,ca,0), screenUp=(−se·ca,−se·sa,ce), screenBack toward viewer.
+  const m = [-sa, se * ca, ce * ca, 0, 0, ce, -se, 0, -ca, -se * sa, -ce * sa, 0, 0, 0, 0, 1];
+  return `matrix3d(${m.map((v) => v.toFixed(5)).join(", ")})`;
 }
 
 export function installCameraChrome(
@@ -59,9 +68,18 @@ export function installCameraChrome(
   applyVisible(uiStore.getState().isUiVisible);
   const unsubUi = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
 
+  // The gnomon is independently toggleable (the Scene panel's "Gnomon" control) so it can be hidden
+  // once the in-scene 3D axes suffice; the pose readout stays. Driven by the store overlay slice.
+  const applyGnomon = (show: boolean): void => {
+    gnomon.hidden = !show;
+  };
+  applyGnomon(store.getState().overlay.showGnomon);
+  const unsubGnomon = store.subscribe((s) => s.overlay.showGnomon, applyGnomon);
+
   return () => {
     unsubPose();
     unsubUi();
+    unsubGnomon();
     container.remove();
   };
 }

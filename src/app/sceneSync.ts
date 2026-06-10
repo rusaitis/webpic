@@ -1,0 +1,123 @@
+import type { GridInfo } from "@containers/field_dataset.ts";
+import type { OverlayAxis, RenderWorkerRequest, SceneOverlayConfig } from "@render";
+import type { Rgba01, Theme } from "@schema/theme.ts";
+import type { OverlayState, SimulationStore } from "@store";
+
+// Bridges the store's scene-overlay flags + the dataset GridInfo + the resolved theme palette to the
+// render worker's setSceneOverlay (app-only: it imports both @store and @render, which the DAG forbids
+// either of them from doing). Low-frequency: a toggle, a density change, or a dataset swap re-posts the
+// full config. Gated on `workerReady` with a flushAll catch-up replayed on the worker `ready` message,
+// mirroring layerSync — `setDataset` runs before `ready`, so the initial overlay rides the catch-up.
+
+const SCENE_REQUEST_ID = 8;
+const GRID_MAJOR_OPACITY = 0.4;
+const GRID_MINOR_OPACITY = 0.15;
+
+const AXIS_NAMES = ["x", "y", "z"] as const;
+
+// Fallback palette = the corner gnomon's CSS colors (ui/theme/styles.ts) so the in-scene axes agree
+// with the HUD when no theme is loaded; grid/label fall back to the muted foreground.
+const FALLBACK_AXIS_X: Rgba01 = [0.878, 0.424, 0.459, 1]; // #e06c75
+const FALLBACK_AXIS_Y: Rgba01 = [0.596, 0.765, 0.475, 1]; // #98c379
+const FALLBACK_AXIS_Z: Rgba01 = [0.38, 0.686, 0.937, 1]; // #61afef
+const FALLBACK_GRID: Rgba01 = [0.784, 0.816, 0.847, 0.16]; // ≈ --webpic-border
+const FALLBACK_LABEL: Rgba01 = [0.784, 0.816, 0.847, 1]; // #c8d0d8 foreground
+
+export interface ResolvedOverlayColors {
+  readonly grid: Rgba01;
+  readonly axes: { readonly x: Rgba01; readonly y: Rgba01; readonly z: Rgba01 };
+  readonly label: Rgba01;
+}
+
+/** Resolve overlay colors from a theme, per-channel, falling back to the gnomon palette. */
+export function resolveOverlayColors(theme?: Theme): ResolvedOverlayColors {
+  return {
+    grid: theme?.colors.grid ?? FALLBACK_GRID,
+    axes: {
+      x: theme?.axes.x ?? FALLBACK_AXIS_X,
+      y: theme?.axes.y ?? FALLBACK_AXIS_Y,
+      z: theme?.axes.z ?? FALLBACK_AXIS_Z,
+    },
+    label: theme?.colors.text ?? FALLBACK_LABEL,
+  };
+}
+
+// One field axis → its physical extent (code units) or, when the grid lacks usable spacing, voxel
+// indices [0, dim]. Lower-rank grids pad to a degenerate unit axis so the 3-tuple is always complete.
+function buildAxis(grid: GridInfo | null, index: number): OverlayAxis {
+  const dim = grid?.dimensions[index] ?? 1;
+  const spacing = grid?.spacing[index];
+  const origin = grid?.origin[index] ?? 0;
+  const label = grid?.axisLabels[index] ?? AXIS_NAMES[index] ?? `axis${index}`;
+  const usePhysical = spacing !== undefined && Number.isFinite(spacing) && spacing > 0;
+  return {
+    bounds: usePhysical ? [origin, origin + spacing * dim] : [0, dim],
+    dimension: dim,
+    label,
+  };
+}
+
+/** Assemble the worker overlay config from the store flags, the dataset grid, and resolved colors.
+ *  Pure — no DOM, no worker — so the bounds math and color resolution are unit-tested directly. */
+export function buildOverlayPayload(
+  overlay: OverlayState,
+  grid: GridInfo | null,
+  colors: ResolvedOverlayColors,
+): SceneOverlayConfig {
+  return {
+    axes: [buildAxis(grid, 0), buildAxis(grid, 1), buildAxis(grid, 2)],
+    planes: { ...overlay.planes },
+    planePosition: "center",
+    show: { grid: overlay.showGrid, axes: overlay.showAxes, labels: overlay.showLabels },
+    grid: {
+      color: colors.grid,
+      majorOpacity: GRID_MAJOR_OPACITY,
+      minorOpacity: GRID_MINOR_OPACITY,
+    },
+    axisColors: colors.axes,
+    labelColor: colors.label,
+    tick: { targetCount: overlay.gridDivisions },
+  };
+}
+
+export interface SceneSyncOptions {
+  readonly store: SimulationStore;
+  readonly worker: Pick<Worker, "postMessage">;
+  readonly isReady: () => boolean;
+  /** Static per session — colors are resolved once at install (there's no runtime theme swap yet). */
+  readonly theme?: Theme;
+}
+
+export interface SceneSync {
+  /** Post the current overlay state (catch-up on the worker `ready`, mirroring layerSync.flushAll). */
+  readonly flushAll: () => void;
+  readonly dispose: () => void;
+}
+
+export function installSceneSync(opts: SceneSyncOptions): SceneSync {
+  const { store, worker, isReady } = opts;
+  const colors = resolveOverlayColors(opts.theme);
+
+  const post = (): void => {
+    if (!isReady()) return;
+    const { overlay, dataset } = store.getState();
+    const request: RenderWorkerRequest = {
+      kind: "setSceneOverlay",
+      requestId: SCENE_REQUEST_ID,
+      overlay: buildOverlayPayload(overlay, dataset?.grid ?? null, colors),
+    };
+    worker.postMessage(request);
+  };
+
+  // Overlay flags + density (one selector, identity-skipped in the store) and dataset (bounds change).
+  const unsubscribeOverlay = store.subscribe((state) => state.overlay, post);
+  const unsubscribeDataset = store.subscribe((state) => state.dataset, post);
+
+  return {
+    flushAll: post,
+    dispose() {
+      unsubscribeOverlay();
+      unsubscribeDataset();
+    },
+  };
+}

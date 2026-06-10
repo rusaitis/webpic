@@ -8,9 +8,10 @@ import type { CameraPose } from "./messages.ts";
 
 // Render-side default, applied at init before any pose streams in (the store's pose subscription
 // fires only on change). Mirrors store/camera.ts DEFAULT_POSE — keep the two in sync.
+// z-up 3/4 view: position ≈ (1.50, 1.50, 1.10) looking at the origin, +z up.
 export const DEFAULT_POSE: CameraPose = {
   target: [0, 0, 0],
-  azimuth: 0.7188,
+  azimuth: Math.PI / 4,
   elevation: 0.4773,
   distance: 2.3937,
 };
@@ -36,18 +37,19 @@ export function createOrthographicCamera(): OrthographicCamera {
   return camera;
 }
 
-// Orbit-spherical → THREE perspective camera. y-up: azimuth sweeps the xz-plane (0 → +z), elevation
-// lifts toward +y. The raymarch shader reads cameraPosition/modelWorldMatrixInverse, which the
-// renderer refreshes during render(), so a repaint right after this is sufficient.
+// Orbit-spherical → THREE perspective camera. z-up (world=physical): azimuth sweeps the xy-plane
+// (0 → +x, increasing toward +y, CCW about +z), elevation lifts toward +z. The raymarch shader reads
+// cameraPosition/modelWorldMatrixInverse, refreshed during render(), so a repaint right after this is
+// sufficient.
 export function applyPose(camera: PerspectiveCamera, pose: CameraPose, aspect = 1): void {
   const [tx, ty, tz] = pose.target;
   const ce = Math.cos(pose.elevation);
   camera.position.set(
-    tx + pose.distance * ce * Math.sin(pose.azimuth),
-    ty + pose.distance * Math.sin(pose.elevation),
-    tz + pose.distance * ce * Math.cos(pose.azimuth),
+    tx + pose.distance * ce * Math.cos(pose.azimuth),
+    ty + pose.distance * ce * Math.sin(pose.azimuth),
+    tz + pose.distance * Math.sin(pose.elevation),
   );
-  camera.up.set(0, 1, 0);
+  camera.up.set(0, 0, 1);
   camera.lookAt(tx, ty, tz);
   if (camera.aspect !== aspect) {
     camera.aspect = aspect;

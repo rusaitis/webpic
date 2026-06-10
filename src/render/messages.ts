@@ -1,4 +1,5 @@
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
+import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { SliceAxis } from "./sliceScene.ts";
 
@@ -25,6 +26,36 @@ export interface CameraPose {
   readonly azimuth: number;
   readonly elevation: number;
   readonly distance: number;
+}
+
+// One field axis's physical extent + sample count + name, for the scene overlay's labeled grid/axes.
+// FIELD-axis order (0/1/2 = pypic GridInfo). `bounds` are inclusive [min, max] in code units (the app
+// derives them from GridInfo origin/spacing, or falls back to voxel [0, dim]); the worker maps field
+// axes → THREE xyz internally (overlayRemap.fieldAxisToThree) and treats the numbers opaquely.
+export interface OverlayAxis {
+  readonly bounds: readonly [number, number];
+  readonly dimension: number;
+  readonly label: string; // GridInfo.axisLabels[axis], e.g. "x" / "r" / "z"
+}
+
+// The themeable 3D axes + equatorial grid overlay (composited last, over the volume, perspective
+// camera). The app assembles it from the store's overlay flags + the dataset GridInfo + the resolved
+// theme palette; the worker rebuilds its scene on receipt. Plane flags are in THREE terms (xy is the
+// horizontal/equatorial plane under the z-up camera); axis colors are THREE-axis-indexed so they agree
+// with the corner gnomon, while each axis's name + tick labels come from the field axis it maps to.
+export interface SceneOverlayConfig {
+  readonly axes: readonly [OverlayAxis, OverlayAxis, OverlayAxis];
+  readonly planes: { readonly xy: boolean; readonly yz: boolean; readonly xz: boolean };
+  readonly planePosition: "center" | "min" | "max"; // where the held (out-of-plane) axis sits
+  readonly show: { readonly grid: boolean; readonly axes: boolean; readonly labels: boolean };
+  readonly grid: {
+    readonly color: Rgba01;
+    readonly majorOpacity: number;
+    readonly minorOpacity: number;
+  };
+  readonly axisColors: { readonly x: Rgba01; readonly y: Rgba01; readonly z: Rgba01 };
+  readonly labelColor: Rgba01;
+  readonly tick: { readonly targetCount: number };
 }
 
 export type RenderWorkerRequest =
@@ -107,6 +138,13 @@ export type RenderWorkerRequest =
   // exit-gate workload). Off by default — timing is sampled only while continuous, so on-demand
   // interactive frames skip the per-frame GPU sync.
   | { readonly kind: "setContinuous"; readonly requestId: number; readonly continuous: boolean }
+  // Themeable 3D axes + equatorial grid overlay. Rebuilds the overlay scene from `overlay`; `null`
+  // clears it. Low-frequency (toggles / dataset swaps), so it carries the full config each time.
+  | {
+      readonly kind: "setSceneOverlay";
+      readonly requestId: number;
+      readonly overlay: SceneOverlayConfig | null;
+    }
   // Time-series streaming (M2.10a): the data worker's end of a private MessageChannel. The worker
   // reads + computes each scrubbed step off-main and posts StreamStepMessage (from @data) over this
   // port, so the 64 MiB scalar flows data → render with no main-thread hop. Stored on receipt; the

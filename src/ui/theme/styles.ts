@@ -142,7 +142,7 @@ const UI_CSS = `
   transform-origin: 50% 50%; }
 .webpic-gnomon_axis { position: absolute; top: 50%; left: 50%; width: 24px; height: 2px;
   transform-origin: 0 50%; border-radius: 1px; }
-.webpic-gnomon_axis.is-x { transform: rotateZ(0deg); background: #e06c75; }
-.webpic-gnomon_axis.is-y { transform: rotateZ(-90deg); background: #98c379; }
-.webpic-gnomon_axis.is-z { transform: rotateY(90deg); background: #61afef; }
+.webpic-gnomon_axis.is-x { transform: rotateZ(0deg); background: #e06c75; }   /* +x right */
+.webpic-gnomon_axis.is-y { transform: rotateY(90deg); background: #98c379; }  /* +y into screen */
+.webpic-gnomon_axis.is-z { transform: rotateZ(-90deg); background: #61afef; } /* +z up (z-up world) */
 `;

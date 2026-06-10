@@ -160,14 +160,15 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   const uLayerOpacity = uniform(opts.opacity ?? 1);
   const uShade = uniform(opts.shaded ? 1 : 0); // live Phong toggle; 0 ⇒ the gradient taps never run
 
-  // Texture-space voxel step for central-difference gradient taps. Texture axes are (width, height,
-  // depth) = field axes (2, 1, 0) reversed (volumeTexture C-order), so the step per texPos axis is
-  // 1/that-axis-size. ClampToEdge means boundary taps saturate (gradient → 0 at the very face).
+  // Object-space voxel step for central-difference gradient taps. Under the z-up world=physical
+  // convention the volume is sampled at the .zyx swizzle (see sampleRawAt), so object axis i ↔ field
+  // axis i — object x's one-voxel step is 1/shape[0] (field axis 0), etc. ClampToEdge means boundary
+  // taps saturate (gradient → 0 at the very face).
   const fieldShape = opts.field.shape;
   const voxelStep = vec3(
-    1 / (fieldShape[2] ?? 1),
-    1 / (fieldShape[1] ?? 1),
     1 / (fieldShape[0] ?? 1),
+    1 / (fieldShape[1] ?? 1),
+    1 / (fieldShape[2] ?? 1),
   );
 
   const rgba = Fn(() => {
@@ -196,7 +197,11 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     // accumulation or the gradient (a non-finite α drives the un-premultiply divide to a magenta
     // fragment). `|raw| < 1e30` is false for either, so both swap to 0. Shared by the sample + the taps.
     const sampleRawAt = (p: Node<"vec3">): Node<"float"> => {
-      const raw = volume.node.sample(p).r; // one swappable node so a streamed step re-binds all taps
+      // z-up, world=physical: object axis i ↔ field axis i (identity, right-handed). The texture is
+      // C-order (object x↔field 2, y↔1, z↔0), so its built-in reversal is undone by sampling at the
+      // .zyx swizzle of the object-space position — reversal∘reversal = identity. One swappable node
+      // so a streamed step re-binds the main sample + all 6 gradient taps that share this helper.
+      const raw = volume.node.sample(p.zyx).r;
       return raw.abs().lessThan(float(1e30)).select(raw, float(0));
     };
 
@@ -253,7 +258,9 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
         const texPos = rayOrigin.add(rayDir.mul(tCur)).add(0.5);
         // norm.toT is monotonic in value, so a brick whose max maps below EMPTY_T has every sample
         // below it: skipping it can't change the pixel (window-aware, recomputed live).
-        const occupied = norm.toT(texture3D(tex.texture, texPos).r).greaterThan(EMPTY_T);
+        // Same .zyx swizzle as the volume sample so the brick lookup addresses the physical brick the
+        // ray occupies (the skip grid is built + uploaded C-order, identical to the volume texture).
+        const occupied = norm.toT(texture3D(tex.texture, texPos.zyx).r).greaterThan(EMPTY_T);
         If(occupied, () => {
           accumulate(texPos);
           tCur.addAssign(dt);

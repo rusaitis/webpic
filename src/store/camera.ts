@@ -7,18 +7,18 @@ import type { Vec3 } from "@schema/types.ts";
 
 export interface CameraPose {
   readonly target: Vec3; // look-at point, scene/code units
-  readonly azimuth: number; // radians; 0 looks from +z toward the target, increasing toward +x
-  readonly elevation: number; // radians from the xz-plane; clamp to ±ELEVATION_LIMIT
+  readonly azimuth: number; // radians; 0 looks from +x toward the target, increasing toward +y (CCW about +z)
+  readonly elevation: number; // radians from the xy-plane toward +z; clamp to ±ELEVATION_LIMIT
   readonly distance: number; // > 0, camera → target
 }
 
-// One tick shy of the pole, where azimuth degenerates and the up-axis flips. 4b clamps to this.
+// One tick shy of the ±z pole, where azimuth degenerates and the up-axis flips. 4b clamps to this.
 export const ELEVATION_LIMIT = Math.PI / 2 - 1e-3;
 
-// Reproduces the legacy static view — position (1.4, 1.1, 1.6) looking at the origin — to ~1e-3.
+// z-up 3/4 view — position ≈ (1.50, 1.50, 1.10) looking at the origin, +z up.
 export const DEFAULT_POSE: CameraPose = {
   target: [0, 0, 0],
-  azimuth: 0.7188,
+  azimuth: Math.PI / 4,
   elevation: 0.4773,
   distance: 2.3937,
 };
@@ -67,8 +67,9 @@ export function dollyPose(pose: CameraPose, wheelDeltaY: number): CameraPose {
 }
 
 // Shift-drag → pan: slide the look-at target across the view plane, scaled by distance so the world
-// tracks the cursor at any zoom. Basis from the pose (worldUp = +y): screenRight is the horizontal
-// perpendicular to the view azimuth; screenUp reduces to +y when the view is level (elevation 0).
+// tracks the cursor at any zoom. z-up basis (worldUp = +z): screenRight = (−sa, ca, 0) (horizontal,
+// ⟂ to the view azimuth); screenUp = (−ca·se, −sa·se, ce) (reduces to +z when level). Drag-right moves
+// the world right ⇒ target slides −screenRight; drag-down moves it down ⇒ target slides +screenUp.
 export function panPose(pose: CameraPose, dxPx: number, dyPx: number): CameraPose {
   const ce = Math.cos(pose.elevation);
   const se = Math.sin(pose.elevation);
@@ -79,7 +80,7 @@ export function panPose(pose: CameraPose, dxPx: number, dyPx: number): CameraPos
   const ku = dyPx * scale; // drag down pushes the world down ⇒ target slides up
   const [tx, ty, tz] = pose.target;
   return {
-    target: [tx + kr * ca - ku * se * sa, ty + ku * ce, tz - kr * sa - ku * se * ca],
+    target: [tx - kr * sa - ku * ca * se, ty + kr * ca - ku * sa * se, tz + ku * ce],
     azimuth: pose.azimuth,
     elevation: pose.elevation,
     distance: pose.distance,

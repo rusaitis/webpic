@@ -8,6 +8,8 @@ import { type CameraPose, DEFAULT_POSE } from "./camera.ts";
 import * as colormapOps from "./colormap.ts";
 import type { Layer, LayerKind, LayerSpec } from "./layers.ts";
 import * as layerOps from "./layers.ts";
+import * as overlayOps from "./overlay.ts";
+import { DEFAULT_OVERLAY, type GridPlane, type OverlayState } from "./overlay.ts";
 
 export type { WindowLevel };
 
@@ -60,6 +62,9 @@ export interface SimulationState {
   // the selected one. Pre-M4 the store auto-seeds exactly one layer for the active field.
   readonly layers: readonly Layer[];
   readonly selectedLayerId: string | null;
+  // Scene overlay (axes + grid + gnomon) display prefs — user-owned, independent of the dataset. The
+  // app forwards the render-bound parts to the worker (sceneSync); cameraChrome consumes showGnomon.
+  readonly overlay: OverlayState;
   readonly status: SimulationStatus;
   readonly error: string | null;
   // Render diagnostics (M2.8): the latest GPU frame time + its clock, and the panel's explicit
@@ -83,6 +88,12 @@ export interface SimulationState {
   setLayerVisible(id: string, visible: boolean): void;
   setLayerOpacity(id: string, opacity: number): void;
   setLayerShading(id: string, shaded: boolean): void;
+  setOverlayShowGrid(on: boolean): void;
+  setOverlayPlane(plane: GridPlane, on: boolean): void;
+  setOverlayShowAxes(on: boolean): void;
+  setOverlayShowLabels(on: boolean): void;
+  setOverlayShowGnomon(on: boolean): void;
+  setGridDivisions(n: number): void;
   setFrameTiming(ms: number, clock: FrameClock): void;
   setMeasuringContinuous(on: boolean): void;
 }
@@ -219,6 +230,7 @@ export function createSimulationStore() {
         availableSteps: [],
         layers: [],
         selectedLayerId: null,
+        overlay: DEFAULT_OVERLAY,
         status: "empty",
         error: null,
         frameTimeMs: null,
@@ -346,6 +358,42 @@ export function createSimulationStore() {
           const next = layerOps.setLayerShading(layers, id, shaded);
           if (next === layers) return;
           set({ layers: next });
+        },
+        setOverlayShowGrid(on) {
+          const { overlay } = get();
+          const next = overlayOps.setShowGrid(overlay, on);
+          if (next === overlay) return;
+          set({ overlay: next });
+        },
+        setOverlayPlane(plane, on) {
+          const { overlay } = get();
+          const next = overlayOps.setPlane(overlay, plane, on);
+          if (next === overlay) return;
+          set({ overlay: next });
+        },
+        setOverlayShowAxes(on) {
+          const { overlay } = get();
+          const next = overlayOps.setShowAxes(overlay, on);
+          if (next === overlay) return;
+          set({ overlay: next });
+        },
+        setOverlayShowLabels(on) {
+          const { overlay } = get();
+          const next = overlayOps.setShowLabels(overlay, on);
+          if (next === overlay) return;
+          set({ overlay: next });
+        },
+        setOverlayShowGnomon(on) {
+          const { overlay } = get();
+          const next = overlayOps.setShowGnomon(overlay, on);
+          if (next === overlay) return;
+          set({ overlay: next });
+        },
+        setGridDivisions(n) {
+          const { overlay } = get();
+          const next = overlayOps.setGridDivisions(overlay, n);
+          if (next === overlay) return;
+          set({ overlay: next });
         },
         setFrameTiming(ms, clock) {
           const { frameTimeMs, frameTimeClock } = get();

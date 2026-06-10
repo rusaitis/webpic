@@ -61,27 +61,29 @@ describe("dollyPose", () => {
 
 describe("panPose", () => {
   it("moves only the target, scaled by distance", () => {
+    // At azimuth 0 a horizontal drag slides the target along world-y (screenRight = (0,1,0)).
     const near = panPose({ ...LEVEL, distance: 1 }, 100, 0);
     const far = panPose({ ...LEVEL, distance: 4 }, 100, 0);
-    const dxNear = near.target[0] - LEVEL.target[0];
-    const dxFar = far.target[0] - LEVEL.target[0];
+    const dNear = near.target[1] - LEVEL.target[1];
+    const dFar = far.target[1] - LEVEL.target[1];
     expect(far.azimuth).toBe(LEVEL.azimuth);
     expect(far.elevation).toBe(LEVEL.elevation);
     expect(far.distance).toBe(LEVEL.distance);
-    expect(Math.abs(dxFar)).toBeCloseTo(4 * Math.abs(dxNear), 12); // distance-proportional
+    expect(Math.abs(dFar)).toBeCloseTo(4 * Math.abs(dNear), 12); // distance-proportional
   });
 
-  it("at level elevation a vertical drag moves target along world-y only", () => {
-    const next = panPose(LEVEL, 0, 60); // azimuth 0, elevation 0
+  it("at level elevation a vertical drag moves target along world-z only", () => {
+    const next = panPose(LEVEL, 0, 60); // azimuth 0, elevation 0 ⇒ screenUp = +z
     expect(next.target[0]).toBeCloseTo(LEVEL.target[0], 12);
-    expect(next.target[2]).toBeCloseTo(LEVEL.target[2], 12);
-    expect(next.target[1]).toBeGreaterThan(LEVEL.target[1]); // drag down ⇒ target rises
+    expect(next.target[1]).toBeCloseTo(LEVEL.target[1], 12);
+    expect(next.target[2]).toBeGreaterThan(LEVEL.target[2]); // drag down ⇒ target rises (+z)
   });
 
-  it("at level elevation a horizontal drag stays in the xz-plane", () => {
-    const next = panPose(LEVEL, 80, 0); // azimuth 0 ⇒ screenRight = +x
-    expect(next.target[1]).toBeCloseTo(LEVEL.target[1], 12);
-    expect(next.target[0]).not.toBeCloseTo(LEVEL.target[0], 6);
-    expect(next.target[2]).toBeCloseTo(LEVEL.target[2], 12); // azimuth 0 ⇒ no z component
+  it("at level elevation a horizontal drag stays in the xy-plane, world tracking the cursor", () => {
+    const next = panPose(LEVEL, 80, 0); // drag right; azimuth 0 ⇒ screenRight = (0,1,0)
+    expect(next.target[2]).toBeCloseTo(LEVEL.target[2], 12); // z held (horizontal plane)
+    expect(next.target[0]).toBeCloseTo(LEVEL.target[0], 12); // azimuth 0 ⇒ no x component
+    // Grab-drag: drag right pushes the world right, so the target slides left along −screenRight (−y).
+    expect(next.target[1]).toBeLessThan(LEVEL.target[1]);
   });
 });
