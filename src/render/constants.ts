@@ -3,3 +3,6 @@
 // but must stay stable.
 export const BACKGROUND_COLOR = 0x101820;
 export const FRUSTUM = { left: -1, right: 1, top: 1, bottom: -1, near: 0.1, far: 10 } as const;
+// Raymarch step fraction while a camera gesture is live (setInteracting): ~0.4 keeps the volume
+// readable mid-drag at ~2.5× the frame headroom; the settle repaint restores full quality.
+export const INTERACTION_STEP_SCALE = 0.4;

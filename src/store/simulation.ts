@@ -52,6 +52,13 @@ export interface SimulationState {
   // Orbit camera pose. Non-nullable — DEFAULT_POSE is always valid; the app streams it to the
   // render worker. M2.4b's pointer controls dispatch setCameraPose; the worker derives the camera.
   readonly cameraPose: CameraPose;
+  // True while a camera gesture is live (drag, glide, tween, wheel trail). The app forwards it so
+  // the worker can march volumes coarser mid-interaction and repaint full quality on settle.
+  readonly isCameraInteracting: boolean;
+  // One-shot fly-to request (gnomon axis snap, future view presets). ui/pointerCamera — the owner
+  // of the camera animation loop — consumes it: eases the pose over and clears the request. A fresh
+  // wrapper object per request so repeating the same view re-fires the subscription.
+  readonly cameraFlyRequest: { readonly pose: CameraPose } | null;
   // Time cursor (M2.9): the active timestep + the discrete domain the scrub control walks. The
   // reader's availableTimesteps seeds `availableSteps` (setAvailableSteps); setStep moves the cursor,
   // tracking the loaded dataset's `step`. Pre-M2.10 nothing re-reads on a step change — this lands
@@ -79,6 +86,8 @@ export interface SimulationState {
   setBindingWindow(id: string, center: number, width: number): void;
   setBindingScale(id: string, scale: ColorScale): void;
   setCameraPose(pose: CameraPose): void;
+  setCameraInteracting(interacting: boolean): void;
+  requestCameraFly(pose: CameraPose | null): void;
   setStep(step: number): void;
   setAvailableSteps(steps: readonly number[]): void;
   addLayer(spec: LayerSpec): void;
@@ -226,6 +235,8 @@ export function createSimulationStore() {
         dataRange: null,
         colormapBindings: {},
         cameraPose: DEFAULT_POSE,
+        isCameraInteracting: false,
+        cameraFlyRequest: null,
         currentStep: 0,
         availableSteps: [],
         layers: [],
@@ -282,6 +293,13 @@ export function createSimulationStore() {
         },
         setCameraPose(pose) {
           set({ cameraPose: pose }); // fresh object each call so subscribeWithSelector fires
+        },
+        setCameraInteracting(interacting) {
+          if (interacting === get().isCameraInteracting) return; // unchanged → no fire
+          set({ isCameraInteracting: interacting });
+        },
+        requestCameraFly(pose) {
+          set({ cameraFlyRequest: pose === null ? null : { pose } });
         },
         setStep(step) {
           const { currentStep, availableSteps } = get();

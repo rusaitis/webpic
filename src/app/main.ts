@@ -15,6 +15,7 @@ const CONTINUOUS_REQUEST_ID = 4;
 const RESIZE_REQUEST_ID = 5;
 const PAIR_REQUEST_ID = 6;
 const STREAM_REQUEST_ID = 7;
+const INTERACTING_REQUEST_ID = 8;
 // Cap the drawing-buffer scale: a raymarcher's cost is per physical pixel, so honor Retina (2×)
 // but don't quadruple the work on 3×+ panels.
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -73,6 +74,9 @@ export interface BootstrapOptions {
   readonly uiParent?: HTMLElement;
   /** Fires when the worker reports its first rendered frame — the perf-gate signal. */
   readonly onFirstFrame?: () => void;
+  /** Render the RGB test triangle while no layers exist (`?debugScene`) — a "renderer alive,
+   *  data missing" diagnostic. Off by default: the boot frame is the bare clear color. */
+  readonly debugScene?: boolean;
 }
 
 export function bootstrap(options: BootstrapOptions = {}): () => void {
@@ -183,6 +187,21 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
           pose,
         };
         worker.postMessage(request);
+      }
+    },
+  );
+
+  // Camera-gesture liveness → worker interaction quality (coarser volume march while live). Same
+  // cheap-message pattern as pose; the false edge's repaint restores full quality.
+  const unsubscribeInteracting = store.subscribe(
+    (state) => state.isCameraInteracting,
+    (interacting) => {
+      if (workerReady) {
+        worker.postMessage({
+          kind: "setInteracting",
+          requestId: INTERACTING_REQUEST_ID,
+          interacting,
+        } satisfies RenderWorkerRequest);
       }
     },
   );
@@ -301,6 +320,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     width: initial.width,
     height: initial.height,
     devicePixelRatio: currentDevicePixelRatio(),
+    ...(options.debugScene === true ? { debugScene: true } : {}),
   };
   worker.postMessage(request, [offscreen]); // transfer the OffscreenCanvas
 
@@ -342,6 +362,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     layerSync.dispose();
     sceneSync.dispose();
     unsubscribePose();
+    unsubscribeInteracting();
     unsubscribeContinuous();
     unsubscribeStep();
     unsubscribeActiveField();

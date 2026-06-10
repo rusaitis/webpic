@@ -87,9 +87,8 @@ function makeLabelTexture(
   ctx.fillText(text, width / 2, height / 2);
 
   const tex = new CanvasTexture(canvas);
-  // WebGPU/TSL sampling via uv() doesn't apply the GL-era vertical flip a CanvasTexture assumes, so
-  // without this the rendered label text is upside-down/mirrored. flipY=false aligns canvas-y with uv-y.
-  tex.flipY = false;
+  // Default flipY upload: it compensated the present-quad's vertical flip while that bug lived
+  // (renderer.ts); with the present path upright, the GL-convention default reads correctly.
   tex.minFilter = LinearFilter;
   tex.magFilter = LinearFilter;
   tex.generateMipmaps = false;

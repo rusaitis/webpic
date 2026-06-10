@@ -68,6 +68,9 @@ export type RenderWorkerRequest =
       readonly width: number;
       readonly height: number;
       readonly devicePixelRatio: number;
+      // Opt into the RGB boot/test triangle as the empty-layers frame (`?debugScene`, parity test).
+      // Off by default: the user-facing boot frame is the bare clear color, not a placeholder flash.
+      readonly debugScene?: boolean;
     }
   | { readonly kind: "renderFrame"; readonly requestId: number }
   // Viewport changed (window resize / DPR change). Logical size + DPR; the worker re-sizes the
@@ -138,6 +141,9 @@ export type RenderWorkerRequest =
   // exit-gate workload). Off by default — timing is sampled only while continuous, so on-demand
   // interactive frames skip the per-frame GPU sync.
   | { readonly kind: "setContinuous"; readonly requestId: number; readonly continuous: boolean }
+  // Camera-gesture liveness (drag/glide/tween/wheel): volumes march coarser while true (a uniform
+  // flip, no rebuild) and the false edge repaints at full quality — interaction-time responsiveness.
+  | { readonly kind: "setInteracting"; readonly requestId: number; readonly interacting: boolean }
   // Themeable 3D axes + equatorial grid overlay. Rebuilds the overlay scene from `overlay`; `null`
   // clears it. Low-frequency (toggles / dataset swaps), so it carries the full config each time.
   | {

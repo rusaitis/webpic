@@ -17,6 +17,7 @@ export const DEFAULT_POSE: CameraPose = {
 };
 
 // Perspective camera for the volume raymarcher. fov/near/far match the legacy raymarchScene camera.
+// The 45° vertical fov restates store/camera.ts CAMERA_FOV_DEG (zoom-to-cursor ray math) — keep in sync.
 export function createPerspectiveCamera(aspect = 1): PerspectiveCamera {
   return new PerspectiveCamera(45, aspect, 0.01, 10);
 }

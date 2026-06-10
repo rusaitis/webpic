@@ -1,6 +1,6 @@
-import { createSimulationStore, createUiStore, DEFAULT_POSE } from "@store";
+import { createSimulationStore, createUiStore, DEFAULT_POSE, ELEVATION_LIMIT } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
-import { gnomonTransform, installCameraChrome } from "./cameraChrome.ts";
+import { gnomonCounterTransform, gnomonTransform, installCameraChrome } from "./cameraChrome.ts";
 
 const disposers: Array<() => void> = [];
 afterEach(() => {
@@ -55,6 +55,32 @@ describe("installCameraChrome", () => {
     dispose();
     expect(parent.querySelector(".webpic-chrome")).toBeNull();
   });
+
+  it("renders six ±axis tips whose clicks dispatch axis-view fly requests", () => {
+    const { store, chrome } = setup();
+    expect(chrome.querySelectorAll(".webpic-gnomon_tip")).toHaveLength(6);
+
+    chrome.querySelector(".webpic-gnomon_tip.is-pz")?.dispatchEvent(new MouseEvent("click"));
+    const top = store.getState().cameraFlyRequest;
+    expect(top?.pose.elevation).toBe(ELEVATION_LIMIT);
+    expect(top?.pose.azimuth).toBe(DEFAULT_POSE.azimuth); // ±z keeps the current azimuth
+    expect(top?.pose.distance).toBe(DEFAULT_POSE.distance); // framing preserved
+
+    chrome.querySelector(".webpic-gnomon_tip.is-px")?.dispatchEvent(new MouseEvent("click"));
+    const side = store.getState().cameraFlyRequest;
+    expect(side?.pose.azimuth).toBe(0);
+    expect(side?.pose.elevation).toBe(0);
+  });
+
+  it("keeps the tips screen-facing: tip transforms carry the counter-rotation", () => {
+    const { store, chrome } = setup();
+    store
+      .getState()
+      .setCameraPose({ target: [0, 0, 0], azimuth: 0.7, elevation: 0.4, distance: 2 });
+    const tip = chrome.querySelector<HTMLElement>(".webpic-gnomon_tip.is-px");
+    expect(tip?.style.transform).toContain("translate3d(24px, 0px, 0px)");
+    expect(tip?.style.transform).toContain(gnomonCounterTransform(store.getState().cameraPose));
+  });
 });
 
 // The gnomon must show the world axes exactly as the z-up camera projects them. Arms in scene space:
@@ -87,5 +113,20 @@ describe("gnomonTransform", () => {
     expect(len(c1)).toBeCloseTo(1, 4);
     expect(len(c2)).toBeCloseTo(1, 4);
     expect(dot(c1, c2)).toBeCloseTo(0, 4);
+  });
+
+  it("gnomonCounterTransform is its exact inverse (R·R⁻¹ = I on the 3×3 block)", () => {
+    const pose = { target: [0, 0, 0] as const, azimuth: 0.7, elevation: 0.4, distance: 2 };
+    const parse = (s: string): number[] =>
+      (s.match(/matrix3d\(([^)]*)\)/)?.[1] ?? "").split(",").map(Number);
+    const a = parse(gnomonTransform(pose));
+    const b = parse(gnomonCounterTransform(pose));
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 3; c++) {
+        let sum = 0;
+        for (let k = 0; k < 3; k++) sum += (a[r + 4 * k] ?? 0) * (b[k + 4 * c] ?? 0);
+        expect(sum).toBeCloseTo(r === c ? 1 : 0, 4);
+      }
+    }
   });
 });

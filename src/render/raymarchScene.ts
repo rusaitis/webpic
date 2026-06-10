@@ -77,6 +77,10 @@ export interface RaymarchScene {
   setShading(enabled: boolean): void;
   /** Update the per-layer opacity in place (uniform only, no rebuild). */
   setOpacity(opacity: number): void;
+  /** Scale the marched step count in place (uniform only) — interaction-time quality. The march
+   *  always allocates `steps` iterations and Breaks at ceil(steps·scale), so full quality (1) is
+   *  bit-identical to a fixed march. Clamped to (0, 1]. */
+  setStepScale(scale: number): void;
   /** Ping-pong a new timestep's field into the volume in place (no rebuild — time-series scrub).
    *  Returns false when the in-place swap can't apply (shape change, or an empty-space-skip volume
    *  whose acceleration grid would go stale); the caller then rebuilds the scene. */
@@ -159,6 +163,10 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   const uDensity = uniform(opts.density ?? 1);
   const uLayerOpacity = uniform(opts.opacity ?? 1);
   const uShade = uniform(opts.shaded ? 1 : 0); // live Phong toggle; 0 ⇒ the gradient taps never run
+  // Interaction-time quality: the live march count is ceil(steps · scale) — dt stretches to match,
+  // so the emission-absorption integral keeps its meaning at any scale. At 1 the math reduces to
+  // the fixed march exactly (ceil(steps·1) = steps); the WGSL loop bound stays the literal `steps`.
+  const uStepScale = uniform(1);
 
   // Object-space voxel step for central-difference gradient taps. Under the z-up world=physical
   // convention the volume is sampled at the .zyx swizzle (see sampleRawAt), so object axis i ↔ field
@@ -188,7 +196,8 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
 
     const tEntry = max(bounds.x, 0.0); // clamp the entry to the camera
     const tExit = bounds.y;
-    const dt = tExit.sub(tEntry).div(steps).toVar(); // fine step; the lattice is tEntry + k·dt
+    const liveSteps = ceil(float(steps).mul(uStepScale)).max(1.0).toVar();
+    const dt = tExit.sub(tEntry).div(liveSteps).toVar(); // fine step; the lattice is tEntry + k·dt
     const accumColor = vec3(0).toVar();
     const accumAlpha = float(0).toVar();
 
@@ -282,16 +291,22 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
         });
       });
     } else {
-      // Fixed march (default): `pos` steps `steps` times by `dt` from entry to exit. An integer
+      // Fixed march (default): `pos` steps `liveSteps` times by `dt` from entry to exit. An integer
       // counter always terminates, unlike a float `for(i=entry; i<exit; i+=dt)` which can stall when
       // dt falls below the float ULP at entry's world-distance magnitude — a GPU hang → device loss.
+      // The WGSL bound stays the literal `steps`; the counter Breaks at the uniform-driven live count.
       const pos = rayOrigin.add(tEntry.mul(rayDir)).toVar();
+      const stepIndex = float(0).toVar();
       Loop(steps, () => {
+        If(stepIndex.greaterThanEqual(liveSteps), () => {
+          Break(); // interaction-time coarse march reached its live count
+        });
         accumulate(pos.add(0.5));
         If(accumAlpha.greaterThanEqual(EARLY_ALPHA), () => {
           Break(); // opaque enough — remaining samples can't change the pixel
         });
         pos.addAssign(rayDir.mul(dt));
+        stepIndex.addAssign(1);
       });
     }
 
@@ -327,6 +342,9 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     },
     setOpacity(opacity) {
       uLayerOpacity.value = opacity;
+    },
+    setStepScale(scale) {
+      uStepScale.value = Math.min(Math.max(scale, 0.05), 1);
     },
     setField(field) {
       // The empty-space-skip grid is built once from the construction field; a streamed step would

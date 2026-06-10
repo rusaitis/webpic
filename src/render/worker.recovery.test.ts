@@ -12,6 +12,7 @@ const h = vi.hoisted(() => {
   const restoredCbs: Array<(d: unknown) => void> = [];
   const renderers: Array<{
     renderComposite: ReturnType<typeof vi.fn>;
+    compileComposite: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
   }> = [];
   const makeScene = () => ({
@@ -20,6 +21,7 @@ const h = vi.hoisted(() => {
     setColormap: vi.fn(),
     setScale: vi.fn(),
     setOpacity: vi.fn(),
+    setStepScale: vi.fn(),
     dispose: vi.fn(),
   });
   return {
@@ -31,6 +33,7 @@ const h = vi.hoisted(() => {
       const r = {
         renderer: {},
         renderComposite: vi.fn(),
+        compileComposite: vi.fn(async () => {}),
         readCompositePixels: vi.fn(),
         renderOnce: vi.fn(),
         readPixels: vi.fn(),
@@ -116,9 +119,11 @@ it("rebuilds the renderer + every layer scene on the new device when the device 
   expect(h.createRaymarchScene).toHaveBeenCalledTimes(2);
   expect(h.installRenderer.mock.calls[1]?.[0]).toMatchObject({ device: newDevice });
 
-  // The post-restore repaint hits the *new* renderer, not the dead one.
+  // The post-restore repaint hits the *new* renderer, not the dead one — after its pipelines were
+  // warmed (compileComposite precedes the un-pause, so the first restored frame doesn't stall).
   const restored = h.renderers[1];
-  expect(restored?.renderComposite).toHaveBeenCalled();
+  await vi.waitFor(() => expect(restored?.renderComposite).toHaveBeenCalled());
+  expect(restored?.compileComposite).toHaveBeenCalled();
 });
 
 it("posts gpuRecoveryFailed and does not rebuild on a terminal loss", () => {

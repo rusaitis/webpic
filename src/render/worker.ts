@@ -8,6 +8,7 @@ import {
   createPerspectiveCamera,
   DEFAULT_POSE,
 } from "./camera.ts";
+import { INTERACTION_STEP_SCALE } from "./constants.ts";
 import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
 import { createSceneOverlay, type SceneOverlay } from "./grid/overlayScene.ts";
 import type {
@@ -66,7 +67,11 @@ const ctx = self as unknown as {
 
 let gpu: { dispose: () => void } | undefined;
 let renderer: InstalledRenderer | undefined;
-let testScene: TestScene | undefined; // boot frame + empty fallback (also the parity-test target)
+// The RGB test triangle as the empty-layers frame is opt-in (init.debugScene — `?debugScene`, the
+// parity test): handy "renderer alive, data missing" diagnostic, but as the default boot frame it
+// was a disorienting flash. The user-facing boot/empty frame is the bare clear color instead.
+let debugScene = false;
+let testScene: TestScene | undefined;
 // The instance-first layer registry: per-id scenes + the ordered visibility/opacity view. The
 // worker composites the visible layers (M2.5a); pre-M4 the app drives exactly one.
 const layers = new Map<string, LayerEntry>();
@@ -140,7 +145,8 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
   perspCamera = createPerspectiveCamera(aspect());
   orthoCamera = createOrthographicCamera();
   applyPose(perspCamera, pose, aspect());
-  testScene = createTestScene();
+  debugScene = request.debugScene === true;
+  if (debugScene) testScene = createTestScene();
   // Rebuild the renderer + scenes on the device gpu/ re-acquires after a loss; until then the loop
   // pauses (deviceLost) instead of painting a dead device into a frozen/magenta swapchain.
   const offLost = onDeviceLost((event) => {
@@ -164,38 +170,66 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
     offLost();
     offRestored();
   };
-  // Paint the boot triangle synchronously (the loop isn't started yet) so "first frame" honestly
-  // means a frame is on the swapchain before `ready` fires — the perf-gate contract.
+  // Paint the boot frame synchronously (the loop isn't started yet) so "first frame" honestly
+  // means a frame is on the swapchain before `ready` fires — the perf-gate contract. With no layers
+  // yet that frame is the bare clear color, which matches the page background — a seamless boot.
   requestRender();
   ctx.postMessage({ kind: "ready", requestId: request.requestId });
   startRenderLoop();
 }
 
 // The visible layers in draw order, each paired with the camera its projection needs (perspective
-// for volumes, orthographic for slices), else the boot triangle. The renderer composites the list.
-function paintItems(): CompositeItem[] {
+// for volumes, orthographic for slices). `layerOverride` swaps in (or appends, when the composite
+// doesn't list the id yet — the boot upsert precedes setComposite) a not-yet-committed scene, and
+// `overlayOverride` a not-yet-committed overlay (null = none), so a warm can compile the
+// *prospective* composite's pipelines before its commit makes it paintable.
+function compositeItems(
+  layerOverride?: { readonly id: string; readonly entry: LayerEntry },
+  overlayOverride?: SceneOverlay | null,
+): CompositeItem[] {
   if (perspCamera === undefined || orthoCamera === undefined) {
     throw new Error("render before init");
   }
+  const persp = perspCamera;
+  const ortho = orthoCamera;
   const items: CompositeItem[] = [];
+  let overrideListed = false;
   for (const entry of composite) {
     if (!entry.visible) continue;
-    const layer = layers.get(entry.id);
+    const isOverride = layerOverride !== undefined && entry.id === layerOverride.id;
+    if (isOverride) overrideListed = true;
+    const layer = isOverride ? layerOverride.entry : layers.get(entry.id);
     if (layer === undefined) continue; // composite ahead of its upsert — heals on the upsert repaint
     items.push({
       scene: layer.scene.scene,
-      camera: layer.kind === "volume" ? perspCamera : orthoCamera,
+      camera: layer.kind === "volume" ? persp : ortho,
     });
   }
-  if (items.length === 0) {
-    if (testScene !== undefined) return [{ scene: testScene.scene, camera: orthoCamera }];
-    throw new Error("no scene to render");
+  if (layerOverride !== undefined && !overrideListed) {
+    items.push({
+      scene: layerOverride.entry.scene.scene,
+      camera: layerOverride.entry.kind === "volume" ? persp : ortho,
+    });
   }
   // The overlay composites last (on top), paired with the perspective camera — but only when a
-  // perspective (volume) layer is present. A 3D axes overlay over a flat ortho slice or the boot
-  // triangle is meaningless; a volume whose upsert hasn't landed yet heals on its upsert repaint.
-  if (overlay !== undefined && items.some((item) => item.camera === perspCamera)) {
-    items.push({ scene: overlay.scene, camera: perspCamera });
+  // perspective (volume) layer is present. A 3D axes overlay over a flat ortho slice or an empty
+  // frame is meaningless; a volume whose upsert hasn't landed yet heals on its upsert repaint.
+  const effectiveOverlay = overlayOverride === undefined ? overlay : (overlayOverride ?? undefined);
+  if (effectiveOverlay !== undefined && items.some((item) => item.camera === persp)) {
+    items.push({ scene: effectiveOverlay.scene, camera: persp });
+  }
+  return items;
+}
+
+// What the next paint draws: the composited layers, the opt-in debug triangle when empty, else
+// nothing — renderComposite([]) presents the bare clear color, the flash-free boot/empty frame.
+function paintItems(): CompositeItem[] {
+  if (orthoCamera === undefined) {
+    throw new Error("render before init");
+  }
+  const items = compositeItems();
+  if (items.length === 0 && testScene !== undefined) {
+    return [{ scene: testScene.scene, camera: orthoCamera }];
   }
   return items;
 }
@@ -326,17 +360,43 @@ function buildScene(source: LayerSource): LayerEntry {
     ...(source.density !== undefined ? { density: source.density } : {}),
     ...(source.shaded !== undefined ? { shaded: source.shaded } : {}),
   });
+  scene.setStepScale(stepScale); // a scene built mid-gesture inherits the live interaction quality
   return { scene, kind: "volume", source };
 }
 
+// Superseding guard for the async warms: an id's epoch bumps on every replace/remove (and on a
+// device rebuild), so a warm that loses the race discards its scene instead of committing a stale one.
+const layerEpochs = new Map<string, number>();
+
+function bumpLayerEpoch(id: string): number {
+  const next = (layerEpochs.get(id) ?? 0) + 1;
+  layerEpochs.set(id, next);
+  return next;
+}
+
 // Install a layer's scene from a fully-specified source, releasing the prior scene's Data3DTexture
-// without leaking. Swap-then-defer: the new scene is live in the map before the old one's GPUTextures
-// are released, and the release waits one rebuild so an in-flight rAF frame never samples a destroyed
-// texture. Used by upsertLayer (main) and as swapLayerField's fallback when an in-place ping-pong
-// upload can't apply (the common streamed step takes the in-place path, not this rebuild).
-function replaceLayer(id: string, source: LayerSource): void {
+// without leaking. Warm-then-commit: the prospective composite's pipelines compile asynchronously
+// (createRenderPipelineAsync, off the render path) before the swap, so the new scene's first visible
+// frame neither stalls on a sync compile nor draws half-formed. Swap-then-defer on commit: the new
+// scene is live in the map before the old one's GPUTextures are released, and the release waits one
+// rebuild so an in-flight rAF frame never samples a destroyed texture. Used by upsertLayer (main)
+// and as swapLayerField's fallback when an in-place ping-pong upload can't apply (the common
+// streamed step takes the in-place path, not this rebuild).
+async function replaceLayer(id: string, source: LayerSource): Promise<void> {
+  const epoch = bumpLayerEpoch(id);
+  const next = buildScene(source);
+  try {
+    await renderer?.compileComposite(compositeItems({ id, entry: next }));
+  } catch (error) {
+    // A failed warm must not block the commit — the paint falls back to the sync compile.
+    reportError(error instanceof Error ? error.message : String(error));
+  }
+  if (layerEpochs.get(id) !== epoch) {
+    next.scene.dispose(); // superseded mid-warm — discard rather than resurrect a stale scene
+    return;
+  }
   const previous = layers.get(id);
-  layers.set(id, buildScene(source));
+  layers.set(id, next);
   pendingDispose?.scene.dispose();
   pendingDispose = previous;
   requestRender();
@@ -363,7 +423,7 @@ async function upsertLayer(
     ...(request.density !== undefined ? { density: request.density } : {}),
     ...(request.shaded !== undefined ? { shaded: request.shaded } : {}),
   };
-  replaceLayer(request.id, source);
+  await replaceLayer(request.id, source);
 }
 
 // A streamed timestep's scalar (data worker → render, over the paired port): swap only the field on
@@ -390,13 +450,18 @@ function swapLayerField(message: StreamStepMessage): void {
     requestRender();
     return;
   }
-  replaceLayer(message.id, { ...entry.source, field });
+  // Fire-and-forget: the stream port's onmessage can't await; a failed rebuild is reported and the
+  // next streamed step retries through the same path.
+  void replaceLayer(message.id, { ...entry.source, field }).catch((error: unknown) => {
+    reportError(error instanceof Error ? error.message : String(error));
+  });
 }
 
 async function removeLayer(
   request: Extract<RenderWorkerRequest, { kind: "removeLayer" }>,
 ): Promise<void> {
   await initDone;
+  bumpLayerEpoch(request.id); // an in-flight warm for this id must not resurrect the removed layer
   const entry = layers.get(request.id);
   layers.delete(request.id);
   if (entry !== undefined) {
@@ -445,6 +510,25 @@ async function setLayerColormap(
   entry.source.windowLevel = request.windowLevel;
   entry.source.scale = request.scale;
   requestRender();
+}
+
+// Camera-gesture liveness → interaction-time quality: volumes march at INTERACTION_STEP_SCALE of
+// their step count while a gesture is live (uniform flip, no rebuild); the false edge's repaint
+// restores full quality. Slices have no march, so the message is inert for them.
+let stepScale = 1; // retained so a scene built mid-gesture (stream rebuild) inherits the live scale
+async function setInteracting(
+  request: Extract<RenderWorkerRequest, { kind: "setInteracting" }>,
+): Promise<void> {
+  await initDone;
+  stepScale = request.interacting ? INTERACTION_STEP_SCALE : 1;
+  let changed = false;
+  for (const entry of layers.values()) {
+    if ("setStepScale" in entry.scene) {
+      entry.scene.setStepScale(stepScale);
+      changed = true;
+    }
+  }
+  if (changed) requestRender();
 }
 
 // Live per-layer Phong toggle — a uniform flip on the volume scene, no rebuild/re-upload. Slice
@@ -498,6 +582,10 @@ async function resize(request: Extract<RenderWorkerRequest, { kind: "resize" }>)
 // locally with no main↔worker reseed. The loop stays paused (deviceLost) until this completes.
 async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   if (canvas === undefined) return; // pre-init loss — nothing to rebuild yet
+  // Any in-flight warm raced the loss: bump every epoch so its commit discards (a superseded
+  // streamed field heals on the next step) instead of landing a dead-device scene post-rebuild.
+  for (const id of layers.keys()) bumpLayerEpoch(id);
+  overlayEpoch += 1;
   // Drop the dead-device resources best-effort: disposing GPU handles on a lost device can throw,
   // and the fresh renderer below is what matters.
   try {
@@ -518,13 +606,20 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
     device,
   });
   frameTimer = createFrameTimer(device);
-  testScene = createTestScene();
+  if (debugScene) testScene = createTestScene();
   if (perspCamera !== undefined) applyPose(perspCamera, pose, aspect());
   // Replace each layer's scene in place (Map.set on an existing key is safe mid-iteration).
   for (const [id, entry] of layers) layers.set(id, buildScene(entry.source));
   // Replay the overlay from its retained config on the fresh device (its line buffers + CanvasTextures
   // belonged to the dead device). Sprites re-billboard on the next render.
   overlay = overlaySource !== undefined ? createSceneOverlay(overlaySource) : undefined;
+  // Warm the rebuilt composite on the fresh device before un-pausing the loop, so the first
+  // restored frame neither stalls nor draws half-compiled.
+  try {
+    await renderer.compileComposite(paintItems());
+  } catch (error) {
+    reportError(error instanceof Error ? error.message : String(error));
+  }
   deviceLost = false;
   requestRender();
 }
@@ -539,12 +634,29 @@ async function setContinuous(
   if (continuous) needsRender = true;
 }
 
-// Build/replace the axes + grid overlay from a config (or tear it down on null). New scene live before
-// the old one's GPU resources are freed — the overlay has no readback-borrowed texture, so a same-tick
-// dispose is safe (unlike replaceLayer's deferral). Retains the source for a device-restore rebuild.
-function buildOverlay(config: SceneOverlayConfig | null): void {
+// Build/replace the axes + grid overlay from a config (or tear it down on null). Warm-then-commit
+// like replaceLayer — the warm also compiles the volume's pipelines for the ≥2-layer composite
+// context this overlay usually activates. New scene live before the old one's GPU resources are
+// freed — the overlay has no readback-borrowed texture, so a same-tick dispose is safe (unlike
+// replaceLayer's deferral). Retains the source for a device-restore rebuild.
+let overlayEpoch = 0;
+
+async function buildOverlay(config: SceneOverlayConfig | null): Promise<void> {
+  const epoch = ++overlayEpoch;
+  const next = config !== null ? createSceneOverlay(config) : undefined;
+  if (next !== undefined) {
+    try {
+      await renderer?.compileComposite(compositeItems(undefined, next));
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : String(error));
+    }
+    if (overlayEpoch !== epoch) {
+      next.dispose(); // superseded mid-warm
+      return;
+    }
+  }
   const previous = overlay;
-  overlay = config !== null ? createSceneOverlay(config) : undefined;
+  overlay = next;
   overlaySource = config ?? undefined;
   previous?.dispose();
   requestRender();
@@ -557,7 +669,7 @@ async function setSceneOverlay(
   if (renderer === undefined) {
     throw new Error("setSceneOverlay before init");
   }
-  buildOverlay(request.overlay);
+  await buildOverlay(request.overlay);
 }
 
 // Pair with the data worker's streaming port (M2.10a). Assigning onmessage implicitly starts the
@@ -598,6 +710,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return resize(request);
     case "setContinuous":
       return setContinuous(request);
+    case "setInteracting":
+      return setInteracting(request);
     case "setSceneOverlay":
       return setSceneOverlay(request);
     case "pair":

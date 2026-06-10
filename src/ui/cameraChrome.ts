@@ -1,10 +1,18 @@
-import type { CameraPose, SimulationStore, UiStore } from "@store";
+import {
+  type AxisView,
+  axisViewPose,
+  type CameraPose,
+  type SimulationStore,
+  type UiStore,
+} from "@store";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 
 // Always-on camera HUD pinned bottom-left: a live pose readout + a CSS-3D axis gnomon. Both are
 // driven straight from the store pose — the pose is angle-parameterized, so the gnomon is a CSS
 // transform, no second renderer or worker round-trip. Hides with the rest of the UI on the toggle.
+// The gnomon's ±axis tips are clickable (magviz's ViewHelper discs): a click dispatches a
+// cameraFlyRequest intent that ui/pointerCamera eases to — chrome never animates the pose itself.
 
 const RAD_TO_DEG = 180 / Math.PI;
 
@@ -33,6 +41,34 @@ export function gnomonTransform(pose: CameraPose): string {
   return `matrix3d(${m.map((v) => v.toFixed(5)).join(", ")})`;
 }
 
+// The inverse (= transpose, pure rotation) of gnomonTransform. A tip's transform is
+// translate3d(arm tip) · this, so under the scene's rotation R the disc lands at R·tip but keeps a
+// screen-facing orientation (R·T·R⁻¹ = T(R·tip)) — otherwise the discs collapse to lines edge-on.
+export function gnomonCounterTransform(pose: CameraPose): string {
+  const sa = Math.sin(pose.azimuth);
+  const ca = Math.cos(pose.azimuth);
+  const se = Math.sin(pose.elevation);
+  const ce = Math.cos(pose.elevation);
+  const m = [-sa, 0, -ca, 0, se * ca, ce, -se * sa, 0, ce * ca, -se, -ce * sa, 0, 0, 0, 0, 1];
+  return `matrix3d(${m.map((v) => v.toFixed(5)).join(", ")})`;
+}
+
+// The arms' scene-space frame (see gnomonTransform): world +x → CSS +x, world +y → CSS −z (into
+// the screen), world +z → CSS −y (CSS y points down). Tip offsets sit at the 24 px arm ends.
+const TIP_OFFSET_PX = 24;
+const GNOMON_TIPS: readonly {
+  readonly view: AxisView;
+  readonly cls: string;
+  readonly offset: readonly [number, number, number];
+}[] = [
+  { view: "+x", cls: "is-px", offset: [TIP_OFFSET_PX, 0, 0] },
+  { view: "-x", cls: "is-nx", offset: [-TIP_OFFSET_PX, 0, 0] },
+  { view: "+y", cls: "is-py", offset: [0, 0, -TIP_OFFSET_PX] },
+  { view: "-y", cls: "is-ny", offset: [0, 0, TIP_OFFSET_PX] },
+  { view: "+z", cls: "is-pz", offset: [0, -TIP_OFFSET_PX, 0] },
+  { view: "-z", cls: "is-nz", offset: [0, TIP_OFFSET_PX, 0] },
+];
+
 export function installCameraChrome(
   parent: HTMLElement,
   store: SimulationStore,
@@ -42,13 +78,23 @@ export function installCameraChrome(
   const container = makeEl(doc, "div", "webpic-chrome");
 
   const gnomon = makeEl(doc, "div", "webpic-gnomon");
-  gnomon.title = "Camera orientation — X red, Y green, Z blue";
+  gnomon.title = "Camera orientation — X red, Y green, Z blue. Click a tip to snap the view.";
   const scene = makeEl(doc, "div", "webpic-gnomon_scene");
   for (const axis of ["x", "y", "z"] as const) {
     const arm = makeEl(doc, "div", `webpic-gnomon_axis is-${axis}`);
     arm.dataset.axis = axis.toUpperCase();
     scene.appendChild(arm);
   }
+  const tips = GNOMON_TIPS.map((spec) => {
+    const tip = makeEl(doc, "div", `webpic-gnomon_tip ${spec.cls}`);
+    tip.title = `View from ${spec.view}`;
+    tip.addEventListener("click", () => {
+      const state = store.getState();
+      state.requestCameraFly(axisViewPose(spec.view, state.cameraPose));
+    });
+    scene.appendChild(tip);
+    return { el: tip, offset: spec.offset };
+  });
   gnomon.appendChild(scene);
 
   const readout = makeEl(doc, "div", "webpic-readout");
@@ -58,6 +104,11 @@ export function installCameraChrome(
   const render = (pose: CameraPose): void => {
     readout.textContent = formatPose(pose);
     scene.style.transform = gnomonTransform(pose);
+    const counter = gnomonCounterTransform(pose);
+    for (const tip of tips) {
+      const [x, y, z] = tip.offset;
+      tip.el.style.transform = `translate3d(${x}px, ${y}px, ${z}px) ${counter}`;
+    }
   };
   render(store.getState().cameraPose);
   const unsubPose = store.subscribe((s) => s.cameraPose, render);

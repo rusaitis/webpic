@@ -145,4 +145,17 @@ const UI_CSS = `
 .webpic-gnomon_axis.is-x { transform: rotateZ(0deg); background: #e06c75; }   /* +x right */
 .webpic-gnomon_axis.is-y { transform: rotateY(90deg); background: #98c379; }  /* +y into screen */
 .webpic-gnomon_axis.is-z { transform: rotateZ(-90deg); background: #61afef; } /* +z up (z-up world) */
+/* Clickable ±axis tips (snap-to-view): filled = positive, ring = negative. The chrome overlay is
+   pointer-events: none, so tips opt back in. Their transforms are JS-owned (position + a counter-
+   rotation keeping the discs screen-facing), hence a halo hover affordance rather than a scale. */
+.webpic-gnomon_tip { position: absolute; top: 50%; left: 50%; width: 12px; height: 12px;
+  margin: -6px 0 0 -6px; border-radius: 50%; box-sizing: border-box;
+  border: 2px solid transparent; cursor: pointer; pointer-events: auto; }
+.webpic-gnomon_tip:hover { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.webpic-gnomon_tip.is-px { background: #e06c75; }
+.webpic-gnomon_tip.is-nx { border-color: #e06c75; }
+.webpic-gnomon_tip.is-py { background: #98c379; }
+.webpic-gnomon_tip.is-ny { border-color: #98c379; }
+.webpic-gnomon_tip.is-pz { background: #61afef; }
+.webpic-gnomon_tip.is-nz { border-color: #61afef; }
 `;

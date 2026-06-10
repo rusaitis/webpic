@@ -1,16 +1,7 @@
 import type { Camera, Object3D } from "three";
-import {
-  Color,
-  Mesh,
-  OrthographicCamera,
-  PlaneGeometry,
-  RenderTarget,
-  RGBAFormat,
-  UnsignedByteType,
-  Vector2,
-} from "three";
+import { Color, RenderTarget, RGBAFormat, UnsignedByteType, Vector2 } from "three";
 import { texture, uv } from "three/tsl";
-import { NodeMaterial, WebGPURenderer } from "three/webgpu";
+import { NodeMaterial, QuadMesh, WebGPURenderer } from "three/webgpu";
 import { BACKGROUND_COLOR } from "./constants.ts";
 import { toTransferablePixels } from "./pixels.ts";
 
@@ -43,6 +34,8 @@ export interface InstalledRenderer {
   readPixels(scene: Object3D, camera: Camera): Promise<Uint8Array>;
   /** Composite the visible layers (draw order + per-layer material opacity) onto the swapchain. */
   renderComposite(items: readonly CompositeItem[]): void;
+  /** Pre-create every pipeline `renderComposite(items)` would need, off the render path. */
+  compileComposite(items: readonly CompositeItem[]): Promise<void>;
   /** Deterministic readback of the composited layers — the testable compositing primitive. */
   readCompositePixels(items: readonly CompositeItem[]): Promise<Uint8Array>;
   /** Resize the swapchain + readback/composite targets to a new logical size and DPR. */
@@ -88,11 +81,10 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
   // Lazily built only when a ≥2-layer swapchain composite first occurs (single-layer is the common
   // case and uses the direct path). compositeTarget accumulates the layers; the quad presents it.
   let compositeTarget: RenderTarget | undefined;
-  let presentQuad: Mesh | undefined;
-  let presentCamera: OrthographicCamera | undefined;
+  let presentQuad: QuadMesh | undefined;
 
-  const ensurePresent = (): { target: RenderTarget; quad: Mesh; camera: OrthographicCamera } => {
-    if (compositeTarget === undefined || presentQuad === undefined || presentCamera === undefined) {
+  const ensurePresent = (): { target: RenderTarget; quad: QuadMesh } => {
+    if (compositeTarget === undefined || presentQuad === undefined) {
       compositeTarget = new RenderTarget(buffer.width, buffer.height, {
         format: RGBAFormat,
         type: UnsignedByteType,
@@ -106,11 +98,13 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
       material.colorNode = texture(compositeTarget.texture, uv());
       material.depthTest = false;
       material.depthWrite = false;
-      presentQuad = new Mesh(new PlaneGeometry(2, 2), material);
-      presentCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 2);
-      presentCamera.position.z = 1;
+      // QuadMesh, not a PlaneGeometry quad: WebGPU render targets sample with v=0 at the image
+      // top (WGSL applies no GL-era flip), while PlaneGeometry's GL-convention uvs (v=0 bottom)
+      // presented the whole composited frame upside-down. QuadMesh's fullscreen triangle encodes
+      // the correct per-backend convention — it's what three's own RenderPipeline presents with.
+      presentQuad = new QuadMesh(material);
     }
-    return { target: compositeTarget, quad: presentQuad, camera: presentCamera };
+    return { target: compositeTarget, quad: presentQuad };
   };
 
   // Clear once to the renderer clear color, then accumulate each item with autoClear off. A depth
@@ -160,10 +154,30 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
       }
       // ≥2 layers: composite offscreen (the swapchain blit overwrites rather than blends across
       // renders), then present the result with a single output render.
-      const { target, quad, camera } = ensurePresent();
+      const { target, quad } = ensurePresent();
       compositeInto(target, items);
       renderer.setRenderTarget(null);
-      renderer.render(quad, camera);
+      quad.render(renderer);
+    },
+    async compileComposite(items) {
+      // Warm with createRenderPipelineAsync against the same render-target contexts renderComposite
+      // will draw into — pipelines are cached per context (swapchain bgra8 vs composite rgba8 are
+      // distinct pipelines) — so a new scene's first visible frame neither stalls on the sync
+      // createRenderPipeline nor draws half-compiled.
+      if (items.length <= 1) {
+        renderer.setRenderTarget(null);
+        const item = items[0];
+        if (item !== undefined) await renderer.compileAsync(item.scene, item.camera);
+        return;
+      }
+      const { target, quad } = ensurePresent();
+      for (const item of items) {
+        // Re-assert the target before each await: an interleaved render() resets it to null.
+        renderer.setRenderTarget(target);
+        await renderer.compileAsync(item.scene, item.camera);
+      }
+      renderer.setRenderTarget(null);
+      await renderer.compileAsync(quad, quad.camera);
     },
     async readCompositePixels(items) {
       compositeInto(readTarget, items); // leaves readTarget bound
@@ -189,7 +203,7 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
       // belongs to whoever called installGpu().
       readTarget.dispose();
       compositeTarget?.dispose();
-      presentQuad?.geometry.dispose();
+      // QuadMesh's geometry is a module-level singleton shared by every QuadMesh — never dispose it.
       if (presentQuad?.material instanceof NodeMaterial) presentQuad.material.dispose();
       renderer.dispose();
     },
