@@ -1,25 +1,18 @@
+import { CAMERA_FOV_DEG, DEFAULT_POSE } from "@schema/camera.ts";
 import { OrthographicCamera, PerspectiveCamera } from "three";
 import { FRUSTUM } from "./constants.ts";
 import type { CameraPose } from "./messages.ts";
 
 // The render worker owns the cameras (lifted out of the scene factories so the store-owned pose
 // drives them and shader HMR can rebuild a scene without losing the view). This is the one place
-// THREE camera math lives.
+// THREE camera math lives. Pose shape + lens constants are shared via @schema/camera.ts.
 
-// Render-side default, applied at init before any pose streams in (the store's pose subscription
-// fires only on change). Mirrors store/camera.ts DEFAULT_POSE — keep the two in sync.
-// z-up 3/4 view: position ≈ (1.50, 1.50, 1.10) looking at the origin, +z up.
-export const DEFAULT_POSE: CameraPose = {
-  target: [0, 0, 0],
-  azimuth: Math.PI / 4,
-  elevation: 0.4773,
-  distance: 2.3937,
-};
+export { DEFAULT_POSE };
 
-// Perspective camera for the volume raymarcher. fov/near/far match the legacy raymarchScene camera.
-// The 45° vertical fov restates store/camera.ts CAMERA_FOV_DEG (zoom-to-cursor ray math) — keep in sync.
+// Perspective camera for the volume raymarcher. near matches the legacy raymarchScene camera;
+// far is an init placeholder — applyPose owns it (sized per pose so the dolly range never far-clips).
 export function createPerspectiveCamera(aspect = 1): PerspectiveCamera {
-  return new PerspectiveCamera(45, aspect, 0.01, 10);
+  return new PerspectiveCamera(CAMERA_FOV_DEG, aspect, 0.01, 10);
 }
 
 // Screen-aligned orthographic camera for the slice + boot triangle: fixed straight-on, pose-invariant
@@ -38,11 +31,13 @@ export function createOrthographicCamera(): OrthographicCamera {
   return camera;
 }
 
-// Orbit-spherical → THREE perspective camera. z-up (world=physical): azimuth sweeps the xy-plane
-// (0 → +x, increasing toward +y, CCW about +z), elevation lifts toward +z. The raymarch shader reads
-// cameraPosition/modelWorldMatrixInverse, refreshed during render(), so a repaint right after this is
-// sufficient.
-export function applyPose(camera: PerspectiveCamera, pose: CameraPose, aspect = 1): void {
+// Everything drawn fits in this radius of the world origin: the unit box's half-diagonal
+// (√3/2 ≈ 0.87, box centered at the origin) plus the overlay labels just outside it, rounded up.
+const SCENE_RADIUS = 1;
+
+// Orbit-spherical placement shared by both volume cameras. z-up (world=physical): azimuth sweeps
+// the xy-plane (0 → +x, increasing toward +y, CCW about +z), elevation lifts toward +z.
+function placeCamera(camera: PerspectiveCamera | OrthographicCamera, pose: CameraPose): void {
   const [tx, ty, tz] = pose.target;
   const ce = Math.cos(pose.elevation);
   camera.position.set(
@@ -52,8 +47,46 @@ export function applyPose(camera: PerspectiveCamera, pose: CameraPose, aspect = 
   );
   camera.up.set(0, 0, 1);
   camera.lookAt(tx, ty, tz);
-  if (camera.aspect !== aspect) {
+}
+
+// far follows the pose (distance + |target| + scene radius) so the full dolly range stays
+// renderable — a fixed far ≪ DISTANCE_MAX far-clipped the scene into a void on zoom-out.
+function poseFar(pose: CameraPose): number {
+  const [tx, ty, tz] = pose.target;
+  return pose.distance + Math.hypot(tx, ty, tz) + SCENE_RADIUS; // |target| covers a panned box
+}
+
+// Orbit-spherical → THREE perspective camera. The raymarch shader reads
+// cameraPosition/modelWorldMatrixInverse, refreshed during render(), so a repaint right after this
+// is sufficient.
+export function applyPose(camera: PerspectiveCamera, pose: CameraPose, aspect = 1): void {
+  placeCamera(camera, pose);
+  const far = poseFar(pose);
+  if (camera.aspect !== aspect || camera.far !== far) {
     camera.aspect = aspect;
+    camera.far = far;
     camera.updateProjectionMatrix();
   }
+}
+
+// Pose-driven orthographic camera for the volume view (distinct from the screen-aligned slice
+// ortho). near matches the perspective camera; far is applied per pose, like applyPose.
+export function createVolumeOrthographicCamera(aspect = 1): OrthographicCamera {
+  const camera = new OrthographicCamera(-aspect, aspect, 1, -1, 0.01, 10);
+  applyPoseOrtho(camera, DEFAULT_POSE, aspect);
+  return camera;
+}
+
+// Matched frustum: halfH = distance·tan(fov/2) shows exactly the perspective view's extent at the
+// target plane, so a projection flip keeps the on-screen scale (only parallax changes) — and
+// `distance` stays the single zoom parameter (wheel/pinch/keys dolly it; the frustum follows).
+export function applyPoseOrtho(camera: OrthographicCamera, pose: CameraPose, aspect = 1): void {
+  placeCamera(camera, pose);
+  const halfH = pose.distance * Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
+  camera.left = -halfH * aspect;
+  camera.right = halfH * aspect;
+  camera.top = halfH;
+  camera.bottom = -halfH;
+  camera.far = poseFar(pose);
+  camera.updateProjectionMatrix(); // the frustum follows distance — no change guard pays off
 }

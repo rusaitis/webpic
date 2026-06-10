@@ -1,35 +1,20 @@
+import { CAMERA_FOV_DEG, type CameraPose } from "@schema/camera.ts";
 import type { Vec3 } from "@schema/types.ts";
 
-// Store-owned camera pose: the single source of truth the UI mutates (M2.4b orbit/turntable)
-// and shader HMR preserves (M2.13). Orbit-spherical, not a THREE.Vector3 — the ui→store→render
-// DAG keeps THREE confined to render/. The worker derives the camera position; this restates,
-// not shares, the render-side CameraPose (messages.ts), same as WindowLevel.
+// Store-owned camera pose: the single source of truth the UI mutates and shader HMR preserves.
+// Orbit-spherical, not a THREE.Vector3 — the ui→store→render DAG keeps THREE confined to render/.
+// The pose shape + lens constants live in @schema/camera.ts (the DAG root) so store and render
+// share one definition.
 
-export interface CameraPose {
-  readonly target: Vec3; // look-at point, scene/code units
-  readonly azimuth: number; // radians; 0 looks from +x toward the target, increasing toward +y (CCW about +z)
-  readonly elevation: number; // radians from the xy-plane toward +z; clamp to ±ELEVATION_LIMIT
-  readonly distance: number; // > 0, camera → target
-}
+export type { CameraPose, CameraProjection } from "@schema/camera.ts";
+export { CAMERA_FOV_DEG, DEFAULT_POSE } from "@schema/camera.ts";
 
-// One tick shy of the ±z pole, where azimuth degenerates and the up-axis flips. 4b clamps to this.
+// One tick shy of the ±z pole, where azimuth degenerates and the up-axis flips. Orbit clamps to this.
 export const ELEVATION_LIMIT = Math.PI / 2 - 1e-3;
-
-// z-up 3/4 view — position ≈ (1.50, 1.50, 1.10) looking at the origin, +z up.
-export const DEFAULT_POSE: CameraPose = {
-  target: [0, 0, 0],
-  azimuth: Math.PI / 4,
-  elevation: 0.4773,
-  distance: 2.3937,
-};
 
 // Dolly bounds for the unit-box scene; well outside the box yet never through the target.
 export const DISTANCE_MIN = 0.1;
 export const DISTANCE_MAX = 50;
-
-// Vertical field of view. render/camera.ts createPerspectiveCamera restates this (the layers
-// share no module) — keep the two in sync. ui needs it for the zoom-to-cursor ray math.
-export const CAMERA_FOV_DEG = 45;
 
 // Pointer sensitivities, in OrbitControls' exact units so webpic matches the magviz feel at any
 // viewport size. Drag deltas arrive as *viewport-height fractions* (px / viewport height px —
@@ -74,6 +59,24 @@ export function orbitPose(pose: CameraPose, dx: number, dy: number): CameraPose 
     elevation: clamp(pose.elevation + dy * ORBIT_SENS, -ELEVATION_LIMIT, ELEVATION_LIMIT),
     distance: pose.distance,
   };
+}
+
+// Wheel deltas arrive in three units (pixel/line/page) and trackpad pinches ride ctrl+wheel with
+// tiny per-event deltas; DOLLY_SENS assumes Chrome-style pixels. This is OrbitControls' exact
+// normalization (LINE ×16, PAGE ×100, ctrl-pinch ×10) so Firefox line-mode wheels and pinches
+// dolly at the same tuned feel — without it a Firefox notch is ~16× too slow.
+const WHEEL_LINE_PIXELS = 16;
+const WHEEL_PAGE_PIXELS = 100;
+const WHEEL_PINCH_GAIN = 10;
+
+export function normalizeWheelDelta(deltaY: number, deltaMode: number, ctrlKey: boolean): number {
+  const pixels =
+    deltaMode === 1
+      ? deltaY * WHEEL_LINE_PIXELS
+      : deltaMode === 2
+        ? deltaY * WHEEL_PAGE_PIXELS
+        : deltaY;
+  return ctrlKey ? pixels * WHEEL_PINCH_GAIN : pixels;
 }
 
 // Wheel → dolly: geometric, so each notch is a constant fraction of the current distance.
@@ -221,6 +224,101 @@ export function poseLerp(a: CameraPose, b: CameraPose, t: number): CameraPose {
     azimuth: wrapAngle(a.azimuth + azDelta * t),
     elevation: a.elevation + (b.elevation - a.elevation) * t,
     distance: Math.exp(Math.log(a.distance) * (1 - t) + Math.log(b.distance) * t),
+  };
+}
+
+// Held-key camera motion: constant velocity, dt-scaled — NOT the momentum impulses (key repeat
+// rates vary by OS; feeding repeats as impulses gives a stuttery, rate-dependent glide, while a
+// held key wants flat velocity with a hard stop on release). Rates match magviz's keyboard orbit.
+export interface KeyNudge {
+  readonly azimuth: -1 | 0 | 1; // +1 sweeps the camera CCW about +z (view pans right)
+  readonly elevation: -1 | 0 | 1; // +1 lifts toward +z
+  readonly dolly: -1 | 0 | 1; // +1 zooms in (distance shrinks, geometric)
+}
+
+const KEY_ORBIT_RAD_PER_SEC = 1.2;
+const KEY_DOLLY_PER_SEC = 1.5; // fraction-of-distance per second — never fights the clamps
+
+export function nudgePose(pose: CameraPose, nudge: KeyNudge, dtMs: number): CameraPose {
+  const dt = Math.max(dtMs, 0) / 1000;
+  const rot = KEY_ORBIT_RAD_PER_SEC * dt;
+  return {
+    target: pose.target,
+    azimuth: wrapAngle(pose.azimuth + nudge.azimuth * rot),
+    elevation: clamp(pose.elevation + nudge.elevation * rot, -ELEVATION_LIMIT, ELEVATION_LIMIT),
+    distance: clamp(
+      pose.distance * Math.exp(-nudge.dolly * KEY_DOLLY_PER_SEC * dt),
+      DISTANCE_MIN,
+      DISTANCE_MAX,
+    ),
+  };
+}
+
+// What a one-shot camera fly intent asks for: an explicit pose (gnomon snaps, reset) or a fit of
+// the data bounds — resolved by ui/pointerCamera, the only consumer that knows the canvas aspect.
+export type CameraFlyTarget =
+  | { readonly kind: "pose"; readonly pose: CameraPose }
+  | { readonly kind: "fit" };
+
+// Bounding sphere of the unit render box [-0.5, 0.5]³ — the volume's object-space extent until
+// non-cube datasets land (poseForBounds takes a sphere so they only need a different one).
+export const UNIT_BOX_RADIUS = Math.sqrt(3) / 2;
+
+export interface BoundingSphere {
+  readonly center: Vec3;
+  readonly radius: number; // > 0, scene units
+}
+
+// Breathing room so the fitted sphere doesn't kiss the viewport edges.
+const FIT_PADDING = 1.06;
+
+// Frame the sphere: keep the viewing direction, recenter on it, and back off until it fits both
+// frustum extents. distance = r/sin(θ) — not r/tan(θ) — puts the frustum side planes tangent to
+// the sphere, so every point of it projects inside NDC (r/tan only bounds the central disc).
+export function poseForBounds(
+  pose: CameraPose,
+  sphere: BoundingSphere,
+  aspect: number,
+): CameraPose {
+  const halfV = (CAMERA_FOV_DEG * Math.PI) / 360;
+  const safeAspect = Math.max(aspect, 1e-6);
+  // The limiting half-angle: vertical in landscape, horizontal (tan scales with aspect) in portrait.
+  const halfMin = safeAspect >= 1 ? halfV : Math.atan(Math.tan(halfV) * safeAspect);
+  const distance = clamp(
+    (sphere.radius * FIT_PADDING) / Math.sin(halfMin),
+    DISTANCE_MIN,
+    DISTANCE_MAX,
+  );
+  return { target: sphere.center, azimuth: pose.azimuth, elevation: pose.elevation, distance };
+}
+
+// Compact pose ⇄ URL-param string ("az,el,d,tx,ty,tz", radians, 4 decimals — finer than the HUD's
+// readout, so a shared link reproduces the view it displayed). Parse normalizes through the same
+// invariants the pointer path enforces and returns null for anything malformed (caller ignores).
+const POSE_PARAM_DECIMALS = 4;
+
+export function formatPoseParam(pose: CameraPose): string {
+  const [tx, ty, tz] = pose.target;
+  return [pose.azimuth, pose.elevation, pose.distance, tx, ty, tz]
+    .map((v) => v.toFixed(POSE_PARAM_DECIMALS))
+    .join(",");
+}
+
+export function parsePoseParam(raw: string): CameraPose | null {
+  const parts = raw.split(",");
+  if (parts.length !== 6) return null;
+  const numbers = parts.map(Number);
+  if (numbers.some((v) => !Number.isFinite(v))) return null;
+  const [azimuth = 0, elevation = 0, distance = 0, tx = 0, ty = 0, tz = 0] = numbers;
+  if (distance <= 0) return null;
+  // Targets clamp too (URL input is a trust boundary): a huge crafted target overflows the
+  // render-side far-plane math (hypot → Inf → NaN projection matrix) and f32 GPU uniforms.
+  const t = (v: number): number => clamp(v, -DISTANCE_MAX, DISTANCE_MAX);
+  return {
+    target: [t(tx), t(ty), t(tz)],
+    azimuth: wrapAngle(azimuth),
+    elevation: clamp(elevation, -ELEVATION_LIMIT, ELEVATION_LIMIT),
+    distance: clamp(distance, DISTANCE_MIN, DISTANCE_MAX),
   };
 }
 

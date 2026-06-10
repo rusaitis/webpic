@@ -1,7 +1,7 @@
 import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import { createSimulationStore, DEFAULT_POSE } from "@store";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { vectorTriple } from "../../tests/fixtures.ts";
 import { bootstrap } from "./main.ts";
 
@@ -268,6 +268,104 @@ describe("bootstrap streaming (M2.10a)", () => {
 
     dispose();
     expect(dataTerminated).toBe(1);
+  });
+
+  it("seeds an initialPose into the store and replays it to the worker on ready", () => {
+    const canvas = fakeCanvas();
+    const posts: Post[] = [];
+    const worker = {
+      onmessage: null,
+      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
+        posts.push({ message, transfer });
+      },
+      terminate: () => {},
+    } as unknown as Worker;
+    const store = createSimulationStore();
+    const initialPose = { target: [0, 0, 0], azimuth: 1.5, elevation: 0.2, distance: 3 } as const;
+
+    const dispose = bootstrap({
+      width: 64,
+      height: 48,
+      createCanvas: () => canvas,
+      mount: () => {},
+      spawnWorker: () => worker,
+      dataset: tinyDataset(),
+      store,
+      initialPose,
+    });
+    expect(store.getState().cameraPose).toEqual(initialPose);
+
+    worker.onmessage?.({
+      data: { kind: "ready", requestId: 1 },
+    } as MessageEvent<RenderWorkerResponse>);
+    const posePost = posts.find((p) => p.message.kind === "setCameraPose");
+    if (posePost === undefined || posePost.message.kind !== "setCameraPose")
+      throw new Error("expected a setCameraPose catch-up on ready");
+    expect(posePost.message.pose).toEqual(initialPose);
+    dispose();
+  });
+
+  it("re-posts a resize when devicePixelRatio changes without a layout resize", () => {
+    // A monitor move changes DPR at the same CSS size — only the matchMedia watch can see it.
+    const dprListeners: Array<() => void> = [];
+    const dprQueries: string[] = [];
+    vi.stubGlobal("matchMedia", (query: string) => {
+      dprQueries.push(query);
+      return {
+        addEventListener: (_type: string, cb: () => void) => dprListeners.push(cb),
+        removeEventListener: () => {},
+      };
+    });
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    try {
+      const offscreen = { tag: "offscreen" } as unknown as OffscreenCanvas;
+      // addEventListener present so the DOM-gated paths (pointer camera, DPR watch) install;
+      // the pointer camera needs the document/style surface it touches at install time.
+      const canvas = {
+        width: 0,
+        height: 0,
+        transferControlToOffscreen: () => offscreen,
+        addEventListener: () => {},
+        ownerDocument: { addEventListener: () => {}, defaultView: null },
+        style: {},
+      } as unknown as HTMLCanvasElement;
+      const posts: Post[] = [];
+      const worker = {
+        onmessage: null,
+        postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
+          posts.push({ message, transfer });
+        },
+        terminate: () => {},
+      } as unknown as Worker;
+
+      const dispose = bootstrap({
+        width: 64,
+        height: 48,
+        createCanvas: () => canvas,
+        mount: () => {},
+        spawnWorker: () => worker,
+        dataset: tinyDataset(),
+      });
+      worker.onmessage?.({
+        data: { kind: "ready", requestId: 1 },
+      } as MessageEvent<RenderWorkerResponse>);
+
+      expect(dprQueries.at(-1)).toContain("1dppx"); // armed against the boot DPR
+      // The stubbed window is a plain object — mutate the live DPR the re-arm must read.
+      (window as unknown as { devicePixelRatio: number }).devicePixelRatio = 2;
+      dprListeners.shift()?.(); // the armed query fires once: DPR is now something else
+
+      const resize = posts.find((p) => p.message.kind === "resize");
+      if (resize === undefined || resize.message.kind !== "resize")
+        throw new Error("expected a resize message after the DPR change");
+      expect(resize.message.devicePixelRatio).toBe(2);
+      // Re-armed with a FRESH query at the new DPR — a stale template would miss 2→3 transitions.
+      expect(dprQueries.at(-1)).toContain("2dppx");
+      expect(dprListeners.length).toBeGreaterThan(0);
+      dispose();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("spawns no data worker without a streamSource (single-step, scrub disabled)", () => {

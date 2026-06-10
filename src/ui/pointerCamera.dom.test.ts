@@ -93,6 +93,60 @@ describe("installPointerCamera", () => {
     expect(store.getState().cameraPose.distance).toBeLessThan(start.distance);
   });
 
+  it("normalizes line-mode wheel deltas to OrbitControls' pixel feel (×16)", () => {
+    const a = setup();
+    const b = setup();
+    // Firefox line-mode notch (deltaY ≈ 3) must dolly exactly like a 48-pixel Chrome delta.
+    a.target.dispatchEvent(new WheelEvent("wheel", { deltaY: -3, deltaMode: 1, cancelable: true }));
+    b.target.dispatchEvent(
+      new WheelEvent("wheel", { deltaY: -48, deltaMode: 0, cancelable: true }),
+    );
+    expect(a.store.getState().cameraPose.distance).toBeCloseTo(
+      b.store.getState().cameraPose.distance,
+      12,
+    );
+  });
+
+  it("boosts ctrl-wheel trackpad pinches ×10", () => {
+    const a = setup();
+    const b = setup();
+    const pinch = new WheelEvent("wheel", { deltaY: -12 });
+    // happy-dom's WheelEvent drops MouseEventInit modifiers; pin ctrlKey on the instance.
+    Object.defineProperty(pinch, "ctrlKey", { value: true });
+    a.target.dispatchEvent(pinch);
+    b.target.dispatchEvent(new WheelEvent("wheel", { deltaY: -120 }));
+    expect(a.store.getState().cameraPose.distance).toBeCloseTo(
+      b.store.getState().cameraPose.distance,
+      12,
+    );
+  });
+
+  it("bridges Safari GestureEvents to the dolly path when the browser supports them", () => {
+    // Simulate Safari: the bridge feature-detects GestureEvent on the window before listening.
+    (window as unknown as Record<string, unknown>).GestureEvent = class extends Event {};
+    try {
+      const { target, store } = setup();
+      const start = store.getState().cameraPose;
+      target.dispatchEvent(new Event("gesturestart", { cancelable: true }));
+      const change = new Event("gesturechange", { cancelable: true });
+      Object.defineProperty(change, "scale", { value: 1.5 }); // pinch out = zoom in
+      expect(target.dispatchEvent(change)).toBe(false); // preventDefault'ed — no page zoom
+      expect(store.getState().cameraPose.distance).toBeLessThan(start.distance);
+    } finally {
+      delete (window as unknown as Record<string, unknown>).GestureEvent;
+    }
+  });
+
+  it("ignores GestureEvents when the browser lacks them (no Safari)", () => {
+    const { target, store } = setup();
+    const start = store.getState().cameraPose;
+    target.dispatchEvent(new Event("gesturestart", { cancelable: true }));
+    const change = new Event("gesturechange", { cancelable: true });
+    Object.defineProperty(change, "scale", { value: 1.5 });
+    target.dispatchEvent(change);
+    expect(store.getState().cameraPose).toBe(start); // no listeners attached
+  });
+
   it("anchors wheel zoom to the cursor when the target has layout", () => {
     const { target, store } = setup();
     // happy-dom has no layout engine; stub the rect the wheel handler reads its NDC from.
@@ -193,6 +247,20 @@ describe("installPointerCamera", () => {
     await pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
   });
 
+  it("ignores R with shift held or while typing in a contenteditable host", async () => {
+    const { store } = setup();
+    const moved = { ...DEFAULT_POSE, azimuth: 2, distance: 5 };
+    store.getState().setCameraPose(moved);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "R", shiftKey: true }));
+    const editor = document.createElement("div");
+    editor.contentEditable = "true";
+    document.body.appendChild(editor);
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true }));
+    await frame();
+    await frame();
+    expect(store.getState().cameraPose).toBe(moved); // neither fired a fly-to
+  });
+
   it("pointer input interrupts an in-flight fly-to", async () => {
     const { target, store } = setup();
     store.getState().setCameraPose({ ...DEFAULT_POSE, azimuth: 2.5 });
@@ -209,9 +277,92 @@ describe("installPointerCamera", () => {
   it("consumes cameraFlyRequest intents (gnomon snaps)", async () => {
     const { store } = setup();
     const to = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } as const;
-    store.getState().requestCameraFly(to);
+    store.getState().requestCameraFly({ kind: "pose", pose: to });
     expect(store.getState().cameraFlyRequest).toBeNull(); // consumed synchronously
     await pumpUntil(() => store.getState().cameraPose === to);
+  });
+
+  it("resolves a fit fly request against the canvas aspect and tweens there", async () => {
+    const { target, store } = setup();
+    target.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 400, bottom: 200, width: 400, height: 200 }) as DOMRect;
+    const start = store.getState().cameraPose;
+    store.getState().requestCameraFly({ kind: "fit" });
+    expect(store.getState().cameraFlyRequest).toBeNull(); // consumed synchronously
+    await pumpUntil(() => store.getState().cameraPose.distance !== start.distance);
+    await pumpUntil(() => !store.getState().isCameraInteracting); // tween lands
+    const pose = store.getState().cameraPose;
+    expect(pose.azimuth).toBe(start.azimuth); // fit keeps the viewing direction
+    expect(pose.elevation).toBe(start.elevation);
+    expect(pose.target).toEqual([0, 0, 0]);
+  });
+
+  it("the Z key fits the data", async () => {
+    const { store } = setup();
+    store.getState().setCameraPose({ ...DEFAULT_POSE, distance: 40 });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "z" }));
+    await pumpUntil(() => store.getState().cameraPose.distance < 5);
+  });
+
+  it("held arrow keys orbit at constant velocity until released", async () => {
+    const { store } = setup();
+    const start = store.getState().cameraPose;
+    const down = new KeyboardEvent("keydown", {
+      key: "ArrowRight",
+      code: "ArrowRight",
+      cancelable: true,
+    });
+    expect(document.dispatchEvent(down)).toBe(false); // preventDefault'ed — no page scroll
+    expect(store.getState().isCameraInteracting).toBe(true);
+    await frame();
+    const early = store.getState().cameraPose;
+    expect(early.azimuth).toBeLessThan(start.azimuth); // arrow right ≙ drag right
+    await frame();
+    expect(store.getState().cameraPose.azimuth).toBeLessThan(early.azimuth); // still moving
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight", code: "ArrowRight" }));
+    await pumpUntil(() => !store.getState().isCameraInteracting); // hard stop, no glide tail
+  });
+
+  it("the -/= keys dolly out and in", async () => {
+    const { store } = setup();
+    const start = store.getState().cameraPose.distance;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "=", code: "Equal" }));
+    await frame();
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "=", code: "Equal" }));
+    const zoomedIn = store.getState().cameraPose.distance;
+    expect(zoomedIn).toBeLessThan(start);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "-", code: "Minus" }));
+    await frame();
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "-", code: "Minus" }));
+    expect(store.getState().cameraPose.distance).toBeGreaterThan(zoomedIn);
+  });
+
+  it("releases a dolly key even when Shift renamed it between keydown and keyup", async () => {
+    const { store } = setup();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "=", code: "Equal" }));
+    await frame();
+    // Shift pressed mid-hold (reaching for the pan modifier): the keyup arrives as "+", but the
+    // held set is keyed by code, so the physical key still releases — no runaway zoom.
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "+", code: "Equal", shiftKey: true }));
+    await pumpUntil(() => !store.getState().isCameraInteracting);
+  });
+
+  it("drops held keys when a modifier chord starts (macOS swallows those keyups)", async () => {
+    const { store } = setup();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp" }));
+    expect(store.getState().isCameraInteracting).toBe(true);
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Meta", code: "MetaLeft", metaKey: true }),
+    );
+    await pumpUntil(() => !store.getState().isCameraInteracting);
+  });
+
+  it("clears held keys when the window blurs (no stuck motion)", async () => {
+    const { store } = setup();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp" }));
+    expect(store.getState().isCameraInteracting).toBe(true);
+    window.dispatchEvent(new Event("blur"));
+    await pumpUntil(() => !store.getState().isCameraInteracting);
   });
 
   it("tracks gesture liveness in isCameraInteracting", async () => {

@@ -2,7 +2,13 @@ import type { FieldDataset } from "@containers/field_dataset.ts";
 import type { DataHandle, DataStreamRequest, DataStreamResponse } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import type { Theme } from "@schema/theme.ts";
-import { createSimulationStore, createUiStore, type SimulationStore } from "@store";
+import {
+  type CameraPose,
+  type CameraProjection,
+  createSimulationStore,
+  createUiStore,
+  type SimulationStore,
+} from "@store";
 import { installPointerCamera, installUi } from "@ui";
 import { installLayerSync } from "./layerSync.ts";
 import { installSceneSync } from "./sceneSync.ts";
@@ -10,6 +16,7 @@ import { createSyntheticDataset } from "./syntheticDataset.ts";
 
 const DEFAULT_SIZE = 256;
 const INIT_REQUEST_ID = 1;
+const PROJECTION_REQUEST_ID = 2;
 const POSE_REQUEST_ID = 3;
 const CONTINUOUS_REQUEST_ID = 4;
 const RESIZE_REQUEST_ID = 5;
@@ -66,6 +73,12 @@ export interface BootstrapOptions {
   readonly dataset?: FieldDataset;
   /** Theme for overlay colors (axes/grid/labels). Omitted → the gnomon-matching fallback palette. */
   readonly theme?: Theme;
+  /** Initial camera pose (the `?pose=` permalink). Seeded into the store before the worker spawns,
+   *  so the existing ready-time pose replay carries it — no extra protocol. */
+  readonly initialPose?: CameraPose;
+  /** Initial volume-view projection (the `&proj=ortho` permalink); the ready-time catch-up posts
+   *  any non-perspective value to the worker. */
+  readonly initialProjection?: CameraProjection;
   /** The simulation store; defaults to a fresh one. Injectable so a test can drive intents
    *  (e.g. setStep) and observe the resulting worker messages. */
   readonly store?: SimulationStore;
@@ -117,6 +130,9 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   const worker = spawnWorker();
   const store = options.store ?? createSimulationStore();
+  if (options.initialPose !== undefined) store.getState().setCameraPose(options.initialPose);
+  if (options.initialProjection !== undefined)
+    store.getState().setProjection(options.initialProjection);
   const uiStore = createUiStore();
   let workerReady = false;
 
@@ -191,6 +207,21 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     },
   );
 
+  // Volume-view projection (persp ↔ ortho). Same cheap-message pattern as pose; the default is
+  // perspective on both sides, so only user flips post (plus the ready catch-up below).
+  const unsubscribeProjection = store.subscribe(
+    (state) => state.projection,
+    (projection) => {
+      if (workerReady) {
+        worker.postMessage({
+          kind: "setProjection",
+          requestId: PROJECTION_REQUEST_ID,
+          projection,
+        } satisfies RenderWorkerRequest);
+      }
+    },
+  );
+
   // Camera-gesture liveness → worker interaction quality (coarser volume march while live). Same
   // cheap-message pattern as pose; the false edge's repaint restores full quality.
   const unsubscribeInteracting = store.subscribe(
@@ -208,21 +239,40 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   // Viewport/DPR tracking. ResizeObserver is frame-aligned, so post directly (no extra debounce).
   // Guarded like installPointerCamera so the headless fake canvas (no addEventListener) is untouched.
+  const postResize = (): void => {
+    if (!workerReady) return; // init carried the first layout; a pre-ready resize is vanishingly rare
+    const size = logicalSize();
+    worker.postMessage({
+      kind: "resize",
+      requestId: RESIZE_REQUEST_ID,
+      width: size.width,
+      height: size.height,
+      devicePixelRatio: currentDevicePixelRatio(),
+    } satisfies RenderWorkerRequest);
+  };
   let disposeResize: (() => void) | undefined;
   if (typeof canvas.addEventListener === "function" && typeof ResizeObserver === "function") {
-    const observer = new ResizeObserver(() => {
-      if (!workerReady) return; // init carried the first layout; a pre-ready resize is vanishingly rare
-      const size = logicalSize();
-      worker.postMessage({
-        kind: "resize",
-        requestId: RESIZE_REQUEST_ID,
-        width: size.width,
-        height: size.height,
-        devicePixelRatio: currentDevicePixelRatio(),
-      } satisfies RenderWorkerRequest);
-    });
+    const observer = new ResizeObserver(postResize);
     observer.observe(canvas);
     disposeResize = () => observer.disconnect();
+  }
+
+  // A monitor move can change devicePixelRatio with no CSS resize — the ResizeObserver never fires
+  // and the drawing buffer keeps the stale scale. The standard self-re-arming matchMedia loop: each
+  // query matches only the current DPR, so its one `change` means "DPR is now something else".
+  let disposeDprWatch: (() => void) | undefined;
+  if (typeof canvas.addEventListener === "function" && typeof matchMedia === "function") {
+    let query: MediaQueryList | undefined;
+    const onDprChange = (): void => {
+      postResize();
+      arm();
+    };
+    const arm = (): void => {
+      query = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      query.addEventListener("change", onDprChange, { once: true });
+    };
+    arm();
+    disposeDprWatch = () => query?.removeEventListener("change", onDprChange);
   }
 
   worker.onmessage = (event: MessageEvent<RenderWorkerResponse>) => {
@@ -241,6 +291,14 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
         requestId: POSE_REQUEST_ID,
         pose: store.getState().cameraPose,
       } satisfies RenderWorkerRequest);
+      // Same for a projection flipped during init (the worker boots perspective).
+      if (store.getState().projection !== "perspective") {
+        worker.postMessage({
+          kind: "setProjection",
+          requestId: PROJECTION_REQUEST_ID,
+          projection: store.getState().projection,
+        } satisfies RenderWorkerRequest);
+      }
       // Pair the data worker's streaming port (M2.10a) now the renderer is live, so streamed steps
       // flow data → render directly. Buffered until the render worker sets the port's onmessage.
       if (streamChannel !== undefined) {
@@ -359,9 +417,11 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     disposeUi?.();
     disposePointer?.();
     disposeResize?.();
+    disposeDprWatch?.();
     layerSync.dispose();
     sceneSync.dispose();
     unsubscribePose();
+    unsubscribeProjection();
     unsubscribeInteracting();
     unsubscribeContinuous();
     unsubscribeStep();

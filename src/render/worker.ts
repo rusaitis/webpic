@@ -4,15 +4,26 @@ import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { OrthographicCamera, PerspectiveCamera } from "three";
 import {
   applyPose,
+  applyPoseOrtho,
   createOrthographicCamera,
   createPerspectiveCamera,
+  createVolumeOrthographicCamera,
   DEFAULT_POSE,
 } from "./camera.ts";
-import { INTERACTION_STEP_SCALE } from "./constants.ts";
 import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
 import { createSceneOverlay, type SceneOverlay } from "./grid/overlayScene.ts";
+import {
+  advanceSettling,
+  beginInteracting,
+  endInteracting,
+  QUALITY_FULL,
+  type QualityLevel,
+  type QualityState,
+  qualityLevel,
+} from "./interactionQuality.ts";
 import type {
   CameraPose,
+  CameraProjection,
   RenderWorkerRequest,
   RenderWorkerResponse,
   SceneOverlayConfig,
@@ -76,10 +87,13 @@ let testScene: TestScene | undefined;
 // worker composites the visible layers (M2.5a); pre-M4 the app drives exactly one.
 const layers = new Map<string, LayerEntry>();
 let composite: readonly CompositeEntry[] = [];
-// The worker owns the cameras (lifted out of the scene factories): the perspective camera is
-// pose-driven for volumes; the orthographic one is screen-aligned for slices + the boot triangle.
+// The worker owns the cameras (lifted out of the scene factories): the pose-driven pair for
+// volumes (perspective, plus the matched-frustum ortho the projection toggle swaps in) and the
+// screen-aligned orthographic one for slices + the boot triangle.
 let perspCamera: PerspectiveCamera | undefined;
+let orthoVolumeCamera: OrthographicCamera | undefined;
 let orthoCamera: OrthographicCamera | undefined;
+let projection: CameraProjection = "perspective";
 let pose: CameraPose = DEFAULT_POSE;
 let dims = { width: 0, height: 0 };
 let canvas: OffscreenCanvas | undefined; // retained to rebuild the renderer on device-restore
@@ -128,6 +142,17 @@ function aspect(): number {
   return dims.height > 0 ? dims.width / dims.height : 1;
 }
 
+// The pose drives BOTH volume cameras (cheap — keeps the inactive one fresh so a projection flip
+// never shows a stale frustum); compositeItems picks the active one by `projection`.
+function applyVolumePose(): void {
+  if (perspCamera !== undefined) applyPose(perspCamera, pose, aspect());
+  if (orthoVolumeCamera !== undefined) applyPoseOrtho(orthoVolumeCamera, pose, aspect());
+}
+
+function volumeCamera(): PerspectiveCamera | OrthographicCamera | undefined {
+  return projection === "orthographic" ? orthoVolumeCamera : perspCamera;
+}
+
 async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Promise<void> {
   gpu = await installGpu();
   canvas = request.canvas;
@@ -143,8 +168,9 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
   float32Filterable = getCapabilities().hasFloat32Filterable;
   frameTimer = createFrameTimer(getDevice());
   perspCamera = createPerspectiveCamera(aspect());
+  orthoVolumeCamera = createVolumeOrthographicCamera(aspect());
   orthoCamera = createOrthographicCamera();
-  applyPose(perspCamera, pose, aspect());
+  applyVolumePose();
   debugScene = request.debugScene === true;
   if (debugScene) testScene = createTestScene();
   // Rebuild the renderer + scenes on the device gpu/ re-acquires after a loss; until then the loop
@@ -187,11 +213,11 @@ function compositeItems(
   layerOverride?: { readonly id: string; readonly entry: LayerEntry },
   overlayOverride?: SceneOverlay | null,
 ): CompositeItem[] {
-  if (perspCamera === undefined || orthoCamera === undefined) {
+  const volume = volumeCamera();
+  const ortho = orthoCamera;
+  if (volume === undefined || ortho === undefined) {
     throw new Error("render before init");
   }
-  const persp = perspCamera;
-  const ortho = orthoCamera;
   const items: CompositeItem[] = [];
   let overrideListed = false;
   for (const entry of composite) {
@@ -202,21 +228,22 @@ function compositeItems(
     if (layer === undefined) continue; // composite ahead of its upsert — heals on the upsert repaint
     items.push({
       scene: layer.scene.scene,
-      camera: layer.kind === "volume" ? persp : ortho,
+      camera: layer.kind === "volume" ? volume : ortho,
     });
   }
   if (layerOverride !== undefined && !overrideListed) {
     items.push({
       scene: layerOverride.entry.scene.scene,
-      camera: layerOverride.entry.kind === "volume" ? persp : ortho,
+      camera: layerOverride.entry.kind === "volume" ? volume : ortho,
     });
   }
-  // The overlay composites last (on top), paired with the perspective camera — but only when a
-  // perspective (volume) layer is present. A 3D axes overlay over a flat ortho slice or an empty
-  // frame is meaningless; a volume whose upsert hasn't landed yet heals on its upsert repaint.
+  // The overlay composites last (on top), paired with the SAME pose-driven camera as the volumes
+  // (else the axes would misalign under an ortho volume) — and only when a volume layer is present.
+  // A 3D axes overlay over a flat ortho slice or an empty frame is meaningless; a volume whose
+  // upsert hasn't landed yet heals on its upsert repaint.
   const effectiveOverlay = overlayOverride === undefined ? overlay : (overlayOverride ?? undefined);
-  if (effectiveOverlay !== undefined && items.some((item) => item.camera === persp)) {
-    items.push({ scene: effectiveOverlay.scene, camera: persp });
+  if (effectiveOverlay !== undefined && items.some((item) => item.camera === volume)) {
+    items.push({ scene: effectiveOverlay.scene, camera: volume });
   }
   return items;
 }
@@ -264,6 +291,12 @@ function renderTick(): void {
       renderer.renderComposite(paintItems());
     }
     lastErrorMessage = undefined; // a clean frame re-arms error reporting
+    // Each settle level paints exactly one frame: advancing re-arms needsRender via applyQuality
+    // until the ramp lands at full, where the level stops changing and the loop goes quiet.
+    if (quality.kind === "settling") {
+      quality = advanceSettling(quality);
+      applyQuality();
+    }
   } catch (error) {
     // A single bad frame (transient validation, mid-rebuild sample) must not kill the loop; on-demand
     // mode won't re-enter until the next requestRender, so this self-rate-limits to real changes.
@@ -360,7 +393,9 @@ function buildScene(source: LayerSource): LayerEntry {
     ...(source.density !== undefined ? { density: source.density } : {}),
     ...(source.shaded !== undefined ? { shaded: source.shaded } : {}),
   });
-  scene.setStepScale(stepScale); // a scene built mid-gesture inherits the live interaction quality
+  // A scene built mid-gesture (stream rebuild) inherits the live interaction quality + projection.
+  scene.setStepScale(qualityLevel(quality).stepScale);
+  scene.setProjection(projection === "orthographic");
   return { scene, kind: "volume", source };
 }
 
@@ -395,6 +430,10 @@ async function replaceLayer(id: string, source: LayerSource): Promise<void> {
     next.scene.dispose(); // superseded mid-warm — discard rather than resurrect a stale scene
     return;
   }
+  // The warm's await is a real yield: a setProjection / quality change that landed mid-warm only
+  // reached committed scenes, so re-assert the live state on this one before it becomes visible.
+  if ("setStepScale" in next.scene) next.scene.setStepScale(qualityLevel(quality).stepScale);
+  if ("setProjection" in next.scene) next.scene.setProjection(projection === "orthographic");
   const previous = layers.get(id);
   layers.set(id, next);
   pendingDispose?.scene.dispose();
@@ -512,23 +551,39 @@ async function setLayerColormap(
   requestRender();
 }
 
-// Camera-gesture liveness → interaction-time quality: volumes march at INTERACTION_STEP_SCALE of
-// their step count while a gesture is live (uniform flip, no rebuild); the false edge's repaint
-// restores full quality. Slices have no march, so the message is inert for them.
-let stepScale = 1; // retained so a scene built mid-gesture (stream rebuild) inherits the live scale
+// Camera-gesture liveness → interaction-time quality: volumes march coarser (uniform flip, no
+// rebuild) AND the swapchain renders at a reduced scale while a gesture is live; the false edge
+// starts a short settle ramp the display loop advances one painted frame at a time, instead of a
+// one-frame pop back to full quality. State transitions are pure (interactionQuality.ts).
+let quality: QualityState = QUALITY_FULL;
+let appliedLevel: QualityLevel = qualityLevel(QUALITY_FULL);
+
+function applyQuality(): void {
+  const level = qualityLevel(quality);
+  let changed = false;
+  if (level.stepScale !== appliedLevel.stepScale) {
+    for (const entry of layers.values()) {
+      if ("setStepScale" in entry.scene) entry.scene.setStepScale(level.stepScale);
+    }
+    changed = true;
+  }
+  if (level.renderScale !== appliedLevel.renderScale) {
+    renderer?.setRenderScale(level.renderScale);
+    changed = true;
+  }
+  appliedLevel = level;
+  if (changed) requestRender();
+}
+
 async function setInteracting(
   request: Extract<RenderWorkerRequest, { kind: "setInteracting" }>,
 ): Promise<void> {
   await initDone;
-  stepScale = request.interacting ? INTERACTION_STEP_SCALE : 1;
-  let changed = false;
-  for (const entry of layers.values()) {
-    if ("setStepScale" in entry.scene) {
-      entry.scene.setStepScale(stepScale);
-      changed = true;
-    }
-  }
-  if (changed) requestRender();
+  quality = request.interacting ? beginInteracting() : endInteracting(quality);
+  // No display loop (Node) means nothing advances a settle ramp — collapse straight to full so
+  // the synchronous one-shot paints land at final quality.
+  if (rafId === undefined && quality.kind === "settling") quality = QUALITY_FULL;
+  applyQuality();
 }
 
 // Live per-layer Phong toggle — a uniform flip on the volume scene, no rebuild/re-upload. Slice
@@ -560,7 +615,26 @@ async function setCameraPose(
     throw new Error("setCameraPose before init");
   }
   pose = request.pose;
-  applyPose(perspCamera, pose, aspect());
+  applyVolumePose();
+  requestRender();
+}
+
+// Volume-view projection flip: pick the other pose-driven camera and flip every volume scene's
+// ray generation (a uniform — no rebuild). The matched ortho frustum (halfH = d·tan(fov/2)) keeps
+// the on-screen scale at the target plane, so the flip is visually seamless except for parallax.
+async function setProjection(
+  request: Extract<RenderWorkerRequest, { kind: "setProjection" }>,
+): Promise<void> {
+  await initDone;
+  if (projection === request.projection) return;
+  projection = request.projection;
+  applyVolumePose(); // the incoming camera re-aims at the live pose before it paints
+  const orthographic = projection === "orthographic";
+  for (const entry of layers.values()) {
+    // `setProjection` exists only on RaymarchScene; the `in` check narrows the union (slices are
+    // screen-aligned and pose-invariant, so the flip is inert for them).
+    if ("setProjection" in entry.scene) entry.scene.setProjection(orthographic);
+  }
   requestRender();
 }
 
@@ -573,7 +647,7 @@ async function resize(request: Extract<RenderWorkerRequest, { kind: "resize" }>)
   dims = { width: request.width, height: request.height };
   devicePixelRatio = request.devicePixelRatio;
   renderer.setSize(request.width, request.height, request.devicePixelRatio);
-  applyPose(perspCamera, pose, aspect()); // re-applies camera.aspect via its internal guard
+  applyVolumePose(); // re-applies both cameras' aspect
   requestRender();
 }
 
@@ -607,12 +681,16 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   });
   frameTimer = createFrameTimer(device);
   if (debugScene) testScene = createTestScene();
-  if (perspCamera !== undefined) applyPose(perspCamera, pose, aspect());
+  applyVolumePose();
   // Replace each layer's scene in place (Map.set on an existing key is safe mid-iteration).
   for (const [id, entry] of layers) layers.set(id, buildScene(entry.source));
   // Replay the overlay from its retained config on the fresh device (its line buffers + CanvasTextures
   // belonged to the dead device). Sprites re-billboard on the next render.
   overlay = overlaySource !== undefined ? createSceneOverlay(overlaySource) : undefined;
+  // The fresh renderer starts at scale 1 and buildScene already applied the live step scale —
+  // resync the applied-level cache, then re-apply in case a gesture is live across the restore.
+  appliedLevel = { stepScale: qualityLevel(quality).stepScale, renderScale: 1 };
+  applyQuality();
   // Warm the rebuilt composite on the fresh device before un-pausing the loop, so the first
   // restored frame neither stalls nor draws half-compiled.
   try {
@@ -706,6 +784,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return setLayerShading(request);
     case "setCameraPose":
       return setCameraPose(request);
+    case "setProjection":
+      return setProjection(request);
     case "resize":
       return resize(request);
     case "setContinuous":

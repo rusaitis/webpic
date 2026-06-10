@@ -9,9 +9,9 @@ import type { OverlayState, SimulationStore } from "@store";
 // full config. Gated on `workerReady` with a flushAll catch-up replayed on the worker `ready` message,
 // mirroring layerSync — `setDataset` runs before `ready`, so the initial overlay rides the catch-up.
 
-const SCENE_REQUEST_ID = 8;
+// Disjoint from app/main.ts (1-8) and layerSync (9) so worker error echoes attribute correctly.
+const SCENE_REQUEST_ID = 10;
 const GRID_MAJOR_OPACITY = 0.4;
-const GRID_MINOR_OPACITY = 0.15;
 
 const AXIS_NAMES = ["x", "y", "z"] as const;
 
@@ -52,7 +52,6 @@ function buildAxis(grid: GridInfo | null, index: number): OverlayAxis {
   const usePhysical = spacing !== undefined && Number.isFinite(spacing) && spacing > 0;
   return {
     bounds: usePhysical ? [origin, origin + spacing * dim] : [0, dim],
-    dimension: dim,
     label,
   };
 }
@@ -69,11 +68,7 @@ export function buildOverlayPayload(
     planes: { ...overlay.planes },
     planePosition: "center",
     show: { grid: overlay.showGrid, axes: overlay.showAxes, labels: overlay.showLabels },
-    grid: {
-      color: colors.grid,
-      majorOpacity: GRID_MAJOR_OPACITY,
-      minorOpacity: GRID_MINOR_OPACITY,
-    },
+    grid: { color: colors.grid, majorOpacity: GRID_MAJOR_OPACITY },
     axisColors: colors.axes,
     labelColor: colors.label,
     tick: { targetCount: overlay.gridDivisions },

@@ -2,6 +2,7 @@ import {
   type AxisView,
   axisViewPose,
   type CameraPose,
+  formatPoseParam,
   type SimulationStore,
   type UiStore,
 } from "@store";
@@ -16,12 +17,13 @@ import type { Disposer } from "./controls/index.ts";
 
 const RAD_TO_DEG = 180 / Math.PI;
 
-function formatPose(pose: CameraPose): string {
+function formatPose(pose: CameraPose, orthographic: boolean): string {
   const [tx, ty, tz] = pose.target;
   const az = (pose.azimuth * RAD_TO_DEG).toFixed(0);
   const el = (pose.elevation * RAD_TO_DEG).toFixed(0);
   const target = `${tx.toFixed(2)}, ${ty.toFixed(2)}, ${tz.toFixed(2)}`;
-  return `az ${az}°  el ${el}°  d ${pose.distance.toFixed(2)}  ·  [${target}]`;
+  const suffix = orthographic ? "  ·  ortho" : "";
+  return `az ${az}°  el ${el}°  d ${pose.distance.toFixed(2)}  ·  [${target}]${suffix}`;
 }
 
 // The gnomon shows the world axes as the camera sees them. The arms are a fixed CSS triad — is-x→right,
@@ -90,7 +92,7 @@ export function installCameraChrome(
     tip.title = `View from ${spec.view}`;
     tip.addEventListener("click", () => {
       const state = store.getState();
-      state.requestCameraFly(axisViewPose(spec.view, state.cameraPose));
+      state.requestCameraFly({ kind: "pose", pose: axisViewPose(spec.view, state.cameraPose) });
     });
     scene.appendChild(tip);
     return { el: tip, offset: spec.offset };
@@ -98,11 +100,45 @@ export function installCameraChrome(
   gnomon.appendChild(scene);
 
   const readout = makeEl(doc, "div", "webpic-readout");
+  readout.title = "Click to copy a link to this view";
+  readout.style.cursor = "pointer";
   container.append(gnomon, readout);
   parent.appendChild(container);
 
+  // Click-to-copy permalink: the current pose as a ?pose= URL. Clipboard is undefined on insecure
+  // origins — the click is then a no-op. The "copied" flash restores via the normal pose render.
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  const onReadoutClick = (): void => {
+    const view = doc.defaultView;
+    const clipboard = view?.navigator.clipboard;
+    if (view === null || clipboard === undefined) return;
+    const url = new URL(view.location.href);
+    url.searchParams.set("pose", formatPoseParam(store.getState().cameraPose));
+    // "this view" includes the projection — an ortho view must not reopen as perspective.
+    if (store.getState().projection === "orthographic") url.searchParams.set("proj", "ortho");
+    else url.searchParams.delete("proj");
+    void clipboard
+      .writeText(url.toString())
+      .then(() => {
+        readout.classList.add("is-copied");
+        readout.textContent = "view link copied";
+        clearTimeout(copiedTimer);
+        copiedTimer = setTimeout(() => {
+          readout.classList.remove("is-copied");
+          render(store.getState().cameraPose);
+        }, 1200);
+      })
+      .catch(() => {
+        // NotAllowedError (focus loss, permissions) — no copied flash, readout stays as-is.
+      });
+  };
+  readout.addEventListener("click", onReadoutClick);
+
   const render = (pose: CameraPose): void => {
-    readout.textContent = formatPose(pose);
+    // The copied flash owns the readout text until it clears; the gnomon keeps tracking regardless.
+    if (!readout.classList.contains("is-copied")) {
+      readout.textContent = formatPose(pose, store.getState().projection === "orthographic");
+    }
     scene.style.transform = gnomonTransform(pose);
     const counter = gnomonCounterTransform(pose);
     for (const tip of tips) {
@@ -112,6 +148,10 @@ export function installCameraChrome(
   };
   render(store.getState().cameraPose);
   const unsubPose = store.subscribe((s) => s.cameraPose, render);
+  const unsubProjection = store.subscribe(
+    (s) => s.projection,
+    () => render(store.getState().cameraPose),
+  );
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
@@ -129,8 +169,10 @@ export function installCameraChrome(
 
   return () => {
     unsubPose();
+    unsubProjection();
     unsubUi();
     unsubGnomon();
+    clearTimeout(copiedTimer);
     container.remove();
   };
 }

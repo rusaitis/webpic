@@ -40,6 +40,8 @@ export interface InstalledRenderer {
   readCompositePixels(items: readonly CompositeItem[]): Promise<Uint8Array>;
   /** Resize the swapchain + readback/composite targets to a new logical size and DPR. */
   setSize(width: number, height: number, devicePixelRatio?: number): void;
+  /** Scale the swapchain drawing buffer (interaction-time quality). Readback stays full-res. */
+  setRenderScale(scale: number): void;
   dispose(): void;
 }
 
@@ -53,27 +55,46 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
     // wall-clock instead (render/frameTimer.ts) — no querySet, no mapAsync.
     ...(opts.device ? { device: opts.device } : {}),
   });
-  renderer.setPixelRatio(opts.devicePixelRatio ?? 1); // before setSize: drawing buffer = logical × DPR
-  renderer.setSize(opts.width, opts.height, false); // no style: OffscreenCanvas has none
+  let logical = { width: opts.width, height: opts.height };
+  let dpr = opts.devicePixelRatio ?? 1;
+  let renderScale = 1; // interaction-time swapchain scale; never applied to the readback target
+
+  renderer.setPixelRatio(dpr); // before setSize: drawing buffer = logical × DPR
+  renderer.setSize(logical.width, logical.height, false); // no style: OffscreenCanvas has none
   // The scenes no longer carry a background; the renderer owns the one clear color so layers
   // composite over a single background and the boot/parity frame is unchanged.
   renderer.setClearColor(new Color(BACKGROUND_COLOR), 1);
   await renderer.init();
 
-  // Readback/composite targets track the *drawing-buffer* (physical) size, not the logical size,
-  // so a DPR>1 composite/readback stays full-resolution. setPixelRatio folds DPR into this.
+  // Swapchain + composite targets track the *drawing-buffer* (physical) size — logical × DPR ×
+  // renderScale. setPixelRatio folds DPR (and the interaction scale) into this.
   const drawingBuffer = (): { width: number; height: number } => {
     const size = renderer.getDrawingBufferSize(new Vector2());
     return { width: size.x, height: size.y };
   };
   let buffer = drawingBuffer();
 
+  const applyBufferSize = (): void => {
+    renderer.setPixelRatio(dpr * renderScale);
+    renderer.setSize(logical.width, logical.height, false);
+    buffer = drawingBuffer();
+    compositeTarget?.setSize(buffer.width, buffer.height);
+  };
+
+  // The readback target is pinned to the FULL logical × DPR size (never × renderScale), so the
+  // deterministic readback/parity paths are structurally unaffected by interaction-time scaling.
+  // Matches three's setSize rounding so readback and swapchain agree at scale 1.
+  const fullSize = (): { width: number; height: number } => ({
+    width: Math.floor(logical.width * dpr),
+    height: Math.floor(logical.height * dpr),
+  });
+
   // Readback target: an UnsignedByte RGBA texture both paths read identically,
   // sidestepping any swapchain-presentation differences between worker and main.
   // Annotated as the bare RenderTarget: @types/three treats the generic as
   // invariant, so the inferred RenderTarget<Texture<unknown>> would not match
   // readRenderTargetPixelsAsync's RenderTarget parameter without this.
-  const readTarget: RenderTarget = new RenderTarget(buffer.width, buffer.height, {
+  const readTarget: RenderTarget = new RenderTarget(fullSize().width, fullSize().height, {
     format: RGBAFormat,
     type: UnsignedByteType,
   });
@@ -136,8 +157,8 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
         readTarget,
         0,
         0,
-        buffer.width,
-        buffer.height,
+        readTarget.width,
+        readTarget.height,
       );
       renderer.setRenderTarget(null);
       // Compact, offset-0 buffer so the worker can transfer pixels.buffer wholesale.
@@ -185,18 +206,22 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
         readTarget,
         0,
         0,
-        buffer.width,
-        buffer.height,
+        readTarget.width,
+        readTarget.height,
       );
       renderer.setRenderTarget(null);
       return toTransferablePixels(data);
     },
     setSize(width, height, devicePixelRatio) {
-      if (devicePixelRatio !== undefined) renderer.setPixelRatio(devicePixelRatio);
-      renderer.setSize(width, height, false);
-      buffer = drawingBuffer();
-      readTarget.setSize(buffer.width, buffer.height);
-      compositeTarget?.setSize(buffer.width, buffer.height);
+      logical = { width, height };
+      if (devicePixelRatio !== undefined) dpr = devicePixelRatio;
+      applyBufferSize();
+      readTarget.setSize(fullSize().width, fullSize().height);
+    },
+    setRenderScale(scale) {
+      if (scale === renderScale) return;
+      renderScale = scale;
+      applyBufferSize(); // pipeline cache keys ignore buffer size — no recompile, just a realloc
     },
     dispose() {
       // The gpu-layer device is intentionally NOT destroyed here — its lifetime

@@ -2,8 +2,10 @@ import { Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import {
   applyPose,
+  applyPoseOrtho,
   createOrthographicCamera,
   createPerspectiveCamera,
+  createVolumeOrthographicCamera,
   DEFAULT_POSE,
 } from "./camera.ts";
 import { FRUSTUM } from "./constants.ts";
@@ -26,7 +28,6 @@ describe("createPerspectiveCamera", () => {
     const camera = createPerspectiveCamera(2);
     expect(camera.fov).toBe(45);
     expect(camera.near).toBe(0.01);
-    expect(camera.far).toBe(10);
     expect(camera.aspect).toBe(2);
   });
 });
@@ -70,5 +71,50 @@ describe("applyPose", () => {
     const direction = camera.getWorldDirection(new Vector3());
     const toTarget = new Vector3(0, 0, 0).sub(camera.position).normalize();
     expect(direction.dot(toTarget)).toBeCloseTo(1, 5);
+  });
+
+  it("keeps the scene inside the frustum across the full dolly range", () => {
+    const camera = createPerspectiveCamera();
+    applyPose(camera, { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 50 });
+    expect(camera.far).toBeGreaterThanOrEqual(50 + Math.sqrt(3) / 2); // box back face visible
+  });
+
+  it("extends far to cover a panned-away target", () => {
+    const camera = createPerspectiveCamera();
+    applyPose(camera, { target: [3, 4, 0], azimuth: 0, elevation: 0, distance: 2 });
+    expect(camera.far).toBeCloseTo(2 + 5 + 1, 12); // distance + |target| + scene radius
+  });
+});
+
+describe("applyPoseOrtho", () => {
+  const pose: CameraPose = { target: [0, 0, 0], azimuth: 0.8, elevation: 0.3, distance: 4 };
+
+  it("places the camera exactly where applyPose does (shared orbit placement)", () => {
+    const persp = createPerspectiveCamera();
+    const ortho = createVolumeOrthographicCamera();
+    applyPose(persp, pose);
+    applyPoseOrtho(ortho, pose);
+    expect(ortho.position.toArray()).toEqual(persp.position.toArray());
+    const direction = ortho.getWorldDirection(new Vector3());
+    const toTarget = new Vector3(0, 0, 0).sub(ortho.position).normalize();
+    expect(direction.dot(toTarget)).toBeCloseTo(1, 5);
+  });
+
+  it("matches the perspective frustum at the target plane: halfH = d·tan(fov/2)", () => {
+    const ortho = createVolumeOrthographicCamera();
+    applyPoseOrtho(ortho, pose, 2);
+    const halfH = pose.distance * Math.tan((45 * Math.PI) / 360);
+    expect(ortho.top).toBeCloseTo(halfH, 12);
+    expect(ortho.bottom).toBeCloseTo(-halfH, 12);
+    expect(ortho.right).toBeCloseTo(halfH * 2, 12); // aspect-corrected
+    expect(ortho.left).toBeCloseTo(-halfH * 2, 12);
+  });
+
+  it("zooms with distance: the frustum follows a dolly", () => {
+    const ortho = createVolumeOrthographicCamera();
+    applyPoseOrtho(ortho, pose);
+    const wide = ortho.top;
+    applyPoseOrtho(ortho, { ...pose, distance: 2 });
+    expect(ortho.top).toBeCloseTo(wide / 2, 12);
   });
 });

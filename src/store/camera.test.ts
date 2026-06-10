@@ -14,12 +14,19 @@ import {
   dollyPoseToCursor,
   ELEVATION_LIMIT,
   easeInOutCubic,
+  formatPoseParam,
   isMomentumSettled,
+  type KeyNudge,
   MOMENTUM_ZERO,
+  normalizeWheelDelta,
+  nudgePose,
   orbitPose,
   panPose,
+  parsePoseParam,
+  poseForBounds,
   poseLerp,
   stepMomentum,
+  UNIT_BOX_RADIUS,
 } from "./camera.ts";
 
 // Drag deltas are viewport-height fractions (px / viewport height) — OrbitControls' unit, so the
@@ -80,6 +87,26 @@ describe("dollyPose", () => {
     expect(next.azimuth).toBe(LEVEL.azimuth);
     expect(next.elevation).toBe(LEVEL.elevation);
     expect(next.target).toBe(LEVEL.target);
+  });
+});
+
+describe("normalizeWheelDelta", () => {
+  it("passes pixel-mode deltas through unchanged", () => {
+    expect(normalizeWheelDelta(-120, 0, false)).toBe(-120);
+  });
+
+  it("scales line mode ×16 and page mode ×100 (OrbitControls parity)", () => {
+    expect(normalizeWheelDelta(3, 1, false)).toBe(48);
+    expect(normalizeWheelDelta(-3, 1, false)).toBe(-48);
+    expect(normalizeWheelDelta(1, 2, false)).toBe(100);
+  });
+
+  it("boosts ctrl-wheel trackpad pinches ×10", () => {
+    expect(normalizeWheelDelta(-12, 0, true)).toBe(-120);
+  });
+
+  it("composes the pinch gain with the mode multiplier", () => {
+    expect(normalizeWheelDelta(1, 1, true)).toBe(160);
   });
 });
 
@@ -323,6 +350,156 @@ describe("poseLerp", () => {
 
   it("interpolates distance geometrically (uniform zoom feel)", () => {
     expect(poseLerp(A, B, 0.5).distance).toBeCloseTo(2, 12); // geometric mean of 1 and 4
+  });
+});
+
+describe("nudgePose", () => {
+  const still: KeyNudge = { azimuth: 0, elevation: 0, dolly: 0 };
+
+  it("orbits at the magviz keyboard rate: 1.2 rad over a held second", () => {
+    const next = nudgePose(LEVEL, { ...still, azimuth: 1 }, 1000);
+    expect(next.azimuth).toBeCloseTo(LEVEL.azimuth + 1.2, 12);
+  });
+
+  it("is dt-linear: two half-steps equal one full step", () => {
+    const one = nudgePose(LEVEL, { ...still, elevation: 1 }, 500);
+    const two = nudgePose(one, { ...still, elevation: 1 }, 500);
+    expect(two.elevation).toBeCloseTo(
+      nudgePose(LEVEL, { ...still, elevation: 1 }, 1000).elevation,
+      12,
+    );
+  });
+
+  it("dollies geometrically and never crosses the clamps", () => {
+    const zoomIn = nudgePose(LEVEL, { ...still, dolly: 1 }, 1000);
+    expect(zoomIn.distance).toBeCloseTo(LEVEL.distance * Math.exp(-1.5), 12);
+    expect(nudgePose(LEVEL, { ...still, dolly: 1 }, 1e7).distance).toBe(DISTANCE_MIN);
+    expect(nudgePose(LEVEL, { ...still, dolly: -1 }, 1e7).distance).toBe(DISTANCE_MAX);
+  });
+
+  it("clamps elevation off the poles and leaves the target alone", () => {
+    const up = nudgePose(LEVEL, { ...still, elevation: 1 }, 1e7);
+    expect(up.elevation).toBe(ELEVATION_LIMIT);
+    expect(up.target).toBe(LEVEL.target);
+  });
+});
+
+describe("poseForBounds", () => {
+  const sphere = { center: [0, 0, 0] as const, radius: UNIT_BOX_RADIUS };
+
+  // Project a world point through the fitted pose's view + perspective and return |ndc| extrema.
+  // Plain trig (no THREE): camera basis from azimuth/elevation, fov from CAMERA_FOV_DEG.
+  function maxNdcOverSphere(pose: CameraPose, radius: number, aspect: number): number {
+    const ce = Math.cos(pose.elevation);
+    const se = Math.sin(pose.elevation);
+    const sa = Math.sin(pose.azimuth);
+    const ca = Math.cos(pose.azimuth);
+    const [tx, ty, tz] = pose.target;
+    const camX = tx + pose.distance * ce * ca;
+    const camY = ty + pose.distance * ce * sa;
+    const camZ = tz + pose.distance * se;
+    const dot = (
+      [ax, ay, az]: readonly [number, number, number],
+      [bx, by, bz]: readonly [number, number, number],
+    ): number => ax * bx + ay * by + az * bz;
+    const fwd = [-ce * ca, -ce * sa, -se] as const;
+    const right = [-sa, ca, 0] as const;
+    const up = [-ca * se, -sa * se, ce] as const;
+    const tanHalf = Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
+    let worst = 0;
+    for (let i = -2; i <= 2; i++) {
+      for (let j = -2; j <= 2; j++) {
+        for (let k = -2; k <= 2; k++) {
+          const len = Math.hypot(i, j, k);
+          if (len === 0) continue;
+          const d = [
+            tx + (radius * i) / len - camX,
+            ty + (radius * j) / len - camY,
+            tz + (radius * k) / len - camZ,
+          ] as const;
+          const z = dot(d, fwd);
+          const ndcX = dot(d, right) / (z * tanHalf * aspect);
+          const ndcY = dot(d, up) / (z * tanHalf);
+          worst = Math.max(worst, Math.abs(ndcX), Math.abs(ndcY));
+        }
+      }
+    }
+    return worst;
+  }
+
+  it("frames every sphere point inside NDC in landscape and portrait", () => {
+    for (const aspect of [0.5, 2.0]) {
+      const fitted = poseForBounds(DEFAULT_POSE, sphere, aspect);
+      expect(maxNdcOverSphere(fitted, sphere.radius, aspect)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("keeps the viewing direction and recenters on the sphere", () => {
+    const start: CameraPose = { target: [1, 2, 3], azimuth: 1.1, elevation: -0.3, distance: 9 };
+    const fitted = poseForBounds(start, { center: [4, 5, 6], radius: 2 }, 1.5);
+    expect(fitted.azimuth).toBe(start.azimuth);
+    expect(fitted.elevation).toBe(start.elevation);
+    expect(fitted.target).toEqual([4, 5, 6]);
+  });
+
+  it("backs off further for a portrait viewport than a landscape one", () => {
+    const landscape = poseForBounds(DEFAULT_POSE, sphere, 2.0);
+    const portrait = poseForBounds(DEFAULT_POSE, sphere, 0.5);
+    expect(portrait.distance).toBeGreaterThan(landscape.distance);
+  });
+
+  it("clamps degenerate radii to the dolly bounds", () => {
+    expect(poseForBounds(DEFAULT_POSE, { center: [0, 0, 0], radius: 1e-9 }, 1).distance).toBe(
+      DISTANCE_MIN,
+    );
+    expect(poseForBounds(DEFAULT_POSE, { center: [0, 0, 0], radius: 1e9 }, 1).distance).toBe(
+      DISTANCE_MAX,
+    );
+  });
+});
+
+describe("pose param round-trip", () => {
+  it("format → parse reproduces the pose to 1e-4 on every component", () => {
+    const pose: CameraPose = {
+      target: [0.1234, -2.5, 7.89],
+      azimuth: -1.234,
+      elevation: 0.6,
+      distance: 3.21,
+    };
+    const back = parsePoseParam(formatPoseParam(pose));
+    expect(back).not.toBeNull();
+    expect(back?.azimuth).toBeCloseTo(pose.azimuth, 4);
+    expect(back?.elevation).toBeCloseTo(pose.elevation, 4);
+    expect(back?.distance).toBeCloseTo(pose.distance, 4);
+    for (let i = 0; i < 3; i++) {
+      expect(back?.target[i]).toBeCloseTo(pose.target[i] ?? Number.NaN, 4);
+    }
+  });
+
+  it("normalizes through the pose invariants (wrap, clamps)", () => {
+    const parsed = parsePoseParam("10,3,500,0,0,0"); // azimuth > π, elevation > limit, distance > max
+    expect(parsed?.azimuth).toBeGreaterThan(-Math.PI);
+    expect(parsed?.azimuth).toBeLessThanOrEqual(Math.PI);
+    expect(parsed?.elevation).toBe(ELEVATION_LIMIT);
+    expect(parsed?.distance).toBe(DISTANCE_MAX);
+  });
+
+  it("rejects malformed input with null", () => {
+    for (const bad of [
+      "",
+      "1,2,3",
+      "a,b,c,d,e,f",
+      "1,2,Infinity,0,0,0",
+      "1,2,-3,0,0,0",
+      "1,2,0,0,0,0",
+    ]) {
+      expect(parsePoseParam(bad)).toBeNull();
+    }
+  });
+
+  it("clamps huge crafted targets (a URL is a trust boundary — hypot overflow → NaN projection)", () => {
+    const parsed = parsePoseParam("0,0,1,1.5e308,-1.5e308,1e30");
+    expect(parsed?.target).toEqual([DISTANCE_MAX, -DISTANCE_MAX, DISTANCE_MAX]);
   });
 });
 

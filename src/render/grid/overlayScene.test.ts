@@ -7,19 +7,18 @@ import { createSceneOverlay } from "./overlayScene.ts";
 // browser smoke test). Material/geometry construction is CPU-only; labels need OffscreenCanvas, which
 // is absent in node, so the deterministic assertions are over the LineSegments (grid + axes).
 
-const axis = (min: number, max: number, dim: number, label: string): OverlayAxis => ({
+const axis = (min: number, max: number, label: string): OverlayAxis => ({
   bounds: [min, max],
-  dimension: dim,
   label,
 });
 
 function config(overrides: Partial<SceneOverlayConfig> = {}): SceneOverlayConfig {
   return {
-    axes: [axis(0, 256, 256, "x"), axis(0, 256, 256, "y"), axis(0, 256, 256, "z")],
+    axes: [axis(0, 256, "x"), axis(0, 256, "y"), axis(0, 256, "z")],
     planes: { xy: false, yz: false, xz: true },
     planePosition: "center",
     show: { grid: true, axes: true, labels: true },
-    grid: { color: [1, 1, 1, 0.2], majorOpacity: 0.35, minorOpacity: 0.15 },
+    grid: { color: [1, 1, 1, 0.2], majorOpacity: 0.35 },
     axisColors: { x: [1, 0, 0, 1], y: [0, 1, 0, 1], z: [0, 0, 1, 1] },
     labelColor: [0.8, 0.8, 0.8, 1],
     tick: { targetCount: 8 },

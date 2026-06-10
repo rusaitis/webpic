@@ -6,7 +6,7 @@
 // mocked (same pattern as worker.recovery.test.ts). Flow: init → upsert layer-0 → pair → streamStep.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
-import { INTERACTION_STEP_SCALE } from "./constants.ts";
+import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = vi.hoisted(() => {
@@ -20,6 +20,7 @@ const h = vi.hoisted(() => {
     setShading: vi.fn(),
     setOpacity: vi.fn(),
     setStepScale: vi.fn(),
+    setProjection: vi.fn(),
     setField: vi.fn(() => true),
     dispose: vi.fn(),
   });
@@ -31,6 +32,7 @@ const h = vi.hoisted(() => {
       compileComposite: vi.fn(async () => {}),
       readCompositePixels: vi.fn(),
       setSize: vi.fn(),
+      setRenderScale: vi.fn(),
       dispose: vi.fn(),
     })),
     createRaymarchScene: vi.fn((_opts: unknown) => makeScene()),
@@ -159,15 +161,36 @@ it("falls back to a scene rebuild when setField declines the in-place swap", asy
   channel.port1.close();
 });
 
-it("setInteracting retunes every volume's march scale, full quality on release", async () => {
+it("setInteracting retunes march + render scale, full quality on release", async () => {
   const scene = h.createRaymarchScene.mock.results.at(-1)?.value as {
     setStepScale: ReturnType<typeof vi.fn>;
   };
+  const renderer = (await h.installRenderer.mock.results[0]?.value) as {
+    setRenderScale: ReturnType<typeof vi.fn>;
+  };
   scene.setStepScale.mockClear();
+  renderer.setRenderScale.mockClear();
   onmessage({ data: { kind: "setInteracting", requestId: 9, interacting: true } });
   await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
+  expect(renderer.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE);
+  // Node has no display loop to advance a settle ramp — the false edge restores full quality
+  // in one step (the browser path ramps across painted frames instead).
   onmessage({ data: { kind: "setInteracting", requestId: 10, interacting: false } });
   await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
+  expect(renderer.setRenderScale).toHaveBeenCalledWith(1);
+});
+
+it("setProjection flips every volume scene's ray generation (uniform, no rebuild)", async () => {
+  const scene = h.createRaymarchScene.mock.results.at(-1)?.value as {
+    setProjection: ReturnType<typeof vi.fn>;
+  };
+  const builds = h.createRaymarchScene.mock.calls.length;
+  scene.setProjection.mockClear();
+  onmessage({ data: { kind: "setProjection", requestId: 11, projection: "orthographic" } });
+  await vi.waitFor(() => expect(scene.setProjection).toHaveBeenCalledWith(true));
+  onmessage({ data: { kind: "setProjection", requestId: 12, projection: "perspective" } });
+  await vi.waitFor(() => expect(scene.setProjection).toHaveBeenCalledWith(false));
+  expect(h.createRaymarchScene.mock.calls.length).toBe(builds); // no scene rebuild
 });
 
 it("ignores a streamStep for an unknown layer (heals on the next upsert)", async () => {

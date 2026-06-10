@@ -1,9 +1,9 @@
+import type { CameraPose, CameraProjection } from "@schema/camera.ts";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { Rgba01 } from "@schema/theme.ts";
-import type { Vec3 } from "@schema/types.ts";
 import type { SliceAxis } from "./sliceScene.ts";
 
-export type { WindowLevel };
+export type { CameraPose, CameraProjection, WindowLevel };
 
 // Typed protocol for the OffscreenCanvas render worker. Discriminated unions both
 // ways; `requestId` correlates a response to its request and pre-stages the
@@ -19,22 +19,12 @@ export interface SliceFieldPayload {
   readonly shape: readonly number[];
 }
 
-// Orbit camera pose on the wire (DESIGN §443 StoreToRender). Restates the store-side CameraPose
-// (store/camera.ts) — the store can't import render. Vec3 itself is shared from @schema.
-export interface CameraPose {
-  readonly target: Vec3;
-  readonly azimuth: number;
-  readonly elevation: number;
-  readonly distance: number;
-}
-
 // One field axis's physical extent + sample count + name, for the scene overlay's labeled grid/axes.
 // FIELD-axis order (0/1/2 = pypic GridInfo). `bounds` are inclusive [min, max] in code units (the app
 // derives them from GridInfo origin/spacing, or falls back to voxel [0, dim]); the worker maps field
 // axes → THREE xyz internally (overlayRemap.fieldAxisToThree) and treats the numbers opaquely.
 export interface OverlayAxis {
   readonly bounds: readonly [number, number];
-  readonly dimension: number;
   readonly label: string; // GridInfo.axisLabels[axis], e.g. "x" / "r" / "z"
 }
 
@@ -48,11 +38,7 @@ export interface SceneOverlayConfig {
   readonly planes: { readonly xy: boolean; readonly yz: boolean; readonly xz: boolean };
   readonly planePosition: "center" | "min" | "max"; // where the held (out-of-plane) axis sits
   readonly show: { readonly grid: boolean; readonly axes: boolean; readonly labels: boolean };
-  readonly grid: {
-    readonly color: Rgba01;
-    readonly majorOpacity: number;
-    readonly minorOpacity: number;
-  };
+  readonly grid: { readonly color: Rgba01; readonly majorOpacity: number };
   readonly axisColors: { readonly x: Rgba01; readonly y: Rgba01; readonly z: Rgba01 };
   readonly labelColor: Rgba01;
   readonly tick: { readonly targetCount: number };
@@ -136,6 +122,13 @@ export type RenderWorkerRequest =
       readonly kind: "setCameraPose";
       readonly requestId: number;
       readonly pose: CameraPose;
+    }
+  // Volume-view projection flip: swap the volume camera (matched frustum — same on-screen scale at
+  // the target plane) and flip the raymarch ray generation (a uniform, no rebuild).
+  | {
+      readonly kind: "setProjection";
+      readonly requestId: number;
+      readonly projection: CameraProjection;
     }
   // Diagnostics: force sustained every-frame repaints so the GPU timer yields a live stream (the
   // exit-gate workload). Off by default — timing is sampled only while continuous, so on-demand

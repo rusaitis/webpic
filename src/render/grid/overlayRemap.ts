@@ -33,3 +33,19 @@ export function formatTick(value: number, decimals: number): string {
   const fixed = value.toFixed(decimals);
   return /^-0(?:\.0+)?$/.test(fixed) ? fixed.slice(1) : fixed;
 }
+
+// Label edge-on fade band: labels along an axis pile up unreadably once that axis points nearly at
+// the camera, so they fade with the view angle — full opacity beyond 35° off the row axis, gone
+// within 15°. The band is wide because the near end of an edge-on row still sits ~13° off-axis
+// (edge offset / distance); a narrower band leaves that end ghosting. The GPU fade (overlayScene
+// edgeOnFade) reads these same constants; this is its Node-tested pure twin.
+export const LABEL_FADE_START_COS = Math.cos((35 * Math.PI) / 180);
+export const LABEL_FADE_FULL_COS = Math.cos((15 * Math.PI) / 180);
+
+/** Label opacity for |cos(angle between view ray and the label's row axis)| — the smoothstep
+ *  fade the GPU applies per fragment. 1 fully visible, 0 fully edge-on. */
+export function labelFadeOpacity(edgeOnCos: number): number {
+  const t = (edgeOnCos - LABEL_FADE_START_COS) / (LABEL_FADE_FULL_COS - LABEL_FADE_START_COS);
+  const clamped = Math.min(Math.max(t, 0), 1);
+  return 1 - clamped * clamped * (3 - 2 * clamped);
+}

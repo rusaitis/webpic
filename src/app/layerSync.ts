@@ -9,7 +9,9 @@ import type { Layer, SimulationStore } from "@store";
 // cheap composite of order/visibility/opacity). Pre-M4 exactly one layer draws the active field, so
 // the single `computed` buffer is transferred once; M4's per-layer compute generalizes this.
 
-const LAYER_REQUEST_ID = 4;
+// Render-worker request ids are disjoint per posting module (worker errors echo them back):
+// app/main.ts owns 1-8, layerSync 9, sceneSync 10.
+const LAYER_REQUEST_ID = 9;
 
 export interface LayerSyncOptions {
   readonly store: SimulationStore;

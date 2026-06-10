@@ -1,4 +1,5 @@
 export * from "./aliases.generated.ts";
+export * from "./camera.ts";
 export * from "./colormap.ts";
 export * from "./registry.ts";
 export * from "./theme.ts";

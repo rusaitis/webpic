@@ -15,7 +15,13 @@ import { cameraPosition, positionWorld, texture, uv, vec3 } from "three/tsl";
 import { LineBasicNodeMaterial, type Node, SpriteNodeMaterial } from "three/webgpu";
 import type { SceneOverlayConfig } from "../messages.ts";
 import { niceTicks } from "./niceTicks.ts";
-import { fieldAxisToThree, formatTick, physicalToObject } from "./overlayRemap.ts";
+import {
+  fieldAxisToThree,
+  formatTick,
+  LABEL_FADE_FULL_COS,
+  LABEL_FADE_START_COS,
+  physicalToObject,
+} from "./overlayRemap.ts";
 
 // The themeable 3D axes + equatorial grid overlay scene. Composited last with the perspective camera
 // (the worker), so it blends on top of the volume. Built once per setSceneOverlay (never per frame):
@@ -38,14 +44,9 @@ const LABEL_SUPERSAMPLE = 2;
 const LABEL_FONT = (px: number): string => `600 ${px}px "Helvetica Neue", Arial, sans-serif`;
 
 // Labels along an axis pile up unreadably once that axis points nearly at the camera (every tick
-// projects to the same spot). Fade them with the view angle: full opacity beyond 35° off the row
-// axis, gone within 15°. Per-fragment from the sprite's own view ray (not the camera forward), so
-// panned / cursor-anchored views fade correctly — and no per-pose CPU update is needed. The band
-// is wide because the near end of an edge-on row still sits ~13° off-axis (edge offset / distance)
-// — a narrower band leaves that end ghosting; the default 3/4 view's rows are ~51° off, untouched.
-const LABEL_FADE_START_COS = Math.cos((35 * Math.PI) / 180);
-const LABEL_FADE_FULL_COS = Math.cos((15 * Math.PI) / 180);
-
+// projects to the same spot) — fade per-fragment from the sprite's own view ray (not the camera
+// forward), so panned / cursor-anchored views fade correctly and no per-pose CPU update is needed.
+// Band constants + the pure fade twin live in overlayRemap.ts (Node-tested; GPU can't drift).
 function edgeOnFade(axis: number): Node<"float"> {
   const rowDir = vec3(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0);
   const edgeOn = positionWorld.sub(cameraPosition).normalize().dot(rowDir).abs();

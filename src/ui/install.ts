@@ -2,6 +2,7 @@ import { DEFAULT_WEBPIC_CONFIG, type Theme } from "@schema/theme.ts";
 import type { SimulationStore, UiStore } from "@store";
 import { installCameraChrome } from "./cameraChrome.ts";
 import type { Disposer } from "./controls/index.ts";
+import { isTypingTarget } from "./keyboard.ts";
 import { mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
 import { applyControlStyles } from "./theme/styles.ts";
@@ -46,15 +47,9 @@ export function installUi(opts: InstallUiOptions): () => void {
   const toggleKey = shortcuts.toggleUi.toLowerCase();
   const doc = opts.parent.ownerDocument;
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-    const target = event.target;
-    if (
-      target instanceof HTMLInputElement ||
-      target instanceof HTMLSelectElement ||
-      target instanceof HTMLTextAreaElement
-    ) {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
       return;
-    }
+    if (isTypingTarget(event.target)) return;
     if (event.key.toLowerCase() === toggleKey) opts.uiStore.getState().toggleUi();
   };
   doc.addEventListener("keydown", onKeyDown);

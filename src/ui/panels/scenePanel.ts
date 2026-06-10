@@ -7,8 +7,9 @@ import {
 import { type ControlHandle, createPane, type Disposer } from "../controls/index.ts";
 
 // The Scene panel: toggles for the in-scene axes + grid overlay (per-plane), tick labels, the corner
-// gnomon, and the grid density. Dispatches store intents only (ui → store; never render) — the app's
-// sceneSync forwards the render-bound flags to the worker, and cameraChrome consumes showGnomon.
+// gnomon, the grid density, and a Camera folder (fit-to-data). Dispatches store intents only
+// (ui → store; never render) — the app's sceneSync forwards the render-bound flags to the worker,
+// cameraChrome consumes showGnomon, and pointerCamera resolves the fly intents.
 
 const PLANE_LABELS: Readonly<Record<GridPlane, string>> = {
   xy: "XY plane (equator)",
@@ -64,6 +65,21 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
     onChange: (n) => store.getState().setGridDivisions(n),
   });
 
+  const cameraFolder = pane.addFolder({ title: "Camera" });
+  const fit = cameraFolder.addButton({
+    label: "Fit view (Z)",
+    onClick: () => store.getState().requestCameraFly({ kind: "fit" }),
+  });
+  const ortho: ControlHandle<boolean> = cameraFolder.addCheckbox({
+    label: "Orthographic (O)",
+    value: store.getState().projection === "orthographic",
+    onChange: (on) => store.getState().setProjection(on ? "orthographic" : "perspective"),
+  });
+  const unsubscribeProjection = store.subscribe(
+    (s) => s.projection,
+    (next) => ortho.set(next === "orthographic"),
+  );
+
   // Reflect external changes (set()-in never re-fires onChange); one overlay selector, re-assert all.
   const unsubscribe = store.subscribe(
     (s) => s.overlay,
@@ -79,6 +95,9 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
 
   return () => {
     unsubscribe();
+    unsubscribeProjection();
+    ortho.dispose();
+    fit.dispose();
     density.dispose();
     gnomon.dispose();
     labels.dispose();

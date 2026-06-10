@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { fieldAxisToThree, formatTick, physicalToObject } from "./overlayRemap.ts";
+import {
+  fieldAxisToThree,
+  formatTick,
+  LABEL_FADE_FULL_COS,
+  LABEL_FADE_START_COS,
+  labelFadeOpacity,
+  physicalToObject,
+} from "./overlayRemap.ts";
 
 describe("fieldAxisToThree", () => {
   it("maps field axes to world axes by identity (z-up, world=physical; swizzle in the sampler)", () => {
@@ -29,5 +36,28 @@ describe("formatTick", () => {
     expect(formatTick(-0, 2)).toBe("0.00");
     expect(formatTick(-0.0001, 2)).toBe("0.00");
     expect(formatTick(-12.5, 1)).toBe("-12.5");
+  });
+});
+
+describe("labelFadeOpacity", () => {
+  const cosAt = (deg: number) => Math.cos((deg * Math.PI) / 180);
+
+  it("is fully opaque beyond 35° off-axis and fully gone within 15°", () => {
+    expect(labelFadeOpacity(cosAt(90))).toBe(1); // perpendicular view
+    expect(labelFadeOpacity(cosAt(51))).toBe(1); // the default 3/4 view's rows
+    expect(labelFadeOpacity(LABEL_FADE_START_COS)).toBe(1);
+    expect(labelFadeOpacity(LABEL_FADE_FULL_COS)).toBe(0);
+    expect(labelFadeOpacity(cosAt(0))).toBe(0); // dead-on
+  });
+
+  it("crosses 0.5 at the band midpoint and decreases monotonically through it", () => {
+    const mid = (LABEL_FADE_START_COS + LABEL_FADE_FULL_COS) / 2;
+    expect(labelFadeOpacity(mid)).toBeCloseTo(0.5, 12);
+    let prev = labelFadeOpacity(cosAt(40));
+    for (let deg = 39; deg >= 10; deg--) {
+      const next = labelFadeOpacity(cosAt(deg));
+      expect(next).toBeLessThanOrEqual(prev);
+      prev = next;
+    }
   });
 });

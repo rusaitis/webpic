@@ -22,6 +22,7 @@ const h = vi.hoisted(() => {
     setScale: vi.fn(),
     setOpacity: vi.fn(),
     setStepScale: vi.fn(),
+    setProjection: vi.fn(),
     dispose: vi.fn(),
   });
   return {
@@ -38,6 +39,7 @@ const h = vi.hoisted(() => {
         renderOnce: vi.fn(),
         readPixels: vi.fn(),
         setSize: vi.fn(),
+        setRenderScale: vi.fn(),
         dispose: vi.fn(),
       };
       h.renderers.push(r);

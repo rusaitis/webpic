@@ -3,6 +3,7 @@ import { BoxGeometry, FrontSide, Mesh, Scene } from "three";
 import {
   Break,
   cameraPosition,
+  cameraWorldMatrix,
   ceil,
   Fn,
   float,
@@ -85,6 +86,9 @@ export interface RaymarchScene {
    *  Returns false when the in-place swap can't apply (shape change, or an empty-space-skip volume
    *  whose acceleration grid would go stale); the caller then rebuilds the scene. */
   setField(field: ScalarField): boolean;
+  /** Switch ray generation between perspective and orthographic (parallel rays) in place — a
+   *  uniform flip, no rebuild. The worker pairs it with the matching camera. */
+  setProjection(orthographic: boolean): void;
   dispose(): void;
 }
 
@@ -167,6 +171,10 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   // so the emission-absorption integral keeps its meaning at any scale. At 1 the math reduces to
   // the fixed march exactly (ceil(steps·1) = steps); the WGSL loop bound stays the literal `steps`.
   const uStepScale = uniform(1);
+  // Projection flip as a uniform branch, not a shader variant: two selects + one mat4·vec4 per
+  // fragment is noise next to the march, while a variant would double the pipeline count and the
+  // warm-compile work on every upsert/device-restore.
+  const uOrtho = uniform(0);
 
   // Object-space voxel step for central-difference gradient taps. Under the z-up world=physical
   // convention the volume is sampled at the .zyx swizzle (see sampleRawAt), so object axis i ↔ field
@@ -181,8 +189,18 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
 
   const rgba = Fn(() => {
     // Camera ray in object space; the box is axis-aligned there so the slab test is exact.
-    const rayOrigin = varying(modelWorldMatrixInverse.mul(vec4(cameraPosition, 1.0)).xyz);
-    const rayDir = positionGeometry.sub(rayOrigin).normalize();
+    // Perspective: rays fan out from the camera point through each fragment. Orthographic: parallel
+    // rays along the camera forward (w=0 — rotation only through both matrices), originating on the
+    // box front face itself (the fragment), where hitBox's entry clamps to 0.
+    const perspOrigin = varying(modelWorldMatrixInverse.mul(vec4(cameraPosition, 1.0)).xyz);
+    const orthoForward = varying(
+      modelWorldMatrixInverse.mul(cameraWorldMatrix.mul(vec4(0, 0, -1, 0))).xyz,
+    );
+    const isOrtho = uOrtho.greaterThan(0.5);
+    const rayOrigin = isOrtho.select(positionGeometry, perspOrigin).toVar();
+    const rayDir = isOrtho
+      .select(orthoForward.normalize(), positionGeometry.sub(perspOrigin).normalize())
+      .toVar();
     // Headlight view direction (surface → camera). The Phong light coincides with it, so whatever
     // faces the camera is lit and orbiting reveals shape (no scene light to manage pre-M4).
     const viewDir = rayDir.negate();
@@ -351,6 +369,9 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       // leave it stale, so force a rebuild there. Default (no skip) takes the in-place ping-pong.
       if (skipState !== undefined) return false;
       return volume.setField(field);
+    },
+    setProjection(orthographic) {
+      uOrtho.value = orthographic ? 1 : 0;
     },
     dispose() {
       geometry.dispose();

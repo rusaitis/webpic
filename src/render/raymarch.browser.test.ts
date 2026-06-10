@@ -68,27 +68,42 @@ function centralBallField(n: number, radius: number): ScalarField {
 // Render a field, optionally from a straight-on camera (object-x → screen-x) instead of the
 // scene's default oblique view, so the orientation case can assert a screen-space direction.
 // `march` opts in to empty-space skipping (default off — the fixed march) and tunes its brick size.
+// `orthographic` renders with the matched-frustum ortho volume camera + parallel-ray generation.
 async function renderVolume(
   field: ScalarField,
   straightOn = false,
   march: { readonly skipEmptySpace?: boolean; readonly brickSize?: number } = {},
+  orthographic = false,
 ): Promise<Uint8Array> {
   const { installRenderer } = await import("./renderer.ts");
   const { createRaymarchScene } = await import("./raymarchScene.ts");
-  const { applyPose, createPerspectiveCamera, DEFAULT_POSE } = await import("./camera.ts");
+  const {
+    applyPose,
+    applyPoseOrtho,
+    createPerspectiveCamera,
+    createVolumeOrthographicCamera,
+    DEFAULT_POSE,
+  } = await import("./camera.ts");
   const renderer = await installRenderer({
     canvas: new OffscreenCanvas(SIZE, SIZE),
     width: SIZE,
     height: SIZE,
   });
   const volume = createRaymarchScene({ field, colormap: "inferno", density: 4, ...march });
+  volume.setProjection(orthographic);
   // The worker owns the camera now; build the same default oblique view here, or a straight-on
   // view (looking down −z from +z) for the orientation case.
-  const camera = createPerspectiveCamera();
-  applyPose(
-    camera,
-    straightOn ? { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } : DEFAULT_POSE,
-  );
+  const pose = straightOn
+    ? ({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } as const)
+    : DEFAULT_POSE;
+  let camera: import("three").PerspectiveCamera | import("three").OrthographicCamera;
+  if (orthographic) {
+    camera = createVolumeOrthographicCamera();
+    applyPoseOrtho(camera, pose);
+  } else {
+    camera = createPerspectiveCamera();
+    applyPose(camera, pose);
+  }
   try {
     return await renderer.readPixels(volume.scene, camera);
   } finally {
@@ -131,6 +146,23 @@ describe("raymarch scene render", () => {
     expect(lum(right)).toBeGreaterThan(lum(left) + 15);
     expect(right[0]).toBeGreaterThan(right[2]); // warm (inferno), not greyscale
   });
+
+  it.skipIf(!hasRealGpu)(
+    "orthographic projection renders the same bright core at matched framing",
+    async () => {
+      const persp = await renderVolume(blobField());
+      const ortho = await renderVolume(blobField(), false, {}, true);
+      const center = pixelAt(ortho, SIZE >> 1, SIZE >> 1);
+      const corner = pixelAt(ortho, 0, 0);
+      // Parallel rays still accumulate the centered blob; the corner stays background.
+      expect(lum(center)).toBeGreaterThan(lum(corner) + 20);
+      expect(lum(center)).toBeGreaterThan(50);
+      // The matched frustum shows the same extent at the target plane: the center pixel marches
+      // the same chord through the blob either way, so the core brightness is close.
+      const perspCenter = pixelAt(persp, SIZE >> 1, SIZE >> 1);
+      expect(Math.abs(lum(center) - lum(perspCenter))).toBeLessThan(40);
+    },
+  );
 
   it.skipIf(!hasRealGpu)(
     "empty-space skipping matches the fixed march pixel-for-pixel",
