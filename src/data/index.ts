@@ -34,6 +34,8 @@ export {
   createSyntheticReader,
   DEFAULT_SYNTHETIC_N,
   DEFAULT_SYNTHETIC_STEPS,
+  dipoleHandle,
+  dipoleStep,
   registerSyntheticReader,
   syntheticConfidence,
   syntheticHandle,

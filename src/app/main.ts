@@ -15,6 +15,7 @@ import {
   unitBoxChordMidpoint,
 } from "@store";
 import { installPointerCamera, installPointerPicker, installUi } from "@ui";
+import type { DatasetEntry } from "./datasets.ts";
 import { installLayerSync } from "./layerSync.ts";
 import { installPickerSync } from "./pickerSync.ts";
 import { installSceneSync } from "./sceneSync.ts";
@@ -78,6 +79,10 @@ export interface BootstrapOptions {
   readonly streamSource?: DataHandle;
   /** The dataset to render; defaults to the synthetic scaffold dataset. */
   readonly dataset?: FieldDataset;
+  /** The selectable datasets (dropdown). When the store's `datasetId` changes, the matching entry's
+   *  dataset is seeded on the main thread and the stream is re-opened onto its handle. Omit → the
+   *  dropdown is inert (a single fixed dataset). */
+  readonly datasetCatalog?: ReadonlyMap<string, DatasetEntry>;
   /** Theme for overlay colors (axes/grid/labels). Omitted → the gnomon-matching fallback palette. */
   readonly theme?: Theme;
   /** Initial camera pose (the `?pose=` permalink). Seeded into the store before the worker spawns,
@@ -282,7 +287,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
           aspect,
           state.projection === "orthographic",
         );
-        const point = unitBoxChordMidpoint(ray.origin, ray.dir);
+        const point = unitBoxChordMidpoint(ray.origin, ray.dir, state.worldHalfExtent);
         if (point !== null) {
           state.setPickerPoint(point);
           if (purpose === "focus") {
@@ -469,6 +474,32 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     },
   );
 
+  // Dataset switch (the dropdown): the store records `datasetId`; rebuild the dataset here (the app
+  // owns the catalog — store/ui can't reach `data`), seed it on the main thread for an instant frame,
+  // reset the look to the dataset's default color scale, and re-open the stream onto the new handle so
+  // the time domain + streamed steps follow. Inert when no catalog/worker was wired.
+  const unsubscribeDatasetId = store.subscribe(
+    (state) => state.datasetId,
+    (id) => {
+      const entry = options.datasetCatalog?.get(id);
+      if (entry === undefined) return;
+      store.getState().setDataset(entry.makeDataset());
+      const state = store.getState();
+      const layer = state.layers.find((candidate) => candidate.id === state.selectedLayerId);
+      const bindingId = layer?.colormapBindingId ?? null;
+      if (bindingId !== null) state.setBindingScale(bindingId, entry.defaultScale);
+      if (dataWorker !== undefined && dataWorkerOpened) {
+        uiStore.getState().beginLoading("open", "opening dataset");
+        dataWorker.postMessage({
+          kind: "reopen",
+          requestId: STREAM_REQUEST_ID,
+          handle: entry.streamSource,
+          activeField: store.getState().activeField,
+        } satisfies DataStreamRequest);
+      }
+    },
+  );
+
   const request: RenderWorkerRequest = {
     kind: "init",
     requestId: INIT_REQUEST_ID,
@@ -528,6 +559,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     unsubscribeContinuous();
     unsubscribeStep();
     unsubscribeActiveField();
+    unsubscribeDatasetId();
     dataWorker?.terminate();
     worker.terminate();
   };

@@ -63,6 +63,9 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       colormap: binding?.colormap ?? DEFAULT_COLORMAP,
       scale: binding?.scale ?? "linear",
       opacity: layer.opacity,
+      // The dataset's volume-box aspect — the worker scales the mesh to it (cubic → unit cube). Volume
+      // scenes read it; slices ignore it.
+      worldHalfExtent: store.getState().worldHalfExtent,
       ...(binding !== undefined ? { windowLevel: binding.window } : {}),
       ...kindParams,
     };

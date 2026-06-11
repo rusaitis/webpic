@@ -137,11 +137,14 @@ export function dragAlongAxis(
   ];
 }
 
-// Keep a dragged point inside the unit render box.
-export function clampToBox(point: Vec3): Vec3 {
+// Keep a dragged point inside the render box. `halfExtent` is the per-axis world half-size — the unit
+// box [-0.5, 0.5]³ for a cubic dataset, anisotropic for a non-cubic one (store `worldHalfExtent`).
+const UNIT_HALF_EXTENT: Vec3 = [0.5, 0.5, 0.5];
+
+export function clampToBox(point: Vec3, halfExtent: Vec3 = UNIT_HALF_EXTENT): Vec3 {
   return [
-    Math.min(Math.max(point[0], -0.5), 0.5),
-    Math.min(Math.max(point[1], -0.5), 0.5),
-    Math.min(Math.max(point[2], -0.5), 0.5),
+    Math.min(Math.max(point[0], -halfExtent[0]), halfExtent[0]),
+    Math.min(Math.max(point[1], -halfExtent[1]), halfExtent[1]),
+    Math.min(Math.max(point[2], -halfExtent[2]), halfExtent[2]),
   ];
 }

@@ -74,4 +74,8 @@ describe("clampToBox", () => {
   it("clamps each component to the unit box", () => {
     expect(clampToBox([0.8, -0.9, 0.1])).toEqual([0.5, -0.5, 0.1]);
   });
+  it("clamps to a per-axis (anisotropic) half-extent", () => {
+    // A non-cubic dataset: x clamps to ±0.5, y/z to ±1/3 (the scaled volume box).
+    expect(clampToBox([0.8, -0.9, 0.2], [0.5, 1 / 3, 1 / 3])).toEqual([0.5, -1 / 3, 0.2]);
+  });
 });

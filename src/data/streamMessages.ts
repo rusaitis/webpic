@@ -26,8 +26,10 @@ export interface StreamStepMessage {
 }
 
 // main → data worker. `open` carries the render port (transferred) + the layer the worker streams
-// into + the active field whose scalar it computes off-main. `setCursor` drives the ring; the worker
-// streams the cursor step once decoded. `setActiveField` re-points the computed quantity.
+// into + the active field whose scalar it computes off-main. `reopen` swaps the source onto a new
+// handle (dataset switch) reusing the already-paired port + layer — it re-announces the new timestep
+// domain via `opened`. `setCursor` drives the ring; the worker streams the cursor step once decoded.
+// `setActiveField` re-points the computed quantity.
 export type DataStreamRequest =
   | {
       readonly kind: "open";
@@ -36,6 +38,12 @@ export type DataStreamRequest =
       readonly activeField: string;
       readonly layerId: string;
       readonly port: MessagePort;
+    }
+  | {
+      readonly kind: "reopen";
+      readonly requestId: number;
+      readonly handle: DataHandle;
+      readonly activeField: string;
     }
   | { readonly kind: "setActiveField"; readonly requestId: number; readonly field: string }
   | { readonly kind: "setCursor"; readonly requestId: number; readonly step: number }

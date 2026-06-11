@@ -50,23 +50,30 @@ export function cursorRay(
   return { origin: camera, dir: [dx / len, dy / len, dz / len] };
 }
 
-// Slab test for one axis of the unit box [-0.5, 0.5]; null = the ray misses this slab entirely.
-function axisSlab(o: number, d: number): readonly [number, number] | null {
+// Slab test for one axis of the box [-half, half]; null = the ray misses this slab entirely.
+function axisSlab(o: number, d: number, half: number): readonly [number, number] | null {
   if (d === 0) {
-    return o < -0.5 || o > 0.5 ? null : [Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY];
+    return o < -half || o > half ? null : [Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY];
   }
-  const a = (-0.5 - o) / d;
-  const b = (0.5 - o) / d;
+  const a = (-half - o) / d;
+  const b = (half - o) / d;
   return a <= b ? [a, b] : [b, a];
 }
 
-// Midpoint of the ray's chord through the unit render box [-0.5, 0.5]³, or null on a miss.
-// Restates render/rayBox.ts's slab test — the DAG forbids store → render, and ui (which needs the
-// synchronous miss test) can only reach store.
-export function unitBoxChordMidpoint(origin: Vec3, dir: Vec3): Vec3 | null {
-  const sx = axisSlab(origin[0], dir[0]);
-  const sy = axisSlab(origin[1], dir[1]);
-  const sz = axisSlab(origin[2], dir[2]);
+// Midpoint of the ray's chord through the render box, or null on a miss. `halfExtent` is the per-axis
+// world half-size — the unit box [-0.5, 0.5]³ for a cubic dataset, anisotropic for a non-cubic one
+// (store `worldHalfExtent`). Restates render/rayBox.ts's slab test — the DAG forbids store → render,
+// and ui (which needs the synchronous miss test) can only reach store.
+const UNIT_HALF_EXTENT: Vec3 = [0.5, 0.5, 0.5];
+
+export function unitBoxChordMidpoint(
+  origin: Vec3,
+  dir: Vec3,
+  halfExtent: Vec3 = UNIT_HALF_EXTENT,
+): Vec3 | null {
+  const sx = axisSlab(origin[0], dir[0], halfExtent[0]);
+  const sy = axisSlab(origin[1], dir[1], halfExtent[1]);
+  const sz = axisSlab(origin[2], dir[2], halfExtent[2]);
   if (sx === null || sy === null || sz === null) return null;
   const tNear = Math.max(sx[0], sy[0], sz[0]);
   const tFar = Math.min(sx[1], sy[1], sz[1]);

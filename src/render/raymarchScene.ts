@@ -1,4 +1,5 @@
 import type { ColorScale } from "@schema/colormap.ts";
+import type { Vec3 } from "@schema/types.ts";
 import { BoxGeometry, FrontSide, Mesh, Scene } from "three";
 import {
   Break,
@@ -64,6 +65,10 @@ export interface RaymarchSceneOptions {
   readonly opacity?: number;
   /** Device supports R32F linear sampling — picks the volume texture format. */
   readonly float32Filterable?: boolean;
+  /** Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (the unit cube). A non-cubic
+   *  grid scales the mesh to this so the volume renders at true physical aspect — object/texture space
+   *  stays canonical [-0.5,0.5]/[0,1], so the raymarch math (ray-box clip, sampling) is unchanged. */
+  readonly worldHalfExtent?: Vec3;
 }
 
 export interface RaymarchScene {
@@ -344,6 +349,12 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
 
   const geometry = new BoxGeometry(1, 1, 1);
   const mesh = new Mesh(geometry, material);
+  // Object space stays the unit box [-0.5,0.5]³ (the raymarch clips + samples there); a non-uniform
+  // model scale stretches it to the dataset's physical aspect in world space. Cubic → (1,1,1), so the
+  // flux rope is byte-identical. (Phong normals skew slightly under non-uniform scale — shading is
+  // already non-quantitative + default-off, so this is acceptable.)
+  const half = opts.worldHalfExtent ?? [0.5, 0.5, 0.5];
+  mesh.scale.set(2 * half[0], 2 * half[1], 2 * half[2]);
 
   // No scene.background — the renderer owns the clear color so layers composite over one
   // background (a per-scene Color background would force a clear and wipe earlier layers).

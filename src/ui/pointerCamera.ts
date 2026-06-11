@@ -353,7 +353,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       aspect,
       state.projection === "orthographic",
     );
-    if (unitBoxChordMidpoint(ray.origin, ray.dir) === null) {
+    if (unitBoxChordMidpoint(ray.origin, ray.dir, state.worldHalfExtent) === null) {
       flyTo(DEFAULT_POSE);
       return;
     }

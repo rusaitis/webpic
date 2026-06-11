@@ -18,8 +18,7 @@ export interface PickLayer {
   readonly opacity: number;
 }
 
-const BOX_MIN: Vec3 = [-0.5, -0.5, -0.5];
-const BOX_MAX: Vec3 = [0.5, 0.5, 0.5];
+const UNIT_HALF: Vec3 = [0.5, 0.5, 0.5];
 const PICK_STEPS = 256; // matches the raymarcher's fine-march depth
 // Below this total the click went through visually empty space inside the box — fall back to the
 // chord midpoint rather than pivot on noise (≈ a few 8-bit color steps of accumulated alpha).
@@ -39,15 +38,20 @@ function sampleNearest(field: ScalarField, px: number, py: number, pz: number): 
   return Number.isFinite(raw) ? raw : 0;
 }
 
-/** World point a double-click should focus: the median-visual-depth sample along the ray, the
- *  chord midpoint when the volume there is visually empty (or no layers), null on a box miss. */
+/** World point a double-click should focus: the median-visual-depth sample along the ray, the chord
+ *  midpoint when the volume there is visually empty (or no layers), null on a box miss. `halfExtent`
+ *  is the per-axis world half-size — the unit box [-0.5,0.5]³ for a cubic dataset, anisotropic for a
+ *  non-cubic one (the scaled volume box) — used for both the ray-box clip and the world→texture map. */
 export function pickPointOnRay(
   origin: Vec3,
   dir: Vec3,
   layers: readonly PickLayer[],
+  halfExtent: Vec3 = UNIT_HALF,
   steps = PICK_STEPS,
 ): Vec3 | null {
-  const hit = intersectRayBox(origin, dir, BOX_MIN, BOX_MAX);
+  const boxMin: Vec3 = [-halfExtent[0], -halfExtent[1], -halfExtent[2]];
+  const boxMax: Vec3 = [halfExtent[0], halfExtent[1], halfExtent[2]];
+  const hit = intersectRayBox(origin, dir, boxMin, boxMax);
   if (hit === null) return null;
   const tEntry = Math.max(hit.tNear, 0);
   const tExit = hit.tFar;
@@ -66,9 +70,10 @@ export function pickPointOnRay(
   let total = 0;
   for (let k = 0; k < steps; k++) {
     const t = tEntry + k * dt;
-    const px = origin[0] + t * dir[0] + 0.5;
-    const py = origin[1] + t * dir[1] + 0.5;
-    const pz = origin[2] + t * dir[2] + 0.5;
+    // World [-h,h]³ → texture [0,1]³ per axis (matches the shader's object pos+0.5 under unit scale).
+    const px = (origin[0] + t * dir[0] + halfExtent[0]) / (2 * halfExtent[0]);
+    const py = (origin[1] + t * dir[1] + halfExtent[1]) / (2 * halfExtent[1]);
+    const pz = (origin[2] + t * dir[2] + halfExtent[2]) / (2 * halfExtent[2]);
     let transparency = 1;
     for (const layer of layers) {
       const raw = sampleNearest(layer.field, px, py, pz);

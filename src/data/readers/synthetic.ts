@@ -17,11 +17,12 @@ import type {
 import type { ReaderRegistry } from "./_registry.ts";
 import { registerReader } from "./_registry.ts";
 
-// A synthetic multi-step source behind the SimulationReader protocol — a time-varying Gaussian flux
-// rope, no data files (CLAUDE.md "synthetic over real"). It gives the streaming worker a real
-// openSimulation/readTimestep/AbortSignal path to drive (the shape a Zarr source will use) while
-// staying deterministic and cheap to regenerate (so scrub-back re-reads are free). Handle:
-// `synthetic://fluxrope?n=<size>&steps=<count>`.
+// Synthetic sources behind the SimulationReader protocol — no data files (CLAUDE.md "synthetic over
+// real"). They give the streaming worker a real openSimulation/readTimestep/AbortSignal path to drive
+// (the shape a Zarr source will use) while staying deterministic and cheap to regenerate (so scrub-back
+// re-reads are free). Two handles:
+//   • `synthetic://fluxrope?n=<size>&steps=<count>` — a time-varying Gaussian flux rope (cubic n³).
+//   • `synthetic://dipole` — magviz's static Earth dipole on its default non-cubic grid (single step).
 
 const READER_ID = "synthetic-fluxrope";
 const SCHEME = "synthetic://";
@@ -50,19 +51,29 @@ export function syntheticHandle(
   return { kind: "url", url: `${SCHEME}fluxrope?n=${n}&steps=${steps}` };
 }
 
-interface SyntheticParams {
-  readonly n: number;
-  readonly steps: number;
+/** A `synthetic://dipole` handle — magviz's static Earth dipole on its default non-cubic grid. */
+export function dipoleHandle(): DataHandle {
+  return { kind: "url", url: `${SCHEME}dipole` };
 }
 
+type SyntheticHandle =
+  | { readonly kind: "fluxrope"; readonly n: number; readonly steps: number }
+  | { readonly kind: "dipole" };
+
 // Parse a synthetic handle, or null if it isn't one — the confidence probe + reader both gate on it.
-function parseHandle(handle: DataHandle): SyntheticParams | null {
+// The path between `synthetic://` and any `?query` selects the generator; a bare/unknown path is the
+// flux rope (back-compat with handles minted before the dipole landed).
+function parseHandle(handle: DataHandle): SyntheticHandle | null {
   if (handle.kind !== "url" || !handle.url.startsWith(SCHEME)) return null;
-  const query = handle.url.slice(handle.url.indexOf("?") + 1);
-  const params = new URLSearchParams(query);
+  const rest = handle.url.slice(SCHEME.length);
+  const queryAt = rest.indexOf("?");
+  const path = queryAt === -1 ? rest : rest.slice(0, queryAt);
+  if (path === "dipole") return { kind: "dipole" };
+  const params = new URLSearchParams(queryAt === -1 ? "" : rest.slice(queryAt + 1));
   const n = Number.parseInt(params.get("n") ?? "", 10);
   const steps = Number.parseInt(params.get("steps") ?? "", 10);
   return {
+    kind: "fluxrope",
     n: Number.isInteger(n) && n >= 2 ? n : DEFAULT_SYNTHETIC_N,
     steps: Number.isInteger(steps) && steps >= 1 ? steps : DEFAULT_SYNTHETIC_STEPS,
   };
@@ -145,27 +156,108 @@ export function syntheticStep(n: number, step: number, steps: number): FieldData
   };
 }
 
+// Earth dipole field on magviz's default grid (data-processing/generate_dipole_data.py): moment along
+// +z, sign-flipped to put magnetic north at −z. Inputs in Earth radii, output in nT; the inner region
+// (r < 1.1 R_E) is zeroed to dodge the r=0 singularity. Bounds are non-cubic (x∈[-10,5], y,z∈[-5,5]) —
+// the renderer scales the volume box to this aspect (store `worldHalfExtent`). One static timestep.
+const DIPOLE_DIMS = [150, 100, 100] as const; // 0.1 R_E cells spanning the magviz extent
+const DIPOLE_SPACING = 0.1;
+const DIPOLE_ORIGIN = [-10, -5, -5] as const;
+const DIPOLE_INNER_CUTOFF = 1.1; // R_E — below this the field is zeroed (planet interior + buffer)
+// B(nT) = (μ0/4π)·M·1e9 / R_E³ · shape — the analytic dipole scale, matching magviz's constants.
+const DIPOLE_SCALE_NT = (1e-7 * 7.8e22 * 1e9) / 6.371e6 ** 3; // ≈ 3.016e4 nT·R_E³
+const DIPOLE_ORIENTATION = -1; // magnetic north at −z (magviz convention)
+
+function makeDipoleGrid(): GridInfo {
+  return {
+    dimensions: [...DIPOLE_DIMS],
+    spacing: [DIPOLE_SPACING, DIPOLE_SPACING, DIPOLE_SPACING],
+    origin: [...DIPOLE_ORIGIN],
+    geometry: "cartesian",
+    axisLabels: ["x", "y", "z"],
+    dt: null,
+    boundary: null,
+    survivingAxes: null,
+    stagger: null,
+  };
+}
+
+/** The static Earth dipole dataset — the `synthetic://dipole` source's only timestep. */
+export function dipoleStep(): FieldDataset {
+  const [nx, ny, nz] = DIPOLE_DIMS;
+  const shape: readonly number[] = [nx, ny, nz];
+  const b1 = new Float32Array(nx * ny * nz);
+  const b2 = new Float32Array(nx * ny * nz);
+  const b3 = new Float32Array(nx * ny * nz);
+  const common = DIPOLE_ORIENTATION * DIPOLE_SCALE_NT;
+
+  for (let ix = 0; ix < nx; ix++) {
+    const x = DIPOLE_ORIGIN[0] + (ix + 0.5) * DIPOLE_SPACING; // cell centers — singularity off-node
+    for (let iy = 0; iy < ny; iy++) {
+      const y = DIPOLE_ORIGIN[1] + (iy + 0.5) * DIPOLE_SPACING;
+      for (let iz = 0; iz < nz; iz++) {
+        const z = DIPOLE_ORIGIN[2] + (iz + 0.5) * DIPOLE_SPACING;
+        const i = iz + nz * (iy + ny * ix); // C-order: z fastest (matches volumeTexture upload)
+        const r2 = x * x + y * y + z * z;
+        const r = Math.sqrt(r2);
+        if (r < DIPOLE_INNER_CUTOFF) continue; // zeroed inside the cutoff (arrays start at 0)
+        const c = common / (r2 * r2 * r); // common / r⁵
+        b1[i] = c * 3 * x * z;
+        b2[i] = c * 3 * y * z;
+        b3[i] = c * (3 * z * z - r2);
+      }
+    }
+  }
+
+  const fields = new Map<FieldName, FieldArray>([
+    ["B_1", wrapComponent("B_1", b1, shape)],
+    ["B_2", wrapComponent("B_2", b2, shape)],
+    ["B_3", wrapComponent("B_3", b3, shape)],
+  ]);
+
+  return {
+    fields,
+    grid: makeDipoleGrid(),
+    normalization: NORMALIZATION,
+    species: [],
+    physics: PHYSICS,
+    frame: "lab",
+    transforms: {},
+    metadata: {},
+    step: 0,
+  };
+}
+
 const COMPONENTS: readonly FieldName[] = ["B_1", "B_2", "B_3"];
+
+function datasetForStep(parsed: SyntheticHandle, step: number): FieldDataset {
+  return parsed.kind === "dipole" ? dipoleStep() : syntheticStep(parsed.n, step, parsed.steps);
+}
+
+function stepCountOf(parsed: SyntheticHandle): number {
+  return parsed.kind === "dipole" ? 1 : parsed.steps;
+}
 
 export function createSyntheticReader(): SimulationReader & FieldListingReader {
   return {
     id: READER_ID,
     async availableTimesteps(handle) {
-      const params = parseHandle(handle);
-      if (params === null) throw new Error(`${READER_ID}: not a synthetic handle`);
-      return Array.from({ length: params.steps }, (_, i) => i);
+      const parsed = parseHandle(handle);
+      if (parsed === null) throw new Error(`${READER_ID}: not a synthetic handle`);
+      return Array.from({ length: stepCountOf(parsed) }, (_, i) => i);
     },
     async readTimestep(handle, step, options?: ReadTimestepOptions) {
-      const params = parseHandle(handle);
-      if (params === null) throw new Error(`${READER_ID}: not a synthetic handle`);
-      if (step < 0 || step >= params.steps) {
-        throw new RangeError(`${READER_ID}: step ${step} out of range [0, ${params.steps})`);
+      const parsed = parseHandle(handle);
+      if (parsed === null) throw new Error(`${READER_ID}: not a synthetic handle`);
+      const steps = stepCountOf(parsed);
+      if (step < 0 || step >= steps) {
+        throw new RangeError(`${READER_ID}: step ${step} out of range [0, ${steps})`);
       }
       // Async boundary so an abort racing a queued read is honored before any work (the loop aborts
       // reads the user scrubbed past); the generation itself is synchronous + cheap.
       await Promise.resolve();
       throwIfAborted(options?.signal);
-      const dataset = syntheticStep(params.n, step, params.steps);
+      const dataset = datasetForStep(parsed, step);
       throwIfAborted(options?.signal);
       if (options?.fields === undefined) return dataset;
       // Restrict to requested fields, rejecting unknown names loudly (mirrors the zarr reader).

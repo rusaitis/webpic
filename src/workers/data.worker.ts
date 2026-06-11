@@ -153,22 +153,39 @@ function buildRing(): void {
   });
 }
 
+// Resolve the reader for the current `handle`, announce its timestep domain, and (re)build the ring.
+// Shared by open (first source) and reopen (dataset switch) — the latter keeps the live port + layer.
+// No initial setCursor: main already rendered step 0 via upsertLayer (the synthetic step 0). The first
+// stream is the user's first scrub.
+async function resolveReader(h: DataHandle): Promise<void> {
+  if (!readerRegistered) {
+    registerSyntheticReader(); // synthetic-only for v0.1 streaming; real readers register here later
+    readerRegistered = true;
+  }
+  reader = await openSimulation(h);
+  steps = await reader.availableTimesteps(h);
+  ctx.postMessage({ kind: "opened", steps });
+  buildRing();
+}
+
 async function handleOpen(request: Extract<DataStreamRequest, { kind: "open" }>): Promise<void> {
   handle = request.handle;
   activeField = request.activeField;
   layerId = request.layerId;
   port?.close();
   port = request.port;
-  if (!readerRegistered) {
-    registerSyntheticReader(); // synthetic-only for v0.1 streaming; real readers register here later
-    readerRegistered = true;
-  }
-  reader = await openSimulation(handle);
-  steps = await reader.availableTimesteps(handle);
-  ctx.postMessage({ kind: "opened", steps });
-  buildRing();
-  // No initial setCursor: main already rendered step 0 via upsertLayer (createSyntheticDataset is
-  // synthetic step 0). The first stream is the user's first scrub.
+  await resolveReader(request.handle);
+}
+
+// Swap the source onto a new handle (dataset switch) — same port + layer, fresh reader/domain. The
+// cursor resets: the new domain may not contain the old step, and main re-seeded step 0 on the swap.
+async function handleReopen(
+  request: Extract<DataStreamRequest, { kind: "reopen" }>,
+): Promise<void> {
+  handle = request.handle;
+  activeField = request.activeField;
+  cursor = null;
+  await resolveReader(request.handle);
 }
 
 function handleSetActiveField(req: Extract<DataStreamRequest, { kind: "setActiveField" }>): void {
@@ -209,6 +226,9 @@ ctx.onmessage = (event) => {
       return;
     case "open":
       void handleOpen(request).catch((error: unknown) => streamError(error));
+      return;
+    case "reopen":
+      void handleReopen(request).catch((error: unknown) => streamError(error));
       return;
     case "setActiveField":
       handleSetActiveField(request);

@@ -1,4 +1,5 @@
-import { bootstrap, createSyntheticDataset, DEFAULT_SYNTHETIC_STEPS, syntheticHandle } from "@app";
+import { bootstrap, datasetCatalog } from "@app";
+import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
 import { parsePoseParam } from "@store";
 
 // `?n=<size>` overrides the scaffold volume's per-axis resolution — a dev/profiling affordance for
@@ -13,12 +14,17 @@ const n = Number.isInteger(requested) && requested >= 2 && requested <= 512 ? re
 const pose = parsePoseParam(params.get("pose") ?? "");
 const orthographic = params.get("proj") === "ortho";
 
-// Seed step 0 on the main thread (instant first frame) and stream the rest from the synthetic
-// multi-step flux rope over the data worker (M2.10a) — scrub the time control to see it evolve.
+// The selectable datasets (the Dataset dropdown); the default (flux rope) seeds the boot dataset +
+// stream. Seed step 0 on the main thread (instant first frame) and stream the rest over the data
+// worker (M2.10a) — scrub the time control to see it evolve; switch the dropdown to the dipole.
 // `?debugScene` opts into the RGB test triangle as the empty-layers frame (renderer-alive sanity).
+const catalog = datasetCatalog(n);
+const initial = catalog.get(DEFAULT_DATASET_ID);
+if (initial === undefined) throw new Error(`unknown default dataset: ${DEFAULT_DATASET_ID}`);
 bootstrap({
-  dataset: createSyntheticDataset(n),
-  streamSource: syntheticHandle(n, DEFAULT_SYNTHETIC_STEPS),
+  dataset: initial.makeDataset(),
+  streamSource: initial.streamSource,
+  datasetCatalog: catalog,
   ...(params.has("debugScene") ? { debugScene: true } : {}),
   ...(pose !== null ? { initialPose: pose } : {}),
   ...(orthographic ? { initialProjection: "orthographic" as const } : {}),

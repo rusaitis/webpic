@@ -1,6 +1,7 @@
 import { computableFields, computeField } from "@compute";
-import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
+import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
 import type { ColormapBinding, ColormapId, ColorScale, WindowLevel } from "@schema/colormap.ts";
+import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
 import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
 import type { FieldName, FloatArray, Vec3 } from "@schema/types.ts";
 import { subscribeWithSelector } from "zustand/middleware";
@@ -43,8 +44,36 @@ export interface DataRange {
   readonly max: number;
 }
 
+const UNIT_HALF_EXTENT: Vec3 = [0.5, 0.5, 0.5];
+
+// Per-axis world half-extent for a grid: physical spans normalized so the longest axis is 0.5 (the
+// unit box). Cubic grids → [0.5, 0.5, 0.5] (identity, byte-for-byte the old behavior); non-cubic ones
+// drive the volume box aspect — the renderer scales the mesh to it, the overlay maps onto it, the
+// picker clamps to it. Mirrors sceneSync's span (spacing×dim, voxel-index fallback when spacing is
+// unusable) so the overlay axis bounds and this box agree.
+export function worldHalfExtentForGrid(grid: GridInfo): Vec3 {
+  const span = (i: number): number => {
+    const dim = grid.dimensions[i] ?? 1;
+    const spacing = grid.spacing[i];
+    return spacing !== undefined && Number.isFinite(spacing) && spacing > 0 ? spacing * dim : dim;
+  };
+  const sx = span(0);
+  const sy = span(1);
+  const sz = span(2);
+  const max = Math.max(sx, sy, sz) || 1;
+  return [(0.5 * sx) / max, (0.5 * sy) / max, (0.5 * sz) / max];
+}
+
 export interface SimulationState {
   readonly dataset: FieldDataset | null;
+  // Which built-in dataset is selected (schema `DATASET_CATALOG` id). A UI signal the app reacts to:
+  // selectDataset records it, the app rebuilds the dataset + re-opens the stream (the store can't reach
+  // `data`/`app`). Mirrors how `projection`/`currentStep` are store-owned but app-forwarded.
+  readonly datasetId: string;
+  // Per-axis world half-extent of the volume box, derived from the active dataset's grid. [0.5,0.5,0.5]
+  // for a cubic dataset (the unit box); anisotropic for a non-cubic one (true physical aspect). The app
+  // forwards it to the render worker (volume mesh scale + overlay) and store-side picking clamps to it.
+  readonly worldHalfExtent: Vec3;
   readonly activeField: FieldName;
   // Recipes computable from the current dataset — the UI's field-selector options
   // (the UI can't reach `compute` directly, so the store derives them on load).
@@ -110,6 +139,7 @@ export interface SimulationState {
   readonly frameTimeClock: FrameClock | null;
   readonly isMeasuringContinuous: boolean;
   setDataset(dataset: FieldDataset): void;
+  selectDataset(id: string): void;
   selectField(name: FieldName): void;
   setBindingColormap(id: string, colormap: ColormapId): void;
   setBindingWindow(id: string, center: number, width: number): void;
@@ -266,6 +296,8 @@ export function createSimulationStore() {
 
       return {
         dataset: null,
+        datasetId: DEFAULT_DATASET_ID,
+        worldHalfExtent: UNIT_HALF_EXTENT,
         activeField: DEFAULT_FIELD,
         availableFields: [],
         computed: null,
@@ -295,11 +327,16 @@ export function createSimulationStore() {
           const { availableSteps } = get();
           set({
             dataset,
+            worldHalfExtent: worldHalfExtentForGrid(dataset.grid),
             availableFields: computableFields(dataset),
             currentStep: dataset.step,
             ...(availableSteps.length === 0 ? { availableSteps: [dataset.step] } : {}),
           });
           recompute();
+        },
+        selectDataset(id) {
+          if (id === get().datasetId) return; // unchanged → no fire (the app reacts to a real switch)
+          set({ datasetId: id });
         },
         selectField(name) {
           if (name === get().activeField) return; // recompute yields a fresh array — skip the no-op re-render

@@ -59,6 +59,7 @@ interface LayerSource {
   windowLevel?: WindowLevel;
   shaded?: boolean; // volume Phong toggle — mutable so a device-restore rebuild keeps the live state
   opacity: number;
+  worldHalfExtent?: Vec3; // volume box aspect (non-cubic dataset); retained for a device-restore rebuild
 }
 
 // One renderable layer's scene + its kind (the kind picks the camera at composite time) + the source
@@ -426,6 +427,7 @@ function buildScene(source: LayerSource): LayerEntry {
     ...(source.steps !== undefined ? { steps: source.steps } : {}),
     ...(source.density !== undefined ? { density: source.density } : {}),
     ...(source.shaded !== undefined ? { shaded: source.shaded } : {}),
+    ...(source.worldHalfExtent !== undefined ? { worldHalfExtent: source.worldHalfExtent } : {}),
   });
   // A scene built mid-gesture (stream rebuild) inherits the live interaction quality + projection.
   scene.setStepScale(qualityLevel(quality).stepScale);
@@ -495,6 +497,7 @@ async function upsertLayer(
     ...(request.steps !== undefined ? { steps: request.steps } : {}),
     ...(request.density !== undefined ? { density: request.density } : {}),
     ...(request.shaded !== undefined ? { shaded: request.shaded } : {}),
+    ...(request.worldHalfExtent !== undefined ? { worldHalfExtent: request.worldHalfExtent } : {}),
   };
   await replaceLayer(request.id, source);
 }
@@ -872,10 +875,12 @@ async function pickRay(request: Extract<RenderWorkerRequest, { kind: "pickRay" }
     return fullRangeWindow(min, max);
   };
   const pickLayers: PickLayer[] = [];
+  let pickHalfExtent: Vec3 = [0.5, 0.5, 0.5]; // all volume layers share the dataset's box
   for (const entry of composite) {
     if (!entry.visible) continue;
     const layer = layers.get(entry.id);
     if (layer === undefined || layer.kind !== "volume") continue;
+    pickHalfExtent = layer.source.worldHalfExtent ?? pickHalfExtent;
     pickLayers.push({
       field: layer.source.field,
       windowLevel: pickWindow(layer.source),
@@ -884,7 +889,12 @@ async function pickRay(request: Extract<RenderWorkerRequest, { kind: "pickRay" }
       opacity: entry.opacity,
     });
   }
-  const point = pickPointOnRay([near.x, near.y, near.z], [dir.x, dir.y, dir.z], pickLayers);
+  const point = pickPointOnRay(
+    [near.x, near.y, near.z],
+    [dir.x, dir.y, dir.z],
+    pickLayers,
+    pickHalfExtent,
+  );
   ctx.postMessage({
     kind: "pickResult",
     requestId: request.requestId,

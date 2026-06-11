@@ -1,4 +1,5 @@
 import { cssRgba, type Rgba01 } from "@schema/theme.ts";
+import type { Vec3 } from "@schema/types.ts";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -119,11 +120,25 @@ function makeLabelTexture(
   return { texture: tex, aspect: width / height };
 }
 
+// Per-axis world half-extent of the volume box (THREE-axis order); 0.5 each for a cubic dataset. The
+// overlay positions its grid/axes/labels at the box edges ±half so it wraps the scaled volume.
+const UNIT_HALF: Vec3 = [0.5, 0.5, 0.5];
+
 export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
   const scene = new Scene(); // no background — the renderer owns the clear color
   const geometries: BufferGeometry[] = [];
   const materials: Material[] = [];
   const textures: Texture[] = [];
+
+  const half = config.worldHalfExtent ?? UNIT_HALF;
+  const halfAt = (axis: number): number => (axis === 0 ? half[0] : axis === 1 ? half[1] : half[2]);
+  // The held (out-of-plane) axis position for a plane — center → 0, min/max → the box face ∓/±half.
+  const heldFor = (heldAxis: number): number =>
+    config.planePosition === "center"
+      ? 0
+      : config.planePosition === "min"
+        ? -halfAt(heldAxis)
+        : halfAt(heldAxis);
 
   // Major-tick lattice per THREE axis (over the mapped field axis's physical bounds).
   const axisData: readonly ThreeAxisData[] = [0, 1, 2].map((threeAxis) => {
@@ -131,14 +146,14 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
     const [min, max] = axis.bounds;
     const nt = niceTicks(min, max, config.tick.targetCount);
     return {
-      ticks: nt.ticks.map((value) => ({ obj: physicalToObject(value, min, max), value })),
+      ticks: nt.ticks.map((value) => ({
+        obj: physicalToObject(value, min, max, halfAt(threeAxis)),
+        value,
+      })),
       decimals: nt.decimals,
       label: axis.label,
     };
   });
-
-  const heldValue =
-    config.planePosition === "center" ? 0 : config.planePosition === "min" ? -0.5 : 0.5;
 
   // `fadeAxis` is the THREE axis the label's row runs along (its tick axis, or the named axis
   // itself) — the label fades as that direction goes edge-on to the view.
@@ -184,26 +199,27 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       const p0: [number, number, number] = [0, 0, 0];
       const p1: [number, number, number] = [0, 0, 0];
       let o = 0;
+      const held = heldFor(plane.h);
       // Lines parallel to axis b, one per tick on axis a (and vice versa). Each overhangs its
-      // labeled edge (-0.5 side) by the foot, pointing at its tick label.
+      // labeled edge (the -half side) by the foot, pointing at its tick label.
       for (const t of ticksA) {
         p0[plane.a] = t.obj;
-        p0[plane.b] = -0.5 - GRID_LINE_FOOT;
-        p0[plane.h] = heldValue;
+        p0[plane.b] = -halfAt(plane.b) - GRID_LINE_FOOT;
+        p0[plane.h] = held;
         p1[plane.a] = t.obj;
-        p1[plane.b] = 0.5;
-        p1[plane.h] = heldValue;
+        p1[plane.b] = halfAt(plane.b);
+        p1[plane.h] = held;
         positions.set(p0, o);
         positions.set(p1, o + 3);
         o += 6;
       }
       for (const t of ticksB) {
         p0[plane.b] = t.obj;
-        p0[plane.a] = -0.5 - GRID_LINE_FOOT;
-        p0[plane.h] = heldValue;
+        p0[plane.a] = -halfAt(plane.a) - GRID_LINE_FOOT;
+        p0[plane.h] = held;
         p1[plane.b] = t.obj;
-        p1[plane.a] = 0.5;
-        p1[plane.h] = heldValue;
+        p1[plane.a] = halfAt(plane.a);
+        p1[plane.h] = held;
         positions.set(p0, o);
         positions.set(p1, o + 3);
         o += 6;
@@ -219,32 +235,40 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
         for (const t of ticksA) {
           const pos: [number, number, number] = [0, 0, 0];
           pos[plane.a] = t.obj;
-          pos[plane.b] = -0.5 - LABEL_EDGE_OFFSET;
-          pos[plane.h] = heldValue;
+          pos[plane.b] = -halfAt(plane.b) - LABEL_EDGE_OFFSET;
+          pos[plane.h] = held;
           addLabel(formatTick(t.value, axisData[plane.a]?.decimals ?? 0), pos, plane.a, TICK_LABEL);
         }
         for (const t of ticksB) {
           const pos: [number, number, number] = [0, 0, 0];
           pos[plane.b] = t.obj;
-          pos[plane.a] = -0.5 - LABEL_EDGE_OFFSET;
-          pos[plane.h] = heldValue;
+          pos[plane.a] = -halfAt(plane.a) - LABEL_EDGE_OFFSET;
+          pos[plane.h] = held;
           addLabel(formatTick(t.value, axisData[plane.b]?.decimals ?? 0), pos, plane.b, TICK_LABEL);
         }
       }
     }
   }
 
-  // Axis lines from the lower corner outward, colored by THREE axis (gnomon palette) + name labels.
+  // Axis lines from the data origin (0,0,0) outward to the +face, colored by THREE axis (gnomon
+  // palette) + name labels — magviz's look, so the triad meets at the data origin (interior for the
+  // dipole), not the box corner. The cross clamps to the nearest face when 0 is outside the bounds.
   if (config.show.axes) {
     const axisColors: readonly Rgba01[] = [
       config.axisColors.x,
       config.axisColors.y,
       config.axisColors.z,
     ];
+    const originAt = (a: number): number => {
+      const [min, max] = config.axes[fieldAxisToThree(a as 0 | 1 | 2)].bounds;
+      const h = halfAt(a);
+      return Math.min(Math.max(physicalToObject(0, min, max, h), -h), h);
+    };
+    const cross: [number, number, number] = [originAt(0), originAt(1), originAt(2)];
     for (let axis = 0; axis < 3; axis++) {
-      const start: [number, number, number] = [-0.5, -0.5, -0.5];
-      const end: [number, number, number] = [-0.5, -0.5, -0.5];
-      end[axis] = 0.5;
+      const start: [number, number, number] = [cross[0], cross[1], cross[2]];
+      const end: [number, number, number] = [cross[0], cross[1], cross[2]];
+      end[axis] = halfAt(axis);
       const geometry = new BufferGeometry();
       geometry.setAttribute(
         "position",
@@ -256,8 +280,8 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       materials.push(material);
 
       if (config.show.labels) {
-        const pos: [number, number, number] = [-0.5, -0.5, -0.5];
-        pos[axis] = 0.5 + LABEL_AXIS_OFFSET;
+        const pos: [number, number, number] = [cross[0], cross[1], cross[2]];
+        pos[axis] = halfAt(axis) + LABEL_AXIS_OFFSET;
         // The name label fades with its own axis — pointing at the camera it floats mid-screen
         // over the data (and over its ticks' pile point), telling the viewer nothing.
         addLabel(axisData[axis]?.label ?? "", pos, axis, NAME_LABEL);

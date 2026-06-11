@@ -66,6 +66,14 @@ describe("unitBoxChordMidpoint", () => {
     // Chord runs t ∈ [0, 0.75] (not from the behind-origin face) → midpoint x = −0.125.
     expect(mid?.[0]).toBeCloseTo(-0.125, 12);
   });
+
+  it("intersects an anisotropic box (a short axis clips the ray sooner)", () => {
+    // Along +y the box is only ±1/3; a y-ray from y=2 enters at y=1/3, exits at −1/3 → midpoint 0.
+    const mid = unitBoxChordMidpoint([0, 2, 0], [0, -1, 0], [0.5, 1 / 3, 1 / 3]);
+    expect(mid?.[1]).toBeCloseTo(0, 12);
+    // A ray grazing past the shrunk y-face (|y| > 1/3) now misses (it cleared the unit box before).
+    expect(unitBoxChordMidpoint([2, 0.4, 0], [-1, 0, 0], [0.5, 1 / 3, 1 / 3])).toBeNull();
+  });
 });
 
 describe("focusPoseOnPoint", () => {

@@ -27,6 +27,13 @@ describe("physicalToObject", () => {
     expect(physicalToObject(0, -5, 5)).toBe(0);
     expect(physicalToObject(3, 3, 3)).toBe(-0.5); // degenerate → lower face, no NaN
   });
+  it("scales to a non-cubic axis's world half-extent", () => {
+    // A short axis (halfExtent 1/3) maps its bounds into [-1/3, 1/3] — the scaled volume box.
+    expect(physicalToObject(0, -5, 5, 1 / 3)).toBeCloseTo(0, 12);
+    expect(physicalToObject(5, -5, 5, 1 / 3)).toBeCloseTo(1 / 3, 12);
+    expect(physicalToObject(-5, -5, 5, 1 / 3)).toBeCloseTo(-1 / 3, 12);
+    expect(physicalToObject(3, 3, 3, 1 / 3)).toBe(-1 / 3); // degenerate → lower face
+  });
 });
 
 describe("formatTick", () => {

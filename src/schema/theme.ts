@@ -73,7 +73,7 @@ export interface Theme {
 export const DEFAULT_WEBPIC_CONFIG: WebpicThemeConfig = {
   version: 1,
   layout: {
-    defaultPanels: ["field", "time", "colormap", "scene", "diagnostics"],
+    defaultPanels: ["dataset", "field", "time", "colormap", "scene", "diagnostics"],
     dockedSide: "right",
     panelCollapsedDefault: false,
   },

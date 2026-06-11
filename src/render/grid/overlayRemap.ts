@@ -19,13 +19,19 @@ export function fieldAxisToThree(fieldAxis: 0 | 1 | 2): ThreeAxis {
 }
 
 /**
- * Linear remap of a physical value on [min, max] to the volume box's object space [-0.5, 0.5]
- * (BoxGeometry(1,1,1) centered at the origin — `raymarchScene.ts`). A zero-width span maps to the
- * lower face so a degenerate axis yields no NaN.
+ * Linear remap of a physical value on [min, max] to the volume box's world span [-halfExtent,
+ * halfExtent] (the raymarch mesh, scaled to the dataset aspect — `raymarchScene.ts`). `halfExtent`
+ * defaults to 0.5, the unit box for a cubic dataset; a non-cubic axis passes its scaled half-size so
+ * the grid/axes wrap the same box the volume fills. A zero-width span maps to the lower face (no NaN).
  */
-export function physicalToObject(value: number, min: number, max: number): number {
+export function physicalToObject(
+  value: number,
+  min: number,
+  max: number,
+  halfExtent = 0.5,
+): number {
   const span = max - min;
-  return span !== 0 ? (value - min) / span - 0.5 : -0.5;
+  return span !== 0 ? ((value - min) / span - 0.5) * (2 * halfExtent) : -halfExtent;
 }
 
 /** Format a tick value at the chosen precision, normalizing a "-0" artifact from `toFixed`. */

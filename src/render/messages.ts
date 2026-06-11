@@ -44,6 +44,10 @@ export interface SceneOverlayConfig {
   readonly axisColors: { readonly x: Rgba01; readonly y: Rgba01; readonly z: Rgba01 };
   readonly labelColor: Rgba01;
   readonly tick: { readonly targetCount: number };
+  // Per-axis world half-extent of the volume box the overlay wraps (THREE-axis order, = field-axis
+  // order under the identity convention). Default [0.5,0.5,0.5] (unit cube); anisotropic for a
+  // non-cubic dataset so the grid/axes share the scaled volume's box. Optional for back-compat.
+  readonly worldHalfExtent?: Vec3;
 }
 
 // The draggable point-picker marker (sphere + two-tone ring + ↕/↔ handles + drop-line/crosshair).
@@ -99,6 +103,9 @@ export type RenderWorkerRequest =
       readonly steps?: number;
       readonly density?: number;
       readonly shaded?: boolean; // volume-only Phong toggle
+      // Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (unit cube). Scales the
+      // volume mesh to the dataset's physical aspect (non-cubic grids). Volume-only.
+      readonly worldHalfExtent?: Vec3;
     }
   | { readonly kind: "removeLayer"; readonly requestId: number; readonly id: string }
   // Cheap reorder/visibility/opacity over the full ordered list — no field transfer.

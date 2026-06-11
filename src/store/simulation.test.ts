@@ -1,8 +1,24 @@
-import type { FieldArray } from "@containers/field_dataset.ts";
+import type { FieldArray, GridInfo } from "@containers/field_dataset.ts";
 import type { ColormapBinding } from "@schema/colormap.ts";
 import { describe, expect, it } from "vitest";
 import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
-import { createSimulationStore, type SimulationStore } from "./simulation.ts";
+import {
+  createSimulationStore,
+  type SimulationStore,
+  worldHalfExtentForGrid,
+} from "./simulation.ts";
+
+const gridOf = (dimensions: number[], spacing: number[]): GridInfo => ({
+  dimensions,
+  spacing,
+  origin: [0, 0, 0],
+  geometry: "cartesian",
+  axisLabels: ["x", "y", "z"],
+  dt: null,
+  boundary: null,
+  survivingAxes: null,
+  stagger: null,
+});
 
 const bDataset = () => vectorTriple("B", { array: Float32Array });
 
@@ -295,5 +311,58 @@ describe("simulationStore diagnostics", () => {
     });
     store.getState().requestPick(null);
     expect(store.getState().pickRequest).toBeNull();
+  });
+});
+
+describe("worldHalfExtentForGrid", () => {
+  it("is the unit box for a cubic grid (cubic datasets render unchanged)", () => {
+    expect(worldHalfExtentForGrid(gridOf([32, 32, 32], [1, 1, 1]))).toEqual([0.5, 0.5, 0.5]);
+  });
+
+  it("normalizes a non-cubic grid so the longest axis is 0.5 (the dipole aspect)", () => {
+    const h = worldHalfExtentForGrid(gridOf([150, 100, 100], [0.1, 0.1, 0.1])); // spans 15, 10, 10
+    expect(h[0]).toBeCloseTo(0.5, 12);
+    expect(h[1]).toBeCloseTo(1 / 3, 12);
+    expect(h[2]).toBeCloseTo(1 / 3, 12);
+  });
+
+  it("falls back to voxel-index spans when spacing is unusable", () => {
+    expect(worldHalfExtentForGrid(gridOf([10, 4, 2], [0, 0, 0]))).toEqual([0.5, 0.2, 0.1]);
+  });
+});
+
+describe("selectDataset", () => {
+  it("records the id and no-ops on the same id", () => {
+    const store = createSimulationStore();
+    expect(store.getState().datasetId).toBe("fluxrope");
+    let fires = 0;
+    const unsub = store.subscribe(
+      (s) => s.datasetId,
+      () => fires++,
+    );
+    store.getState().selectDataset("dipole");
+    expect(store.getState().datasetId).toBe("dipole");
+    store.getState().selectDataset("dipole"); // unchanged → no fire
+    expect(fires).toBe(1);
+    unsub();
+  });
+});
+
+describe("setDataset", () => {
+  it("derives worldHalfExtent from the loaded grid", () => {
+    const store = createSimulationStore();
+    expect(store.getState().worldHalfExtent).toEqual([0.5, 0.5, 0.5]); // default unit box
+    const fields = {
+      B_1: fieldArray("B_1", new Float32Array([1]), [1]),
+      B_2: fieldArray("B_2", new Float32Array([0]), [1]),
+      B_3: fieldArray("B_3", new Float32Array([0]), [1]),
+    };
+    store
+      .getState()
+      .setDataset(makeDataset(fields, { grid: gridOf([150, 100, 100], [0.1, 0.1, 0.1]) }));
+    const h = store.getState().worldHalfExtent;
+    expect(h[0]).toBeCloseTo(0.5, 12);
+    expect(h[1]).toBeCloseTo(1 / 3, 12);
+    expect(h[2]).toBeCloseTo(1 / 3, 12);
   });
 });

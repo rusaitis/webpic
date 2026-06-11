@@ -180,11 +180,10 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       store
         .getState()
         .setPickerPoint(
-          clampToBox([
-            hit[0] - drag.grabOffset[0],
-            hit[1] - drag.grabOffset[1],
-            hit[2] - drag.grabOffset[2],
-          ]),
+          clampToBox(
+            [hit[0] - drag.grabOffset[0], hit[1] - drag.grabOffset[1], hit[2] - drag.grabOffset[2]],
+            store.getState().worldHalfExtent,
+          ),
         );
       return;
     }
@@ -211,14 +210,14 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     downAt = undefined;
     if (pending === undefined || pending.pointerId !== event.pointerId || pending.claimed) return;
     if (Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > TAP_PX) return;
-    const { overlay, cameraPose, projection } = store.getState();
+    const { overlay, cameraPose, projection, worldHalfExtent } = store.getState();
     if (!overlay.showPicker) return;
     const rect = target.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
     const ndc = ndcOf(event.clientX, event.clientY, rect);
     const aspect = rect.width / rect.height;
     const ray = cursorRay(cameraPose, ndc.x, ndc.y, aspect, projection === "orthographic");
-    if (unitBoxChordMidpoint(ray.origin, ray.dir) === null) return; // tapped off the box — ignore
+    if (unitBoxChordMidpoint(ray.origin, ray.dir, worldHalfExtent) === null) return; // off the box
     store.getState().requestPick({ ndcX: ndc.x, ndcY: ndc.y, aspect, purpose: "place" });
   };
 
