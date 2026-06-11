@@ -80,6 +80,7 @@ Don't add without justification matching `docs/DESIGN.md`. *Shipped:* `three` (`
 
 ```
 npm run dev         # Vite dev server
+npm run dev:lan     # HTTPS + LAN-exposed (iPad testing; certs via scripts/setup-lan-certs.sh)
 npm run build       # production build
 npm run typecheck   # app + worker tsconfigs
 npm run lint        # Biome check

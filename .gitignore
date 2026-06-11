@@ -21,6 +21,9 @@ coverage/
 *.log
 npm-debug.log*
 
+# Local TLS certs (scripts/setup-lan-certs.sh)
+.certs/
+
 # Env
 .env
 .env.*

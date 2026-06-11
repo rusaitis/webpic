@@ -9,7 +9,9 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host --mode lan",
     "build": "vite build",
+    "preview:lan": "vite preview --host --mode lan",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "check:boundaries": "node scripts/check-boundaries.ts",
     "gen:export": "uv run --project ../pypic pypic export bundle --inline-single-use-defs --include-x-extensions -o src/schema/pypic-export.generated.json",
