@@ -26,7 +26,6 @@ import {
   parsePoseParam,
   poseDelta,
   poseForBounds,
-  poseLerp,
   stepMomentum,
   UNIT_BOX_RADIUS,
 } from "./camera.ts";
@@ -320,38 +319,6 @@ describe("easeInOutCubic", () => {
     expect(easeInOutCubic(0.5)).toBeCloseTo(0.5, 12);
     expect(easeInOutCubic(0.25)).toBeCloseTo(0.0625, 12); // 4t³ — slow start
     expect(easeInOutCubic(0.75)).toBeCloseTo(0.9375, 12); // symmetric slow finish
-  });
-});
-
-describe("poseLerp", () => {
-  const A: CameraPose = { target: [0, 0, 0], azimuth: 0.4, elevation: 0.2, distance: 1 };
-  const B: CameraPose = { target: [2, -4, 6], azimuth: -1.1, elevation: 0.9, distance: 4 };
-
-  it("hits both endpoints (within an ulp of the wrap / exp-log round-trips)", () => {
-    const start = poseLerp(A, B, 0);
-    expect(start.azimuth).toBeCloseTo(A.azimuth, 12);
-    expect(start.elevation).toBe(A.elevation);
-    expect(start.distance).toBeCloseTo(A.distance, 12);
-    expect(start.target).toEqual(A.target);
-    const end = poseLerp(A, B, 1);
-    expect(end.azimuth).toBeCloseTo(B.azimuth, 12);
-    expect(end.elevation).toBeCloseTo(B.elevation, 12);
-    expect(end.distance).toBeCloseTo(B.distance, 12);
-    for (let i = 0; i < 3; i++) expect(end.target[i]).toBeCloseTo(B.target[i] ?? Number.NaN, 12);
-  });
-
-  it("takes the shortest azimuth arc across the ±π seam", () => {
-    const a: CameraPose = { ...A, azimuth: 2.9 };
-    const b: CameraPose = { ...A, azimuth: -2.9 };
-    // Shortest arc is +0.483 rad through π, not −5.8 rad back through 0.
-    const quarter = poseLerp(a, b, 0.25);
-    expect(quarter.azimuth).toBeCloseTo(2.9 + 0.25 * (2 * Math.PI - 5.8), 12);
-    const mid = poseLerp(a, b, 0.5);
-    expect(Math.abs(mid.azimuth)).toBeCloseTo(Math.PI, 6); // the seam itself
-  });
-
-  it("interpolates distance geometrically (uniform zoom feel)", () => {
-    expect(poseLerp(A, B, 0.5).distance).toBeCloseTo(2, 12); // geometric mean of 1 and 4
   });
 });
 

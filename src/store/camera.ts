@@ -212,21 +212,6 @@ export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
-// Pose interpolation for the reset / axis-snap tween: shortest-arc azimuth (a 350°→10° fly-to turns
-// 20°, not −340°), geometric distance (uniform zoom feel — matches the dolly curve), linear
-// elevation/target. Callers snap to `b` exactly at t = 1 (the exp/log round-trip is ~1 ulp off).
-export function poseLerp(a: CameraPose, b: CameraPose, t: number): CameraPose {
-  const azDelta = wrapAngle(b.azimuth - a.azimuth);
-  const [ax, ay, az] = a.target;
-  const [bx, by, bz] = b.target;
-  return {
-    target: [ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t],
-    azimuth: wrapAngle(a.azimuth + azDelta * t),
-    elevation: a.elevation + (b.elevation - a.elevation) * t,
-    distance: Math.exp(Math.log(a.distance) * (1 - t) + Math.log(b.distance) * t),
-  };
-}
-
 // The pose-space displacement a fly-to applies incrementally (magviz's blending tween): per-frame
 // eased fractions of this delta land ON TOP of the live pose, so concurrent drags/wheel/momentum
 // add instead of being canceled. Every component is additive — azimuth shortest-arc, distance in
@@ -241,11 +226,7 @@ export interface PoseDelta {
 
 export function poseDelta(a: CameraPose, b: CameraPose): PoseDelta {
   return {
-    target: [
-      b.target[0] - a.target[0],
-      b.target[1] - a.target[1],
-      b.target[2] - a.target[2],
-    ],
+    target: [b.target[0] - a.target[0], b.target[1] - a.target[1], b.target[2] - a.target[2]],
     azimuth: wrapAngle(b.azimuth - a.azimuth),
     elevation: b.elevation - a.elevation,
     logDistance: Math.log(b.distance / a.distance),

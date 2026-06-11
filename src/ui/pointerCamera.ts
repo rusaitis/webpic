@@ -1,6 +1,7 @@
 import {
   addOrbitMomentum,
   addPanMomentum,
+  applyPoseDelta,
   type BoundingSphere,
   type CameraMomentum,
   type CameraPose,
@@ -15,8 +16,9 @@ import {
   MOMENTUM_ZERO,
   normalizeWheelDelta,
   nudgePose,
+  type PoseDelta,
+  poseDelta,
   poseForBounds,
-  poseLerp,
   type SimulationStore,
   stepMomentum,
   UNIT_BOX_RADIUS,
@@ -37,7 +39,9 @@ import { isTypingTarget } from "./keyboard.ts";
 // momentum that the rAF loop releases through stepMomentum (the damped glide); wheel/pinch dolly is
 // immediate (zoom is undamped). The same loop runs the eased fly-to tween (R reset, double-click
 // pick-to-focus — background double-click resets — and store cameraFlyRequest intents from the
-// gnomon), and reports gesture liveness via setCameraInteracting so the worker can march volumes
+// gnomon); the tween applies per-frame eased *increments* of its pose delta on top of the live
+// pose, so concurrent drags/wheel/momentum blend with the flight instead of canceling it (magviz
+// semantics). Gesture liveness goes out via setCameraInteracting so the worker can march volumes
 // coarser mid-gesture.
 
 // A background-tab resume hands rAF a huge dt; clamp so the glide resumes instead of teleporting.
@@ -45,8 +49,8 @@ const GLIDE_MAX_DT_MS = 100;
 const NOMINAL_FRAME_MS = 1000 / 60;
 // Drag normalization fallback when the canvas has no layout yet (happy-dom tests, hidden mounts).
 const NOMINAL_VIEWPORT_PX = 800;
-// Eased fly-to duration (reset / axis snap) — magviz's snap feel.
-const FLY_MS = 400;
+// Eased fly-to duration (reset / axis snap / pick-to-focus) — magviz's 0.45 s focus glide.
+const FLY_MS = 450;
 // Wheel has no end event; interaction stays live this long past the last notch.
 const WHEEL_TRAIL_MS = 150;
 // Fit target until non-cube datasets land: the unit render box's bounding sphere.
@@ -67,9 +71,12 @@ const NUDGE_KEYS: ReadonlyMap<string, KeyNudge> = new Map([
 ]);
 
 interface PoseTween {
-  readonly from: CameraPose;
-  readonly to: CameraPose;
+  readonly to: CameraPose; // exact landing pose for an unperturbed flight
+  readonly delta: PoseDelta; // live pose → to, computed once at flyTo
   start: number | undefined; // set on the first glide frame — rAF timestamp domain
+  easedPrev: number; // ease(t) already applied — per-frame increments sum to exactly 1
+  perturbed: boolean; // a non-tween writer touched the pose since flyTo
+  lastWritten: CameraPose; // the tween's last setCameraPose object — reference identity check
 }
 
 export function installPointerCamera(target: HTMLElement, store: SimulationStore): Disposer {
@@ -137,22 +144,39 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       lastFrameMs === undefined ? NOMINAL_FRAME_MS : Math.min(nowMs - lastFrameMs, GLIDE_MAX_DT_MS);
     lastFrameMs = nowMs;
     const { cameraPose, setCameraPose } = store.getState();
-    if (tween !== undefined) {
-      if (tween.start === undefined) tween.start = nowMs;
-      const t = Math.min((nowMs - tween.start) / FLY_MS, 1);
-      // Snap to the exact target at t=1 — poseLerp's exp/log distance round-trip is ~1 ulp off.
-      setCameraPose(t >= 1 ? tween.to : poseLerp(tween.from, tween.to, easeInOutCubic(t)));
-      if (t >= 1) tween = undefined;
-    } else if (!isMomentumSettled(momentum)) {
+    if (!isMomentumSettled(momentum)) {
       const stepped = stepMomentum(cameraPose, momentum, dt);
       momentum = stepped.momentum;
       setCameraPose(stepped.pose);
     }
     // Held nudge keys ride the same loop at constant velocity (re-read the pose — the momentum
-    // step above may have moved it this frame). A tween owns the camera while it runs.
-    const nudge = tween === undefined ? activeNudge() : null;
+    // step above may have moved it this frame).
+    const nudge = activeNudge();
     if (nudge !== null) {
       setCameraPose(nudgePose(store.getState().cameraPose, nudge, dt));
+    }
+    // The tween steps last so its perturbation check sees this frame's user motion: any pose
+    // object it didn't write means a drag/wheel/momentum blended in, and the flight must keep
+    // applying increments instead of snapping to the absolute goal at landing.
+    if (tween !== undefined) {
+      if (tween.start === undefined) tween.start = nowMs;
+      const t = Math.min((nowMs - tween.start) / FLY_MS, 1);
+      const live = store.getState().cameraPose;
+      if (live !== tween.lastWritten) tween.perturbed = true;
+      if (t >= 1) {
+        // Unperturbed flights land on the exact goal object (pose-permalink determinism); blended
+        // ones get the exact remaining fraction, so increments sum to goal ⊕ user input.
+        setCameraPose(
+          tween.perturbed ? applyPoseDelta(live, tween.delta, 1 - tween.easedPrev) : tween.to,
+        );
+        tween = undefined;
+      } else {
+        const eased = easeInOutCubic(t);
+        const next = applyPoseDelta(live, tween.delta, eased - tween.easedPrev);
+        setCameraPose(next);
+        tween.easedPrev = eased;
+        tween.lastWritten = next;
+      }
     }
     const quiet =
       tween === undefined &&
@@ -176,13 +200,18 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     }
   };
 
-  const cancelTween = (): void => {
-    tween = undefined;
-  };
-
+  // Momentum is NOT zeroed and user input never cancels: a fling in progress glides on through
+  // the flight, and a fresh flyTo over a live tween retargets from wherever the camera is.
   const flyTo = (to: CameraPose): void => {
-    momentum = MOMENTUM_ZERO; // the tween owns the camera — drop any pending glide
-    tween = { from: store.getState().cameraPose, to, start: undefined };
+    const from = store.getState().cameraPose;
+    tween = {
+      to,
+      delta: poseDelta(from, to),
+      start: undefined,
+      easedPrev: 0,
+      perturbed: false,
+      lastWritten: from,
+    };
     syncInteracting();
     ensureGliding();
   };
@@ -200,7 +229,6 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     if (pointers.has(event.pointerId)) return; // button chord mid-drag — keep the current gesture
     if (pointers.size >= 2) return; // two fingers own the gesture; a third joins nothing
     if (event.button === 1) event.preventDefault(); // no middle-click autoscroll
-    cancelTween();
     if (pointers.size === 0) {
       panning = event.shiftKey || event.button === 1 || event.button === 2;
       gestureRect = target.getBoundingClientRect();
@@ -299,7 +327,6 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
 
   const onWheel = (event: WheelEvent): void => {
     event.preventDefault(); // we own the gesture — don't let the page scroll
-    cancelTween();
     dollyAt(
       normalizeWheelDelta(event.deltaY, event.deltaMode, event.ctrlKey),
       event.clientX,
@@ -316,7 +343,6 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     event.preventDefault();
     if (pointers.size > 0) return;
     gestureScale = 1;
-    cancelTween();
   };
   const onGestureChange = (event: Event): void => {
     event.preventDefault();
@@ -379,7 +405,6 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     if (isTypingTarget(event.target)) return;
     if (NUDGE_KEYS.has(event.code)) {
       event.preventDefault(); // arrows must not scroll the page while they orbit
-      cancelTween();
       heldKeys.add(event.code); // Set-idempotent, so OS key-repeat keydowns are harmless
       syncInteracting();
       ensureGliding();

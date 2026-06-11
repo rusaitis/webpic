@@ -1,4 +1,4 @@
-import { createSimulationStore, DEFAULT_POSE } from "@store";
+import { createSimulationStore, DEFAULT_POSE, dollyPose } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
 import { installPointerCamera } from "./pointerCamera.ts";
 
@@ -30,7 +30,7 @@ function frame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-// Pump glide frames until the predicate holds (tweens run on real elapsed time, ~400 ms).
+// Pump glide frames until the predicate holds (tweens run on real elapsed time, ~450 ms).
 async function pumpUntil(predicate: () => boolean, maxMs = 3000): Promise<void> {
   const deadline = Date.now() + maxMs;
   while (!predicate()) {
@@ -296,17 +296,33 @@ describe("installPointerCamera", () => {
     expect(store.getState().cameraPose).toBe(moved); // neither fired a fly-to
   });
 
-  it("pointer input interrupts an in-flight fly-to", async () => {
+  it("a drag blends with an in-flight fly-to instead of canceling it", async () => {
     const { target, store } = setup();
     store.getState().setCameraPose({ ...DEFAULT_POSE, azimuth: 2.5 });
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "r" }));
     await frame(); // tween underway
-    target.dispatchEvent(pointer("pointerdown", 100, 100)); // user takes over
-    const at = store.getState().cameraPose;
-    await frame();
-    await frame();
-    expect(store.getState().cameraPose).toBe(at); // tween dead, no drift
-    expect(at).not.toBe(DEFAULT_POSE);
+    target.dispatchEvent(pointer("pointerdown", 100, 100));
+    target.dispatchEvent(pointer("pointermove", 100, 160)); // vertical drag — elevation only
+    target.dispatchEvent(pointer("pointerup", 100, 160));
+    await pumpUntil(() => !store.getState().isCameraInteracting); // flight + glide both land
+    const pose = store.getState().cameraPose;
+    expect(pose.azimuth).toBeCloseTo(DEFAULT_POSE.azimuth, 6); // the flight still landed
+    expect(pose.elevation).toBeGreaterThan(DEFAULT_POSE.elevation + 0.3); // the drag survived
+    expect(pose.distance).toBeCloseTo(DEFAULT_POSE.distance, 12);
+  });
+
+  it("a wheel dolly composes with an in-flight fly-to (log-additive distance)", async () => {
+    const { target, store } = setup();
+    const to = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } as const;
+    store.getState().requestCameraFly({ kind: "pose", pose: to });
+    await frame(); // flight underway
+    target.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, cancelable: true }));
+    await pumpUntil(() => !store.getState().isCameraInteracting);
+    const pose = store.getState().cameraPose;
+    // The wheel's geometric factor rides on the flight's goal distance — neither motion is lost.
+    expect(pose.distance).toBeCloseTo(dollyPose(to, 120).distance, 9);
+    expect(pose.azimuth).toBeCloseTo(to.azimuth, 9);
+    for (let i = 0; i < 3; i++) expect(pose.target[i]).toBeCloseTo(to.target[i] ?? Number.NaN, 9);
   });
 
   it("consumes cameraFlyRequest intents (gnomon snaps)", async () => {
