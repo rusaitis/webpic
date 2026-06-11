@@ -228,16 +228,51 @@ describe("installPointerCamera", () => {
     expect(store.getState().cameraPose.azimuth).toBeLessThan(before.azimuth); // orbit, no jump
   });
 
-  it("double-click flies the camera back to the default pose", async () => {
+  it("double-click without layout flies back to the default pose (reset fallback)", async () => {
     const { target, store } = setup();
     target.dispatchEvent(pointer("pointerdown", 100, 100));
     target.dispatchEvent(pointer("pointermove", 260, 170));
     target.dispatchEvent(pointer("pointerup", 260, 170));
     await pumpUntil(() => !store.getState().isCameraInteracting); // glide out
     expect(store.getState().cameraPose).not.toBe(DEFAULT_POSE);
+    // happy-dom's zero rect = no cursor to pick with — the gesture degrades to the old reset.
     target.dispatchEvent(new MouseEvent("dblclick"));
     // The tween's final frame applies the exact target object.
     await pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
+  });
+
+  it("double-click on the box dispatches a pick-to-focus intent with the cursor NDC", () => {
+    const { target, store } = setup();
+    target.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 200, bottom: 100, width: 200, height: 100 }) as DOMRect;
+    const start = store.getState().cameraPose;
+    // Center of the frame: the default pose looks at the box center, so the ray hits.
+    target.dispatchEvent(new MouseEvent("dblclick", { clientX: 100, clientY: 50 }));
+    expect(store.getState().pickFocusRequest).toEqual({ ndcX: 0, ndcY: 0, aspect: 2 });
+    expect(store.getState().cameraPose).toBe(start); // the app answers the intent, not this module
+  });
+
+  it("double-click off the box resets instead of picking", async () => {
+    const { target, store } = setup();
+    target.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 200, bottom: 100, width: 200, height: 100 }) as DOMRect;
+    store.getState().setCameraPose({ ...DEFAULT_POSE, azimuth: 2 });
+    // Top-left frame corner: NDC (−1, +1) clears the unit box from the default-distance view.
+    target.dispatchEvent(new MouseEvent("dblclick", { clientX: 0, clientY: 0 }));
+    expect(store.getState().pickFocusRequest).toBeNull();
+    await pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
+  });
+
+  it("ignores a modified double-click", async () => {
+    const { target, store } = setup();
+    target.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 200, bottom: 100, width: 200, height: 100 }) as DOMRect;
+    const moved = { ...DEFAULT_POSE, azimuth: 2 };
+    store.getState().setCameraPose(moved);
+    target.dispatchEvent(new MouseEvent("dblclick", { clientX: 100, clientY: 50, shiftKey: true }));
+    await frame();
+    expect(store.getState().pickFocusRequest).toBeNull();
+    expect(store.getState().cameraPose).toBe(moved);
   });
 
   it("the R key flies back to the default pose", async () => {

@@ -68,6 +68,15 @@ export interface SimulationState {
   // aspect only it knows), eases the pose over, and clears the request. A fresh wrapper object per
   // request so repeating the same view re-fires the subscription.
   readonly cameraFlyRequest: { readonly target: CameraFlyTarget } | null;
+  // One-shot pick-to-focus request (double-click on the render box). ui/pointerCamera dispatches
+  // the cursor NDC + aspect; the app consumes it — asks the render worker for the opacity-weighted
+  // pick (falling back to the box-chord midpoint pre-ready) and answers with a cameraFlyRequest.
+  // Fresh wrapper per request so a repeated same-spot double-click re-fires.
+  readonly pickFocusRequest: {
+    readonly ndcX: number;
+    readonly ndcY: number;
+    readonly aspect: number;
+  } | null;
   // Time cursor (M2.9): the active timestep + the discrete domain the scrub control walks. The
   // reader's availableTimesteps seeds `availableSteps` (setAvailableSteps); setStep moves the cursor,
   // tracking the loaded dataset's `step`. Pre-M2.10 nothing re-reads on a step change — this lands
@@ -98,6 +107,7 @@ export interface SimulationState {
   setCameraInteracting(interacting: boolean): void;
   setProjection(projection: CameraProjection): void;
   requestCameraFly(target: CameraFlyTarget | null): void;
+  requestPickFocus(request: { ndcX: number; ndcY: number; aspect: number } | null): void;
   setStep(step: number): void;
   setAvailableSteps(steps: readonly number[]): void;
   addLayer(spec: LayerSpec): void;
@@ -248,6 +258,7 @@ export function createSimulationStore() {
         isCameraInteracting: false,
         projection: "perspective",
         cameraFlyRequest: null,
+        pickFocusRequest: null,
         currentStep: 0,
         availableSteps: [],
         layers: [],
@@ -315,6 +326,9 @@ export function createSimulationStore() {
         },
         requestCameraFly(target) {
           set({ cameraFlyRequest: target === null ? null : { target } });
+        },
+        requestPickFocus(request) {
+          set({ pickFocusRequest: request === null ? null : { ...request } });
         },
         setStep(step) {
           const { currentStep, availableSteps } = get();

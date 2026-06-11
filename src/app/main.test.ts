@@ -201,6 +201,85 @@ describe("bootstrap store → compute → render", () => {
   });
 });
 
+describe("bootstrap pick-to-focus", () => {
+  function pickSetup() {
+    const posts: Post[] = [];
+    const worker = {
+      onmessage: null,
+      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
+        posts.push({ message, transfer });
+      },
+      terminate: () => {},
+    } as unknown as Worker;
+    const store = createSimulationStore();
+    const dispose = bootstrap({
+      width: 64,
+      height: 48,
+      createCanvas: fakeCanvas,
+      mount: () => {},
+      spawnWorker: () => worker,
+      dataset: tinyDataset(),
+      store,
+    });
+    return { posts, worker, store, dispose };
+  }
+
+  it("forwards the pick intent to the worker and answers pickResult with a focus fly", () => {
+    const { posts, worker, store, dispose } = pickSetup();
+    worker.onmessage?.({
+      data: { kind: "ready", requestId: 1 },
+    } as MessageEvent<RenderWorkerResponse>);
+
+    store.getState().requestPickFocus({ ndcX: 0.2, ndcY: -0.1, aspect: 2 });
+    expect(store.getState().pickFocusRequest).toBeNull(); // consumed synchronously
+    const pick = posts.find((p) => p.message.kind === "pickRay");
+    if (pick === undefined || pick.message.kind !== "pickRay")
+      throw new Error("expected a pickRay message");
+    expect(pick.message.ndcX).toBe(0.2);
+    expect(pick.message.ndcY).toBe(-0.1);
+
+    const before = store.getState().cameraPose;
+    // The bare data-only shape doesn't overlap MessageEvent's 20+ properties — route via unknown.
+    worker.onmessage?.({
+      data: { kind: "pickResult", requestId: pick.message.requestId, point: [0.2, -0.1, 0.3] },
+    } as unknown as MessageEvent<RenderWorkerResponse>);
+    const fly = store.getState().cameraFlyRequest;
+    if (fly === null || fly.target.kind !== "pose") throw new Error("expected a pose fly request");
+    expect(fly.target.pose.target).toEqual([0.2, -0.1, 0.3]);
+    expect(fly.target.pose.azimuth).toBe(before.azimuth);
+    expect(fly.target.pose.elevation).toBe(before.elevation);
+    expect(fly.target.pose.distance).toBeCloseTo(before.distance * 0.7, 12);
+    dispose();
+  });
+
+  it("leaves the camera alone on a null pickResult (the ray missed the box)", () => {
+    const { worker, store, dispose } = pickSetup();
+    worker.onmessage?.({
+      data: { kind: "ready", requestId: 1 },
+    } as MessageEvent<RenderWorkerResponse>);
+    worker.onmessage?.({
+      data: { kind: "pickResult", requestId: 10, point: null },
+    } as MessageEvent<RenderWorkerResponse>);
+    expect(store.getState().cameraFlyRequest).toBeNull();
+    dispose();
+  });
+
+  it("falls back to the box-chord midpoint focus before the worker is ready", () => {
+    const { posts, store, dispose } = pickSetup();
+    store.getState().requestPickFocus({ ndcX: 0, ndcY: 0, aspect: 1 });
+    expect(posts.some((p) => p.message.kind === "pickRay")).toBe(false); // nothing to ask yet
+    const fly = store.getState().cameraFlyRequest;
+    if (fly === null || fly.target.kind !== "pose") throw new Error("expected a pose fly request");
+    // The default pose's centered ray passes through the box center; central symmetry puts the
+    // chord midpoint exactly there.
+    expect(fly.target.pose.target[0]).toBeCloseTo(0, 12);
+    expect(fly.target.pose.target[1]).toBeCloseTo(0, 12);
+    expect(fly.target.pose.target[2]).toBeCloseTo(0, 12);
+    expect(fly.target.pose.distance).toBeCloseTo(DEFAULT_POSE.distance * 0.7, 12);
+    dispose();
+  });
+});
+
 describe("bootstrap streaming (M2.10a)", () => {
   it("pairs the data worker, opens the stream, relays the domain, and drives the cursor", () => {
     const canvas = fakeCanvas();

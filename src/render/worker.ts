@@ -1,7 +1,7 @@
 import type { StreamStepMessage } from "@data";
 import { getCapabilities, getDevice, installGpu, onDeviceLost, onDeviceRestored } from "@gpu";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
-import type { OrthographicCamera, PerspectiveCamera } from "three";
+import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
 import {
   applyPose,
   applyPoseOrtho,
@@ -29,11 +29,13 @@ import type {
   SceneOverlayConfig,
   SliceFieldPayload,
 } from "./messages.ts";
+import { fullRangeWindow } from "./normalization.ts";
+import { type PickLayer, pickPointOnRay } from "./pickRay.ts";
 import { createRaymarchScene, type RaymarchScene } from "./raymarchScene.ts";
 import { type CompositeItem, type InstalledRenderer, installRenderer } from "./renderer.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
 import { createSliceScene, type SliceAxis, type SliceScene } from "./sliceScene.ts";
-import type { ScalarField } from "./volumeTexture.ts";
+import { finiteRange, type ScalarField } from "./volumeTexture.ts";
 
 // Everything needed to rebuild a layer's scene without the main thread: the decoded field (its CPU
 // buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity
@@ -750,6 +752,44 @@ async function setSceneOverlay(
   await buildOverlay(request.overlay);
 }
 
+// Pick-to-focus: march the cursor ray through the retained CPU fields (no GPU round-trip) and
+// reply with the focus point. The ray comes from the live volume camera via unproject so it matches
+// the rendered frame exactly — projection flip, aspect, and the pose this click saw (postMessage
+// ordering) included. The unit box has the identity transform, so world = object space.
+async function pickRay(request: Extract<RenderWorkerRequest, { kind: "pickRay" }>): Promise<void> {
+  await initDone;
+  const camera = volumeCamera();
+  if (camera === undefined) {
+    throw new Error("pickRay before init");
+  }
+  camera.updateMatrixWorld(); // unproject outside a render needs fresh matrices
+  const near = new Vector3(request.ndcX, request.ndcY, -1).unproject(camera);
+  const far = new Vector3(request.ndcX, request.ndcY, 1).unproject(camera);
+  const dir = far.sub(near).normalize();
+  // A source with no windowLevel normalizes over its full finite range (buildScene's default) —
+  // the in-app path always carries a binding window, so the scan is the defensive branch only.
+  const pickWindow = (source: LayerSource): WindowLevel => {
+    if (source.windowLevel !== undefined) return source.windowLevel;
+    const { min, max } = finiteRange(source.field.data);
+    return fullRangeWindow(min, max);
+  };
+  const pickLayers: PickLayer[] = [];
+  for (const entry of composite) {
+    if (!entry.visible) continue;
+    const layer = layers.get(entry.id);
+    if (layer === undefined || layer.kind !== "volume") continue;
+    pickLayers.push({
+      field: layer.source.field,
+      windowLevel: pickWindow(layer.source),
+      scale: layer.source.scale,
+      density: layer.source.density ?? 1, // the scene factory default
+      opacity: entry.opacity,
+    });
+  }
+  const point = pickPointOnRay([near.x, near.y, near.z], [dir.x, dir.y, dir.z], pickLayers);
+  ctx.postMessage({ kind: "pickResult", requestId: request.requestId, point });
+}
+
 // Pair with the data worker's streaming port (M2.10a). Assigning onmessage implicitly starts the
 // port, so streamStep messages posted before this pairing drain here in order — no lost frames.
 async function pair(request: Extract<RenderWorkerRequest, { kind: "pair" }>): Promise<void> {
@@ -794,6 +834,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return setInteracting(request);
     case "setSceneOverlay":
       return setSceneOverlay(request);
+    case "pickRay":
+      return pickRay(request);
     case "pair":
       return pair(request);
     default: {

@@ -4,6 +4,7 @@ import {
   type BoundingSphere,
   type CameraMomentum,
   type CameraPose,
+  cursorRay,
   DEFAULT_POSE,
   dollyDeltaForScale,
   dollyPose,
@@ -19,6 +20,7 @@ import {
   type SimulationStore,
   stepMomentum,
   UNIT_BOX_RADIUS,
+  unitBoxChordMidpoint,
 } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
@@ -33,9 +35,10 @@ import { isTypingTarget } from "./keyboard.ts";
 // their centroid and two-finger-pan. Drag deltas are normalized to viewport-height fractions —
 // OrbitControls' unit — so the feel is identical at any canvas size. Drags feed a pending-delta
 // momentum that the rAF loop releases through stepMomentum (the damped glide); wheel/pinch dolly is
-// immediate (zoom is undamped). The same loop runs the eased fly-to tween (R / double-click reset,
-// and store cameraFlyRequest intents from the gnomon), and reports gesture liveness via
-// setCameraInteracting so the worker can march volumes coarser mid-gesture.
+// immediate (zoom is undamped). The same loop runs the eased fly-to tween (R reset, double-click
+// pick-to-focus — background double-click resets — and store cameraFlyRequest intents from the
+// gnomon), and reports gesture liveness via setCameraInteracting so the worker can march volumes
+// coarser mid-gesture.
 
 // A background-tab resume hands rAF a huge dt; clamp so the glide resumes instead of teleporting.
 const GLIDE_MAX_DT_MS = 100;
@@ -328,9 +331,33 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     event.preventDefault();
   };
 
+  // Double-click = pick-to-focus: fly the orbit pivot to the feature under the cursor. The box-hit
+  // test runs synchronously here (store math); a hit dispatches a pick intent the app refines via
+  // the worker's opacity-weighted ray march. A background double-click (ray misses the box) keeps
+  // the old reset, where the two gestures can't conflict.
   const onDoubleClick = (event: MouseEvent): void => {
     if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
-    flyTo(DEFAULT_POSE);
+    const rect = target.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      flyTo(DEFAULT_POSE); // unlaid-out target — no cursor to pick with
+      return;
+    }
+    const ndcX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const ndcY = 1 - ((event.clientY - rect.top) / rect.height) * 2; // screen up = +ndcY
+    const aspect = rect.width / rect.height;
+    const state = store.getState();
+    const ray = cursorRay(
+      state.cameraPose,
+      ndcX,
+      ndcY,
+      aspect,
+      state.projection === "orthographic",
+    );
+    if (unitBoxChordMidpoint(ray.origin, ray.dir) === null) {
+      flyTo(DEFAULT_POSE);
+      return;
+    }
+    state.requestPickFocus({ ndcX, ndcY, aspect });
   };
 
   // Hardcoded "r" (reset) / "z" (fit) / nudge keys until theme shortcuts exist; same guards as

@@ -55,8 +55,9 @@ interface PingPongBuffer {
 }
 
 // Finite-only range in one pass; non-finite samples are excluded. Constant/empty fields are widened
-// so the normalization divide stays finite. Mirrors the pack-time NaN→min fill below.
-function finiteRange(data: FloatArray): { readonly min: number; readonly max: number } {
+// so the normalization divide stays finite. Mirrors the pack-time NaN→min fill below. Exported for
+// the worker's pickRay fallback window (a layer source with no windowLevel — the defensive path).
+export function finiteRange(data: FloatArray): { readonly min: number; readonly max: number } {
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
   for (let i = 0; i < data.length; i++) {

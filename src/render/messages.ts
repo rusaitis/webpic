@@ -1,6 +1,7 @@
 import type { CameraPose, CameraProjection } from "@schema/camera.ts";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { Rgba01 } from "@schema/theme.ts";
+import type { Vec3 } from "@schema/types.ts";
 import type { SliceAxis } from "./sliceScene.ts";
 
 export type { CameraPose, CameraProjection, WindowLevel };
@@ -144,6 +145,16 @@ export type RenderWorkerRequest =
       readonly requestId: number;
       readonly overlay: SceneOverlayConfig | null;
     }
+  // Pick-to-focus: march one cursor ray (NDC, dollyAt's convention — x right, y up) through the
+  // retained CPU fields and reply with the world point at the median visual depth (pickResult).
+  // The worker already holds the live pose/projection/aspect; postMessage ordering guarantees it
+  // has the pose the click saw.
+  | {
+      readonly kind: "pickRay";
+      readonly requestId: number;
+      readonly ndcX: number;
+      readonly ndcY: number;
+    }
   // Time-series streaming (M2.10a): the data worker's end of a private MessageChannel. The worker
   // reads + computes each scrubbed step off-main and posts StreamStepMessage (from @data) over this
   // port, so the 64 MiB scalar flows data → render with no main-thread hop. Stored on receipt; the
@@ -166,6 +177,9 @@ export type RenderWorkerResponse =
       readonly gpuTimeMs: number;
       readonly clock: "timestamp" | "wallclock";
     }
+  // Pick-to-focus reply: the world-space focus point (unit box has identity transform, so world =
+  // object space), or null when the cursor ray misses the box — the app then leaves the camera be.
+  | { readonly kind: "pickResult"; readonly requestId: number; readonly point: Vec3 | null }
   | { readonly kind: "error"; readonly requestId: number; readonly message: string }
   // Terminal GPU failure: the device was lost and the recovery circuit-breaker stopped re-acquiring
   // (repeated rapid losses) or no adapter is available. The render loop is halted; the app surfaces a

@@ -7,7 +7,10 @@ import {
   type CameraProjection,
   createSimulationStore,
   createUiStore,
+  cursorRay,
+  focusPoseOnPoint,
   type SimulationStore,
+  unitBoxChordMidpoint,
 } from "@store";
 import { installPointerCamera, installUi } from "@ui";
 import { installLayerSync } from "./layerSync.ts";
@@ -23,6 +26,7 @@ const RESIZE_REQUEST_ID = 5;
 const PAIR_REQUEST_ID = 6;
 const STREAM_REQUEST_ID = 7;
 const INTERACTING_REQUEST_ID = 8;
+const PICK_REQUEST_ID = 10; // layerSync owns 9
 // Cap the drawing-buffer scale: a raymarcher's cost is per physical pixel, so honor Retina (2×)
 // but don't quadruple the work on 3×+ panels.
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -222,6 +226,40 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     },
   );
 
+  // Pick-to-focus (double-click): forward the cursor NDC to the worker's opacity-weighted ray
+  // march; its pickResult below answers with a cameraFlyRequest. Pre-ready there's no field to
+  // weight by, so fall back to the box-chord midpoint (the same store math ui used for the hit
+  // test) — the gesture still focuses, just geometrically.
+  const unsubscribePick = store.subscribe(
+    (state) => state.pickFocusRequest,
+    (request) => {
+      if (request === null) return;
+      const { ndcX, ndcY, aspect } = request;
+      if (workerReady) {
+        worker.postMessage({
+          kind: "pickRay",
+          requestId: PICK_REQUEST_ID,
+          ndcX,
+          ndcY,
+        } satisfies RenderWorkerRequest);
+      } else {
+        const state = store.getState();
+        const ray = cursorRay(
+          state.cameraPose,
+          ndcX,
+          ndcY,
+          aspect,
+          state.projection === "orthographic",
+        );
+        const point = unitBoxChordMidpoint(ray.origin, ray.dir);
+        if (point !== null) {
+          state.requestCameraFly({ kind: "pose", pose: focusPoseOnPoint(state.cameraPose, point) });
+        }
+      }
+      store.getState().requestPickFocus(null); // consume — same-spot double-clicks re-fire
+    },
+  );
+
   // Camera-gesture liveness → worker interaction quality (coarser volume march while live). Same
   // cheap-message pattern as pose; the false edge's repaint restores full quality.
   const unsubscribeInteracting = store.subscribe(
@@ -317,6 +355,12 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       options.onFirstFrame?.();
     } else if (message.kind === "frameTiming") {
       store.getState().setFrameTiming(message.gpuTimeMs, message.clock);
+    } else if (message.kind === "pickResult") {
+      // null = the ray missed the box; ui already handled background double-clicks synchronously.
+      if (message.point !== null) {
+        const pose = focusPoseOnPoint(store.getState().cameraPose, message.point);
+        store.getState().requestCameraFly({ kind: "pose", pose });
+      }
     } else if (message.kind === "error") {
       console.error("[render worker]", message.message);
     } else if (message.kind === "gpuRecoveryFailed") {
@@ -422,6 +466,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     sceneSync.dispose();
     unsubscribePose();
     unsubscribeProjection();
+    unsubscribePick();
     unsubscribeInteracting();
     unsubscribeContinuous();
     unsubscribeStep();
