@@ -85,13 +85,23 @@ export function unitBoxChordMidpoint(
 // Focus dolly-in per pick: magviz's CAMERA_FOCUS_POINT glide pulls 30% closer alongside the pivot.
 const FOCUS_DOLLY = 0.7;
 
+// The goal distance a focus gesture commits to. Computed once at double-click time and carried
+// through the pick round trip — recomputing it against the already-flying pose would compound ×0.7.
+export function focusDistance(distance: number): number {
+  return Math.min(Math.max(distance * FOCUS_DOLLY, DISTANCE_MIN), DISTANCE_MAX);
+}
+
 // Re-pivot the orbit on a picked point: target flies there, the view direction holds, and the
 // camera dollies 30% in (clamped). The existing flyTo tween animates the returned pose.
-export function focusPoseOnPoint(pose: CameraPose, point: Vec3): CameraPose {
+export function focusPoseOnPoint(
+  pose: CameraPose,
+  point: Vec3,
+  distance: number = focusDistance(pose.distance),
+): CameraPose {
   return {
     target: point,
     azimuth: pose.azimuth,
     elevation: pose.elevation,
-    distance: Math.min(Math.max(pose.distance * FOCUS_DOLLY, DISTANCE_MIN), DISTANCE_MAX),
+    distance,
   };
 }

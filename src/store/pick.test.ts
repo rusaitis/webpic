@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CameraPose } from "./camera.ts";
-import { DISTANCE_MIN } from "./camera.ts";
-import { cursorRay, focusPoseOnPoint, unitBoxChordMidpoint } from "./pick.ts";
+import { DISTANCE_MAX, DISTANCE_MIN } from "./camera.ts";
+import { cursorRay, focusDistance, focusPoseOnPoint, unitBoxChordMidpoint } from "./pick.ts";
 
 // Level straight-on view: camera at (+2, 0, 0) looking down −x, screenRight = +y, screenUp = +z.
 const STRAIGHT_ON: CameraPose = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 };
@@ -94,5 +94,18 @@ describe("focusPoseOnPoint", () => {
       distance: DISTANCE_MIN,
     };
     expect(focusPoseOnPoint(pose, [0, 0, 0]).distance).toBe(DISTANCE_MIN);
+  });
+
+  it("uses an explicit gesture-time distance verbatim (no re-applied dolly)", () => {
+    const pose: CameraPose = { target: [0, 0, 0], azimuth: 0.3, elevation: 0.2, distance: 1.4 };
+    expect(focusPoseOnPoint(pose, [0.1, 0.2, 0.3], 1.23).distance).toBe(1.23);
+  });
+});
+
+describe("focusDistance", () => {
+  it("pulls 30% closer, clamped to the dolly bounds", () => {
+    expect(focusDistance(2)).toBeCloseTo(1.4, 12);
+    expect(focusDistance(DISTANCE_MIN)).toBe(DISTANCE_MIN);
+    expect(focusDistance(DISTANCE_MAX * 2)).toBe(DISTANCE_MAX);
   });
 });
