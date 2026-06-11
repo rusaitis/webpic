@@ -83,7 +83,8 @@ npm run dev         # Vite dev server
 npm run build       # production build
 npm run typecheck   # app + worker tsconfigs
 npm run lint        # Biome check
-npm run test        # Vitest
+npm run test        # Vitest (node + dom projects)
+npm run test:gpu    # real-GPU suites in headed system Chrome (local-only)
 npm run format      # Biome format --write
 ```
 

@@ -19,6 +19,7 @@
     "lint": "biome check .",
     "lint:ci": "biome ci .",
     "test": "vitest run",
+    "test:gpu": "WEBPIC_GPU=1 vitest run --project gpu",
     "perf:gate": "node scripts/perf-gate.ts",
     "format": "biome format --write ."
   },
@@ -33,6 +34,7 @@
     "@biomejs/biome": "^2.4.16",
     "@types/node": "^25.9.1",
     "@types/three": "^0.184.1",
+    "@vitest/browser-playwright": "^4.1.8",
     "@webgpu/types": "^0.1.70",
     "happy-dom": "^20.9.0",
     "json-schema-to-zod": "^2.8.1",

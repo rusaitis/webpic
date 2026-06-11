@@ -3,9 +3,7 @@
 // present at renderer.ts renderComposite — exactly where the upside-down ≥2-layer present bug
 // lived (PlaneGeometry's GL-convention uvs vs WGSL's v=0=top render-target sampling). This test
 // reads the real canvas after a present and asserts where each test-triangle color landed.
-// CAVEAT (same as every *.browser.test.ts): no vitest browser project exists yet, so this is
-// GPU-skipped in Node/CI and only runs on a manual real-GPU runner (DESIGN.md plans the
-// @vitest/browser + Playwright project); scripts/verify-orientation.ts is the interim check.
+// Runs in the headed-Chrome `gpu` vitest project (`npm run test:gpu`) — local-only, not CI.
 
 import { describe, expect, it } from "vitest";
 

@@ -31,19 +31,20 @@ function blobField(): ScalarField {
   return { data, shape: [n, n, n] };
 }
 
-// |B| ramping 0→1 along the fastest (C-order) axis, flat across the other two. That axis is
-// texture-x → object-x, so a straight-on camera renders it brightening to the right.
-function rampAlongObjectXField(): ScalarField {
-  const [nz, ny, nx] = [8, 8, 8]; // shape = [depth, height, width]; width (x) is fastest
-  const data = new Float32Array(nx * ny * nz);
-  for (let z = 0; z < nz; z++) {
-    for (let y = 0; y < ny; y++) {
-      for (let x = 0; x < nx; x++) {
-        data[x + nx * (y + ny * z)] = x / (nx - 1);
+// |B| ramping 0→1 along the fastest (C-order) field axis, flat across the other two. Under the
+// z-up world=physical convention (raymarchScene samples at the .zyx swizzle) field axis 2 ↔
+// object-z, so a level camera renders this brightening toward the TOP of the frame.
+function rampAlongFastestAxis(): ScalarField {
+  const [n0, n1, n2] = [8, 8, 8]; // shape = [axis0, axis1, axis2]; axis 2 is fastest
+  const data = new Float32Array(n0 * n1 * n2);
+  for (let i0 = 0; i0 < n0; i0++) {
+    for (let i1 = 0; i1 < n1; i1++) {
+      for (let i2 = 0; i2 < n2; i2++) {
+        data[i2 + n2 * (i1 + n1 * i0)] = i2 / (n2 - 1);
       }
     }
   }
-  return { data, shape: [nz, ny, nx] };
+  return { data, shape: [n0, n1, n2] };
 }
 
 // A unit-valued ball at the volume center, exactly 0 outside `radius` — most of the volume is empty,
@@ -91,8 +92,8 @@ async function renderVolume(
   });
   const volume = createRaymarchScene({ field, colormap: "inferno", density: 4, ...march });
   volume.setProjection(orthographic);
-  // The worker owns the camera now; build the same default oblique view here, or a straight-on
-  // view (looking down −z from +z) for the orientation case.
+  // The worker owns the camera now; build the same default oblique view here, or a level
+  // straight-on view (camera on +x looking at the origin, +z up) for the orientation case.
   const pose = straightOn
     ? ({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } as const)
     : DEFAULT_POSE;
@@ -134,17 +135,18 @@ describe("raymarch scene render", () => {
     expect(center[0]).toBeGreaterThan(center[2]);
   });
 
-  it.skipIf(!hasRealGpu)("maps the fastest field axis to object-x", async () => {
-    const px = await renderVolume(rampAlongObjectXField(), true);
-    const row = SIZE >> 1;
-    // Columns inside the projected cube (it spans ~the central 60% of the frame).
-    const left = pixelAt(px, Math.round(SIZE * 0.32), row);
-    const right = pixelAt(px, Math.round(SIZE * 0.68), row);
+  it.skipIf(!hasRealGpu)("maps the fastest field axis to object-z (screen-up)", async () => {
+    const px = await renderVolume(rampAlongFastestAxis(), true);
+    const col = SIZE >> 1;
+    // Rows inside the projected cube (it spans ~the central 60% of the frame); row 0 is the top.
+    const upper = pixelAt(px, col, Math.round(SIZE * 0.32));
+    const lower = pixelAt(px, col, Math.round(SIZE * 0.68));
 
-    // Straight-on, object-x → screen-x: the ramp brightens to the right. A transposed upload
-    // (ramp along the view axis) integrates to a roughly flat row and fails here.
-    expect(lum(right)).toBeGreaterThan(lum(left) + 15);
-    expect(right[0]).toBeGreaterThan(right[2]); // warm (inferno), not greyscale
+    // Level camera, z-up: object-z → screen-up, so the ramp brightens toward the top. A transposed
+    // upload puts the ramp along the view or horizontal axis and integrates to a flat column; a
+    // vertically flipped one inverts the inequality — both fail here.
+    expect(lum(upper)).toBeGreaterThan(lum(lower) + 15);
+    expect(upper[0]).toBeGreaterThan(upper[2]); // warm (inferno), not greyscale
   });
 
   it.skipIf(!hasRealGpu)(

@@ -3,7 +3,7 @@ import { Color, RenderTarget, RGBAFormat, UnsignedByteType, Vector2 } from "thre
 import { texture, uv } from "three/tsl";
 import { NodeMaterial, QuadMesh, WebGPURenderer } from "three/webgpu";
 import { BACKGROUND_COLOR } from "./constants.ts";
-import { toTransferablePixels } from "./pixels.ts";
+import { compactPaddedRows, toTransferablePixels } from "./pixels.ts";
 
 export interface RendererOptions {
   // OffscreenCanvas only: the worker receives a transferred one, the parity test
@@ -162,7 +162,7 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
       );
       renderer.setRenderTarget(null);
       // Compact, offset-0 buffer so the worker can transfer pixels.buffer wholesale.
-      return toTransferablePixels(data);
+      return toTransferablePixels(compactPaddedRows(data, readTarget.width, readTarget.height));
     },
     renderComposite(items) {
       // ≤1 layer: the direct swapchain path (identical to renderOnce, byte-for-byte with today).
@@ -210,7 +210,7 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
         readTarget.height,
       );
       renderer.setRenderTarget(null);
-      return toTransferablePixels(data);
+      return toTransferablePixels(compactPaddedRows(data, readTarget.width, readTarget.height));
     },
     setSize(width, height, devicePixelRatio) {
       logical = { width, height };
