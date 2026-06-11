@@ -14,6 +14,10 @@ export interface LoadingPhase {
   readonly kind: "loading" | "task"; // "task" reserved for future dismissible jobs
 }
 
+/** The cold-start phase: begun at bootstrap, ended on the worker's first frame. Shared
+ *  so the app (who runs it) and the ui's boot reveal (who watches it) agree on the key. */
+export const BOOT_PHASE_KEY = "boot";
+
 export interface UiState {
   readonly isUiVisible: boolean;
   readonly panels: Readonly<Record<string, boolean>>;

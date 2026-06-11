@@ -3,6 +3,7 @@ import type { DataHandle, DataStreamRequest, DataStreamResponse } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import type { Theme } from "@schema/theme.ts";
 import {
+  BOOT_PHASE_KEY,
   type CameraPose,
   type CameraProjection,
   createSimulationStore,
@@ -142,7 +143,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     store.getState().setProjection(options.initialProjection);
   const uiStore = options.uiStore ?? createUiStore();
   // "webpic" matches the index.html splash text, so the splash→pill adoption is pixel-stable.
-  uiStore.getState().beginLoading("boot", "webpic");
+  uiStore.getState().beginLoading(BOOT_PHASE_KEY, "webpic");
   let workerReady = false;
 
   // Streaming worker (M2.10a): spawned only when a multi-step source is given. It reads + computes
@@ -364,7 +365,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       // The mark's startTime is ms since navigation, which scripts/perf-gate.ts reads
       // alongside First Contentful Paint to check the gate.
       performance.mark("webpic:first-frame");
-      uiStore.getState().endLoading("boot");
+      uiStore.getState().endLoading(BOOT_PHASE_KEY);
       options.onFirstFrame?.();
     } else if (message.kind === "frameTiming") {
       store.getState().setFrameTiming(message.gpuTimeMs, message.clock);
@@ -378,7 +379,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       console.error("[render worker]", message.message);
     } else if (message.kind === "gpuRecoveryFailed") {
       console.error(`[render worker] GPU unrecoverable (${message.reason}):`, message.message);
-      uiStore.getState().endLoading("boot"); // no spinner behind the terminal banner
+      uiStore.getState().endLoading(BOOT_PHASE_KEY); // no spinner behind the terminal banner
       showGpuLostBanner(message.message);
     }
   };

@@ -59,7 +59,12 @@ const UI_CSS = `
   font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
   --webpic-input-bg: rgba(0, 0, 0, 0.28);
   --webpic-radius: 4px; --webpic-unit: 22px;
+  transition: opacity 240ms ease;
 }
+/* Cold-start reveal (ui/bootReveal.ts): chrome held invisible while the boot phase is live,
+   fading in when the class drops. visibility (not pointer-events) so the gnomon tips' own
+   pointer-events: auto can't reach through. The status pill is deliberately not matched. */
+.webpic-booting .webpic-shell, .webpic-booting .webpic-chrome { opacity: 0; visibility: hidden; }
 .webpic-shell[data-side="left"] { left: 12px; }
 .webpic-shell[data-side="right"] { right: 12px; }
 .webpic-shell[hidden] { display: none; }
@@ -132,7 +137,8 @@ const UI_CSS = `
 .webpic-placeholder { padding: 2px 4px; color: var(--webpic-muted); font-style: italic; }
 .webpic-chrome { position: fixed; left: 12px; bottom: 12px; z-index: 9; pointer-events: none;
   display: flex; align-items: flex-end; gap: 10px; color: var(--webpic-fg);
-  font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace; }
+  font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  transition: opacity 240ms ease; }
 .webpic-chrome[hidden] { display: none; }
 .webpic-readout { padding: 4px 8px; border: 1px solid var(--webpic-border);
   border-radius: var(--webpic-radius, 4px); background: var(--webpic-bg);

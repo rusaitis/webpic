@@ -1,5 +1,6 @@
 import { DEFAULT_WEBPIC_CONFIG, type Theme } from "@schema/theme.ts";
 import type { SimulationStore, UiStore } from "@store";
+import { installBootReveal } from "./bootReveal.ts";
 import { installCameraChrome } from "./cameraChrome.ts";
 import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
@@ -26,6 +27,9 @@ export function installUi(opts: InstallUiOptions): () => void {
 
   const disposers: Disposer[] = [];
   disposers.push(applyControlStyles(opts.parent, opts.theme?.colors));
+
+  // Class on before the chrome mounts, so it never flashes over the blank boot canvas.
+  disposers.push(installBootReveal(opts.parent, opts.uiStore));
 
   const shell = createShell({
     parent: opts.parent,
