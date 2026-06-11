@@ -15,8 +15,7 @@ import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
 import { createSceneOverlay, type SceneOverlay } from "./grid/overlayScene.ts";
 import {
   advanceSettling,
-  beginInteracting,
-  endInteracting,
+  applyCameraMotion,
   QUALITY_FULL,
   type QualityLevel,
   type QualityState,
@@ -588,10 +587,11 @@ async function setLayerColormap(
   requestRender();
 }
 
-// Camera-gesture liveness → interaction-time quality: volumes march coarser (uniform flip, no
-// rebuild) AND the swapchain renders at a reduced scale while a gesture is live; the false edge
-// starts a short settle ramp the display loop advances one painted frame at a time, instead of a
-// one-frame pop back to full quality. State transitions are pure (interactionQuality.ts).
+// Camera-motion liveness → quality tier: volumes march coarser (uniform flip, no rebuild) AND the
+// swapchain renders at a reduced scale while a gesture is live; machine-driven flies keep full
+// resolution with a mildly coarser march; the idle edge starts a short settle ramp the display
+// loop advances one painted frame at a time, instead of a one-frame pop back to full quality.
+// State transitions are pure (interactionQuality.ts).
 let quality: QualityState = QUALITY_FULL;
 let appliedLevel: QualityLevel = qualityLevel(QUALITY_FULL);
 
@@ -612,15 +612,18 @@ function applyQuality(): void {
   if (changed) requestRender();
 }
 
-async function setInteracting(
-  request: Extract<RenderWorkerRequest, { kind: "setInteracting" }>,
+async function setCameraMotion(
+  request: Extract<RenderWorkerRequest, { kind: "setCameraMotion" }>,
 ): Promise<void> {
   await initDone;
-  quality = request.interacting ? beginInteracting() : endInteracting(quality);
+  quality = applyCameraMotion(quality, request.motion);
   // No display loop (Node) means nothing advances a settle ramp — collapse straight to full so
   // the synchronous one-shot paints land at final quality.
   if (rafId === undefined && quality.kind === "settling") quality = QUALITY_FULL;
   applyQuality();
+  // animating → settling step 0 is level-identical, so applyQuality posts no repaint — but the
+  // ramp only advances after a *painted* frame; without this kick it would stall at 0.7 forever.
+  if (quality.kind === "settling") requestRender();
 }
 
 // Live per-layer Phong toggle — a uniform flip on the volume scene, no rebuild/re-upload. Slice
@@ -945,8 +948,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return resize(request);
     case "setContinuous":
       return setContinuous(request);
-    case "setInteracting":
-      return setInteracting(request);
+    case "setCameraMotion":
+      return setCameraMotion(request);
     case "setSceneOverlay":
       return setSceneOverlay(request);
     case "setMarker":

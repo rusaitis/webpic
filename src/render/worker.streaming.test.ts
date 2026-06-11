@@ -161,7 +161,7 @@ it("falls back to a scene rebuild when setField declines the in-place swap", asy
   channel.port1.close();
 });
 
-it("setInteracting retunes march + render scale, full quality on release", async () => {
+it("setCameraMotion retunes march + render scale, full quality on idle", async () => {
   const scene = h.createRaymarchScene.mock.results.at(-1)?.value as {
     setStepScale: ReturnType<typeof vi.fn>;
   };
@@ -170,12 +170,12 @@ it("setInteracting retunes march + render scale, full quality on release", async
   };
   scene.setStepScale.mockClear();
   renderer.setRenderScale.mockClear();
-  onmessage({ data: { kind: "setInteracting", requestId: 9, interacting: true } });
+  onmessage({ data: { kind: "setCameraMotion", requestId: 9, motion: "gesture" } });
   await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
   expect(renderer.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE);
-  // Node has no display loop to advance a settle ramp — the false edge restores full quality
+  // Node has no display loop to advance a settle ramp — the idle edge restores full quality
   // in one step (the browser path ramps across painted frames instead).
-  onmessage({ data: { kind: "setInteracting", requestId: 10, interacting: false } });
+  onmessage({ data: { kind: "setCameraMotion", requestId: 10, motion: "idle" } });
   await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
   expect(renderer.setRenderScale).toHaveBeenCalledWith(1);
 });

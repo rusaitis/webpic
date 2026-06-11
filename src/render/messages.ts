@@ -1,11 +1,11 @@
-import type { CameraPose, CameraProjection } from "@schema/camera.ts";
+import type { CameraMotion, CameraPose, CameraProjection } from "@schema/camera.ts";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
 import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { SliceAxis } from "./sliceScene.ts";
 
-export type { CameraPose, CameraProjection, MarkerPart, PickPurpose, WindowLevel };
+export type { CameraMotion, CameraPose, CameraProjection, MarkerPart, PickPurpose, WindowLevel };
 
 // Typed protocol for the OffscreenCanvas render worker. Discriminated unions both
 // ways; `requestId` correlates a response to its request and pre-stages the
@@ -156,7 +156,7 @@ export type RenderWorkerRequest =
   | { readonly kind: "setContinuous"; readonly requestId: number; readonly continuous: boolean }
   // Camera-gesture liveness (drag/glide/tween/wheel): volumes march coarser while true (a uniform
   // flip, no rebuild) and the false edge repaints at full quality — interaction-time responsiveness.
-  | { readonly kind: "setInteracting"; readonly requestId: number; readonly interacting: boolean }
+  | { readonly kind: "setCameraMotion"; readonly requestId: number; readonly motion: CameraMotion }
   // Themeable 3D axes + equatorial grid overlay. Rebuilds the overlay scene from `overlay`; `null`
   // clears it. Low-frequency (toggles / dataset swaps), so it carries the full config each time.
   | {

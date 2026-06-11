@@ -14,6 +14,12 @@ export interface CameraPose {
 // reason as CameraPose: one definition instead of store/render twins synced by comment.
 export type CameraProjection = "perspective" | "orthographic";
 
+// Camera-motion liveness, ui → store → worker. "gesture" = the hand is on the camera (drag, held
+// key, fresh wheel, momentum glide) — march coarse for responsiveness; "fly" = a machine-driven
+// eased flight — predictable and short, so it earns a gentler quality tier (full resolution,
+// mildly coarser march); "idle" = settle back to full quality.
+export type CameraMotion = "idle" | "gesture" | "fly";
+
 // Vertical field of view. The store's zoom-to-cursor/pan ray math and the render-side perspective
 // camera must agree on this, or the world point under the cursor drifts during a dolly.
 export const CAMERA_FOV_DEG = 45;

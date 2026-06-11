@@ -43,8 +43,9 @@ import { isTypingTarget } from "./keyboard.ts";
 // pick-to-focus — background double-click resets — and store cameraFlyRequest intents from the
 // gnomon); the tween applies per-frame eased *increments* of its pose delta on top of the live
 // pose, so concurrent drags/wheel/momentum blend with the flight instead of canceling it (magviz
-// semantics). Gesture liveness goes out via setCameraInteracting so the worker can march volumes
-// coarser mid-gesture.
+// semantics). Motion liveness goes out via setCameraMotion — "gesture" while the hand is on the
+// camera (coarse march for responsiveness), "fly" while only a tween runs (gentler tier: a
+// machine flight is predictable and short, so it stays crisp).
 
 // A background-tab resume hands rAF a huge dt; clamp so the glide resumes instead of teleporting.
 const GLIDE_MAX_DT_MS = 100;
@@ -126,18 +127,16 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     target.style.cursor = pointers.size > 0 ? "grabbing" : "grab";
   };
 
-  // Gesture liveness for the worker's interaction-time quality scaling: any held pointer or nudge
-  // key, an unsettled glide, a running tween, or a fresh wheel notch counts as interacting.
-  const syncInteracting = (): void => {
-    store
-      .getState()
-      .setCameraInteracting(
-        pointers.size > 0 ||
-          heldKeys.size > 0 ||
-          tween !== undefined ||
-          !isMomentumSettled(momentum) ||
-          performance.now() < lastWheelMs + WHEEL_TRAIL_MS,
-      );
+  // Motion liveness for the worker's quality scaling. Priority: any hand-driven input (held
+  // pointer or nudge key, unsettled glide, fresh wheel notch) is a "gesture"; a tween alone is a
+  // "fly". The store's no-fire guard makes per-frame repeats free.
+  const syncMotion = (): void => {
+    const gesture =
+      pointers.size > 0 ||
+      heldKeys.size > 0 ||
+      !isMomentumSettled(momentum) ||
+      performance.now() < lastWheelMs + WHEEL_TRAIL_MS;
+    store.getState().setCameraMotion(gesture ? "gesture" : tween !== undefined ? "fly" : "idle");
   };
 
   const glide = (nowMs: number): void => {
@@ -189,10 +188,12 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       momentum = MOMENTUM_ZERO; // drop the sub-pixel residue so the next drag starts clean
       lastFrameMs = undefined;
       wheelRect = undefined; // next wheel trail re-measures (the canvas may have resized since)
-      syncInteracting(); // false unless a pointer is still held
     } else {
       glideId = requestAnimationFrame(glide);
     }
+    // Per-frame (store no-fire guard makes repeats free): catches the gesture→fly edge when a
+    // wheel trail expires or momentum settles mid-flight, and idle on the quiet frame.
+    syncMotion();
   };
 
   const ensureGliding = (): void => {
@@ -214,7 +215,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       perturbed: false,
       lastWritten: from,
     };
-    syncInteracting();
+    syncMotion();
     ensureGliding();
   };
 
@@ -239,7 +240,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     target.setPointerCapture?.(event.pointerId); // keep the drag if the cursor leaves the canvas
     applyCursor();
-    syncInteracting();
+    syncMotion();
   };
 
   // Two-pointer pinch: dolly by the spread ratio about the centroid (immediate, like wheel) and
@@ -302,7 +303,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     if (!pointers.delete(event.pointerId)) return;
     target.releasePointerCapture?.(event.pointerId);
     applyCursor();
-    syncInteracting();
+    syncMotion();
   };
 
   // Shared dolly-at-cursor path for wheel notches and Safari pinch ratios (both feed pixel-unit
@@ -323,7 +324,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       setCameraPose(dollyPose(cameraPose, deltaY)); // unlaid-out target — no cursor anchor
     }
     lastWheelMs = performance.now();
-    syncInteracting();
+    syncMotion();
     ensureGliding(); // the loop expires the wheel trail and flips interacting off
   };
 
@@ -414,7 +415,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     if (NUDGE_KEYS.has(event.code)) {
       event.preventDefault(); // arrows must not scroll the page while they orbit
       heldKeys.add(event.code); // Set-idempotent, so OS key-repeat keydowns are harmless
-      syncInteracting();
+      syncMotion();
       ensureGliding();
       return;
     }
@@ -427,13 +428,13 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     }
   };
   const onKeyUp = (event: KeyboardEvent): void => {
-    if (heldKeys.delete(event.code)) syncInteracting();
+    if (heldKeys.delete(event.code)) syncMotion();
   };
   // A key released outside the page (tab switch, cmd-tab) never sends keyup — drop the whole set.
   const onWindowBlur = (): void => {
     if (heldKeys.size === 0) return;
     heldKeys.clear();
-    syncInteracting();
+    syncMotion();
   };
 
   target.addEventListener("pointerdown", onPointerDown, { signal });
@@ -482,7 +483,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     if (glideId !== undefined) cancelAnimationFrame(glideId);
     momentum = MOMENTUM_ZERO;
     tween = undefined;
-    store.getState().setCameraInteracting(false);
+    store.getState().setCameraMotion("idle");
     target.style.touchAction = priorTouchAction;
     target.style.cursor = priorCursor;
   };

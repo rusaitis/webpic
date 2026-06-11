@@ -233,7 +233,7 @@ describe("installPointerCamera", () => {
     target.dispatchEvent(pointer("pointerdown", 100, 100));
     target.dispatchEvent(pointer("pointermove", 260, 170));
     target.dispatchEvent(pointer("pointerup", 260, 170));
-    await pumpUntil(() => !store.getState().isCameraInteracting); // glide out
+    await pumpUntil(() => store.getState().cameraMotion === "idle"); // glide out
     expect(store.getState().cameraPose).not.toBe(DEFAULT_POSE);
     // happy-dom's zero rect = no cursor to pick with — the gesture degrades to the old reset.
     target.dispatchEvent(new MouseEvent("dblclick"));
@@ -311,7 +311,7 @@ describe("installPointerCamera", () => {
     target.dispatchEvent(pointer("pointerdown", 100, 100));
     target.dispatchEvent(pointer("pointermove", 100, 160)); // vertical drag — elevation only
     target.dispatchEvent(pointer("pointerup", 100, 160));
-    await pumpUntil(() => !store.getState().isCameraInteracting); // flight + glide both land
+    await pumpUntil(() => store.getState().cameraMotion === "idle"); // flight + glide both land
     const pose = store.getState().cameraPose;
     expect(pose.azimuth).toBeCloseTo(DEFAULT_POSE.azimuth, 6); // the flight still landed
     expect(pose.elevation).toBeGreaterThan(DEFAULT_POSE.elevation + 0.3); // the drag survived
@@ -324,7 +324,7 @@ describe("installPointerCamera", () => {
     store.getState().requestCameraFly({ kind: "pose", pose: to });
     await frame(); // flight underway
     target.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, cancelable: true }));
-    await pumpUntil(() => !store.getState().isCameraInteracting);
+    await pumpUntil(() => store.getState().cameraMotion === "idle");
     const pose = store.getState().cameraPose;
     // The wheel's geometric factor rides on the flight's goal distance — neither motion is lost.
     expect(pose.distance).toBeCloseTo(dollyPose(to, 120).distance, 9);
@@ -348,7 +348,7 @@ describe("installPointerCamera", () => {
     store.getState().requestCameraFly({ kind: "fit" });
     expect(store.getState().cameraFlyRequest).toBeNull(); // consumed synchronously
     await pumpUntil(() => store.getState().cameraPose.distance !== start.distance);
-    await pumpUntil(() => !store.getState().isCameraInteracting); // tween lands
+    await pumpUntil(() => store.getState().cameraMotion === "idle"); // tween lands
     const pose = store.getState().cameraPose;
     expect(pose.azimuth).toBe(start.azimuth); // fit keeps the viewing direction
     expect(pose.elevation).toBe(start.elevation);
@@ -371,14 +371,14 @@ describe("installPointerCamera", () => {
       cancelable: true,
     });
     expect(document.dispatchEvent(down)).toBe(false); // preventDefault'ed — no page scroll
-    expect(store.getState().isCameraInteracting).toBe(true);
+    expect(store.getState().cameraMotion).toBe("gesture");
     await frame();
     const early = store.getState().cameraPose;
     expect(early.azimuth).toBeLessThan(start.azimuth); // arrow right ≙ drag right
     await frame();
     expect(store.getState().cameraPose.azimuth).toBeLessThan(early.azimuth); // still moving
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight", code: "ArrowRight" }));
-    await pumpUntil(() => !store.getState().isCameraInteracting); // hard stop, no glide tail
+    await pumpUntil(() => store.getState().cameraMotion === "idle"); // hard stop, no glide tail
   });
 
   it("the -/= keys dolly out and in", async () => {
@@ -402,35 +402,52 @@ describe("installPointerCamera", () => {
     // Shift pressed mid-hold (reaching for the pan modifier): the keyup arrives as "+", but the
     // held set is keyed by code, so the physical key still releases — no runaway zoom.
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "+", code: "Equal", shiftKey: true }));
-    await pumpUntil(() => !store.getState().isCameraInteracting);
+    await pumpUntil(() => store.getState().cameraMotion === "idle");
   });
 
   it("drops held keys when a modifier chord starts (macOS swallows those keyups)", async () => {
     const { store } = setup();
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp" }));
-    expect(store.getState().isCameraInteracting).toBe(true);
+    expect(store.getState().cameraMotion).toBe("gesture");
     document.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Meta", code: "MetaLeft", metaKey: true }),
     );
-    await pumpUntil(() => !store.getState().isCameraInteracting);
+    await pumpUntil(() => store.getState().cameraMotion === "idle");
   });
 
   it("clears held keys when the window blurs (no stuck motion)", async () => {
     const { store } = setup();
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp" }));
-    expect(store.getState().isCameraInteracting).toBe(true);
+    expect(store.getState().cameraMotion).toBe("gesture");
     window.dispatchEvent(new Event("blur"));
-    await pumpUntil(() => !store.getState().isCameraInteracting);
+    await pumpUntil(() => store.getState().cameraMotion === "idle");
   });
 
-  it("tracks gesture liveness in isCameraInteracting", async () => {
+  it("tracks motion liveness in cameraMotion", async () => {
     const { target, store } = setup();
-    expect(store.getState().isCameraInteracting).toBe(false);
+    expect(store.getState().cameraMotion).toBe("idle");
     target.dispatchEvent(pointer("pointerdown", 100, 100));
-    expect(store.getState().isCameraInteracting).toBe(true);
+    expect(store.getState().cameraMotion).toBe("gesture");
     target.dispatchEvent(pointer("pointermove", 140, 100));
     target.dispatchEvent(pointer("pointerup", 140, 100));
-    await pumpUntil(() => !store.getState().isCameraInteracting); // false once the glide settles
+    await pumpUntil(() => store.getState().cameraMotion === "idle"); // idle once the glide settles
+  });
+
+  it("reports a lone tween as 'fly' and hand input during it as 'gesture'", async () => {
+    const { store } = setup();
+    store.getState().setCameraPose({ ...DEFAULT_POSE, azimuth: 2.5 });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "r" }));
+    expect(store.getState().cameraMotion).toBe("fly"); // machine flight, hand off the camera
+    await frame();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp", cancelable: true }),
+    );
+    expect(store.getState().cameraMotion).toBe("gesture"); // real input outranks the fly
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp", code: "ArrowUp" }));
+    await frame();
+    await frame();
+    expect(store.getState().cameraMotion).toBe("fly"); // key released mid-flight → back to fly
+    await pumpUntil(() => store.getState().cameraMotion === "idle"); // flight lands
   });
 
   it("shows grab/grabbing cursors and restores the prior cursor on dispose", () => {

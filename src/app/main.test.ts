@@ -201,6 +201,39 @@ describe("bootstrap store → compute → render", () => {
   });
 });
 
+describe("bootstrap camera-motion forwarding", () => {
+  it("forwards cameraMotion changes to the worker once it is ready", () => {
+    const posts: Post[] = [];
+    const worker = {
+      onmessage: null,
+      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
+        posts.push({ message, transfer });
+      },
+      terminate: () => {},
+    } as unknown as Worker;
+    const store = createSimulationStore();
+    const dispose = bootstrap({
+      width: 64,
+      height: 48,
+      createCanvas: fakeCanvas,
+      mount: () => {},
+      spawnWorker: () => worker,
+      dataset: tinyDataset(),
+      store,
+    });
+    worker.onmessage?.({
+      data: { kind: "ready", requestId: 1 },
+    } as MessageEvent<RenderWorkerResponse>);
+
+    store.getState().setCameraMotion("fly");
+    const motion = posts.find((p) => p.message.kind === "setCameraMotion");
+    if (motion === undefined || motion.message.kind !== "setCameraMotion")
+      throw new Error("expected a setCameraMotion message");
+    expect(motion.message.motion).toBe("fly");
+    dispose();
+  });
+});
+
 describe("bootstrap pick-to-focus", () => {
   function pickSetup() {
     const posts: Post[] = [];

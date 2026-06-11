@@ -29,7 +29,7 @@ const CONTINUOUS_REQUEST_ID = 4;
 const RESIZE_REQUEST_ID = 5;
 const PAIR_REQUEST_ID = 6;
 const STREAM_REQUEST_ID = 7;
-const INTERACTING_REQUEST_ID = 8;
+const MOTION_REQUEST_ID = 8;
 const PICK_REQUEST_ID = 10; // layerSync owns 9
 // Cap the drawing-buffer scale: a raymarcher's cost is per physical pixel, so honor Retina (2×)
 // but don't quadruple the work on 3×+ panels.
@@ -304,16 +304,16 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     },
   );
 
-  // Camera-gesture liveness → worker interaction quality (coarser volume march while live). Same
-  // cheap-message pattern as pose; the false edge's repaint restores full quality.
+  // Camera-motion liveness → worker quality tier (gesture = coarse march, fly = crisp animating
+  // tier). Same cheap-message pattern as pose; the idle edge's repaint restores full quality.
   const unsubscribeInteracting = store.subscribe(
-    (state) => state.isCameraInteracting,
-    (interacting) => {
+    (state) => state.cameraMotion,
+    (motion) => {
       if (workerReady) {
         worker.postMessage({
-          kind: "setInteracting",
-          requestId: INTERACTING_REQUEST_ID,
-          interacting,
+          kind: "setCameraMotion",
+          requestId: MOTION_REQUEST_ID,
+          motion,
         } satisfies RenderWorkerRequest);
       }
     },

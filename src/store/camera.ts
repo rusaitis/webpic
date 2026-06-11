@@ -6,7 +6,7 @@ import type { Vec3 } from "@schema/types.ts";
 // The pose shape + lens constants live in @schema/camera.ts (the DAG root) so store and render
 // share one definition.
 
-export type { CameraPose, CameraProjection } from "@schema/camera.ts";
+export type { CameraMotion, CameraPose, CameraProjection } from "@schema/camera.ts";
 export { CAMERA_FOV_DEG, DEFAULT_POSE } from "@schema/camera.ts";
 
 // One tick shy of the ±z pole, where azimuth degenerates and the up-axis flips. Orbit clamps to this.

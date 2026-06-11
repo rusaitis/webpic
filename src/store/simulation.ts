@@ -8,6 +8,7 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 import {
   type CameraFlyTarget,
+  type CameraMotion,
   type CameraPose,
   type CameraProjection,
   DEFAULT_POSE,
@@ -87,9 +88,10 @@ export interface SimulationState {
   // Orbit camera pose. Non-nullable — DEFAULT_POSE is always valid; the app streams it to the
   // render worker. M2.4b's pointer controls dispatch setCameraPose; the worker derives the camera.
   readonly cameraPose: CameraPose;
-  // True while a camera gesture is live (drag, glide, tween, wheel trail). The app forwards it so
-  // the worker can march volumes coarser mid-interaction and repaint full quality on settle.
-  readonly isCameraInteracting: boolean;
+  // Camera-motion liveness: "gesture" while the hand is on the camera (drag, glide, held key,
+  // wheel trail), "fly" while only a machine-driven eased flight runs. The app forwards it so the
+  // worker can pick the matching quality tier and repaint full quality on settle.
+  readonly cameraMotion: CameraMotion;
   // Volume-view projection (slices are always screen-aligned ortho). The app forwards it; the
   // worker swaps the volume camera + flips the raymarch ray generation.
   readonly projection: CameraProjection;
@@ -148,7 +150,7 @@ export interface SimulationState {
   setBindingWindow(id: string, center: number, width: number): void;
   setBindingScale(id: string, scale: ColorScale): void;
   setCameraPose(pose: CameraPose): void;
-  setCameraInteracting(interacting: boolean): void;
+  setCameraMotion(motion: CameraMotion): void;
   setProjection(projection: CameraProjection): void;
   requestCameraFly(target: CameraFlyTarget | null): void;
   requestPick(
@@ -313,7 +315,7 @@ export function createSimulationStore() {
         dataRange: null,
         colormapBindings: {},
         cameraPose: DEFAULT_POSE,
-        isCameraInteracting: false,
+        cameraMotion: "idle",
         projection: "perspective",
         cameraFlyRequest: null,
         pickRequest: null,
@@ -382,9 +384,9 @@ export function createSimulationStore() {
         setCameraPose(pose) {
           set({ cameraPose: pose }); // fresh object each call so subscribeWithSelector fires
         },
-        setCameraInteracting(interacting) {
-          if (interacting === get().isCameraInteracting) return; // unchanged → no fire
-          set({ isCameraInteracting: interacting });
+        setCameraMotion(motion) {
+          if (motion === get().cameraMotion) return; // unchanged → no fire
+          set({ cameraMotion: motion });
         },
         setProjection(projection) {
           if (projection === get().projection) return; // unchanged → no fire

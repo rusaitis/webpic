@@ -118,13 +118,13 @@ it("a gesture end ramps quality back over painted frames, not in one pop", async
   scene.setStepScale.mockClear();
   renderer.setRenderScale.mockClear();
 
-  onmessage({ data: { kind: "setInteracting", requestId: 4, interacting: true } });
+  onmessage({ data: { kind: "setCameraMotion", requestId: 4, motion: "gesture" } });
   await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
   expect(renderer.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE);
 
-  // False edge with a live loop: the FIRST level is the settle step (render restores, march at
+  // Idle edge with a live loop: the FIRST level is the settle step (render restores, march at
   // 0.7), not full — the Node collapse must not fire here.
-  onmessage({ data: { kind: "setInteracting", requestId: 5, interacting: false } });
+  onmessage({ data: { kind: "setCameraMotion", requestId: 5, motion: "idle" } });
   await vi.waitFor(() => expect(renderer.setRenderScale).toHaveBeenCalledWith(1));
   expect(scene.setStepScale).toHaveBeenCalledWith(0.7);
   expect(scene.setStepScale).not.toHaveBeenCalledWith(1);
@@ -145,12 +145,44 @@ it("a new gesture mid-ramp re-enters interaction quality", async () => {
   const scene = h.createRaymarchScene.mock.results[0]?.value as {
     setStepScale: ReturnType<typeof vi.fn>;
   };
-  onmessage({ data: { kind: "setInteracting", requestId: 6, interacting: true } });
+  onmessage({ data: { kind: "setCameraMotion", requestId: 6, motion: "gesture" } });
   await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
-  onmessage({ data: { kind: "setInteracting", requestId: 7, interacting: false } });
+  onmessage({ data: { kind: "setCameraMotion", requestId: 7, motion: "idle" } });
   await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
   scene.setStepScale.mockClear();
   // Mid-settle, the user grabs the camera again: straight back to gesture quality.
-  onmessage({ data: { kind: "setInteracting", requestId: 8, interacting: true } });
+  onmessage({ data: { kind: "setCameraMotion", requestId: 8, motion: "gesture" } });
   await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
+});
+
+it("a fly runs the animating tier: coarser march at full resolution, settling to full on idle", async () => {
+  const renderer = (await h.installRenderer.mock.results[0]?.value) as {
+    setRenderScale: ReturnType<typeof vi.fn>;
+  };
+  const scene = h.createRaymarchScene.mock.results[0]?.value as {
+    setStepScale: ReturnType<typeof vi.fn>;
+  };
+  // The previous test ends mid-gesture: release and land the ramp so this starts from full.
+  onmessage({ data: { kind: "setCameraMotion", requestId: 11, motion: "idle" } });
+  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
+  tickFrame();
+  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
+  scene.setStepScale.mockClear();
+  renderer.setRenderScale.mockClear();
+
+  onmessage({ data: { kind: "setCameraMotion", requestId: 9, motion: "fly" } });
+  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
+  // The whole point of the tier: the flight renders at full resolution — no realloc, no blur.
+  expect(renderer.setRenderScale).not.toHaveBeenCalled();
+
+  // Fly end: animating equals the settle ramp's first level, so nothing visibly changes until the
+  // painted frame advances the ramp to full — a single subtle step-density flip after landing.
+  scene.setStepScale.mockClear();
+  onmessage({ data: { kind: "setCameraMotion", requestId: 10, motion: "idle" } });
+  await vi.waitFor(() => {
+    // The handler's await initDone makes the transition async; poll until the ramp is armed.
+    tickFrame();
+    expect(scene.setStepScale).toHaveBeenCalledWith(1);
+  });
+  expect(renderer.setRenderScale).not.toHaveBeenCalled(); // stayed at 1 throughout
 });
