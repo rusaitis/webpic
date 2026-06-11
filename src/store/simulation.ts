@@ -1,7 +1,8 @@
 import { computableFields, computeField } from "@compute";
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import type { ColormapBinding, ColormapId, ColorScale, WindowLevel } from "@schema/colormap.ts";
-import type { FieldName, FloatArray } from "@schema/types.ts";
+import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
+import type { FieldName, FloatArray, Vec3 } from "@schema/types.ts";
 import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 import {
@@ -68,15 +69,25 @@ export interface SimulationState {
   // aspect only it knows), eases the pose over, and clears the request. A fresh wrapper object per
   // request so repeating the same view re-fires the subscription.
   readonly cameraFlyRequest: { readonly target: CameraFlyTarget } | null;
-  // One-shot pick-to-focus request (double-click on the render box). ui/pointerCamera dispatches
-  // the cursor NDC + aspect; the app consumes it — asks the render worker for the opacity-weighted
-  // pick (falling back to the box-chord midpoint pre-ready) and answers with a cameraFlyRequest.
-  // Fresh wrapper per request so a repeated same-spot double-click re-fires.
-  readonly pickFocusRequest: {
+  // One-shot pick request (single-click places the marker, double-click focuses). ui dispatches the
+  // cursor NDC + aspect + purpose; the app consumes it — asks the render worker for the
+  // opacity-weighted pick (falling back to the box-chord midpoint pre-ready) and routes the result by
+  // purpose (place → setPickerPoint; focus → setPickerPoint + cameraFlyRequest). Fresh wrapper per
+  // request so a repeated same-spot click re-fires.
+  readonly pickRequest: {
     readonly ndcX: number;
     readonly ndcY: number;
     readonly aspect: number;
+    readonly purpose: PickPurpose;
   } | null;
+  // The draggable point-picker marker, object space (unit box [-0.5, 0.5]³, = world). null hides it.
+  // ui/pointerPicker drags it (setPickerPoint) and the app's opacity-weighted pick places it; the app
+  // forwards it to the render worker via pickerSync. The seed [0,0,0] shows the marker at box center.
+  readonly pickerPoint: Vec3 | null;
+  // Which marker part the cursor is over, and whether a drag is in progress — view feedback the
+  // render worker eases (hover/pulse/active). Set by ui/pointerPicker, forwarded by pickerSync.
+  readonly pickerHover: MarkerPart;
+  readonly pickerActive: boolean;
   // Time cursor (M2.9): the active timestep + the discrete domain the scrub control walks. The
   // reader's availableTimesteps seeds `availableSteps` (setAvailableSteps); setStep moves the cursor,
   // tracking the loaded dataset's `step`. Pre-M2.10 nothing re-reads on a step change — this lands
@@ -107,7 +118,13 @@ export interface SimulationState {
   setCameraInteracting(interacting: boolean): void;
   setProjection(projection: CameraProjection): void;
   requestCameraFly(target: CameraFlyTarget | null): void;
-  requestPickFocus(request: { ndcX: number; ndcY: number; aspect: number } | null): void;
+  requestPick(
+    request: { ndcX: number; ndcY: number; aspect: number; purpose: PickPurpose } | null,
+  ): void;
+  setPickerPoint(point: Vec3 | null): void;
+  setPickerHover(part: MarkerPart): void;
+  setPickerActive(active: boolean): void;
+  setOverlayShowPicker(on: boolean): void;
   setStep(step: number): void;
   setAvailableSteps(steps: readonly number[]): void;
   addLayer(spec: LayerSpec): void;
@@ -258,7 +275,10 @@ export function createSimulationStore() {
         isCameraInteracting: false,
         projection: "perspective",
         cameraFlyRequest: null,
-        pickFocusRequest: null,
+        pickRequest: null,
+        pickerPoint: [0, 0, 0],
+        pickerHover: "none",
+        pickerActive: false,
         currentStep: 0,
         availableSteps: [],
         layers: [],
@@ -327,8 +347,25 @@ export function createSimulationStore() {
         requestCameraFly(target) {
           set({ cameraFlyRequest: target === null ? null : { target } });
         },
-        requestPickFocus(request) {
-          set({ pickFocusRequest: request === null ? null : { ...request } });
+        requestPick(request) {
+          set({ pickRequest: request === null ? null : { ...request } });
+        },
+        setPickerPoint(point) {
+          set({ pickerPoint: point === null ? null : ([point[0], point[1], point[2]] as Vec3) });
+        },
+        setPickerHover(part) {
+          if (part === get().pickerHover) return; // unchanged → no fire
+          set({ pickerHover: part });
+        },
+        setPickerActive(active) {
+          if (active === get().pickerActive) return; // unchanged → no fire
+          set({ pickerActive: active });
+        },
+        setOverlayShowPicker(on) {
+          const { overlay } = get();
+          const next = overlayOps.setShowPicker(overlay, on);
+          if (next === overlay) return;
+          set({ overlay: next });
         },
         setStep(step) {
           const { currentStep, availableSteps } = get();

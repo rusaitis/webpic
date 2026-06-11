@@ -1,10 +1,11 @@
 import type { CameraPose, CameraProjection } from "@schema/camera.ts";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
+import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
 import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { SliceAxis } from "./sliceScene.ts";
 
-export type { CameraPose, CameraProjection, WindowLevel };
+export type { CameraPose, CameraProjection, MarkerPart, PickPurpose, WindowLevel };
 
 // Typed protocol for the OffscreenCanvas render worker. Discriminated unions both
 // ways; `requestId` correlates a response to its request and pre-stages the
@@ -43,6 +44,17 @@ export interface SceneOverlayConfig {
   readonly axisColors: { readonly x: Rgba01; readonly y: Rgba01; readonly z: Rgba01 };
   readonly labelColor: Rgba01;
   readonly tick: { readonly targetCount: number };
+}
+
+// The draggable point-picker marker (sphere + two-tone ring + ↕/↔ handles + drop-line/crosshair).
+// Like SceneOverlayConfig this is the low-frequency *build* config (theme colors + the guide plane);
+// the geometry/gating constants live in @schema/marker (shared with the main-thread hit-test). The
+// live position + hover/active state ride the cheap setPickerPoint message. `guideColor` paints the
+// drop line + crosshair; `planePosition` places that guide plane (matching the grid overlay).
+export interface MarkerConfig {
+  readonly coreColor: Rgba01;
+  readonly guideColor: Rgba01;
+  readonly planePosition: "center" | "min" | "max";
 }
 
 export type RenderWorkerRequest =
@@ -145,15 +157,35 @@ export type RenderWorkerRequest =
       readonly requestId: number;
       readonly overlay: SceneOverlayConfig | null;
     }
-  // Pick-to-focus: march one cursor ray (NDC, dollyAt's convention — x right, y up) through the
-  // retained CPU fields and reply with the world point at the median visual depth (pickResult).
-  // The worker already holds the live pose/projection/aspect; postMessage ordering guarantees it
-  // has the pose the click saw.
+  // Build/rebuild the point-picker marker scene from a config, or tear it down on null (toggle off /
+  // no volume). Low-frequency (toggle / theme / dataset swap), like setSceneOverlay; the live
+  // position rides setPickerPoint below.
+  | {
+      readonly kind: "setMarker";
+      readonly requestId: number;
+      readonly marker: MarkerConfig | null;
+    }
+  // Live marker position + interaction state (high-frequency during a drag). `point` is object space
+  // (= world); null hides the marker without tearing down its scene. `hovered`/`active` drive the
+  // worker's hover/pulse/active easing.
+  | {
+      readonly kind: "setPickerPoint";
+      readonly requestId: number;
+      readonly point: Vec3 | null;
+      readonly hovered: MarkerPart;
+      readonly active: boolean;
+    }
+  // Cursor-ray pick (single-click place / double-click focus): march one cursor ray (NDC, dollyAt's
+  // convention — x right, y up) through the retained CPU fields and reply with the world point at the
+  // median visual depth (pickResult), echoing `purpose` so the app routes the result. The worker
+  // already holds the live pose/projection/aspect; postMessage ordering guarantees it has the pose
+  // the click saw.
   | {
       readonly kind: "pickRay";
       readonly requestId: number;
       readonly ndcX: number;
       readonly ndcY: number;
+      readonly purpose: PickPurpose;
     }
   // Time-series streaming (M2.10a): the data worker's end of a private MessageChannel. The worker
   // reads + computes each scrubbed step off-main and posts StreamStepMessage (from @data) over this
@@ -177,9 +209,15 @@ export type RenderWorkerResponse =
       readonly gpuTimeMs: number;
       readonly clock: "timestamp" | "wallclock";
     }
-  // Pick-to-focus reply: the world-space focus point (unit box has identity transform, so world =
-  // object space), or null when the cursor ray misses the box — the app then leaves the camera be.
-  | { readonly kind: "pickResult"; readonly requestId: number; readonly point: Vec3 | null }
+  // Pick reply: the world-space point (unit box has identity transform, so world = object space), or
+  // null when the cursor ray misses the box — the app then leaves the marker/camera be. `purpose` is
+  // echoed from the request so the app routes the point (place vs place+focus).
+  | {
+      readonly kind: "pickResult";
+      readonly requestId: number;
+      readonly point: Vec3 | null;
+      readonly purpose: PickPurpose;
+    }
   | { readonly kind: "error"; readonly requestId: number; readonly message: string }
   // Terminal GPU failure: the device was lost and the recovery circuit-breaker stopped re-acquiring
   // (repeated rapid losses) or no adapter is available. The render loop is halted; the app surfaces a

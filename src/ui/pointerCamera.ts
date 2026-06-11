@@ -357,7 +357,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       flyTo(DEFAULT_POSE);
       return;
     }
-    state.requestPickFocus({ ndcX, ndcY, aspect });
+    state.requestPick({ ndcX, ndcY, aspect, purpose: "focus" });
   };
 
   // Hardcoded "r" (reset) / "z" (fit) / nudge keys until theme shortcuts exist; same guards as

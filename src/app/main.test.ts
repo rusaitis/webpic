@@ -230,19 +230,27 @@ describe("bootstrap pick-to-focus", () => {
       data: { kind: "ready", requestId: 1 },
     } as MessageEvent<RenderWorkerResponse>);
 
-    store.getState().requestPickFocus({ ndcX: 0.2, ndcY: -0.1, aspect: 2 });
-    expect(store.getState().pickFocusRequest).toBeNull(); // consumed synchronously
+    store.getState().requestPick({ ndcX: 0.2, ndcY: -0.1, aspect: 2, purpose: "focus" });
+    expect(store.getState().pickRequest).toBeNull(); // consumed synchronously
     const pick = posts.find((p) => p.message.kind === "pickRay");
     if (pick === undefined || pick.message.kind !== "pickRay")
       throw new Error("expected a pickRay message");
     expect(pick.message.ndcX).toBe(0.2);
     expect(pick.message.ndcY).toBe(-0.1);
+    expect(pick.message.purpose).toBe("focus");
 
     const before = store.getState().cameraPose;
     // The bare data-only shape doesn't overlap MessageEvent's 20+ properties — route via unknown.
     worker.onmessage?.({
-      data: { kind: "pickResult", requestId: pick.message.requestId, point: [0.2, -0.1, 0.3] },
+      data: {
+        kind: "pickResult",
+        requestId: pick.message.requestId,
+        point: [0.2, -0.1, 0.3],
+        purpose: "focus",
+      },
     } as unknown as MessageEvent<RenderWorkerResponse>);
+    // "focus" both places the marker and flies the camera there.
+    expect(store.getState().pickerPoint).toEqual([0.2, -0.1, 0.3]);
     const fly = store.getState().cameraFlyRequest;
     if (fly === null || fly.target.kind !== "pose") throw new Error("expected a pose fly request");
     expect(fly.target.pose.target).toEqual([0.2, -0.1, 0.3]);
@@ -258,8 +266,8 @@ describe("bootstrap pick-to-focus", () => {
       data: { kind: "ready", requestId: 1 },
     } as MessageEvent<RenderWorkerResponse>);
     worker.onmessage?.({
-      data: { kind: "pickResult", requestId: 10, point: null },
-    } as MessageEvent<RenderWorkerResponse>);
+      data: { kind: "pickResult", requestId: 10, point: null, purpose: "focus" },
+    } as unknown as MessageEvent<RenderWorkerResponse>);
     expect(store.getState().cameraFlyRequest).toBeNull();
     dispose();
   });
@@ -269,7 +277,7 @@ describe("bootstrap pick-to-focus", () => {
     // Aim at the box center (the default target sits below it for composition): a centered ray
     // through the center has central symmetry, putting the chord midpoint exactly there.
     store.getState().setCameraPose({ ...DEFAULT_POSE, target: [0, 0, 0] });
-    store.getState().requestPickFocus({ ndcX: 0, ndcY: 0, aspect: 1 });
+    store.getState().requestPick({ ndcX: 0, ndcY: 0, aspect: 1, purpose: "focus" });
     expect(posts.some((p) => p.message.kind === "pickRay")).toBe(false); // nothing to ask yet
     const fly = store.getState().cameraFlyRequest;
     if (fly === null || fly.target.kind !== "pose") throw new Error("expected a pose fly request");

@@ -248,7 +248,7 @@ describe("installPointerCamera", () => {
     const start = store.getState().cameraPose;
     // Center of the frame: the default pose looks at the box center, so the ray hits.
     target.dispatchEvent(new MouseEvent("dblclick", { clientX: 100, clientY: 50 }));
-    expect(store.getState().pickFocusRequest).toEqual({ ndcX: 0, ndcY: 0, aspect: 2 });
+    expect(store.getState().pickRequest).toEqual({ ndcX: 0, ndcY: 0, aspect: 2, purpose: "focus" });
     expect(store.getState().cameraPose).toBe(start); // the app answers the intent, not this module
   });
 
@@ -259,7 +259,7 @@ describe("installPointerCamera", () => {
     store.getState().setCameraPose({ ...DEFAULT_POSE, azimuth: 2 });
     // Top-left frame corner: NDC (−1, +1) clears the unit box from the default-distance view.
     target.dispatchEvent(new MouseEvent("dblclick", { clientX: 0, clientY: 0 }));
-    expect(store.getState().pickFocusRequest).toBeNull();
+    expect(store.getState().pickRequest).toBeNull();
     await pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
   });
 
@@ -271,7 +271,7 @@ describe("installPointerCamera", () => {
     store.getState().setCameraPose(moved);
     target.dispatchEvent(new MouseEvent("dblclick", { clientX: 100, clientY: 50, shiftKey: true }));
     await frame();
-    expect(store.getState().pickFocusRequest).toBeNull();
+    expect(store.getState().pickRequest).toBeNull();
     expect(store.getState().cameraPose).toBe(moved);
   });
 

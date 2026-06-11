@@ -38,7 +38,7 @@ function pickPoints(): Promise<{ persp: readonly number[]; ortho: readonly numbe
     const canvas = new OffscreenCanvas(SIZE, SIZE);
     const post = (message: RenderWorkerRequest): void => worker.postMessage(message);
     const pick = (requestId: number): void =>
-      post({ kind: "pickRay", requestId, ndcX: 0, ndcY: 0 });
+      post({ kind: "pickRay", requestId, ndcX: 0, ndcY: 0, purpose: "focus" });
     let phase: "persp" | "ortho" = "persp";
     let perspPoint: readonly number[] | undefined;
     let retries = 40; // ~2 s cap — the upsert's async pipeline warm commits after the first picks

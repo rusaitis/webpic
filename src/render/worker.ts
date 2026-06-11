@@ -1,6 +1,7 @@
 import type { StreamStepMessage } from "@data";
 import { getCapabilities, getDevice, installGpu, onDeviceLost, onDeviceRestored } from "@gpu";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
+import type { Vec3 } from "@schema/types.ts";
 import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
 import {
   applyPose,
@@ -21,9 +22,12 @@ import {
   type QualityState,
   qualityLevel,
 } from "./interactionQuality.ts";
+import { createMarkerScene, type MarkerScene } from "./marker/markerScene.ts";
 import type {
   CameraPose,
   CameraProjection,
+  MarkerConfig,
+  MarkerPart,
   RenderWorkerRequest,
   RenderWorkerResponse,
   SceneOverlayConfig,
@@ -129,6 +133,16 @@ let pendingDispose: LayerEntry | undefined;
 let overlay: SceneOverlay | undefined;
 let overlaySource: SceneOverlayConfig | undefined;
 
+// The draggable point-picker marker (composited last, over the volume + overlay) + its retained build
+// config + live position/state, all replayed on a device-restore rebuild. Its hover/pulse/active
+// easing is advanced in renderTick (tick()); applyVolumePose re-runs its zoom scale + handle gating.
+let marker: MarkerScene | undefined;
+let markerSource: MarkerConfig | undefined;
+let markerPoint: Vec3 | null = null;
+let markerHovered: MarkerPart = "none";
+let markerActive = false;
+let lastMarkerTickMs: number | undefined; // wall clock of the previous tick, for the easing dt
+
 // The data worker's end of the streaming MessageChannel (M2.10a). Stored on `pair`; its onmessage
 // applies streamed timestep fields (data → render, no main hop). Closed on dispose.
 let streamPort: MessagePort | undefined;
@@ -149,6 +163,7 @@ function aspect(): number {
 function applyVolumePose(): void {
   if (perspCamera !== undefined) applyPose(perspCamera, pose, aspect());
   if (orthoVolumeCamera !== undefined) applyPoseOrtho(orthoVolumeCamera, pose, aspect());
+  marker?.updateForPose(pose, projection === "orthographic"); // zoom scale + handle gating track the pose
 }
 
 function volumeCamera(): PerspectiveCamera | OrthographicCamera | undefined {
@@ -214,6 +229,7 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
 function compositeItems(
   layerOverride?: { readonly id: string; readonly entry: LayerEntry },
   overlayOverride?: SceneOverlay | null,
+  markerOverride?: MarkerScene | null,
 ): CompositeItem[] {
   const volume = volumeCamera();
   const ortho = orthoCamera;
@@ -239,13 +255,18 @@ function compositeItems(
       camera: layerOverride.entry.kind === "volume" ? volume : ortho,
     });
   }
-  // The overlay composites last (on top), paired with the SAME pose-driven camera as the volumes
-  // (else the axes would misalign under an ortho volume) — and only when a volume layer is present.
-  // A 3D axes overlay over a flat ortho slice or an empty frame is meaningless; a volume whose
-  // upsert hasn't landed yet heals on its upsert repaint.
+  // The overlay + marker composite last (on top), paired with the SAME pose-driven camera as the
+  // volumes (else they'd misalign under an ortho volume) — and only when a volume layer is present.
+  // 3D chrome over a flat ortho slice or an empty frame is meaningless; a volume whose upsert hasn't
+  // landed yet heals on its upsert repaint.
+  const hasVolume = items.some((item) => item.camera === volume);
   const effectiveOverlay = overlayOverride === undefined ? overlay : (overlayOverride ?? undefined);
-  if (effectiveOverlay !== undefined && items.some((item) => item.camera === volume)) {
+  if (effectiveOverlay !== undefined && hasVolume) {
     items.push({ scene: effectiveOverlay.scene, camera: volume });
+  }
+  const effectiveMarker = markerOverride === undefined ? marker : (markerOverride ?? undefined);
+  if (effectiveMarker !== undefined && hasVolume) {
+    items.push({ scene: effectiveMarker.scene, camera: volume });
   }
   return items;
 }
@@ -277,6 +298,17 @@ function renderTick(): void {
   // Reschedule first so a throwing frame can't permanently strand the loop.
   rafId = requestAnimationFrame(renderTick);
   if (readbackInFlight || renderer === undefined || deviceLost) return;
+  // Advance the marker's hover/pulse/active easing (cheap, alloc-free) and keep painting while it
+  // animates. Runs every frame the rAF loop reschedules anyway, so it adds no new loop; it only
+  // dirties needsRender while easing, then the on-demand loop falls back to idle.
+  if (marker !== undefined) {
+    const now = performance.now();
+    const dtSec = lastMarkerTickMs === undefined ? 1 / 60 : (now - lastMarkerTickMs) / 1000;
+    lastMarkerTickMs = now;
+    if (marker.tick(dtSec)) needsRender = true;
+  } else {
+    lastMarkerTickMs = undefined;
+  }
   // Continuous mode repaints every frame for sustained GPU timing; otherwise paint only on change.
   if (!needsRender && !continuous) return;
   needsRender = false;
@@ -662,6 +694,7 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   // streamed field heals on the next step) instead of landing a dead-device scene post-rebuild.
   for (const id of layers.keys()) bumpLayerEpoch(id);
   overlayEpoch += 1;
+  markerEpoch += 1; // an in-flight buildMarker warm must discard rather than land a dead-device scene
   // Drop the dead-device resources best-effort: disposing GPU handles on a lost device can throw,
   // and the fresh renderer below is what matters.
   try {
@@ -669,6 +702,7 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
     for (const layer of layers.values()) layer.scene.dispose();
     pendingDispose?.scene.dispose();
     overlay?.dispose();
+    marker?.dispose();
     testScene?.dispose();
   } catch {
     // a lost device throws on teardown — ignore; we're replacing everything anyway
@@ -689,6 +723,14 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   // Replay the overlay from its retained config on the fresh device (its line buffers + CanvasTextures
   // belonged to the dead device). Sprites re-billboard on the next render.
   overlay = overlaySource !== undefined ? createSceneOverlay(overlaySource) : undefined;
+  // Same for the marker — rebuild from its retained config and replay the live pose + position/state.
+  marker = markerSource !== undefined ? createMarkerScene(markerSource) : undefined;
+  if (marker !== undefined) {
+    marker.updateForPose(pose, projection === "orthographic");
+    marker.setPoint(markerPoint);
+    marker.setState(markerHovered, markerActive);
+  }
+  lastMarkerTickMs = undefined;
   // The fresh renderer starts at scale 1 and buildScene already applied the live step scale —
   // resync the applied-level cache, then re-apply in case a gesture is live across the restore.
   appliedLevel = { stepScale: qualityLevel(quality).stepScale, renderScale: 1 };
@@ -752,6 +794,62 @@ async function setSceneOverlay(
   await buildOverlay(request.overlay);
 }
 
+// Build/replace the point-picker marker scene (or tear it down on null) — warm-then-commit like
+// buildOverlay, seeding the fresh scene with the live pose + position so the warm compiles the real
+// composite and the first committed frame shows the marker in place. Retains the source for a
+// device-restore rebuild.
+let markerEpoch = 0;
+
+async function buildMarker(config: MarkerConfig | null): Promise<void> {
+  const epoch = ++markerEpoch;
+  const next = config !== null ? createMarkerScene(config) : undefined;
+  if (next !== undefined) {
+    next.updateForPose(pose, projection === "orthographic");
+    next.setPoint(markerPoint);
+    next.setState(markerHovered, markerActive);
+    try {
+      await renderer?.compileComposite(compositeItems(undefined, undefined, next));
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : String(error));
+    }
+    if (markerEpoch !== epoch) {
+      next.dispose(); // superseded mid-warm
+      return;
+    }
+  }
+  const previous = marker;
+  marker = next;
+  markerSource = config ?? undefined;
+  previous?.dispose();
+  lastMarkerTickMs = undefined; // restart the easing dt clock for the fresh scene
+  requestRender();
+}
+
+async function setMarker(
+  request: Extract<RenderWorkerRequest, { kind: "setMarker" }>,
+): Promise<void> {
+  await initDone;
+  if (renderer === undefined) {
+    throw new Error("setMarker before init");
+  }
+  await buildMarker(request.marker);
+}
+
+// Live marker position + interaction state (high-frequency during a drag): move the marker and feed
+// its hover/pulse/active easing, retaining both so a device-restore rebuild reproduces the live marker.
+async function setPickerPoint(
+  request: Extract<RenderWorkerRequest, { kind: "setPickerPoint" }>,
+): Promise<void> {
+  await initDone;
+  markerPoint =
+    request.point === null ? null : [request.point[0], request.point[1], request.point[2]];
+  markerHovered = request.hovered;
+  markerActive = request.active;
+  marker?.setPoint(markerPoint);
+  marker?.setState(markerHovered, markerActive);
+  requestRender();
+}
+
 // Pick-to-focus: march the cursor ray through the retained CPU fields (no GPU round-trip) and
 // reply with the focus point. The ray comes from the live volume camera via unproject so it matches
 // the rendered frame exactly — projection flip, aspect, and the pose this click saw (postMessage
@@ -787,7 +885,12 @@ async function pickRay(request: Extract<RenderWorkerRequest, { kind: "pickRay" }
     });
   }
   const point = pickPointOnRay([near.x, near.y, near.z], [dir.x, dir.y, dir.z], pickLayers);
-  ctx.postMessage({ kind: "pickResult", requestId: request.requestId, point });
+  ctx.postMessage({
+    kind: "pickResult",
+    requestId: request.requestId,
+    point,
+    purpose: request.purpose,
+  });
 }
 
 // Pair with the data worker's streaming port (M2.10a). Assigning onmessage implicitly starts the
@@ -834,6 +937,10 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return setInteracting(request);
     case "setSceneOverlay":
       return setSceneOverlay(request);
+    case "setMarker":
+      return setMarker(request);
+    case "setPickerPoint":
+      return setPickerPoint(request);
     case "pickRay":
       return pickRay(request);
     case "pair":
@@ -866,6 +973,9 @@ export function dispose(): void {
   overlay?.dispose();
   overlay = undefined;
   overlaySource = undefined;
+  marker?.dispose();
+  marker = undefined;
+  markerSource = undefined;
   testScene?.dispose();
   renderer?.dispose();
   gpu?.dispose();

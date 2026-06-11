@@ -241,4 +241,59 @@ describe("simulationStore diagnostics", () => {
     expect(fires).toBe(2);
     expect(store.getState().isMeasuringContinuous).toBe(false);
   });
+
+  it("seeds the picker at box center, visible, and moves it on setPickerPoint", () => {
+    const store = createSimulationStore();
+    expect(store.getState().pickerPoint).toEqual([0, 0, 0]);
+    expect(store.getState().overlay.showPicker).toBe(true);
+    store.getState().setPickerPoint([0.2, -0.3, 0.1]);
+    expect(store.getState().pickerPoint).toEqual([0.2, -0.3, 0.1]);
+    store.getState().setPickerPoint(null);
+    expect(store.getState().pickerPoint).toBeNull();
+  });
+
+  it("setPickerHover / setPickerActive / setOverlayShowPicker identity-skip no-ops", () => {
+    const store = createSimulationStore();
+    let hover = 0;
+    let active = 0;
+    let show = 0;
+    const unsubH = store.subscribe(
+      (s) => s.pickerHover,
+      () => hover++,
+    );
+    const unsubA = store.subscribe(
+      (s) => s.pickerActive,
+      () => active++,
+    );
+    const unsubS = store.subscribe(
+      (s) => s.overlay.showPicker,
+      () => show++,
+    );
+    store.getState().setPickerHover("core");
+    store.getState().setPickerHover("core"); // no-op
+    store.getState().setPickerActive(true);
+    store.getState().setPickerActive(true); // no-op
+    store.getState().setOverlayShowPicker(false);
+    store.getState().setOverlayShowPicker(false); // no-op
+    unsubH();
+    unsubA();
+    unsubS();
+    expect([hover, active, show]).toEqual([1, 1, 1]);
+    expect(store.getState().pickerHover).toBe("core");
+    expect(store.getState().pickerActive).toBe(true);
+    expect(store.getState().overlay.showPicker).toBe(false);
+  });
+
+  it("requestPick carries the purpose and clears on consume", () => {
+    const store = createSimulationStore();
+    store.getState().requestPick({ ndcX: 0.1, ndcY: 0.2, aspect: 1.5, purpose: "place" });
+    expect(store.getState().pickRequest).toEqual({
+      ndcX: 0.1,
+      ndcY: 0.2,
+      aspect: 1.5,
+      purpose: "place",
+    });
+    store.getState().requestPick(null);
+    expect(store.getState().pickRequest).toBeNull();
+  });
 });

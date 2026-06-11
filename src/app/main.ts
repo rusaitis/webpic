@@ -14,8 +14,9 @@ import {
   type UiStore,
   unitBoxChordMidpoint,
 } from "@store";
-import { installPointerCamera, installUi } from "@ui";
+import { installPointerCamera, installPointerPicker, installUi } from "@ui";
 import { installLayerSync } from "./layerSync.ts";
+import { installPickerSync } from "./pickerSync.ts";
 import { installSceneSync } from "./sceneSync.ts";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
 
@@ -190,6 +191,11 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const disposePointer =
     typeof canvas.addEventListener === "function" ? installPointerCamera(canvas, store) : undefined;
 
+  // Point-picker pointer input (capture-phase, so it pre-empts the camera when grabbing the marker).
+  // Same fake-canvas guard as the camera controls. ui → store only; the worker draws the marker.
+  const disposePicker =
+    typeof canvas.addEventListener === "function" ? installPointerPicker(canvas, store) : undefined;
+
   // The layer registry → worker bridge (instance-first composite). Owns the `computed`/`layers`
   // subscriptions: a fresh field transfers its buffer via upsertLayer; structure changes ride the
   // cheap setComposite. Gated on `workerReady` so nothing is posted before the renderer is live.
@@ -198,6 +204,15 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // The scene-overlay (axes + grid) bridge: forwards the store's overlay flags + the dataset bounds +
   // the resolved theme palette to the worker. Same workerReady gating + ready-time flushAll as layerSync.
   const sceneSync = installSceneSync({
+    store,
+    worker,
+    isReady: () => workerReady,
+    ...(options.theme !== undefined ? { theme: options.theme } : {}),
+  });
+
+  // The point-picker bridge: forwards the marker build config (theme colors) + the live position/state
+  // to the worker. Same workerReady gating + ready-time flushAll as sceneSync.
+  const pickerSync = installPickerSync({
     store,
     worker,
     isReady: () => workerReady,
@@ -244,18 +259,21 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // weight by, so fall back to the box-chord midpoint (the same store math ui used for the hit
   // test) — the gesture still focuses, just geometrically.
   const unsubscribePick = store.subscribe(
-    (state) => state.pickFocusRequest,
+    (state) => state.pickRequest,
     (request) => {
       if (request === null) return;
-      const { ndcX, ndcY, aspect } = request;
+      const { ndcX, ndcY, aspect, purpose } = request;
       if (workerReady) {
         worker.postMessage({
           kind: "pickRay",
           requestId: PICK_REQUEST_ID,
           ndcX,
           ndcY,
+          purpose,
         } satisfies RenderWorkerRequest);
       } else {
+        // Pre-ready there's no field to weight by — fall back to the box-chord midpoint, routed by
+        // purpose like the worker's pickResult below (place → marker; focus → marker + camera).
         const state = store.getState();
         const ray = cursorRay(
           state.cameraPose,
@@ -266,10 +284,16 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
         );
         const point = unitBoxChordMidpoint(ray.origin, ray.dir);
         if (point !== null) {
-          state.requestCameraFly({ kind: "pose", pose: focusPoseOnPoint(state.cameraPose, point) });
+          state.setPickerPoint(point);
+          if (purpose === "focus") {
+            state.requestCameraFly({
+              kind: "pose",
+              pose: focusPoseOnPoint(state.cameraPose, point),
+            });
+          }
         }
       }
-      store.getState().requestPickFocus(null); // consume — same-spot double-clicks re-fire
+      store.getState().requestPick(null); // consume — same-spot clicks re-fire
     },
   );
 
@@ -335,6 +359,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       layerSync.flushAll();
       // Catch-up the overlay too: its subscription drops posts pre-ready, and setDataset already ran.
       sceneSync.flushAll();
+      // Same for the picker marker (config + seeded center position).
+      pickerSync.flushAll();
       // Catch-up: the pose subscription drops posts while !workerReady, so replay the current pose
       // once — a drag during worker init updates the store + gnomon but would otherwise be lost.
       worker.postMessage({
@@ -372,8 +398,13 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     } else if (message.kind === "pickResult") {
       // null = the ray missed the box; ui already handled background double-clicks synchronously.
       if (message.point !== null) {
-        const pose = focusPoseOnPoint(store.getState().cameraPose, message.point);
-        store.getState().requestCameraFly({ kind: "pose", pose });
+        // Both purposes move the marker to the picked point; "focus" additionally flies the camera
+        // there (double-click focuses on the marker — magviz semantics).
+        store.getState().setPickerPoint(message.point);
+        if (message.purpose === "focus") {
+          const pose = focusPoseOnPoint(store.getState().cameraPose, message.point);
+          store.getState().requestCameraFly({ kind: "pose", pose });
+        }
       }
     } else if (message.kind === "error") {
       console.error("[render worker]", message.message);
@@ -484,10 +515,12 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   return () => {
     disposeUi?.();
     disposePointer?.();
+    disposePicker?.();
     disposeResize?.();
     disposeDprWatch?.();
     layerSync.dispose();
     sceneSync.dispose();
+    pickerSync.dispose();
     unsubscribePose();
     unsubscribeProjection();
     unsubscribePick();

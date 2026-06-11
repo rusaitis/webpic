@@ -56,6 +56,12 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
     onChange: (on) => store.getState().setOverlayShowGnomon(on),
   });
 
+  const picker: ControlHandle<boolean> = folder.addCheckbox({
+    label: "Point marker",
+    value: initial.showPicker,
+    onChange: (on) => store.getState().setOverlayShowPicker(on),
+  });
+
   const density: ControlHandle<number> = folder.addSlider({
     label: "Density",
     value: initial.gridDivisions,
@@ -89,6 +95,7 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
       axes.set(next.showAxes);
       labels.set(next.showLabels);
       gnomon.set(next.showGnomon);
+      picker.set(next.showPicker);
       density.set(next.gridDivisions);
     },
   );
@@ -99,6 +106,7 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
     ortho.dispose();
     fit.dispose();
     density.dispose();
+    picker.dispose();
     gnomon.dispose();
     labels.dispose();
     axes.dispose();

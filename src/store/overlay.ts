@@ -18,6 +18,9 @@ export interface OverlayState {
   readonly showLabels: boolean;
   /** The corner CSS gnomon — UI-only (consumed by cameraChrome, not forwarded to render). */
   readonly showGnomon: boolean;
+  /** The draggable point-picker marker (sphere + handles + guides). On by default; the app forwards
+   *  it to render via pickerSync when a volume layer is present. */
+  readonly showPicker: boolean;
   /** Target major-tick divisions per axis; the render worker snaps to a 1/2/5 lattice. */
   readonly gridDivisions: number;
 }
@@ -30,6 +33,7 @@ export const DEFAULT_OVERLAY: OverlayState = {
   showAxes: true,
   showLabels: true,
   showGnomon: true,
+  showPicker: true,
   gridDivisions: 8,
 };
 
@@ -58,6 +62,10 @@ export function setShowLabels(state: OverlayState, on: boolean): OverlayState {
 
 export function setShowGnomon(state: OverlayState, on: boolean): OverlayState {
   return state.showGnomon === on ? state : { ...state, showGnomon: on };
+}
+
+export function setShowPicker(state: OverlayState, on: boolean): OverlayState {
+  return state.showPicker === on ? state : { ...state, showPicker: on };
 }
 
 export function setGridDivisions(state: OverlayState, n: number): OverlayState {

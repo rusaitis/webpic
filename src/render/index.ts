@@ -8,6 +8,7 @@ export { type NiceTicks, niceTicks } from "./grid/niceTicks.ts";
 export { createSceneOverlay, type SceneOverlay } from "./grid/overlayScene.ts";
 export type {
   CameraPose,
+  MarkerConfig,
   OverlayAxis,
   RenderWorkerRequest,
   RenderWorkerResponse,
