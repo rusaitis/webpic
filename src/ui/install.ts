@@ -5,6 +5,7 @@ import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
 import { mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
+import { installStatusPill } from "./statusPill.ts";
 import { applyControlStyles } from "./theme/styles.ts";
 
 // The UI subsystem's install entry (install*() => () => void): styles + docked shell +
@@ -41,6 +42,9 @@ export function installUi(opts: InstallUiOptions): () => void {
   // The camera HUD (readout + gnomon) is a fixed bottom-left overlay, not a docked panel — it sits
   // outside the shell so it stays put when panels collapse, and hides with the global UI toggle.
   disposers.push(installCameraChrome(opts.parent, opts.simulationStore, opts.uiStore));
+
+  // Loading/error feedback; unlike the chrome it ignores the global UI toggle — status, not chrome.
+  disposers.push(installStatusPill(opts.parent, opts.uiStore));
 
   // Global UI toggle bound to the theme's bare-key shortcut (default "F"); ignore it while
   // typing in a control and when modifiers are held (those are reserved for the palette).

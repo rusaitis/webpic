@@ -158,4 +158,29 @@ const UI_CSS = `
 .webpic-gnomon_tip.is-ny { border-color: #98c379; }
 .webpic-gnomon_tip.is-pz { background: #61afef; }
 .webpic-gnomon_tip.is-nz { border-color: #61afef; }
+/* Status pill: bottom-center loading/error feedback (ui/statusPill.ts). Geometry mirrors the
+   index.html boot splash exactly so the HTML→JS handoff is pixel-stable. The delayed visibility
+   transition on fade-out keeps the element readable through the fade, then drops it from the
+   a11y tree; fade-in flips visibility instantly. */
+.webpic-status { position: fixed; left: 50%; bottom: 24px; z-index: 11; pointer-events: none;
+  display: flex; align-items: center; gap: 9px; padding: 8px 15px;
+  background: var(--webpic-bg); color: var(--webpic-muted);
+  border: 1px solid var(--webpic-border); border-radius: 999px;
+  font: 500 13px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  opacity: 0; visibility: hidden; transform: translate(-50%, 6px);
+  transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 160ms; }
+.webpic-status.is-visible { opacity: 1; visibility: visible; transform: translate(-50%, 0);
+  transition: opacity 160ms ease, transform 160ms ease; }
+.webpic-status_spinner { width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid var(--webpic-border); border-top-color: var(--webpic-accent);
+  animation: webpic-spin 0.9s linear infinite; }
+.webpic-status_text { white-space: nowrap; }
+.webpic-status[data-kind="error"] { color: #e06c75; border-color: rgba(224, 108, 117, 0.4); }
+.webpic-status[data-kind="error"] .webpic-status_spinner { animation: none;
+  border-color: currentColor; opacity: 0.5; }
+@keyframes webpic-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .webpic-status, .webpic-status.is-visible { transition: opacity 160ms ease; transform: translateX(-50%); }
+  .webpic-status_spinner { animation-duration: 2s; }
+}
 `;

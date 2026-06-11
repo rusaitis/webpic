@@ -10,6 +10,7 @@ import {
   cursorRay,
   focusPoseOnPoint,
   type SimulationStore,
+  type UiStore,
   unitBoxChordMidpoint,
 } from "@store";
 import { installPointerCamera, installUi } from "@ui";
@@ -86,6 +87,8 @@ export interface BootstrapOptions {
   /** The simulation store; defaults to a fresh one. Injectable so a test can drive intents
    *  (e.g. setStep) and observe the resulting worker messages. */
   readonly store?: SimulationStore;
+  /** The UI store; defaults to a fresh one. Injectable so a test can observe loading phases. */
+  readonly uiStore?: UiStore;
   /** Where the UI overlay mounts; defaults to document.body, skipped when there's no DOM
    *  (the headless handshake test). Injectable so tests can mount into a scratch element. */
   readonly uiParent?: HTMLElement;
@@ -111,7 +114,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const mount =
     options.mount ??
     ((canvas: HTMLCanvasElement) => {
-      // Replace the FCP splash with the canvas; FCP has already fired on the splash.
+      // The FCP splash pill lives outside #app and survives this; installStatusPill adopts it.
       (document.getElementById("app") ?? document.body).replaceChildren(canvas);
     });
   const spawnWorker =
@@ -137,7 +140,9 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   if (options.initialPose !== undefined) store.getState().setCameraPose(options.initialPose);
   if (options.initialProjection !== undefined)
     store.getState().setProjection(options.initialProjection);
-  const uiStore = createUiStore();
+  const uiStore = options.uiStore ?? createUiStore();
+  // "webpic" matches the index.html splash text, so the splash→pill adoption is pixel-stable.
+  uiStore.getState().beginLoading("boot", "webpic");
   let workerReady = false;
 
   // Streaming worker (M2.10a): spawned only when a multi-step source is given. It reads + computes
@@ -163,10 +168,17 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       const message = event.data;
       if (message.kind === "opened") {
         store.getState().setAvailableSteps(message.steps); // override the 1-element seed
+        uiStore.getState().endLoading("open");
+      } else if (message.kind === "stepLoaded") {
+        // Only the ack for the *current* cursor ends the phase — a stale ack in transit
+        // from a scrubbed-past step must not clear the newer load's pill.
+        if (message.step === store.getState().currentStep) uiStore.getState().endLoading("step");
       } else if (message.kind === "streamError") {
         console.error("[data worker]", message.message);
+        uiStore.getState().endLoading("open");
+        uiStore.getState().endLoading("step");
+        uiStore.getState().flashError(message.message);
       }
-      // stepLoaded: reserved for a future loading indicator.
     };
   }
 
@@ -352,6 +364,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       // The mark's startTime is ms since navigation, which scripts/perf-gate.ts reads
       // alongside First Contentful Paint to check the gate.
       performance.mark("webpic:first-frame");
+      uiStore.getState().endLoading("boot");
       options.onFirstFrame?.();
     } else if (message.kind === "frameTiming") {
       store.getState().setFrameTiming(message.gpuTimeMs, message.clock);
@@ -365,6 +378,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       console.error("[render worker]", message.message);
     } else if (message.kind === "gpuRecoveryFailed") {
       console.error(`[render worker] GPU unrecoverable (${message.reason}):`, message.message);
+      uiStore.getState().endLoading("boot"); // no spinner behind the terminal banner
       showGpuLostBanner(message.message);
     }
   };
@@ -390,6 +404,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // worker re-reads + re-streams off-main. Gated on `dataWorkerOpened` so nothing posts before the
   // worker has its reader (`setDataset` sets currentStep = dataset.step, which is the default 0 → no
   // pre-open fire). Subscriptions are inert when no data worker was spawned.
+  let hasStreamedStep = false; // the worker only re-streams a field switch after a first scrub
   const unsubscribeStep = store.subscribe(
     (state) => state.currentStep,
     (step) => {
@@ -399,6 +414,10 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
           requestId: STREAM_REQUEST_ID,
           step,
         } satisfies DataStreamRequest);
+        hasStreamedStep = true;
+        // Rapid scrubs just retitle the live "step" phase; the stepLoaded ack ends it.
+        // Cached neighbours ack within ms — inside the pill's show delay, so no flash.
+        uiStore.getState().beginLoading("step", `loading step ${step}`);
       }
     },
   );
@@ -411,6 +430,9 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
           requestId: STREAM_REQUEST_ID,
           field,
         } satisfies DataStreamRequest);
+        // Pre-scrub the worker has no cursor and never acks (main's synchronous layerSync
+        // covers that case) — an unconditional begin would strand the phase forever.
+        if (hasStreamedStep) uiStore.getState().beginLoading("step", `computing ${field}`);
       }
     },
   );
@@ -433,6 +455,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   if (dataWorker !== undefined && streamChannel !== undefined && streamSource !== undefined) {
     const layerId = store.getState().selectedLayerId;
     if (layerId !== null) {
+      uiStore.getState().beginLoading("open", "opening dataset");
       dataWorker.postMessage(
         {
           kind: "open",

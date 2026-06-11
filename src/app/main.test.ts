@@ -1,6 +1,6 @@
 import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
-import { createSimulationStore, DEFAULT_POSE } from "@store";
+import { createSimulationStore, createUiStore, DEFAULT_POSE } from "@store";
 import { describe, expect, it, vi } from "vitest";
 import { vectorTriple } from "../../tests/fixtures.ts";
 import { bootstrap } from "./main.ts";
@@ -347,6 +347,79 @@ describe("bootstrap streaming (M2.10a)", () => {
 
     dispose();
     expect(dataTerminated).toBe(1);
+  });
+
+  it("drives the loading phases: boot, dataset open, step acks, field switches, errors", () => {
+    const canvas = fakeCanvas();
+    const renderWorker = {
+      onmessage: null,
+      postMessage: () => {},
+      terminate: () => {},
+    } as unknown as Worker;
+    const dataWorker = {
+      onmessage: null,
+      postMessage: () => {},
+      terminate: () => {},
+    } as unknown as Worker;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const store = createSimulationStore();
+    const uiStore = createUiStore();
+    const dispose = bootstrap({
+      width: 64,
+      height: 48,
+      createCanvas: () => canvas,
+      mount: () => {},
+      spawnWorker: () => renderWorker,
+      spawnDataWorker: () => dataWorker,
+      streamSource: syntheticHandle(8, 4),
+      dataset: tinyDataset(),
+      store,
+      uiStore,
+    });
+    const phaseKeys = () => uiStore.getState().loadingPhases.map((p) => p.key);
+    const message = () => uiStore.getState().loadingPhases[0]?.message; // oldest = displayed
+
+    // Bootstrap begins the boot phase synchronously and the open phase with the stream open.
+    expect(phaseKeys()).toEqual(["boot", "open"]);
+
+    renderWorker.onmessage?.({
+      data: { kind: "ready", requestId: 1 },
+    } as MessageEvent<RenderWorkerResponse>);
+    expect(phaseKeys()).toEqual(["open"]); // first frame ends boot
+
+    dataWorker.onmessage?.({
+      data: { kind: "opened", steps: [0, 1, 2, 3] },
+    } as unknown as MessageEvent<DataStreamResponse>);
+    expect(phaseKeys()).toEqual([]);
+
+    // Pre-scrub the worker has no cursor and never acks a field switch — no phase.
+    store.getState().selectField("B_1");
+    expect(phaseKeys()).toEqual([]);
+
+    store.getState().setStep(2);
+    expect(message()).toBe("loading step 2");
+    dataWorker.onmessage?.({
+      data: { kind: "stepLoaded", step: 1 },
+    } as unknown as MessageEvent<DataStreamResponse>);
+    expect(phaseKeys()).toEqual(["step"]); // a stale ack must not end the newer load
+    dataWorker.onmessage?.({
+      data: { kind: "stepLoaded", step: 2 },
+    } as unknown as MessageEvent<DataStreamResponse>);
+    expect(phaseKeys()).toEqual([]);
+
+    // After a scrub the worker re-streams field switches, so they get a phase too.
+    store.getState().selectField("B_2");
+    expect(message()).toBe("computing B_2");
+
+    dataWorker.onmessage?.({
+      data: { kind: "streamError", message: "read failed" },
+    } as unknown as MessageEvent<DataStreamResponse>);
+    expect(phaseKeys()).toEqual([]);
+    expect(uiStore.getState().statusError?.message).toBe("read failed");
+
+    dispose();
+    consoleError.mockRestore();
   });
 
   it("seeds an initialPose into the store and replays it to the worker on ready", () => {

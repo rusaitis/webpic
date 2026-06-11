@@ -1,18 +1,34 @@
 import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 
-// UI state, separate from simulation data: a global show/hide and per-panel visibility.
-// The `ui` layer dispatches these intents and subscribes selectively — it holds no state
-// of its own. Panel collapse (folder expanded/hidden) is a DOM concern, not store state;
-// this tracks whether a panel is shown at all.
+// UI state, separate from simulation data: a global show/hide, per-panel visibility, and
+// the status-pill facts (loading phases + error notice). The `ui` layer dispatches these
+// intents and subscribes selectively — it holds no state of its own. Panel collapse
+// (folder expanded/hidden) is a DOM concern, not store state; this tracks whether a panel
+// is shown at all. The store holds synchronous facts only — show-delay/min-visible/error
+// timers are presentation policy and live in the statusPill component.
+
+export interface LoadingPhase {
+  readonly key: string;
+  readonly message: string;
+  readonly kind: "loading" | "task"; // "task" reserved for future dismissible jobs
+}
 
 export interface UiState {
   readonly isUiVisible: boolean;
   readonly panels: Readonly<Record<string, boolean>>;
+  /** Insertion-ordered; the pill shows while nonempty and the oldest entry owns the
+   *  message — newest-wins reverts the text when a later phase ends first (A→B→A). */
+  readonly loadingPhases: readonly LoadingPhase[];
+  readonly statusError: { readonly message: string } | null;
   toggleUi(): void;
   setUiVisible(visible: boolean): void;
   togglePanel(name: string): void;
   setPanelVisible(name: string, visible: boolean): void;
+  beginLoading(key: string, message: string): void;
+  endLoading(key: string): void;
+  flashError(message: string): void;
+  clearError(): void;
 }
 
 // Inferred from the factory so the `subscribeWithSelector` overload survives (a plain
@@ -24,6 +40,8 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
     subscribeWithSelector((set, get) => ({
       isUiVisible: true,
       panels: initialPanels,
+      loadingPhases: [],
+      statusError: null,
       toggleUi() {
         set({ isUiVisible: !get().isUiVisible });
       },
@@ -36,6 +54,32 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       },
       setPanelVisible(name, visible) {
         set({ panels: { ...get().panels, [name]: visible } });
+      },
+      // Re-begin of a live key retitles it in place (insertion order is display order);
+      // a same-key same-message begin is a no-op so rapid scrub retitles don't refire.
+      beginLoading(key, message) {
+        const phases = get().loadingPhases;
+        const existing = phases.find((p) => p.key === key);
+        if (existing !== undefined && existing.message === message) return;
+        set({
+          loadingPhases:
+            existing !== undefined
+              ? phases.map((p) => (p.key === key ? { key, message, kind: p.kind } : p))
+              : [...phases, { key, message, kind: "loading" }],
+        });
+      },
+      endLoading(key) {
+        const phases = get().loadingPhases;
+        if (!phases.some((p) => p.key === key)) return;
+        set({ loadingPhases: phases.filter((p) => p.key !== key) });
+      },
+      // Fresh object per call so a repeated identical error still refires the selector
+      // (the pill restarts its auto-clear timer).
+      flashError(message) {
+        set({ statusError: { message } });
+      },
+      clearError() {
+        if (get().statusError !== null) set({ statusError: null });
       },
     })),
   );
