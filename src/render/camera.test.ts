@@ -61,7 +61,7 @@ describe("applyPose", () => {
     applyPose(camera, DEFAULT_POSE);
     expect(camera.position.x).toBeCloseTo(1.7508, 2);
     expect(camera.position.y).toBeCloseTo(1.7508, 2);
-    expect(camera.position.z).toBeCloseTo(1.4739, 2);
+    expect(camera.position.z).toBeCloseTo(1.6939, 2); // d·sin(0.6); target z = 0 (box center)
   });
 
   it("aims the camera at the target", () => {

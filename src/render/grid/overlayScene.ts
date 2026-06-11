@@ -15,7 +15,7 @@ import {
 import { cameraPosition, positionWorld, texture, uv, vec3 } from "three/tsl";
 import { LineBasicNodeMaterial, type Node, SpriteNodeMaterial } from "three/webgpu";
 import type { SceneOverlayConfig } from "../messages.ts";
-import { niceTicks } from "./niceTicks.ts";
+import { niceStep, ticksForStep } from "./niceTicks.ts";
 import {
   fieldAxisToThree,
   formatTick,
@@ -140,11 +140,21 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
         ? -halfAt(heldAxis)
         : halfAt(heldAxis);
 
-  // Major-tick lattice per THREE axis (over the mapped field axis's physical bounds).
+  // One physical step shared across all axes → uniform world grid spacing. The volume renders at true
+  // physical aspect (worldHalfExtent ∝ span), so equal physical steps map to equal world distances;
+  // per-axis niceTicks would instead pick a coarser step on the wider axis (dipole x vs y). Base the
+  // step on the widest span so the longest axis lands ~targetCount divisions, shorter ones fewer.
+  const spans = [0, 1, 2].map((threeAxis) => {
+    const [min, max] = config.axes[fieldAxisToThree(threeAxis as 0 | 1 | 2)].bounds;
+    return Math.abs(max - min);
+  });
+  const commonStep = niceStep(Math.max(...spans), config.tick.targetCount);
+
+  // Major-tick lattice per THREE axis (the shared step over the mapped field axis's physical bounds).
   const axisData: readonly ThreeAxisData[] = [0, 1, 2].map((threeAxis) => {
     const axis = config.axes[fieldAxisToThree(threeAxis as 0 | 1 | 2)];
     const [min, max] = axis.bounds;
-    const nt = niceTicks(min, max, config.tick.targetCount);
+    const nt = ticksForStep(min, max, commonStep);
     return {
       ticks: nt.ticks.map((value) => ({
         obj: physicalToObject(value, min, max, halfAt(threeAxis)),

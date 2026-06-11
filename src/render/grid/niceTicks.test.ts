@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { niceTicks } from "./niceTicks.ts";
+import { niceStep, niceTicks, ticksForStep } from "./niceTicks.ts";
 
 describe("niceTicks", () => {
   it("snaps a voxel-extent range to a round step (the synthetic 256³ default)", () => {
@@ -50,5 +50,27 @@ describe("niceTicks", () => {
 
   it("never exceeds the runaway tick cap", () => {
     expect(niceTicks(0, 1e9, 1).ticks.length).toBeLessThanOrEqual(1000);
+  });
+});
+
+describe("niceStep / ticksForStep", () => {
+  it("reproduces niceTicks when the step is derived from the same span", () => {
+    const span = 256;
+    const step = niceStep(span, 8);
+    expect(step).toBe(50);
+    expect({ step, ...ticksForStep(0, span, step) }).toEqual(niceTicks(0, span, 8));
+  });
+
+  it("shares one step across unequal spans for uniform spacing (the dipole case)", () => {
+    // x∈[-10,5] (span 15) drives the step; y∈[-5,5] (span 10) reuses it → both spaced 2 apart.
+    const step = niceStep(Math.max(15, 10), 8);
+    expect(step).toBe(2);
+    expect(ticksForStep(-10, 5, step).ticks).toEqual([-10, -8, -6, -4, -2, 0, 2, 4]);
+    expect(ticksForStep(-5, 5, step).ticks).toEqual([-4, -2, 0, 2, 4]);
+  });
+
+  it("degenerates to a single tick for a non-positive step or zero-width range", () => {
+    expect(ticksForStep(0, 10, 0)).toEqual({ ticks: [0], decimals: 0 });
+    expect(ticksForStep(7, 7, 2)).toEqual({ ticks: [7], decimals: 0 });
   });
 });

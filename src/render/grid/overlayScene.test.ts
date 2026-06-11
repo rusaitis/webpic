@@ -46,6 +46,35 @@ function axisLineStarts(root: Object3D): [number, number, number][] {
     .map((position) => [position[0], position[1], position[2]] as [number, number, number]);
 }
 
+// Read the batched grid LineSegments (the many-vertex one) and return the world spacing between
+// consecutive parallel grid lines along each in-plane axis. For the xy plane, lines of constant x
+// (varying y) are the x-ticks and vice versa; sorted, consecutive deltas are the world tick spacing.
+function gridSpacings(root: Object3D): { x: number[]; y: number[] } {
+  const grid = root.children
+    .filter((child) => (child as { isLineSegments?: boolean }).isLineSegments === true)
+    .map(
+      (line) =>
+        (line as unknown as { geometry: { attributes: { position: { array: Float32Array } } } })
+          .geometry.attributes.position.array,
+    )
+    .find((position) => position.length > 6);
+  const constX = new Set<number>();
+  const constY = new Set<number>();
+  if (grid !== undefined) {
+    for (let o = 0; o + 6 <= grid.length; o += 6) {
+      const [x0, y0, , x1, y1] = [grid[o], grid[o + 1], grid[o + 2], grid[o + 3], grid[o + 4]];
+      if (x0 === x1 && y0 !== y1)
+        constX.add(x0 as number); // line runs along y at fixed x → an x-tick
+      else if (y0 === y1 && x0 !== x1) constY.add(y0 as number); // runs along x at fixed y → a y-tick
+    }
+  }
+  const deltas = (s: Set<number>): number[] => {
+    const v = [...s].sort((a, b) => a - b);
+    return v.slice(1).map((value, i) => value - (v[i] as number));
+  };
+  return { x: deltas(constX), y: deltas(constY) };
+}
+
 describe("createSceneOverlay", () => {
   it("builds one batched LineSegments per enabled plane plus three axis lines", () => {
     const overlay = createSceneOverlay(config());
@@ -113,6 +142,35 @@ describe("createSceneOverlay", () => {
     );
     const [xStart] = axisLineStarts(overlay.scene);
     expect(xStart).toEqual([-0.5, -0.5, -0.5]);
+    overlay.dispose();
+  });
+
+  it("spaces the grid equally in every direction for anisotropic bounds (the dipole)", () => {
+    // Dipole bounds rendered at true aspect: x∈[-10,5] (span 15, half 0.5), y∈[-5,5] (span 10, half
+    // 1/3). A shared physical step (2) → equal *world* spacing on both axes, not the per-axis 2 vs 1.
+    const overlay = createSceneOverlay(
+      config({
+        axes: [axis(-10, 5, "x"), axis(-5, 5, "y"), axis(-5, 5, "z")],
+        worldHalfExtent: [0.5, 1 / 3, 1 / 3],
+        planes: { xy: true, yz: false, xz: false },
+        show: { grid: true, axes: false, labels: false },
+      }),
+    );
+    const { x, y } = gridSpacings(overlay.scene);
+    expect(x.length).toBeGreaterThan(0);
+    expect(y.length).toBeGreaterThan(0);
+    const all = [...x, ...y];
+    const first = all[0] as number;
+    for (const d of all) expect(d).toBeCloseTo(first, 6); // uniform world spacing across both axes
+    expect(first).toBeCloseTo(2 / 15, 6); // physical step 2 over span 15 at half 0.5
+    overlay.dispose();
+  });
+
+  it("keeps per-axis tick counts equal for cubic bounds (flux rope regression)", () => {
+    // Equal spans → the shared step equals the old per-axis step → spacing unchanged.
+    const overlay = createSceneOverlay(config({ planes: { xy: true, yz: false, xz: false } }));
+    const { x, y } = gridSpacings(overlay.scene);
+    expect(x).toEqual(y);
     overlay.dispose();
   });
 

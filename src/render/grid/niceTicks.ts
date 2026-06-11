@@ -37,19 +37,21 @@ function niceNum(value: number, round: boolean): number {
   return nice * 10 ** exp;
 }
 
+/** The 1/2/5×10ᵏ major step for a span targeting ~`targetCount` divisions (0 for a degenerate span). */
+export function niceStep(span: number, targetCount: number): number {
+  const count = Math.max(1, Math.floor(targetCount));
+  return niceNum(span / count, true);
+}
+
 /**
- * Major ticks over [min, max] targeting ~`targetCount` divisions, snapped to a 1/2/5 lattice.
- * Inverted ranges are normalized; a zero-width or non-finite range returns a single degenerate tick
- * (`step: 0`) so callers draw nothing rather than dividing by zero.
+ * Ascending major ticks at a *given* step within [min, max] (inclusive, clipped). Lets several axes
+ * share one step for a uniform-spacing grid; a non-positive step or zero-width range degenerates to a
+ * single tick. Separated from the step choice so the lattice and the spacing decision compose.
  */
-export function niceTicks(min: number, max: number, targetCount: number): NiceTicks {
+export function ticksForStep(min: number, max: number, step: number): Omit<NiceTicks, "step"> {
   const lo = Math.min(min, max);
   const hi = Math.max(min, max);
-  if (!(hi > lo)) return { step: 0, ticks: [lo], decimals: 0 };
-
-  const count = Math.max(1, Math.floor(targetCount));
-  const step = niceNum((hi - lo) / count, true);
-  if (!(step > 0)) return { step: 0, ticks: [lo], decimals: 0 };
+  if (!(step > 0) || !(hi > lo)) return { ticks: [lo], decimals: 0 };
 
   // Integer-indexed walk (i·step) avoids float drift that `v += step` accumulates over many ticks.
   const startIndex = Math.ceil(lo / step - 1e-9);
@@ -61,5 +63,20 @@ export function niceTicks(min: number, max: number, targetCount: number): NiceTi
   }
 
   const decimals = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
-  return { step, ticks, decimals };
+  return { ticks, decimals };
+}
+
+/**
+ * Major ticks over [min, max] targeting ~`targetCount` divisions, snapped to a 1/2/5 lattice.
+ * Inverted ranges are normalized; a zero-width or non-finite range returns a single degenerate tick
+ * (`step: 0`) so callers draw nothing rather than dividing by zero.
+ */
+export function niceTicks(min: number, max: number, targetCount: number): NiceTicks {
+  const lo = Math.min(min, max);
+  const hi = Math.max(min, max);
+  if (!(hi > lo)) return { step: 0, ticks: [lo], decimals: 0 };
+
+  const step = niceStep(hi - lo, targetCount);
+  if (!(step > 0)) return { step: 0, ticks: [lo], decimals: 0 };
+  return { step, ...ticksForStep(lo, hi, step) };
 }
