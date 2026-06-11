@@ -18,10 +18,12 @@ export type CameraProjection = "perspective" | "orthographic";
 // camera must agree on this, or the world point under the cursor drifts during a dolly.
 export const CAMERA_FOV_DEG = 45;
 
-// z-up 3/4 view — position ≈ (1.50, 1.50, 1.10) looking at the origin, +z up.
+// z-up 3/4 view — position ≈ (1.75, 1.75, 1.47), +z up. The target sits below box center so the
+// composition centers on screen: aiming at [0,0,0] put the axes corner ~90% down the viewport
+// (tuned empirically against the rendered default scene; magviz-like centered look).
 export const DEFAULT_POSE: CameraPose = {
-  target: [0, 0, 0],
+  target: [0, 0, -0.22],
   azimuth: Math.PI / 4,
-  elevation: 0.4773,
-  distance: 2.3937,
+  elevation: 0.6,
+  distance: 3.0,
 };

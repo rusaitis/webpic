@@ -266,12 +266,13 @@ describe("bootstrap pick-to-focus", () => {
 
   it("falls back to the box-chord midpoint focus before the worker is ready", () => {
     const { posts, store, dispose } = pickSetup();
+    // Aim at the box center (the default target sits below it for composition): a centered ray
+    // through the center has central symmetry, putting the chord midpoint exactly there.
+    store.getState().setCameraPose({ ...DEFAULT_POSE, target: [0, 0, 0] });
     store.getState().requestPickFocus({ ndcX: 0, ndcY: 0, aspect: 1 });
     expect(posts.some((p) => p.message.kind === "pickRay")).toBe(false); // nothing to ask yet
     const fly = store.getState().cameraFlyRequest;
     if (fly === null || fly.target.kind !== "pose") throw new Error("expected a pose fly request");
-    // The default pose's centered ray passes through the box center; central symmetry puts the
-    // chord midpoint exactly there.
     expect(fly.target.pose.target[0]).toBeCloseTo(0, 12);
     expect(fly.target.pose.target[1]).toBeCloseTo(0, 12);
     expect(fly.target.pose.target[2]).toBeCloseTo(0, 12);

@@ -78,13 +78,8 @@ async function renderVolume(
 ): Promise<Uint8Array> {
   const { installRenderer } = await import("./renderer.ts");
   const { createRaymarchScene } = await import("./raymarchScene.ts");
-  const {
-    applyPose,
-    applyPoseOrtho,
-    createPerspectiveCamera,
-    createVolumeOrthographicCamera,
-    DEFAULT_POSE,
-  } = await import("./camera.ts");
+  const { applyPose, applyPoseOrtho, createPerspectiveCamera, createVolumeOrthographicCamera } =
+    await import("./camera.ts");
   const renderer = await installRenderer({
     canvas: new OffscreenCanvas(SIZE, SIZE),
     width: SIZE,
@@ -92,11 +87,11 @@ async function renderVolume(
   });
   const volume = createRaymarchScene({ field, colormap: "inferno", density: 4, ...march });
   volume.setProjection(orthographic);
-  // The worker owns the camera now; build the same default oblique view here, or a level
-  // straight-on view (camera on +x looking at the origin, +z up) for the orientation case.
+  // Pinned poses, not DEFAULT_POSE: the assertions index the center pixel, so the target must be
+  // the box center — the app default trades that for screen composition (offset target).
   const pose = straightOn
     ? ({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } as const)
-    : DEFAULT_POSE;
+    : ({ target: [0, 0, 0], azimuth: Math.PI / 4, elevation: 0.4773, distance: 2.3937 } as const);
   let camera: import("three").PerspectiveCamera | import("three").OrthographicCamera;
   if (orthographic) {
     camera = createVolumeOrthographicCamera();

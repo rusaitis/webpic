@@ -59,17 +59,17 @@ describe("applyPose", () => {
   it("places the default 3/4 view from DEFAULT_POSE", () => {
     const camera = createPerspectiveCamera();
     applyPose(camera, DEFAULT_POSE);
-    expect(camera.position.x).toBeCloseTo(1.5036, 2);
-    expect(camera.position.y).toBeCloseTo(1.5036, 2);
-    expect(camera.position.z).toBeCloseTo(1.0989, 2);
+    expect(camera.position.x).toBeCloseTo(1.7508, 2);
+    expect(camera.position.y).toBeCloseTo(1.7508, 2);
+    expect(camera.position.z).toBeCloseTo(1.4739, 2);
   });
 
   it("aims the camera at the target", () => {
     const camera = createPerspectiveCamera();
     applyPose(camera, DEFAULT_POSE);
-    // The look direction must be anti-parallel to the (origin-target) camera position.
     const direction = camera.getWorldDirection(new Vector3());
-    const toTarget = new Vector3(0, 0, 0).sub(camera.position).normalize();
+    const [tx, ty, tz] = DEFAULT_POSE.target;
+    const toTarget = new Vector3(tx, ty, tz).sub(camera.position).normalize();
     expect(direction.dot(toTarget)).toBeCloseTo(1, 5);
   });
 

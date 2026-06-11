@@ -34,14 +34,21 @@ export interface SceneOverlay {
   dispose(): void;
 }
 
-// Object-space label placement (the box spans [-0.5, 0.5]³). Tick labels sit just outside the grid's
-// edge; axis-name labels just past the axis tip. World height fixes the on-screen label scale.
-const LABEL_WORLD_HEIGHT = 0.05;
-const LABEL_EDGE_OFFSET = 0.04;
+// Object-space label placement (the box spans [-0.5, 0.5]³). Grid lines overhang the labeled edge
+// by a short foot; tick labels sit past the foot with a clear gap (the magviz grid treatment);
+// axis-name labels just past the axis tip. World height fixes the on-screen label scale.
+const GRID_LINE_FOOT = 0.03;
+const LABEL_EDGE_OFFSET = 0.08;
 const LABEL_AXIS_OFFSET = 0.07;
 const LABEL_FONT_PX = 30; // supersampled (×SS) for crisp text at this world size
 const LABEL_SUPERSAMPLE = 2;
-const LABEL_FONT = (px: number): string => `600 ${px}px "Helvetica Neue", Arial, sans-serif`;
+const LABEL_FONT = (px: number, weight: number): string =>
+  `${weight} ${px}px "Helvetica Neue", Arial, sans-serif`;
+
+// Tick labels are quiet annotations (thin, smaller, faded); axis names stay assertive.
+type LabelStyle = { readonly weight: number; readonly height: number; readonly alpha: number };
+const TICK_LABEL: LabelStyle = { weight: 400, height: 0.042, alpha: 0.7 };
+const NAME_LABEL: LabelStyle = { weight: 600, height: 0.05, alpha: 1 };
 
 // Labels along an axis pile up unreadably once that axis points nearly at the camera (every tick
 // projects to the same spot) — fade per-fragment from the sprite's own view ray (not the camera
@@ -82,12 +89,13 @@ function lineMaterial(color: Rgba01, opacity: number): LineBasicNodeMaterial {
 function makeLabelTexture(
   text: string,
   color: Rgba01,
+  style: LabelStyle,
 ): { texture: Texture; aspect: number } | null {
   if (typeof OffscreenCanvas === "undefined") return null; // unsupported env (e.g. node tests) → no label
   const px = LABEL_FONT_PX * LABEL_SUPERSAMPLE;
   const probe = new OffscreenCanvas(4, 4).getContext("2d");
   if (probe === null) return null;
-  probe.font = LABEL_FONT(px);
+  probe.font = LABEL_FONT(px, style.weight);
   const padX = 6 * LABEL_SUPERSAMPLE;
   const padY = 4 * LABEL_SUPERSAMPLE;
   const width = Math.ceil(probe.measureText(text).width) + 2 * padX;
@@ -96,10 +104,10 @@ function makeLabelTexture(
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d");
   if (ctx === null) return null;
-  ctx.font = LABEL_FONT(px);
+  ctx.font = LABEL_FONT(px, style.weight);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = cssRgba(color);
+  ctx.fillStyle = cssRgba([color[0], color[1], color[2], color[3] * style.alpha]);
   ctx.fillText(text, width / 2, height / 2);
 
   const tex = new CanvasTexture(canvas);
@@ -138,9 +146,10 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
     text: string,
     position: readonly [number, number, number],
     fadeAxis: number,
+    style: LabelStyle,
   ): void => {
     if (text.length === 0) return;
-    const made = makeLabelTexture(text, config.labelColor);
+    const made = makeLabelTexture(text, config.labelColor, style);
     if (made === null) return;
     const sampled = texture(made.texture, uv());
     const material = new SpriteNodeMaterial();
@@ -151,7 +160,7 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
     material.alphaTest = 0.01;
     const sprite = new Sprite(material);
     sprite.position.set(position[0], position[1], position[2]);
-    sprite.scale.set(LABEL_WORLD_HEIGHT * made.aspect, LABEL_WORLD_HEIGHT, 1);
+    sprite.scale.set(style.height * made.aspect, style.height, 1);
     scene.add(sprite);
     materials.push(material);
     textures.push(made.texture);
@@ -175,10 +184,11 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       const p0: [number, number, number] = [0, 0, 0];
       const p1: [number, number, number] = [0, 0, 0];
       let o = 0;
-      // Lines parallel to axis b, one per tick on axis a (and vice versa).
+      // Lines parallel to axis b, one per tick on axis a (and vice versa). Each overhangs its
+      // labeled edge (-0.5 side) by the foot, pointing at its tick label.
       for (const t of ticksA) {
         p0[plane.a] = t.obj;
-        p0[plane.b] = -0.5;
+        p0[plane.b] = -0.5 - GRID_LINE_FOOT;
         p0[plane.h] = heldValue;
         p1[plane.a] = t.obj;
         p1[plane.b] = 0.5;
@@ -189,7 +199,7 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       }
       for (const t of ticksB) {
         p0[plane.b] = t.obj;
-        p0[plane.a] = -0.5;
+        p0[plane.a] = -0.5 - GRID_LINE_FOOT;
         p0[plane.h] = heldValue;
         p1[plane.b] = t.obj;
         p1[plane.a] = 0.5;
@@ -211,14 +221,14 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
           pos[plane.a] = t.obj;
           pos[plane.b] = -0.5 - LABEL_EDGE_OFFSET;
           pos[plane.h] = heldValue;
-          addLabel(formatTick(t.value, axisData[plane.a]?.decimals ?? 0), pos, plane.a);
+          addLabel(formatTick(t.value, axisData[plane.a]?.decimals ?? 0), pos, plane.a, TICK_LABEL);
         }
         for (const t of ticksB) {
           const pos: [number, number, number] = [0, 0, 0];
           pos[plane.b] = t.obj;
           pos[plane.a] = -0.5 - LABEL_EDGE_OFFSET;
           pos[plane.h] = heldValue;
-          addLabel(formatTick(t.value, axisData[plane.b]?.decimals ?? 0), pos, plane.b);
+          addLabel(formatTick(t.value, axisData[plane.b]?.decimals ?? 0), pos, plane.b, TICK_LABEL);
         }
       }
     }
@@ -250,7 +260,7 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
         pos[axis] = 0.5 + LABEL_AXIS_OFFSET;
         // The name label fades with its own axis — pointing at the camera it floats mid-screen
         // over the data (and over its ticks' pile point), telling the viewer nothing.
-        addLabel(axisData[axis]?.label ?? "", pos, axis);
+        addLabel(axisData[axis]?.label ?? "", pos, axis, NAME_LABEL);
       }
     }
   }

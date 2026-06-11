@@ -12,6 +12,15 @@ const hasRealGpu =
 
 const SIZE = 32;
 
+// Pinned box-centered pose, not DEFAULT_POSE: the tests read the center pixel, and the app
+// default offsets its target for screen composition.
+const CENTERED_POSE = {
+  target: [0, 0, 0],
+  azimuth: Math.PI / 4,
+  elevation: 0.4773,
+  distance: 2.3937,
+} as const;
+
 // A radial blob peaked at the volume center, falling to zero by r = 0.4 (normalized).
 function blobField(): ScalarField {
   const n = 16;
@@ -47,7 +56,7 @@ describe("layer compositor", () => {
   it.skipIf(!hasRealGpu)("blends by per-layer opacity", async () => {
     const { installRenderer } = await import("./renderer.ts");
     const { createRaymarchScene } = await import("./raymarchScene.ts");
-    const { applyPose, createPerspectiveCamera, DEFAULT_POSE } = await import("./camera.ts");
+    const { applyPose, createPerspectiveCamera } = await import("./camera.ts");
 
     const renderer = await installRenderer({
       canvas: new OffscreenCanvas(SIZE, SIZE),
@@ -55,7 +64,7 @@ describe("layer compositor", () => {
       height: SIZE,
     });
     const camera = createPerspectiveCamera();
-    applyPose(camera, DEFAULT_POSE);
+    applyPose(camera, CENTERED_POSE);
 
     // Two co-located blobs in distinct colormaps so a visible top layer measurably shifts the pixel.
     const bottom = createRaymarchScene({ field: blobField(), colormap: "inferno", density: 4 });
@@ -94,7 +103,7 @@ describe("layer compositor", () => {
   it.skipIf(!hasRealGpu)("blends by draw order", async () => {
     const { installRenderer } = await import("./renderer.ts");
     const { createRaymarchScene } = await import("./raymarchScene.ts");
-    const { applyPose, createPerspectiveCamera, DEFAULT_POSE } = await import("./camera.ts");
+    const { applyPose, createPerspectiveCamera } = await import("./camera.ts");
 
     const renderer = await installRenderer({
       canvas: new OffscreenCanvas(SIZE, SIZE),
@@ -102,7 +111,7 @@ describe("layer compositor", () => {
       height: SIZE,
     });
     const camera = createPerspectiveCamera();
-    applyPose(camera, DEFAULT_POSE);
+    applyPose(camera, CENTERED_POSE);
 
     const inferno = createRaymarchScene({ field: blobField(), colormap: "inferno", density: 4 });
     const viridis = createRaymarchScene({ field: blobField(), colormap: "viridis", density: 4 });
