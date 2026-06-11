@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addOrbitMomentum,
   addPanMomentum,
+  applyPoseDelta,
   axisViewPose,
   CAMERA_FOV_DEG,
   type CameraMomentum,
@@ -23,6 +24,7 @@ import {
   orbitPose,
   panPose,
   parsePoseParam,
+  poseDelta,
   poseForBounds,
   poseLerp,
   stepMomentum,
@@ -178,12 +180,12 @@ describe("stepMomentum", () => {
   });
 
   it("releases the tuned damping fraction per 60 fps frame, geometrically", () => {
-    // 0.15/frame: a notch quicker than magviz's effective ~0.10 (f=0.035 × ~3 update calls/frame).
+    // 0.10/frame: magviz parity (OrbitControls f=0.035 × ~3 update calls/frame ≈ 0.10 at 60 fps).
     const m0 = addOrbitMomentum(MOMENTUM_ZERO, 0.5, 0);
     const s1 = stepMomentum(LEVEL, m0, FRAME_MS);
     const s2 = stepMomentum(s1.pose, s1.momentum, FRAME_MS);
-    expect(s1.momentum.orbitDx / m0.orbitDx).toBeCloseTo(1 - 0.15, 12);
-    expect(s2.momentum.orbitDx / s1.momentum.orbitDx).toBeCloseTo(1 - 0.15, 12);
+    expect(s1.momentum.orbitDx / m0.orbitDx).toBeCloseTo(1 - 0.1, 12);
+    expect(s2.momentum.orbitDx / s1.momentum.orbitDx).toBeCloseTo(1 - 0.1, 12);
   });
 
   it("respects the elevation clamp mid-glide", () => {
@@ -350,6 +352,64 @@ describe("poseLerp", () => {
 
   it("interpolates distance geometrically (uniform zoom feel)", () => {
     expect(poseLerp(A, B, 0.5).distance).toBeCloseTo(2, 12); // geometric mean of 1 and 4
+  });
+});
+
+describe("poseDelta / applyPoseDelta", () => {
+  const A: CameraPose = { target: [0, 0, 0], azimuth: 0.4, elevation: 0.2, distance: 1 };
+  const B: CameraPose = { target: [2, -4, 6], azimuth: -1.1, elevation: 0.9, distance: 4 };
+
+  it("reproduces the endpoint at fraction 1 on an unperturbed base", () => {
+    const end = applyPoseDelta(A, poseDelta(A, B), 1);
+    expect(end.azimuth).toBeCloseTo(B.azimuth, 12);
+    expect(end.elevation).toBeCloseTo(B.elevation, 12);
+    expect(end.distance).toBeCloseTo(B.distance, 12);
+    for (let i = 0; i < 3; i++) expect(end.target[i]).toBeCloseTo(B.target[i] ?? Number.NaN, 12);
+  });
+
+  it("composes: successive fractions summing to 1 land where one full step does", () => {
+    const delta = poseDelta(A, B);
+    let pose = A;
+    for (const f of [0.1, 0.25, 0.4, 0.25]) pose = applyPoseDelta(pose, delta, f);
+    const oneStep = applyPoseDelta(A, delta, 1);
+    expect(pose.azimuth).toBeCloseTo(oneStep.azimuth, 12);
+    expect(pose.elevation).toBeCloseTo(oneStep.elevation, 12);
+    expect(pose.distance).toBeCloseTo(oneStep.distance, 12);
+    for (let i = 0; i < 3; i++) {
+      expect(pose.target[i]).toBeCloseTo(oneStep.target[i] ?? Number.NaN, 12);
+    }
+  });
+
+  it("takes the shortest azimuth arc across the ±π seam", () => {
+    const a: CameraPose = { ...A, azimuth: 2.9 };
+    const b: CameraPose = { ...A, azimuth: -2.9 };
+    const delta = poseDelta(a, b);
+    // Shortest arc is +0.483 rad through π, not −5.8 rad back through 0.
+    expect(delta.azimuth).toBeCloseTo(2 * Math.PI - 5.8, 12);
+    const mid = applyPoseDelta(a, delta, 0.5);
+    expect(Math.abs(mid.azimuth)).toBeCloseTo(Math.PI, 6); // the seam itself
+  });
+
+  it("steps distance geometrically (uniform zoom feel)", () => {
+    expect(applyPoseDelta(A, poseDelta(A, B), 0.5).distance).toBeCloseTo(2, 12); // geometric mean
+  });
+
+  it("blends on a perturbed base: the result is base ⊕ fraction·delta, not from ⊕", () => {
+    const delta = poseDelta(A, B);
+    const perturbed: CameraPose = { target: [1, 1, 1], azimuth: 0.9, elevation: 0.1, distance: 2 };
+    const next = applyPoseDelta(perturbed, delta, 0.5);
+    expect(next.azimuth).toBeCloseTo(0.9 + 0.5 * delta.azimuth, 12);
+    expect(next.elevation).toBeCloseTo(0.1 + 0.5 * delta.elevation, 12);
+    expect(next.distance).toBeCloseTo(2 * Math.exp(0.5 * delta.logDistance), 12);
+    expect(next.target[0]).toBeCloseTo(1 + 0.5 * (delta.target[0] ?? Number.NaN), 12);
+  });
+
+  it("clamps elevation and distance only when blended input pushed past a limit", () => {
+    const delta = poseDelta(A, B); // elevation +0.7, distance ×4
+    const nearPole: CameraPose = { ...A, elevation: ELEVATION_LIMIT - 0.1 };
+    expect(applyPoseDelta(nearPole, delta, 1).elevation).toBe(ELEVATION_LIMIT);
+    const nearMax: CameraPose = { ...A, distance: DISTANCE_MAX / 2 };
+    expect(applyPoseDelta(nearMax, delta, 1).distance).toBe(DISTANCE_MAX);
   });
 });
 

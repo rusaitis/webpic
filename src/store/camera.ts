@@ -28,12 +28,12 @@ const DOLLY_SENS = Math.log(1 / 0.95) / 100;
 // track the cursor exactly — OrbitControls' screen-space pan.
 const PAN_WORLD_PER_VIEWPORT = 2 * Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
 
-// Inertial damping (magviz feel, tuned springier): OrbitControls applies the fraction f of the
-// pending drag per update() *call* — and magviz updates per pointermove AND per rAF (~3
-// calls/frame), so its f = 0.035 decays like ≈ 0.10 per 60 fps frame. This loop is pure-rAF;
-// 0.15 sits a notch quicker than that (τ ≈ 100 ms — snap with a hint of glide). dt-normalized so
-// the glide is frame-rate independent: pending decays by exp(−λ·dt).
-const DAMPING_FACTOR_60FPS = 0.15;
+// Inertial damping (magviz parity): OrbitControls applies the fraction f of the pending drag per
+// update() *call* — and magviz updates per pointermove AND per rAF (~3 calls/frame), so its
+// f = 0.035 decays like ≈ 0.10 per 60 fps frame. 0.10 here matches that exactly (τ ≈ 158 ms —
+// the long, cinematic gliding stop). dt-normalized so the glide is frame-rate independent:
+// pending decays by exp(−λ·dt).
+const DAMPING_FACTOR_60FPS = 0.1;
 const DAMPING_LAMBDA_PER_MS = -Math.log(1 - DAMPING_FACTOR_60FPS) / (1000 / 60);
 // Below this every pending delta is sub-pixel (0.1 px on a ~700 px viewport) — stop the loop.
 const MOMENTUM_SETTLED = 1.5e-4;
@@ -224,6 +224,55 @@ export function poseLerp(a: CameraPose, b: CameraPose, t: number): CameraPose {
     azimuth: wrapAngle(a.azimuth + azDelta * t),
     elevation: a.elevation + (b.elevation - a.elevation) * t,
     distance: Math.exp(Math.log(a.distance) * (1 - t) + Math.log(b.distance) * t),
+  };
+}
+
+// The pose-space displacement a fly-to applies incrementally (magviz's blending tween): per-frame
+// eased fractions of this delta land ON TOP of the live pose, so concurrent drags/wheel/momentum
+// add instead of being canceled. Every component is additive — azimuth shortest-arc, distance in
+// log space (geometric dolly feel) — so fractions summing to 1 reproduce `b` exactly on an
+// unperturbed base, and base ⊕ user-input ⊕ delta on a perturbed one.
+export interface PoseDelta {
+  readonly target: Vec3;
+  readonly azimuth: number; // wrapAngle(b − a) — shortest arc, in (−π, π]
+  readonly elevation: number;
+  readonly logDistance: number; // ln(b/a)
+}
+
+export function poseDelta(a: CameraPose, b: CameraPose): PoseDelta {
+  return {
+    target: [
+      b.target[0] - a.target[0],
+      b.target[1] - a.target[1],
+      b.target[2] - a.target[2],
+    ],
+    azimuth: wrapAngle(b.azimuth - a.azimuth),
+    elevation: b.elevation - a.elevation,
+    logDistance: Math.log(b.distance / a.distance),
+  };
+}
+
+// Clamps are no-ops for any fraction of a valid-pose→valid-pose delta; they only bite when blended
+// user input has already pushed the base against a limit (same behavior as a clamped drag).
+export function applyPoseDelta(pose: CameraPose, delta: PoseDelta, fraction: number): CameraPose {
+  const [tx, ty, tz] = pose.target;
+  return {
+    target: [
+      tx + delta.target[0] * fraction,
+      ty + delta.target[1] * fraction,
+      tz + delta.target[2] * fraction,
+    ],
+    azimuth: wrapAngle(pose.azimuth + delta.azimuth * fraction),
+    elevation: clamp(
+      pose.elevation + delta.elevation * fraction,
+      -ELEVATION_LIMIT,
+      ELEVATION_LIMIT,
+    ),
+    distance: clamp(
+      pose.distance * Math.exp(delta.logDistance * fraction),
+      DISTANCE_MIN,
+      DISTANCE_MAX,
+    ),
   };
 }
 
