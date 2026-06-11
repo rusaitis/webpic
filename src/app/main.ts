@@ -267,7 +267,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     (state) => state.pickRequest,
     (request) => {
       if (request === null) return;
-      const { ndcX, ndcY, aspect, purpose } = request;
+      const { ndcX, ndcY, aspect, purpose, focusDistance } = request;
       if (workerReady) {
         worker.postMessage({
           kind: "pickRay",
@@ -275,6 +275,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
           ndcX,
           ndcY,
           purpose,
+          // exactOptionalPropertyTypes: forward the field only when the gesture carried it.
+          ...(focusDistance !== undefined ? { focusDistance } : {}),
         } satisfies RenderWorkerRequest);
       } else {
         // Pre-ready there's no field to weight by — fall back to the box-chord midpoint, routed by
@@ -293,7 +295,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
           if (purpose === "focus") {
             state.requestCameraFly({
               kind: "pose",
-              pose: focusPoseOnPoint(state.cameraPose, point),
+              pose: focusPoseOnPoint(state.cameraPose, point, focusDistance),
             });
           }
         }
@@ -403,11 +405,17 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     } else if (message.kind === "pickResult") {
       // null = the ray missed the box; ui already handled background double-clicks synchronously.
       if (message.point !== null) {
-        // Both purposes move the marker to the picked point; "focus" additionally flies the camera
-        // there (double-click focuses on the marker — magviz semantics).
+        // Both purposes move the marker to the picked point; "focus" retargets the fly ui already
+        // started toward the chord midpoint (double-click focuses on the marker — magviz
+        // semantics). The echoed gesture-time distance keeps the ×0.7 dolly from compounding
+        // against the already-flying pose.
         store.getState().setPickerPoint(message.point);
         if (message.purpose === "focus") {
-          const pose = focusPoseOnPoint(store.getState().cameraPose, message.point);
+          const pose = focusPoseOnPoint(
+            store.getState().cameraPose,
+            message.point,
+            message.focusDistance,
+          );
           store.getState().requestCameraFly({ kind: "pose", pose });
         }
       }

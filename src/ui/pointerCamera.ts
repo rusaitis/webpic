@@ -11,6 +11,8 @@ import {
   dollyPose,
   dollyPoseToCursor,
   easeInOutCubic,
+  focusDistance,
+  focusPoseOnPoint,
   isMomentumSettled,
   type KeyNudge,
   MOMENTUM_ZERO,
@@ -358,9 +360,12 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
   };
 
   // Double-click = pick-to-focus: fly the orbit pivot to the feature under the cursor. The box-hit
-  // test runs synchronously here (store math); a hit dispatches a pick intent the app refines via
-  // the worker's opacity-weighted ray march. A background double-click (ray misses the box) keeps
-  // the old reset, where the two gestures can't conflict.
+  // test runs synchronously here (store math); a hit starts the fly toward the chord midpoint the
+  // same frame — no worker-round-trip dead time — and dispatches a pick intent the app refines via
+  // the worker's opacity-weighted ray march (its pickResult retargets the running flight, masked
+  // by the slow ease-in). The goal distance is committed once here and rides the pick request so
+  // the retarget can't re-apply ×0.7 to the already-flying pose. A background double-click (ray
+  // misses the box) keeps the old reset, where the two gestures can't conflict.
   const onDoubleClick = (event: MouseEvent): void => {
     if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
     const rect = target.getBoundingClientRect();
@@ -379,11 +384,14 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       aspect,
       state.projection === "orthographic",
     );
-    if (unitBoxChordMidpoint(ray.origin, ray.dir, state.worldHalfExtent) === null) {
+    const midpoint = unitBoxChordMidpoint(ray.origin, ray.dir, state.worldHalfExtent);
+    if (midpoint === null) {
       flyTo(DEFAULT_POSE);
       return;
     }
-    state.requestPick({ ndcX, ndcY, aspect, purpose: "focus" });
+    const distance = focusDistance(state.cameraPose.distance);
+    flyTo(focusPoseOnPoint(state.cameraPose, midpoint, distance));
+    state.requestPick({ ndcX, ndcY, aspect, purpose: "focus", focusDistance: distance });
   };
 
   // Hardcoded "r" (reset) / "z" (fit) / nudge keys until theme shortcuts exist; same guards as

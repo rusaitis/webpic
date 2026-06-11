@@ -230,7 +230,9 @@ describe("bootstrap pick-to-focus", () => {
       data: { kind: "ready", requestId: 1 },
     } as MessageEvent<RenderWorkerResponse>);
 
-    store.getState().requestPick({ ndcX: 0.2, ndcY: -0.1, aspect: 2, purpose: "focus" });
+    store
+      .getState()
+      .requestPick({ ndcX: 0.2, ndcY: -0.1, aspect: 2, purpose: "focus", focusDistance: 1.23 });
     expect(store.getState().pickRequest).toBeNull(); // consumed synchronously
     const pick = posts.find((p) => p.message.kind === "pickRay");
     if (pick === undefined || pick.message.kind !== "pickRay")
@@ -238,8 +240,12 @@ describe("bootstrap pick-to-focus", () => {
     expect(pick.message.ndcX).toBe(0.2);
     expect(pick.message.ndcY).toBe(-0.1);
     expect(pick.message.purpose).toBe("focus");
+    expect(pick.message.focusDistance).toBe(1.23); // gesture-time goal rides the wire
 
     const before = store.getState().cameraPose;
+    // The camera is already flying toward the chord midpoint when the refined pick lands — move
+    // the pose to prove the retarget uses the echoed gesture-time distance, not live ×0.7.
+    store.getState().setCameraPose({ ...before, distance: before.distance * 0.8 });
     // The bare data-only shape doesn't overlap MessageEvent's 20+ properties — route via unknown.
     worker.onmessage?.({
       data: {
@@ -247,6 +253,7 @@ describe("bootstrap pick-to-focus", () => {
         requestId: pick.message.requestId,
         point: [0.2, -0.1, 0.3],
         purpose: "focus",
+        focusDistance: 1.23,
       },
     } as unknown as MessageEvent<RenderWorkerResponse>);
     // "focus" both places the marker and flies the camera there.
@@ -256,6 +263,21 @@ describe("bootstrap pick-to-focus", () => {
     expect(fly.target.pose.target).toEqual([0.2, -0.1, 0.3]);
     expect(fly.target.pose.azimuth).toBe(before.azimuth);
     expect(fly.target.pose.elevation).toBe(before.elevation);
+    expect(fly.target.pose.distance).toBe(1.23); // no compounding against the flying pose
+    dispose();
+  });
+
+  it("defaults the focus distance to live ×0.7 when the result carries none", () => {
+    const { worker, store, dispose } = pickSetup();
+    worker.onmessage?.({
+      data: { kind: "ready", requestId: 1 },
+    } as MessageEvent<RenderWorkerResponse>);
+    const before = store.getState().cameraPose;
+    worker.onmessage?.({
+      data: { kind: "pickResult", requestId: 10, point: [0, 0, 0], purpose: "focus" },
+    } as unknown as MessageEvent<RenderWorkerResponse>);
+    const fly = store.getState().cameraFlyRequest;
+    if (fly === null || fly.target.kind !== "pose") throw new Error("expected a pose fly request");
     expect(fly.target.pose.distance).toBeCloseTo(before.distance * 0.7, 12);
     dispose();
   });
@@ -277,14 +299,16 @@ describe("bootstrap pick-to-focus", () => {
     // Aim at the box center (the default target sits below it for composition): a centered ray
     // through the center has central symmetry, putting the chord midpoint exactly there.
     store.getState().setCameraPose({ ...DEFAULT_POSE, target: [0, 0, 0] });
-    store.getState().requestPick({ ndcX: 0, ndcY: 0, aspect: 1, purpose: "focus" });
+    store
+      .getState()
+      .requestPick({ ndcX: 0, ndcY: 0, aspect: 1, purpose: "focus", focusDistance: 1.5 });
     expect(posts.some((p) => p.message.kind === "pickRay")).toBe(false); // nothing to ask yet
     const fly = store.getState().cameraFlyRequest;
     if (fly === null || fly.target.kind !== "pose") throw new Error("expected a pose fly request");
     expect(fly.target.pose.target[0]).toBeCloseTo(0, 12);
     expect(fly.target.pose.target[1]).toBeCloseTo(0, 12);
     expect(fly.target.pose.target[2]).toBeCloseTo(0, 12);
-    expect(fly.target.pose.distance).toBeCloseTo(DEFAULT_POSE.distance * 0.7, 12);
+    expect(fly.target.pose.distance).toBe(1.5); // the gesture-time goal, not live ×0.7
     dispose();
   });
 });

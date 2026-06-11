@@ -186,13 +186,15 @@ export type RenderWorkerRequest =
   // convention — x right, y up) through the retained CPU fields and reply with the world point at the
   // median visual depth (pickResult), echoing `purpose` so the app routes the result. The worker
   // already holds the live pose/projection/aspect; postMessage ordering guarantees it has the pose
-  // the click saw.
+  // the click saw. `focusDistance` is echoed opaquely like `purpose` — the goal distance computed by
+  // ui at gesture time, so the refined-pick retarget can't compound the ×0.7 dolly mid-flight.
   | {
       readonly kind: "pickRay";
       readonly requestId: number;
       readonly ndcX: number;
       readonly ndcY: number;
       readonly purpose: PickPurpose;
+      readonly focusDistance?: number;
     }
   // Time-series streaming (M2.10a): the data worker's end of a private MessageChannel. The worker
   // reads + computes each scrubbed step off-main and posts StreamStepMessage (from @data) over this
@@ -217,13 +219,15 @@ export type RenderWorkerResponse =
       readonly clock: "timestamp" | "wallclock";
     }
   // Pick reply: the world-space point (unit box has identity transform, so world = object space), or
-  // null when the cursor ray misses the box — the app then leaves the marker/camera be. `purpose` is
-  // echoed from the request so the app routes the point (place vs place+focus).
+  // null when the cursor ray misses the box — the app then leaves the marker/camera be. `purpose`
+  // and `focusDistance` are echoed from the request so the app routes the point (place vs
+  // place+focus) at the distance the gesture committed to.
   | {
       readonly kind: "pickResult";
       readonly requestId: number;
       readonly point: Vec3 | null;
       readonly purpose: PickPurpose;
+      readonly focusDistance?: number;
     }
   | { readonly kind: "error"; readonly requestId: number; readonly message: string }
   // Terminal GPU failure: the device was lost and the recovery circuit-breaker stopped re-acquiring

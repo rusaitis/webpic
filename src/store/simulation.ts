@@ -102,12 +102,15 @@ export interface SimulationState {
   // cursor NDC + aspect + purpose; the app consumes it — asks the render worker for the
   // opacity-weighted pick (falling back to the box-chord midpoint pre-ready) and routes the result by
   // purpose (place → setPickerPoint; focus → setPickerPoint + cameraFlyRequest). Fresh wrapper per
-  // request so a repeated same-spot click re-fires.
+  // request so a repeated same-spot click re-fires. `focusDistance` is the goal distance the focus
+  // gesture committed to at double-click time — ui starts the fly immediately, so recomputing ×0.7
+  // when the refined pick lands would compound against the already-flying pose.
   readonly pickRequest: {
     readonly ndcX: number;
     readonly ndcY: number;
     readonly aspect: number;
     readonly purpose: PickPurpose;
+    readonly focusDistance?: number;
   } | null;
   // The draggable point-picker marker, object space (unit box [-0.5, 0.5]³, = world). null hides it.
   // ui/pointerPicker drags it (setPickerPoint) and the app's opacity-weighted pick places it; the app
@@ -149,7 +152,13 @@ export interface SimulationState {
   setProjection(projection: CameraProjection): void;
   requestCameraFly(target: CameraFlyTarget | null): void;
   requestPick(
-    request: { ndcX: number; ndcY: number; aspect: number; purpose: PickPurpose } | null,
+    request: {
+      ndcX: number;
+      ndcY: number;
+      aspect: number;
+      purpose: PickPurpose;
+      focusDistance?: number;
+    } | null,
   ): void;
   setPickerPoint(point: Vec3 | null): void;
   setPickerHover(part: MarkerPart): void;

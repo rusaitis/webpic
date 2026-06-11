@@ -900,6 +900,8 @@ async function pickRay(request: Extract<RenderWorkerRequest, { kind: "pickRay" }
     requestId: request.requestId,
     point,
     purpose: request.purpose,
+    // exactOptionalPropertyTypes: echo the field only when the request carried it.
+    ...(request.focusDistance !== undefined ? { focusDistance: request.focusDistance } : {}),
   });
 }
 

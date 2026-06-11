@@ -241,15 +241,22 @@ describe("installPointerCamera", () => {
     await pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
   });
 
-  it("double-click on the box dispatches a pick-to-focus intent with the cursor NDC", () => {
+  it("double-click on the box flies immediately and dispatches a pick intent with the goal distance", async () => {
     const { target, store } = setup();
     target.getBoundingClientRect = () =>
       ({ left: 0, top: 0, right: 200, bottom: 100, width: 200, height: 100 }) as DOMRect;
     const start = store.getState().cameraPose;
     // Center of the frame: the default pose looks at the box center, so the ray hits.
     target.dispatchEvent(new MouseEvent("dblclick", { clientX: 100, clientY: 50 }));
-    expect(store.getState().pickRequest).toEqual({ ndcX: 0, ndcY: 0, aspect: 2, purpose: "focus" });
-    expect(store.getState().cameraPose).toBe(start); // the app answers the intent, not this module
+    expect(store.getState().pickRequest).toEqual({
+      ndcX: 0,
+      ndcY: 0,
+      aspect: 2,
+      purpose: "focus",
+      focusDistance: start.distance * 0.7, // committed once, before the flight moves the pose
+    });
+    // The flight toward the chord midpoint starts without waiting for any pick result.
+    await pumpUntil(() => store.getState().cameraPose.distance < start.distance * 0.9);
   });
 
   it("double-click off the box resets instead of picking", async () => {
