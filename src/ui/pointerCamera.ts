@@ -59,16 +59,20 @@ const WHEEL_TRAIL_MS = 150;
 // Fit target until non-cube datasets land: the unit render box's bounding sphere.
 const FIT_SPHERE: BoundingSphere = { center: [0, 0, 0], radius: UNIT_BOX_RADIUS };
 
-// Held-key nudges: arrows orbit, -/= dolly ("=" is the unshifted "+"). WASD stays reserved for a
-// future fly mode; S/V/F are theme shortcuts. Keyed by event.code, NOT event.key — key is
-// modifier-mutated at event time ("=" releases as "+" with Shift held), so a key-tracked Set leaks
-// held entries and the dolly runs away; code names the physical key on both edges (magviz does the
-// same). Values are the KeyNudge axis + sign each key drives.
+// Held-key nudges (magviz's orbit keys): A/D sweep the camera left/right around the target, Q/E
+// lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. The same keys remap to
+// fly-mode translation when a fly mode lands; arrows belong to the point picker (pointerPicker).
+// The theme's planned bare-key toggle-slices "S" must move before it's wired — orbit owns S now.
+// Keyed by event.code, NOT event.key — key is modifier-mutated at event time ("=" releases as "+"
+// with Shift held), so a key-tracked Set leaks held entries and the dolly runs away; code names
+// the physical key on both edges (magviz does the same).
 const NUDGE_KEYS: ReadonlyMap<string, KeyNudge> = new Map([
-  ["ArrowLeft", { azimuth: 1, elevation: 0, dolly: 0 }], // pan the view left = camera sweeps CCW
-  ["ArrowRight", { azimuth: -1, elevation: 0, dolly: 0 }],
-  ["ArrowUp", { azimuth: 0, elevation: 1, dolly: 0 }],
-  ["ArrowDown", { azimuth: 0, elevation: -1, dolly: 0 }],
+  ["KeyA", { azimuth: -1, elevation: 0, dolly: 0 }], // camera sweeps left around the target
+  ["KeyD", { azimuth: 1, elevation: 0, dolly: 0 }],
+  ["KeyQ", { azimuth: 0, elevation: -1, dolly: 0 }], // camera descends (magviz orbit/fly parity)
+  ["KeyE", { azimuth: 0, elevation: 1, dolly: 0 }],
+  ["KeyW", { azimuth: 0, elevation: 0, dolly: 1 }],
+  ["KeyS", { azimuth: 0, elevation: 0, dolly: -1 }],
   ["Equal", { azimuth: 0, elevation: 0, dolly: 1 }],
   ["Minus", { azimuth: 0, elevation: 0, dolly: -1 }],
 ]);
@@ -413,7 +417,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     }
     if (isTypingTarget(event.target)) return;
     if (NUDGE_KEYS.has(event.code)) {
-      event.preventDefault(); // arrows must not scroll the page while they orbit
+      event.preventDefault(); // claimed — no quick-find / page side effects while orbiting
       heldKeys.add(event.code); // Set-idempotent, so OS key-repeat keydowns are harmless
       syncMotion();
       ensureGliding();

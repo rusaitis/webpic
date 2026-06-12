@@ -12,6 +12,7 @@ import {
   worldToScreen,
 } from "@store";
 import type { Disposer } from "./controls/index.ts";
+import { isTypingTarget } from "./keyboard.ts";
 
 // Point-picker pointer input on the main-thread canvas. Capture-phase, so it runs before
 // pointerCamera's bubble-phase handlers on the same element: a pointerdown that grabs the marker (or a
@@ -24,7 +25,10 @@ import type { Disposer } from "./controls/index.ts";
 // Gestures (magviz parity): drag the sphere to move it on the equatorial plane (Shift, or a steep
 // view, switches to vertical-z); the ↕/↔ handles drag along a single axis; a tap on empty volume
 // places the marker at the opacity-weighted pick (purpose "place"); double-click is left to
-// pointerCamera (purpose "focus"). All inert while the marker is hidden (overlay.showPicker false).
+// pointerCamera (purpose "focus"). Held arrow keys slide the marker view-relative — ←/→ along the
+// horizontal screen-right axis, ↑/↓ into/out of the screen (horizontal), Shift+↑/↓ vertically (z)
+// — magviz's selection-cube arrows, minus its world-fixed axes, so the on-screen direction always
+// matches the key. All inert while the marker is hidden (overlay.showPicker false).
 
 const TAP_PX = 4; // pointer travel below this counts as a tap (placement), not an orbit
 // Hover/grab target: 2× the marker's projected core radius — tracking the rendered size across
@@ -32,6 +36,10 @@ const TAP_PX = 4; // pointer travel below this counts as a tap (placement), not 
 // (magviz's max(26, radiusPx·2)).
 const MIN_HIT_PX = 26;
 const HIT_RADIUS_FACTOR = 2;
+const MARKER_KEY_SPEED = 0.5; // marker slide speed while an arrow is held, box units / s
+const ARROW_MAX_DT_MS = 100; // a background-tab resume hands rAF a huge dt — glide, don't teleport
+const ARROW_NOMINAL_FRAME_MS = 1000 / 60;
+const ARROW_CODES = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
 
 interface ClientPoint {
   readonly x: number;
@@ -239,18 +247,104 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     target.style.cursor = "grab";
   };
 
+  // Held arrows integrate in a rAF loop (dt-scaled, constant speed). pickerActive rides the hold:
+  // the marker shows its grab affordance, and the move reads as a drag, not a stream of placements
+  // (markerScene re-pulses on a point that moves while inactive).
+  const heldArrows = new Set<string>();
+  let shiftHeld = false;
+  let arrowRafId: number | undefined;
+  let lastArrowMs: number | undefined;
+
+  const releaseArrows = (): void => {
+    heldArrows.clear();
+    if (arrowRafId !== undefined) cancelAnimationFrame(arrowRafId);
+    arrowRafId = undefined;
+    lastArrowMs = undefined;
+    if (drag === undefined) store.getState().setPickerActive(false);
+  };
+
+  const arrowStep = (nowMs: number): void => {
+    arrowRafId = undefined;
+    const dtMs =
+      lastArrowMs === undefined
+        ? ARROW_NOMINAL_FRAME_MS
+        : Math.min(nowMs - lastArrowMs, ARROW_MAX_DT_MS);
+    lastArrowMs = nowMs;
+    const state = store.getState();
+    const point = state.pickerPoint;
+    if (!state.overlay.showPicker || point === null) {
+      releaseArrows(); // the marker vanished mid-hold (toggle) — stop, don't drive a ghost
+      return;
+    }
+    const lr = (heldArrows.has("ArrowRight") ? 1 : 0) - (heldArrows.has("ArrowLeft") ? 1 : 0);
+    const ud = (heldArrows.has("ArrowUp") ? 1 : 0) - (heldArrows.has("ArrowDown") ? 1 : 0);
+    const sa = Math.sin(state.cameraPose.azimuth);
+    const ca = Math.cos(state.cameraPose.azimuth);
+    // screenRight = (−sa, ca, 0) — worldToScreen's basis; into-screen horizontal = (−ca, −sa, 0).
+    const dx = lr * -sa + (shiftHeld ? 0 : ud * -ca);
+    const dy = lr * ca + (shiftHeld ? 0 : ud * -sa);
+    const dz = shiftHeld ? ud : 0;
+    const len = Math.hypot(dx, dy, dz);
+    if (len > 0) {
+      const step = (MARKER_KEY_SPEED * dtMs) / 1000 / len; // unit direction — diagonals same speed
+      state.setPickerPoint(
+        clampToBox(
+          [point[0] + dx * step, point[1] + dy * step, point[2] + dz * step],
+          state.worldHalfExtent,
+        ),
+      );
+      // Re-assert after a concurrent pointer-drag release cleared it mid-hold (store dedupes).
+      if (drag === undefined && !state.pickerActive) state.setPickerActive(true);
+    }
+    if (heldArrows.size > 0) arrowRafId = requestAnimationFrame(arrowStep);
+  };
+
+  const onDocKeyDown = (event: KeyboardEvent): void => {
+    shiftHeld = event.shiftKey;
+    if (event.metaKey || event.ctrlKey || event.altKey) {
+      // macOS swallows keyups released under a held Meta — a chord drops the set (hard stop).
+      if (heldArrows.size > 0) releaseArrows();
+      return;
+    }
+    if (event.defaultPrevented || isTypingTarget(event.target)) return;
+    if (!ARROW_CODES.has(event.code)) return;
+    const { overlay, pickerPoint } = store.getState();
+    if (!overlay.showPicker || pickerPoint === null) return; // unclaimed — let the page have it
+    event.preventDefault(); // claimed — arrows must not scroll the page
+    heldArrows.add(event.code); // Set-idempotent, so OS key-repeat keydowns are harmless
+    if (drag === undefined) store.getState().setPickerActive(true);
+    if (arrowRafId === undefined) arrowRafId = requestAnimationFrame(arrowStep);
+  };
+
+  const onDocKeyUp = (event: KeyboardEvent): void => {
+    shiftHeld = event.shiftKey;
+    if (heldArrows.delete(event.code) && heldArrows.size === 0) releaseArrows();
+  };
+
+  // A key released outside the page (tab switch, cmd-tab) never sends keyup — drop the whole set.
+  const onWindowBlur = (): void => {
+    if (heldArrows.size > 0) releaseArrows();
+  };
+
   // Capture phase so these run before pointerCamera's bubble-phase listeners on the same element.
   target.addEventListener("pointerdown", onPointerDown, { signal, capture: true });
   target.addEventListener("pointermove", onPointerMove, { signal, capture: true });
   target.addEventListener("pointerup", onPointerUp, { signal, capture: true });
   target.addEventListener("pointercancel", onPointerCancel, { signal, capture: true });
   target.addEventListener("lostpointercapture", onPointerCancel, { signal, capture: true });
+  const doc = target.ownerDocument;
+  doc.addEventListener("keydown", onDocKeyDown, { signal });
+  doc.addEventListener("keyup", onDocKeyUp, { signal });
+  doc.defaultView?.addEventListener("blur", onWindowBlur, { signal });
 
   return () => {
     ac.abort();
     if (drag !== undefined) target.releasePointerCapture?.(drag.pointerId);
     drag = undefined;
     downAt = undefined;
+    heldArrows.clear();
+    if (arrowRafId !== undefined) cancelAnimationFrame(arrowRafId);
+    arrowRafId = undefined;
     store.getState().setPickerActive(false);
     store.getState().setPickerHover("none");
   };

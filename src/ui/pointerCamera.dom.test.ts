@@ -362,23 +362,42 @@ describe("installPointerCamera", () => {
     await pumpUntil(() => store.getState().cameraPose.distance < 5);
   });
 
-  it("held arrow keys orbit at constant velocity until released", async () => {
+  it("held A/D keys orbit at constant velocity until released", async () => {
     const { store } = setup();
     const start = store.getState().cameraPose;
-    const down = new KeyboardEvent("keydown", {
-      key: "ArrowRight",
-      code: "ArrowRight",
-      cancelable: true,
-    });
-    expect(document.dispatchEvent(down)).toBe(false); // preventDefault'ed — no page scroll
+    const down = new KeyboardEvent("keydown", { key: "d", code: "KeyD", cancelable: true });
+    expect(document.dispatchEvent(down)).toBe(false); // preventDefault'ed — claimed by the orbit
     expect(store.getState().cameraMotion).toBe("gesture");
     await frame();
     const early = store.getState().cameraPose;
-    expect(early.azimuth).toBeLessThan(start.azimuth); // arrow right ≙ drag right
+    expect(early.azimuth).toBeGreaterThan(start.azimuth); // D ≙ camera sweeps right
     await frame();
-    expect(store.getState().cameraPose.azimuth).toBeLessThan(early.azimuth); // still moving
-    document.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight", code: "ArrowRight" }));
+    expect(store.getState().cameraPose.azimuth).toBeGreaterThan(early.azimuth); // still moving
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "d", code: "KeyD" }));
     await pumpUntil(() => store.getState().cameraMotion === "idle"); // hard stop, no glide tail
+  });
+
+  it("W/S dolly in and out; Q/E lower and raise the camera", async () => {
+    const { store } = setup();
+    const start = store.getState().cameraPose;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW" }));
+    await frame();
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "w", code: "KeyW" }));
+    const zoomedIn = store.getState().cameraPose.distance;
+    expect(zoomedIn).toBeLessThan(start.distance);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "s", code: "KeyS" }));
+    await frame();
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "s", code: "KeyS" }));
+    expect(store.getState().cameraPose.distance).toBeGreaterThan(zoomedIn);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "q", code: "KeyQ" }));
+    await frame();
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "q", code: "KeyQ" }));
+    const lowered = store.getState().cameraPose.elevation;
+    expect(lowered).toBeLessThan(start.elevation); // Q descends (magviz orbit/fly parity)
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "e", code: "KeyE" }));
+    await frame();
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "e", code: "KeyE" }));
+    expect(store.getState().cameraPose.elevation).toBeGreaterThan(lowered);
   });
 
   it("the -/= keys dolly out and in", async () => {
@@ -407,7 +426,7 @@ describe("installPointerCamera", () => {
 
   it("drops held keys when a modifier chord starts (macOS swallows those keyups)", async () => {
     const { store } = setup();
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp" }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "e", code: "KeyE" }));
     expect(store.getState().cameraMotion).toBe("gesture");
     document.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Meta", code: "MetaLeft", metaKey: true }),
@@ -417,7 +436,7 @@ describe("installPointerCamera", () => {
 
   it("clears held keys when the window blurs (no stuck motion)", async () => {
     const { store } = setup();
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp" }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "e", code: "KeyE" }));
     expect(store.getState().cameraMotion).toBe("gesture");
     window.dispatchEvent(new Event("blur"));
     await pumpUntil(() => store.getState().cameraMotion === "idle");
@@ -440,10 +459,10 @@ describe("installPointerCamera", () => {
     expect(store.getState().cameraMotion).toBe("fly"); // machine flight, hand off the camera
     await frame();
     document.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp", cancelable: true }),
+      new KeyboardEvent("keydown", { key: "e", code: "KeyE", cancelable: true }),
     );
     expect(store.getState().cameraMotion).toBe("gesture"); // real input outranks the fly
-    document.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp", code: "ArrowUp" }));
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "e", code: "KeyE" }));
     await frame();
     await frame();
     expect(store.getState().cameraMotion).toBe("fly"); // key released mid-flight → back to fly
