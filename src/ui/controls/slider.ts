@@ -1,8 +1,8 @@
-import { makeEl } from "./dom.ts";
-import type { Widget } from "./types.ts";
+import { createRangeControl } from "./rangeControl.ts";
+import type { RangeValue, Widget } from "./types.ts";
 
-// Basic linear slider (native range + readout); a richer log/symlog/interval RangeControl
-// can slot in behind the same facade API without touching panels.
+// Single-value linear slider: the same RangeControl primitive as the Window/Step sliders (track,
+// grip, coupled text field), narrowed to the number-in/number-out facade panels bind against.
 
 export function createSlider(
   doc: Document,
@@ -13,39 +13,35 @@ export function createSlider(
   format: ((value: number) => string) | undefined,
   onChange: (value: number) => void,
 ): Widget<number> {
-  const wrap = makeEl(doc, "div", "webpic-slider");
-  const input = makeEl(doc, "input", "webpic-slider_input");
-  input.type = "range";
-  input.min = String(min);
-  input.max = String(max);
-  if (step !== undefined) input.step = String(step);
-  input.value = String(value);
-
-  const readout = makeEl(doc, "span", "webpic-slider_readout");
-  const fmt = format ?? ((v: number): string => String(v));
-  readout.textContent = fmt(value);
-  wrap.append(input, readout);
-
-  const ac = new AbortController();
-  const handleInput = (): void => {
-    const next = input.valueAsNumber;
-    readout.textContent = fmt(next);
-    onChange(next);
+  // Live emit on both edit paths (drag/keys via onInput, text/release via onChange), deduped so
+  // the release commit of an unchanged value doesn't double-fire the panel callback.
+  let last = value;
+  const emit = (v: RangeValue): void => {
+    if (typeof v === "number" && v !== last) {
+      last = v;
+      onChange(v);
+    }
   };
-  input.addEventListener("input", handleInput, { signal: ac.signal });
-
+  const inner = createRangeControl(doc, {
+    min,
+    max,
+    value,
+    ...(step !== undefined ? { step } : {}),
+    ...(format !== undefined ? { format } : {}),
+    onInput: emit,
+    onChange: emit,
+  });
   return {
-    element: wrap,
+    element: inner.element,
     set(next) {
-      input.value = String(next);
-      readout.textContent = fmt(next);
+      last = next;
+      inner.set(next);
     },
     setDisabled(disabled) {
-      input.disabled = disabled;
+      inner.setDisabled(disabled);
     },
     dispose() {
-      ac.abort();
-      wrap.remove();
+      inner.dispose();
     },
   };
 }

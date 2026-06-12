@@ -105,7 +105,7 @@ describe("select control", () => {
 });
 
 describe("slider control", () => {
-  it("emits a number on input and reflects via set", () => {
+  it("renders the RangeControl primitive and emits a number once per change", () => {
     const pane = createPane({ parent: mount() });
     const folder = pane.addFolder({ title: "f" });
     const changes: number[] = [];
@@ -119,19 +119,27 @@ describe("slider control", () => {
       onChange: (v) => changes.push(v),
     });
 
-    const input = handle.element.querySelector<HTMLInputElement>('input[type="range"]');
-    if (input === null) throw new Error("no range input");
-    const readout = handle.element.querySelector(".webpic-slider_readout");
+    // Same chrome as the Window/Step sliders — grip + coupled text field, no native input.
+    const grip = handle.element.querySelector<HTMLElement>(".webpic-range_grip");
+    const text = handle.element.querySelector<HTMLInputElement>(".webpic-range_input");
+    if (grip === null || text === null) throw new Error("no range-control chrome");
+    expect(handle.element.querySelector('input[type="range"]')).toBeNull();
 
-    input.value = "0.8";
-    input.dispatchEvent(new Event("input"));
-    expect(changes).toEqual([0.8]);
-    expect(readout?.textContent).toBe("0.8");
+    // Keyboard fires both the live and commit paths; the facade dedupes to one emit.
+    grip.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toBeCloseTo(0.6, 12); // 0.5 + 0.1 in floats; format cleans the display
+    expect(text.value).toBe("0.6");
+
+    // Text entry is the precise path.
+    text.value = "0.8";
+    text.dispatchEvent(new Event("change"));
+    expect(changes).toHaveLength(2);
+    expect(changes[1]).toBe(0.8);
 
     handle.set(0.2);
-    expect(input.value).toBe("0.2");
-    expect(readout?.textContent).toBe("0.2");
-    expect(changes).toEqual([0.8]);
+    expect(text.value).toBe("0.2");
+    expect(changes).toHaveLength(2); // reflection must not echo
     pane.dispose();
   });
 });

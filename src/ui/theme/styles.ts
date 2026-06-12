@@ -93,10 +93,7 @@ const UI_CSS = `
   padding: 0 6px; border: 1px solid var(--webpic-border); border-radius: var(--webpic-radius);
   background: var(--webpic-input-bg); color: var(--webpic-fg); font: inherit; }
 .webpic-text { text-align: right; }
-.webpic-slider { display: flex; align-items: center; gap: 6px; width: 100%; }
-.webpic-slider_input { flex: 1; min-width: 0; accent-color: var(--webpic-accent); }
-.webpic-slider_readout { flex: 0 0 auto; min-width: 36px; text-align: right; color: var(--webpic-muted); }
-.webpic-range { --gs: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; width: 100%; }
+.webpic-range { --gs: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; width: 100%; }
 .webpic-range.is-disabled { opacity: 0.5; pointer-events: none; }
 .webpic-range_track { position: relative; flex: 1 1 100%; min-width: 0; margin: 0 calc(var(--gs) / 2);
   height: var(--gs); background: transparent; touch-action: none; cursor: pointer; }

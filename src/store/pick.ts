@@ -1,6 +1,6 @@
 import { CAMERA_FOV_DEG, type CameraPose } from "@schema/camera.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { DISTANCE_MAX, DISTANCE_MIN } from "./camera.ts";
+import { DISTANCE_MAX, DISTANCE_MIN, ELEVATION_LIMIT } from "./camera.ts";
 
 // Pick-to-focus math: the cursor ray through a pose, its chord through the unit render box, and
 // the focus pose that re-pivots the orbit there. Pure — ui/pointerCamera uses it as the synchronous
@@ -91,17 +91,32 @@ export function focusDistance(distance: number): number {
   return Math.min(Math.max(distance * FOCUS_DOLLY, DISTANCE_MIN), DISTANCE_MAX);
 }
 
-// Re-pivot the orbit on a picked point: target flies there, the view direction holds, and the
-// camera dollies 30% in (clamped). The existing flyTo tween animates the returned pose.
+// Re-pivot the orbit on a picked point: target flies there and the camera dollies in (clamped) —
+// but instead of trucking sideways with the pivot (angles held), the goal angles re-aim the
+// camera from where it stands toward the new pivot (magviz's geometry: it re-places the camera
+// along the live target→camera ray each frame). An off-axis pick therefore swivels the view
+// toward the point as it approaches; a centered pick reduces to a pure dolly. The existing
+// flyTo tween animates the returned pose, shortest-arc on the swivel.
 export function focusPoseOnPoint(
   pose: CameraPose,
   point: Vec3,
   distance: number = focusDistance(pose.distance),
 ): CameraPose {
+  const ce = Math.cos(pose.elevation);
+  const [tx, ty, tz] = pose.target;
+  const vx = tx + pose.distance * ce * Math.cos(pose.azimuth) - point[0];
+  const vy = ty + pose.distance * ce * Math.sin(pose.azimuth) - point[1];
+  const vz = tz + pose.distance * Math.sin(pose.elevation) - point[2];
+  const len = Math.hypot(vx, vy, vz);
+  // Picked point at the camera itself (camera inside the box) — no aim direction; keep the angles.
+  if (len < 1e-9) {
+    return { target: point, azimuth: pose.azimuth, elevation: pose.elevation, distance };
+  }
+  const sinElevation = Math.min(Math.max(vz / len, -1), 1);
   return {
     target: point,
-    azimuth: pose.azimuth,
-    elevation: pose.elevation,
+    azimuth: Math.atan2(vy, vx),
+    elevation: Math.min(Math.max(Math.asin(sinElevation), -ELEVATION_LIMIT), ELEVATION_LIMIT),
     distance,
   };
 }

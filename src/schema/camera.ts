@@ -24,12 +24,13 @@ export type CameraMotion = "idle" | "gesture" | "fly";
 // camera must agree on this, or the world point under the cursor drifts during a dolly.
 export const CAMERA_FOV_DEG = 45;
 
-// z-up 3/4 view — position ≈ (1.75, 1.75, 1.69), +z up, aimed at the box center. An earlier target
+// z-up 3/4 view — position ≈ (1.31, 1.31, 1.27), +z up, aimed at the box center. An earlier target
 // z=-0.22 nudge compensated a square-canvas overflow (index.html) that sank the render below the
 // visible center; with the canvas filling the viewport, the box center is the honest framing.
+// 2.25 (was 3.0, 25% closer) boots with the volume near-filling the frame, axes readable.
 export const DEFAULT_POSE: CameraPose = {
   target: [0, 0, 0],
   azimuth: Math.PI / 4,
   elevation: 0.6,
-  distance: 3.0,
+  distance: 2.25,
 };

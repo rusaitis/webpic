@@ -1,6 +1,6 @@
 import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
-import { createSimulationStore, createUiStore, DEFAULT_POSE } from "@store";
+import { createSimulationStore, createUiStore, DEFAULT_POSE, focusPoseOnPoint } from "@store";
 import { describe, expect, it, vi } from "vitest";
 import { vectorTriple } from "../../tests/fixtures.ts";
 import { bootstrap } from "./main.ts";
@@ -279,6 +279,7 @@ describe("bootstrap pick-to-focus", () => {
     // The camera is already flying toward the chord midpoint when the refined pick lands — move
     // the pose to prove the retarget uses the echoed gesture-time distance, not live ×0.7.
     store.getState().setCameraPose({ ...before, distance: before.distance * 0.8 });
+    const live = store.getState().cameraPose;
     // The bare data-only shape doesn't overlap MessageEvent's 20+ properties — route via unknown.
     worker.onmessage?.({
       data: {
@@ -293,9 +294,9 @@ describe("bootstrap pick-to-focus", () => {
     expect(store.getState().pickerPoint).toEqual([0.2, -0.1, 0.3]);
     const fly = store.getState().cameraFlyRequest;
     if (fly === null || fly.target.kind !== "pose") throw new Error("expected a pose fly request");
-    expect(fly.target.pose.target).toEqual([0.2, -0.1, 0.3]);
-    expect(fly.target.pose.azimuth).toBe(before.azimuth);
-    expect(fly.target.pose.elevation).toBe(before.elevation);
+    // The retarget re-aims from the LIVE (mid-flight) pose at the echoed gesture-time distance —
+    // the swivel math itself is pinned in store/pick.test.ts.
+    expect(fly.target.pose).toEqual(focusPoseOnPoint(live, [0.2, -0.1, 0.3], 1.23));
     expect(fly.target.pose.distance).toBe(1.23); // no compounding against the flying pose
     dispose();
   });

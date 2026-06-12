@@ -61,12 +61,13 @@ describe("scene panel", () => {
 
   it("the Density slider dispatches setGridDivisions", () => {
     const { host, store, dispose } = mount();
-    const slider = rowByLabel(host, "Density").querySelector<HTMLInputElement>(
-      ".webpic-slider_input",
+    // The slider is the shared RangeControl primitive — drive it through its text field.
+    const input = rowByLabel(host, "Density").querySelector<HTMLInputElement>(
+      ".webpic-range_input",
     );
-    if (!slider) throw new Error("no density slider");
-    slider.value = "12";
-    slider.dispatchEvent(new Event("input"));
+    if (!input) throw new Error("no density slider");
+    input.value = "12";
+    input.dispatchEvent(new Event("change"));
     expect(store.getState().overlay.gridDivisions).toBe(12);
     dispose();
   });

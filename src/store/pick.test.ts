@@ -77,13 +77,53 @@ describe("unitBoxChordMidpoint", () => {
 });
 
 describe("focusPoseOnPoint", () => {
-  it("re-targets the pose, keeps the view direction, and dollies 30% in", () => {
-    const pose: CameraPose = { target: [0, 0, 0], azimuth: 1.1, elevation: 0.4, distance: 2 };
-    const focused = focusPoseOnPoint(pose, [0.2, -0.1, 0.3]);
-    expect(focused.target).toEqual([0.2, -0.1, 0.3]);
-    expect(focused.azimuth).toBe(pose.azimuth);
-    expect(focused.elevation).toBe(pose.elevation);
+  const POSE: CameraPose = { target: [0, 0, 0], azimuth: 1.1, elevation: 0.4, distance: 2 };
+
+  function cameraOf(pose: CameraPose): readonly [number, number, number] {
+    const ce = Math.cos(pose.elevation);
+    const [tx, ty, tz] = pose.target;
+    return [
+      tx + pose.distance * ce * Math.cos(pose.azimuth),
+      ty + pose.distance * ce * Math.sin(pose.azimuth),
+      tz + pose.distance * Math.sin(pose.elevation),
+    ];
+  }
+
+  it("dollies 30% in and re-aims the camera from where it stands (magviz swivel)", () => {
+    const point = [0.2, -0.1, 0.3] as const;
+    const focused = focusPoseOnPoint(POSE, point);
+    expect(focused.target).toEqual(point);
     expect(focused.distance).toBeCloseTo(1.4, 12);
+    // The goal camera sits on the ray from the picked point through the ORIGINAL camera — the
+    // flight rotates the view toward the point instead of trucking sideways alongside it.
+    const before = cameraOf(POSE);
+    const after = cameraOf(focused);
+    const v = [before[0] - point[0], before[1] - point[1], before[2] - point[2]] as const;
+    const len = Math.hypot(...v);
+    for (let i = 0; i < 3; i++) {
+      expect(after[i]).toBeCloseTo(
+        (point[i] ?? Number.NaN) + (focused.distance * (v[i] ?? Number.NaN)) / len,
+        12,
+      );
+    }
+  });
+
+  it("a pick on the view axis keeps the view direction (pure dolly)", () => {
+    const camera = cameraOf(POSE);
+    const onAxis = [camera[0] * 0.25, camera[1] * 0.25, camera[2] * 0.25] as const;
+    const focused = focusPoseOnPoint(POSE, onAxis);
+    expect(focused.azimuth).toBeCloseTo(POSE.azimuth, 12);
+    expect(focused.elevation).toBeCloseTo(POSE.elevation, 12);
+  });
+
+  it("an off-axis pick swivels the aim toward the point's side", () => {
+    // Straight-on from +x: camera at (2, 0, 0), looking down −x; the point sits toward +y.
+    const straight: CameraPose = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 };
+    const focused = focusPoseOnPoint(straight, [0, 0.4, 0]);
+    expect(focused.azimuth).toBeCloseTo(Math.atan2(-0.4, 2), 12); // sweeps toward the point
+    expect(focused.elevation).toBeCloseTo(0, 12);
+    const below = focusPoseOnPoint(straight, [0, 0, -0.4]);
+    expect(below.elevation).toBeGreaterThan(0); // camera ends up looking down at the point
   });
 
   it("clamps the dolly-in at the minimum distance", () => {

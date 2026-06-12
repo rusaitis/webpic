@@ -59,9 +59,9 @@ describe("applyPose", () => {
   it("places the default 3/4 view from DEFAULT_POSE", () => {
     const camera = createPerspectiveCamera();
     applyPose(camera, DEFAULT_POSE);
-    expect(camera.position.x).toBeCloseTo(1.7508, 2);
-    expect(camera.position.y).toBeCloseTo(1.7508, 2);
-    expect(camera.position.z).toBeCloseTo(1.6939, 2); // d·sin(0.6); target z = 0 (box center)
+    expect(camera.position.x).toBeCloseTo(1.3131, 2);
+    expect(camera.position.y).toBeCloseTo(1.3131, 2);
+    expect(camera.position.z).toBeCloseTo(1.2704, 2); // d·sin(0.6); target z = 0 (box center)
   });
 
   it("aims the camera at the target", () => {
