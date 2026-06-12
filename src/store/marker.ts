@@ -3,6 +3,8 @@ import {
   type HandleAxis,
   horizontalDragAllowed,
   horizontalDragAxis,
+  MARKER_SPHERE_RADIUS,
+  markerCoreScale,
   markerHandleOffset,
   verticalDragAllowed,
 } from "@schema/marker.ts";
@@ -83,6 +85,18 @@ export function markerHandlePositions(
         }
       : null;
   return { vertical, horizontal };
+}
+
+// World point one zoom-scaled core radius to the screen-right of the marker. Projecting it beside
+// the core measures the marker's on-screen radius, so the hover hit target can track the rendered
+// size across dolly (magviz's projectedCubeScreen). screenRight matches worldToScreen's basis.
+export function markerEdgePoint(pose: CameraPose, point: Vec3, orthographic: boolean): Vec3 {
+  const radius = MARKER_SPHERE_RADIUS * markerCoreScale(pose, point, orthographic);
+  return [
+    point[0] - radius * Math.sin(pose.azimuth),
+    point[1] + radius * Math.cos(pose.azimuth),
+    point[2],
+  ];
 }
 
 // Cursor-ray ∩ plane through `planePoint` with unit `planeNormal`. null when the ray is parallel to

@@ -5,6 +5,7 @@ import {
   cursorRay,
   dragAlongAxis,
   dragOnPlane,
+  markerEdgePoint,
   markerHandlePositions,
   type SimulationStore,
   unitBoxChordMidpoint,
@@ -26,8 +27,11 @@ import type { Disposer } from "./controls/index.ts";
 // pointerCamera (purpose "focus"). All inert while the marker is hidden (overlay.showPicker false).
 
 const TAP_PX = 4; // pointer travel below this counts as a tap (placement), not an orbit
-const CORE_HIT_PX = 22; // cursor→core-center radius that grabs the sphere
-const HANDLE_HIT_PX = 16; // cursor→handle-stem distance that grabs a handle
+// Hover/grab target: 2× the marker's projected core radius — tracking the rendered size across
+// dolly — with a floor so it never shrinks into a flickery sliver. Core and handle stems share it
+// (magviz's max(26, radiusPx·2)).
+const MIN_HIT_PX = 26;
+const HIT_RADIUS_FACTOR = 2;
 
 interface ClientPoint {
   readonly x: number;
@@ -86,23 +90,28 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     if (core.behind) return "none";
     const corePx = clientOf(core.ndcX, core.ndcY, rect);
     const cursor: ClientPoint = { x: clientX, y: clientY };
-    if (Math.hypot(clientX - corePx.x, clientY - corePx.y) < CORE_HIT_PX) return "core";
+    const edge = worldToScreen(
+      cameraPose,
+      markerEdgePoint(cameraPose, pickerPoint, ortho),
+      aspect,
+      ortho,
+    );
+    const edgePx = clientOf(edge.ndcX, edge.ndcY, rect);
+    const hitPx = Math.max(
+      MIN_HIT_PX,
+      HIT_RADIUS_FACTOR * Math.hypot(edgePx.x - corePx.x, edgePx.y - corePx.y),
+    );
+    if (Math.hypot(clientX - corePx.x, clientY - corePx.y) <= hitPx) return "core";
     const handles = markerHandlePositions(cameraPose, pickerPoint, ortho);
     if (handles.vertical !== null) {
       const k = worldToScreen(cameraPose, handles.vertical, aspect, ortho);
-      if (
-        !k.behind &&
-        distToSegment(cursor, corePx, clientOf(k.ndcX, k.ndcY, rect)) < HANDLE_HIT_PX
-      ) {
+      if (!k.behind && distToSegment(cursor, corePx, clientOf(k.ndcX, k.ndcY, rect)) <= hitPx) {
         return "vertical";
       }
     }
     if (handles.horizontal !== null) {
       const k = worldToScreen(cameraPose, handles.horizontal.position, aspect, ortho);
-      if (
-        !k.behind &&
-        distToSegment(cursor, corePx, clientOf(k.ndcX, k.ndcY, rect)) < HANDLE_HIT_PX
-      ) {
+      if (!k.behind && distToSegment(cursor, corePx, clientOf(k.ndcX, k.ndcY, rect)) <= hitPx) {
         return "horizontal";
       }
     }

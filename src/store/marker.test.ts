@@ -1,6 +1,13 @@
+import { MARKER_SPHERE_RADIUS, markerCoreScale } from "@schema/marker.ts";
 import { describe, expect, it } from "vitest";
 import type { CameraPose } from "./camera.ts";
-import { clampToBox, dragAlongAxis, dragOnPlane, worldToScreen } from "./marker.ts";
+import {
+  clampToBox,
+  dragAlongAxis,
+  dragOnPlane,
+  markerEdgePoint,
+  worldToScreen,
+} from "./marker.ts";
 import { cursorRay } from "./pick.ts";
 
 const THREE_QUARTER: CameraPose = {
@@ -44,6 +51,27 @@ describe("worldToScreen", () => {
     ];
     expect(worldToScreen(THREE_QUARTER, behind, 1, false).behind).toBe(true);
   });
+});
+
+describe("markerEdgePoint", () => {
+  // The edge point measures the marker's apparent radius: one zoom-scaled core radius away in
+  // world, projecting level with the core (same ndcY) and to its screen-right (larger ndcX).
+  for (const ortho of [false, true]) {
+    it(`sits one apparent core radius screen-right (${ortho ? "orthographic" : "perspective"})`, () => {
+      const point: [number, number, number] = [0.1, 0.2, -0.1];
+      const aspect = 1.6;
+      const edge = markerEdgePoint(THREE_QUARTER, point, ortho);
+      const radius = MARKER_SPHERE_RADIUS * markerCoreScale(THREE_QUARTER, point, ortho);
+      expect(Math.hypot(edge[0] - point[0], edge[1] - point[1], edge[2] - point[2])).toBeCloseTo(
+        radius,
+        12,
+      );
+      const core = worldToScreen(THREE_QUARTER, point, aspect, ortho);
+      const screen = worldToScreen(THREE_QUARTER, edge, aspect, ortho);
+      expect(screen.ndcY).toBeCloseTo(core.ndcY, 12);
+      expect(screen.ndcX).toBeGreaterThan(core.ndcX);
+    });
+  }
 });
 
 describe("dragOnPlane", () => {

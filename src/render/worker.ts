@@ -294,17 +294,18 @@ function requestRender(): void {
   }
 }
 
-function renderTick(): void {
+function renderTick(frameTimeMs: number): void {
   // Reschedule first so a throwing frame can't permanently strand the loop.
   rafId = requestAnimationFrame(renderTick);
   if (readbackInFlight || renderer === undefined || deviceLost) return;
   // Advance the marker's hover/pulse/active easing (cheap, alloc-free) and keep painting while it
   // animates. Runs every frame the rAF loop reschedules anyway, so it adds no new loop; it only
-  // dirties needsRender while easing, then the on-demand loop falls back to idle.
+  // dirties needsRender while easing, then the on-demand loop falls back to idle. dt comes from the
+  // vsync-aligned rAF timestamp, not performance.now() — callback scheduling jitter would unevenly
+  // chop the easing steps.
   if (marker !== undefined) {
-    const now = performance.now();
-    const dtSec = lastMarkerTickMs === undefined ? 1 / 60 : (now - lastMarkerTickMs) / 1000;
-    lastMarkerTickMs = now;
+    const dtSec = lastMarkerTickMs === undefined ? 1 / 60 : (frameTimeMs - lastMarkerTickMs) / 1000;
+    lastMarkerTickMs = frameTimeMs;
     if (marker.tick(dtSec)) needsRender = true;
   } else {
     lastMarkerTickMs = undefined;

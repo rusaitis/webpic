@@ -301,14 +301,20 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
         hadPoint = false;
         return;
       }
-      point = [next[0], next[1], next[2]];
-      core.position.set(next[0], next[1], next[2]);
+      // Hover/active updates re-send the unchanged point (one message carries all three) — only a
+      // real move is a placement, else every hover edge would fire a placement pulse.
+      const moved =
+        point === null || point[0] !== next[0] || point[1] !== next[1] || point[2] !== next[2];
       core.visible = true;
       guides.visible = true;
-      applyCoreScale();
-      updateGuides();
-      // A placement (point moved while not dragging) re-pulses; the first appearance does not.
-      if (!wasActive && hadPoint) pulse = 1;
+      if (moved) {
+        point = [next[0], next[1], next[2]];
+        core.position.set(next[0], next[1], next[2]);
+        applyCoreScale();
+        updateGuides();
+        // A placement (point moved while not dragging) re-pulses; the first appearance does not.
+        if (!wasActive && hadPoint) pulse = 1;
+      }
       hadPoint = true;
     },
     setState(hovered, isActive) {
