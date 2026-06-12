@@ -28,6 +28,7 @@ import {
   poseForBounds,
   stepMomentum,
   UNIT_BOX_RADIUS,
+  viewPlaneOffset,
 } from "./camera.ts";
 
 // Drag deltas are viewport-height fractions (px / viewport height) — OrbitControls' unit, so the
@@ -108,6 +109,35 @@ describe("normalizeWheelDelta", () => {
 
   it("composes the pinch gain with the mode multiplier", () => {
     expect(normalizeWheelDelta(1, 1, true)).toBe(160);
+  });
+});
+
+describe("viewPlaneOffset", () => {
+  const TILTED: CameraPose = { target: [0, 0, 0], azimuth: 0.7, elevation: 0.4, distance: 2 };
+
+  it("spans an orthonormal screen basis: unit axes, ⟂ each other and the view forward", () => {
+    const right = viewPlaneOffset(TILTED, 1, 0);
+    const up = viewPlaneOffset(TILTED, 0, 1);
+    const ce = Math.cos(TILTED.elevation);
+    const se = Math.sin(TILTED.elevation);
+    const forward: readonly [number, number, number] = [
+      -ce * Math.cos(TILTED.azimuth),
+      -ce * Math.sin(TILTED.azimuth),
+      -se,
+    ];
+    expect(Math.hypot(...right)).toBeCloseTo(1, 12);
+    expect(Math.hypot(...up)).toBeCloseTo(1, 12);
+    expect(right[0] * up[0] + right[1] * up[1] + right[2] * up[2]).toBeCloseTo(0, 12);
+    for (const axis of [right, up]) {
+      expect(axis[0] * forward[0] + axis[1] * forward[1] + axis[2] * forward[2]).toBeCloseTo(0, 12);
+    }
+  });
+
+  it("reduces to world +z for the up axis when the camera is level", () => {
+    const up = viewPlaneOffset(LEVEL, 0, 1);
+    expect(up[0]).toBeCloseTo(0, 12);
+    expect(up[1]).toBeCloseTo(0, 12);
+    expect(up[2]).toBeCloseTo(1, 12);
   });
 });
 

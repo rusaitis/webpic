@@ -205,6 +205,14 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       return;
     }
     if (event.buttons !== 0) return; // a camera drag owns the gesture — don't fight its cursor/hover
+    // No marker to hover (the common picker-hidden case): mirror the "none" outcome without paying
+    // hitTest's forced-layout rect read + projections on every move.
+    const { overlay, pickerPoint } = store.getState();
+    if (!overlay.showPicker || pickerPoint === null) {
+      store.getState().setPickerHover("none");
+      target.style.cursor = "grab";
+      return;
+    }
     const rect = target.getBoundingClientRect();
     const part = hitTest(event.clientX, event.clientY, rect);
     store.getState().setPickerHover(part);

@@ -90,9 +90,21 @@ export function dollyPose(pose: CameraPose, wheelDeltaY: number): CameraPose {
   };
 }
 
+// World-space offset of a view-plane displacement: kr along screenRight = (−sa, ca, 0), ku along
+// screenUp = (−ca·se, −sa·se, ce) — the z-up orbit basis (worldUp = +z; screenUp reduces to +z when
+// level, both ⟂ forward). The one place this trig lives: pan, cursor dolly, and the pick rays
+// (pick.cursorRay) all displace through it.
+export function viewPlaneOffset(pose: CameraPose, kr: number, ku: number): Vec3 {
+  const ce = Math.cos(pose.elevation);
+  const se = Math.sin(pose.elevation);
+  const sa = Math.sin(pose.azimuth);
+  const ca = Math.cos(pose.azimuth);
+  return [-kr * sa - ku * ca * se, kr * ca - ku * sa * se, ku * ce];
+}
+
 // Wheel → dolly toward the cursor (magviz's zoomToCursor): the world point under the pointer stays
 // put on screen. The cursor ray hits the plane through the target ⟂ forward at
-// A = target + D·tan(fov/2)·(ndcY·screenUp + ndcX·aspect·screenRight) — screenRight/screenUp are
+// A = target + viewPlaneOffset(D·tan(fov/2)·ndcX·aspect, D·tan(fov/2)·ndcY) — the offset is
 // ⟂ forward, so the along-ray distance is exactly D. Scaling camera and target toward A by
 // k = newDistance/distance keeps A on the same view ray; azimuth/elevation are untouched.
 export function dollyPoseToCursor(
@@ -106,15 +118,10 @@ export function dollyPoseToCursor(
   const k = next.distance / pose.distance;
   const reach = (1 - k) * pose.distance * Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
   if (reach === 0 || (ndcX === 0 && ndcY === 0)) return next; // clamped or centered → plain dolly
-  const ce = Math.cos(pose.elevation);
-  const se = Math.sin(pose.elevation);
-  const sa = Math.sin(pose.azimuth);
-  const ca = Math.cos(pose.azimuth);
-  const kr = reach * ndcX * aspect; // along screenRight = (−sa, ca, 0)
-  const ku = reach * ndcY; // along screenUp = (−ca·se, −sa·se, ce)
+  const o = viewPlaneOffset(pose, reach * ndcX * aspect, reach * ndcY);
   const [tx, ty, tz] = pose.target;
   return {
-    target: [tx - kr * sa - ku * ca * se, ty + kr * ca - ku * sa * se, tz + ku * ce],
+    target: [tx + o[0], ty + o[1], tz + o[2]],
     azimuth: pose.azimuth,
     elevation: pose.elevation,
     distance: next.distance,
@@ -123,21 +130,14 @@ export function dollyPoseToCursor(
 
 // Drag → pan (shift/middle/right): slide the look-at target across the view plane. dx/dy are
 // viewport-height fractions; the 2·tan(fov/2)·distance scale means the world point under the cursor
-// tracks it exactly at any zoom and viewport size (OrbitControls' screen-space pan). z-up basis
-// (worldUp = +z): screenRight = (−sa, ca, 0) (horizontal, ⟂ to the view azimuth); screenUp =
-// (−ca·se, −sa·se, ce) (reduces to +z when level). Drag-right moves the world right ⇒ target slides
-// −screenRight; drag-down moves it down ⇒ target slides +screenUp.
+// tracks it exactly at any zoom and viewport size (OrbitControls' screen-space pan). Drag-right
+// moves the world right ⇒ target slides −screenRight; drag-down moves it down ⇒ +screenUp.
 export function panPose(pose: CameraPose, dx: number, dy: number): CameraPose {
-  const ce = Math.cos(pose.elevation);
-  const se = Math.sin(pose.elevation);
-  const sa = Math.sin(pose.azimuth);
-  const ca = Math.cos(pose.azimuth);
   const scale = pose.distance * PAN_WORLD_PER_VIEWPORT;
-  const kr = -dx * scale; // drag right pushes the world right ⇒ target slides left
-  const ku = dy * scale; // drag down pushes the world down ⇒ target slides up
+  const o = viewPlaneOffset(pose, -dx * scale, dy * scale);
   const [tx, ty, tz] = pose.target;
   return {
-    target: [tx - kr * sa - ku * ca * se, ty + kr * ca - ku * sa * se, tz + ku * ce],
+    target: [tx + o[0], ty + o[1], tz + o[2]],
     azimuth: pose.azimuth,
     elevation: pose.elevation,
     distance: pose.distance,

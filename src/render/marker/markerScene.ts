@@ -73,6 +73,11 @@ const HANDLE_HOVER_GROW = 0.25; // extra knob scale at full hover/active
 const DT_CLAMP = 0.1; // cap dt so a tab-switch stall doesn't snap the anim
 const SETTLE_EPS = 1e-3; // |value − target| below this counts as settled
 
+// Frame-rate-independent exponential approach factor for a decay rate (dt pre-clamped).
+function easeStep(dt: number, rate: number): number {
+  return 1 - Math.exp(-dt * rate);
+}
+
 function rgbColor(c: readonly [number, number, number, number]): Color {
   return new Color(c[0], c[1], c[2]);
 }
@@ -348,10 +353,11 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
       }
     },
     tick(dt) {
-      const step = 1 - Math.exp(-Math.min(dt, DT_CLAMP) * HOVER_RATE);
-      const stepActive = 1 - Math.exp(-Math.min(dt, DT_CLAMP) * ACTIVE_RATE);
-      const stepPulse = 1 - Math.exp(-Math.min(dt, DT_CLAMP) * PULSE_RATE);
-      const stepHandle = 1 - Math.exp(-Math.min(dt, DT_CLAMP) * HANDLE_RATE);
+      const dtc = Math.min(dt, DT_CLAMP);
+      const step = easeStep(dtc, HOVER_RATE);
+      const stepActive = easeStep(dtc, ACTIVE_RATE);
+      const stepPulse = easeStep(dtc, PULSE_RATE);
+      const stepHandle = easeStep(dtc, HANDLE_RATE);
       hover += (hoverT - hover) * step;
       pulse += (0 - pulse) * stepPulse;
       active += (activeT - active) * stepActive;

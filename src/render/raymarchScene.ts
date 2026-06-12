@@ -8,11 +8,13 @@ import {
   ceil,
   Fn,
   float,
+  fract,
   If,
   Loop,
   max,
   modelWorldMatrixInverse,
   positionGeometry,
+  screenCoordinate,
   texture,
   texture3D,
   uniform,
@@ -176,6 +178,9 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   // so the emission-absorption integral keeps its meaning at any scale. At 1 the math reduces to
   // the fixed march exactly (ceil(steps·1) = steps); the WGSL loop bound stays the literal `steps`.
   const uStepScale = uniform(1);
+  // Ray-start jitter gate, slaved to the step scale: 1 during the coarse interaction march, 0 at
+  // full quality so the settled frame keeps the un-jittered lattice (parity-pinned).
+  const uJitter = uniform(0);
   // Projection flip as a uniform branch, not a shader variant: two selects + one mat4·vec4 per
   // fragment is noise next to the march, while a variant would double the pipeline count and the
   // warm-compile work on every upsert/device-restore.
@@ -220,7 +225,16 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     const tEntry = max(bounds.x, 0.0); // clamp the entry to the camera
     const tExit = bounds.y;
     const liveSteps = ceil(float(steps).mul(uStepScale)).max(1.0).toVar();
-    const dt = tExit.sub(tEntry).div(liveSteps).toVar(); // fine step; the lattice is tEntry + k·dt
+    const dt = tExit.sub(tEntry).div(liveSteps).toVar(); // fine step; the lattice is tStart + k·dt
+    // Interleaved gradient noise (Jimenez 2014): a per-pixel march phase that turns the coarse
+    // march's onion-shell banding into unstructured noise. uJitter is 0 at full quality, so
+    // tStart ≡ tEntry there and the settled frame is bit-identical to the fixed lattice.
+    const ign = fract(
+      float(52.9829189).mul(
+        fract(screenCoordinate.x.mul(0.06711056).add(screenCoordinate.y.mul(0.00583715))),
+      ),
+    );
+    const tStart = tEntry.add(dt.mul(ign).mul(uJitter)).toVar();
     const accumColor = vec3(0).toVar();
     const accumAlpha = float(0).toVar();
 
@@ -282,7 +296,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       // to their far face *snapped back onto the lattice* so occupied samples land exactly where the
       // fixed march would — output-equivalent, not merely close.
       const { tex, gridDims, maxIters } = skipState;
-      const tCur = tEntry.toVar();
+      const tCur = tStart.toVar();
       Loop(maxIters, () => {
         If(tCur.greaterThanEqual(tExit), () => {
           Break();
@@ -307,7 +321,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
             grid: gridDims,
           }) as Node<"float">;
           const tSkip = tCur.add(adv).add(BRICK_EPS);
-          tCur.assign(tEntry.add(ceil(tSkip.sub(tEntry).div(dt)).mul(dt)));
+          tCur.assign(tStart.add(ceil(tSkip.sub(tStart).div(dt)).mul(dt)));
         });
         If(accumAlpha.greaterThanEqual(EARLY_ALPHA), () => {
           Break();
@@ -318,7 +332,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       // counter always terminates, unlike a float `for(i=entry; i<exit; i+=dt)` which can stall when
       // dt falls below the float ULP at entry's world-distance magnitude — a GPU hang → device loss.
       // The WGSL bound stays the literal `steps`; the counter Breaks at the uniform-driven live count.
-      const pos = rayOrigin.add(tEntry.mul(rayDir)).toVar();
+      const pos = rayOrigin.add(tStart.mul(rayDir)).toVar();
       const stepIndex = float(0).toVar();
       Loop(steps, () => {
         If(stepIndex.greaterThanEqual(liveSteps), () => {
@@ -373,7 +387,9 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       uLayerOpacity.value = opacity;
     },
     setStepScale(scale) {
-      uStepScale.value = Math.min(Math.max(scale, 0.05), 1);
+      const clamped = Math.min(Math.max(scale, 0.05), 1);
+      uStepScale.value = clamped;
+      uJitter.value = clamped < 1 ? 1 : 0; // jitter only the coarse march (see uJitter)
     },
     setField(field) {
       // The empty-space-skip grid is built once from the construction field; a streamed step would

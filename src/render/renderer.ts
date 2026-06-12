@@ -101,6 +101,9 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
 
   // Lazily built only when a ≥2-layer swapchain composite first occurs (single-layer is the common
   // case and uses the direct path). compositeTarget accumulates the layers; the quad presents it.
+  // Both deliberately persist after the composite drops back to ≤1 layer (until dispose): freeing
+  // them would make the next 2-layer frame rebuild target + material and stall on a synchronous
+  // pipeline creation — warm-compile only runs on layer upserts.
   let compositeTarget: RenderTarget | undefined;
   let presentQuad: QuadMesh | undefined;
 

@@ -135,10 +135,14 @@ export function installCameraChrome(
   readout.addEventListener("click", onReadoutClick);
 
   const render = (pose: CameraPose): void => {
+    // Hidden chrome/gnomon skips the per-pose string churn (matrix3d + tips at gesture rate);
+    // the show paths below re-render so nothing coasts on a stale pose.
+    if (container.hidden) return;
     // The copied flash owns the readout text until it clears; the gnomon keeps tracking regardless.
     if (!readout.classList.contains("is-copied")) {
       readout.textContent = formatPose(pose, store.getState().projection === "orthographic");
     }
+    if (gnomon.hidden) return;
     scene.style.transform = gnomonTransform(pose);
     const counter = gnomonCounterTransform(pose);
     for (const tip of tips) {
@@ -155,6 +159,7 @@ export function installCameraChrome(
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
+    if (visible) render(store.getState().cameraPose); // catch up — the pose moved while hidden
   };
   applyVisible(uiStore.getState().isUiVisible);
   const unsubUi = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
@@ -163,6 +168,7 @@ export function installCameraChrome(
   // once the in-scene 3D axes suffice; the pose readout stays. Driven by the store overlay slice.
   const applyGnomon = (show: boolean): void => {
     gnomon.hidden = !show;
+    if (show) render(store.getState().cameraPose); // catch up — the pose moved while hidden
   };
   applyGnomon(store.getState().overlay.showGnomon);
   const unsubGnomon = store.subscribe((s) => s.overlay.showGnomon, applyGnomon);

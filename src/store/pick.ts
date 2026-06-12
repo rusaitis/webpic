@@ -1,6 +1,6 @@
 import { CAMERA_FOV_DEG, type CameraPose } from "@schema/camera.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { DISTANCE_MAX, DISTANCE_MIN, ELEVATION_LIMIT } from "./camera.ts";
+import { DISTANCE_MAX, DISTANCE_MIN, ELEVATION_LIMIT, viewPlaneOffset } from "./camera.ts";
 
 // Pick-to-focus math: the cursor ray through a pose, its chord through the unit render box, and
 // the focus pose that re-pivots the orbit there. Pure — ui/pointerCamera uses it as the synchronous
@@ -11,8 +11,8 @@ export interface CursorRay {
   readonly dir: Vec3; // unit length
 }
 
-// The ray from the camera through an NDC point (x right, y up — dollyAt's convention). Same z-up
-// orbit basis as dollyPoseToCursor/panPose: screenRight = (−sa, ca, 0), screenUp = (−ca·se, −sa·se, ce).
+// The ray from the camera through an NDC point (x right, y up — dollyAt's convention). View-plane
+// displacement comes from viewPlaneOffset (store/camera.ts) — the shared z-up orbit basis.
 // Perspective rays fan out from the camera point; orthographic rays are parallel to forward, offset
 // across the matched frustum (halfH = d·tan(fov/2) — render/camera.ts's applyPoseOrtho).
 export function cursorRay(
@@ -24,28 +24,23 @@ export function cursorRay(
 ): CursorRay {
   const ce = Math.cos(pose.elevation);
   const se = Math.sin(pose.elevation);
-  const sa = Math.sin(pose.azimuth);
-  const ca = Math.cos(pose.azimuth);
   const [tx, ty, tz] = pose.target;
   const d = pose.distance;
+  const ca = Math.cos(pose.azimuth);
+  const sa = Math.sin(pose.azimuth);
   const camera: Vec3 = [tx + d * ce * ca, ty + d * ce * sa, tz + d * se];
   const forward: Vec3 = [-ce * ca, -ce * sa, -se];
   const halfH = Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
-  const kr = halfH * ndcX * aspect; // along screenRight = (−sa, ca, 0)
-  const ku = halfH * ndcY; // along screenUp = (−ca·se, −sa·se, ce)
+  const o = viewPlaneOffset(pose, halfH * ndcX * aspect, halfH * ndcY);
   if (orthographic) {
     return {
-      origin: [
-        camera[0] + d * (-kr * sa - ku * ca * se),
-        camera[1] + d * (kr * ca - ku * sa * se),
-        camera[2] + d * ku * ce,
-      ],
+      origin: [camera[0] + d * o[0], camera[1] + d * o[1], camera[2] + d * o[2]],
       dir: forward,
     };
   }
-  const dx = forward[0] - kr * sa - ku * ca * se;
-  const dy = forward[1] + kr * ca - ku * sa * se;
-  const dz = forward[2] + ku * ce;
+  const dx = forward[0] + o[0];
+  const dy = forward[1] + o[1];
+  const dz = forward[2] + o[2];
   const len = Math.hypot(dx, dy, dz);
   return { origin: camera, dir: [dx / len, dy / len, dz / len] };
 }
