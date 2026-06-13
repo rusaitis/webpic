@@ -314,6 +314,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
           // Jump to the brick's far face, then snap up to the next lattice point so the fine grid
           // stays globally aligned. BRICK_EPS pushes strictly past the face (its axis has non-zero
           // dir), so the next floor() lands in the following brick, never this one again.
+          // wgslFn returns an untyped Node; brickAdvance's WGSL returns f32 (the skip distance).
           const adv = brickAdvance({
             tex_pos: texPos,
             dir: rayDir,

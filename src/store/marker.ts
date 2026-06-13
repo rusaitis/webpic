@@ -78,6 +78,8 @@ export function markerHandlePositions(
     axis !== null
       ? {
           axis,
+          // The inline literal widens to number[] (no Vec3 contextual type here, unlike `vertical`
+          // above) — assert the 3-tuple.
           position:
             axis === "x"
               ? ([point[0] + offset, point[1], point[2]] as Vec3)

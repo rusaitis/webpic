@@ -65,6 +65,8 @@ export function createTransferFunctionTexture(
     setColormap(next) {
       if (next === current) return; // idempotent — skip the rebake on an unchanged colormap
       current = next;
+      // HalfFloatType packs each texel as a u16 half-float, so the backing store is a Uint16Array
+      // (DataTexture types image.data as the broad TypedArray union).
       (texture.image.data as Uint16Array).set(buildTransferFunctionLut(next, size));
       texture.needsUpdate = true;
     },
