@@ -1,6 +1,5 @@
 import type { StreamStepMessage } from "@data";
 import { getCapabilities, getDevice, installGpu, onDeviceLost, onDeviceRestored } from "@gpu";
-import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
 import { DEFAULT_POSE } from "./camera.ts";
@@ -15,6 +14,7 @@ import {
   type QualityState,
   qualityLevel,
 } from "./interactionQuality.ts";
+import { createLayerRegistry, type LayerEntry } from "./layerRegistry.ts";
 import { warmScene } from "./managedScene.ts";
 import { createMarkerScene, type MarkerScene } from "./marker/markerScene.ts";
 import type {
@@ -25,50 +25,10 @@ import type {
   RenderWorkerRequest,
   RenderWorkerResponse,
   SceneOverlayConfig,
-  SliceFieldPayload,
 } from "./messages.ts";
-import { fullRangeWindow } from "./normalization.ts";
-import { type PickLayer, pickPointOnRay } from "./pickRay.ts";
-import { createRaymarchScene, type RaymarchScene } from "./raymarchScene.ts";
+import { pickPointOnRay } from "./pickRay.ts";
 import { type CompositeItem, type InstalledRenderer, installRenderer } from "./renderer.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
-import { createSliceScene, type SliceAxis, type SliceScene } from "./sliceScene.ts";
-import { finiteRange, type ScalarField } from "./volumeTexture.ts";
-
-// Everything needed to rebuild a layer's scene without the main thread: the decoded field (its CPU
-// buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity
-// are mutable — swapLayerField/setLayerColormap/setComposite update them so a device-loss rebuild
-// reproduces the current state (the live timestep + look), not the stale upsert-time one. Retaining
-// the field doubles its residency (CPU + GPU); fine for v0.1's one small volume, and the price of
-// self-contained recovery (no reseed wire).
-interface LayerSource {
-  readonly layerKind: "slice" | "volume";
-  field: ScalarField; // mutable: a streamed timestep swaps it in place (see swapLayerField)
-  readonly axis?: SliceAxis;
-  readonly position?: number;
-  readonly steps?: number;
-  readonly density?: number;
-  colormap: string;
-  scale: ColorScale;
-  windowLevel?: WindowLevel;
-  shaded?: boolean; // volume Phong toggle — mutable so a device-restore rebuild keeps the live state
-  opacity: number;
-  worldHalfExtent?: Vec3; // volume box aspect (non-cubic dataset); retained for a device-restore rebuild
-}
-
-// One renderable layer's scene + its kind (the kind picks the camera at composite time) + the source
-// it was built from (replayed on device-restore).
-interface LayerEntry {
-  readonly scene: SliceScene | RaymarchScene;
-  readonly kind: "slice" | "volume";
-  readonly source: LayerSource;
-}
-// The ordered visibility/opacity view of the layer stack (draw order = array order).
-interface CompositeEntry {
-  readonly id: string;
-  readonly visible: boolean;
-  readonly opacity: number;
-}
 
 // Worker-scope view of `self`. The DOM lib types `self` as Window (whose
 // postMessage wants a targetOrigin), so narrow it to the dedicated-worker surface.
@@ -84,10 +44,6 @@ let renderer: InstalledRenderer | undefined;
 // was a disorienting flash. The user-facing boot/empty frame is the bare clear color instead.
 let debugScene = false;
 let testScene: TestScene | undefined;
-// The instance-first layer registry: per-id scenes + the ordered visibility/opacity view. The
-// worker composites the visible layers; the app drives exactly one for now.
-const layers = new Map<string, LayerEntry>();
-let composite: readonly CompositeEntry[] = [];
 // The worker's cameras (cameraRig): the pose-driven volume pair + the screen-aligned ortho for slices
 // + boot. Created in init; survives a device loss (pure JS matrices, no GPU resources).
 let rig: CameraRig | undefined;
@@ -114,10 +70,6 @@ let readbackInFlight = false; // pauses the loop across a deterministic readPixe
 let continuous = false; // diagnostics: force every-frame repaints for sustained GPU timing
 let frameTimer: FrameTimer | undefined; // per-frame GPU timing (timestamp-query or wall-clock)
 let lastErrorMessage: string | undefined; // dedupe so a persistent bad frame can't flood the channel
-
-// One scene whose dispose is deferred by a swap so the rAF loop can't sample a GPUTexture that
-// upsertLayer just released mid-rebuild (use-after-free reads back as the magenta sentinel).
-let pendingDispose: LayerEntry | undefined;
 
 // The themeable axes + grid overlay (composited last, over the volume) + the config it was built from.
 // overlaySource is retained so a device-restore rebuild reproduces the live overlay, mirroring how a
@@ -150,6 +102,19 @@ function reportError(message: string): void {
 function reportFault(error: unknown): void {
   reportError(error instanceof Error ? error.message : String(error));
 }
+
+// The renderable layers + their lifecycle (build/replace/remove, composite, color/shading, the
+// warm-then-commit, the device-restore replay). It reaches back for live quality/projection + the
+// repaint/fault seams, and warms the FULL composite — overlay + marker live here, so the worker
+// assembles it via compositeItems.
+const registry = createLayerRegistry({
+  float32Filterable: () => float32Filterable,
+  stepScale: () => qualityLevel(quality).stepScale,
+  isOrthographic: () => projection === "orthographic",
+  requestRender,
+  reportFault,
+  warmComposite: ({ id, entry }) => renderer?.compileComposite(compositeItems({ id, entry })),
+});
 
 function aspect(): number {
   return dims.height > 0 ? dims.width / dims.height : 1;
@@ -228,25 +193,7 @@ function compositeItems(
   if (volume === undefined || ortho === undefined) {
     throw new Error("render before init");
   }
-  const items: CompositeItem[] = [];
-  let overrideListed = false;
-  for (const entry of composite) {
-    if (!entry.visible) continue;
-    const isOverride = layerOverride !== undefined && entry.id === layerOverride.id;
-    if (isOverride) overrideListed = true;
-    const layer = isOverride ? layerOverride.entry : layers.get(entry.id);
-    if (layer === undefined) continue; // composite ahead of its upsert — heals on the upsert repaint
-    items.push({
-      scene: layer.scene.scene,
-      camera: layer.kind === "volume" ? volume : ortho,
-    });
-  }
-  if (layerOverride !== undefined && !overrideListed) {
-    items.push({
-      scene: layerOverride.entry.scene.scene,
-      camera: layerOverride.entry.kind === "volume" ? volume : ortho,
-    });
-  }
+  const items = registry.layerItems(volume, ortho, layerOverride);
   // The overlay + marker composite last (on top), paired with the SAME pose-driven camera as the
   // volumes (else they'd misalign under an ortho volume) — and only when a volume layer is present.
   // 3D chrome over a flat ortho slice or an empty frame is meaningless; a volume whose upsert hasn't
@@ -384,89 +331,8 @@ async function renderFrame(
   }
 }
 
-function decodeSliceField(payload: SliceFieldPayload): ScalarField {
-  const data =
-    payload.dtype === "f64" ? new Float64Array(payload.buffer) : new Float32Array(payload.buffer);
-  return { data, shape: payload.shape };
-}
-
-// Build one layer's scene from its retained source — the single build path, shared by upsertLayer
-// and the device-restore rebuild so both produce an identical scene from the same params.
-// exactOptionalPropertyTypes: only forward params that are set, so the scene factory defaults apply.
-function buildScene(source: LayerSource): LayerEntry {
-  const windowLevel = source.windowLevel !== undefined ? { windowLevel: source.windowLevel } : {};
-  if (source.layerKind === "slice") {
-    const scene = createSliceScene({
-      field: source.field,
-      colormap: source.colormap,
-      scale: source.scale,
-      axis: source.axis ?? "z",
-      position: source.position ?? 0.5,
-      opacity: source.opacity,
-      float32Filterable,
-      ...windowLevel,
-    });
-    return { scene, kind: "slice", source };
-  }
-  const scene = createRaymarchScene({
-    field: source.field,
-    colormap: source.colormap,
-    scale: source.scale,
-    opacity: source.opacity,
-    float32Filterable,
-    ...windowLevel,
-    ...(source.steps !== undefined ? { steps: source.steps } : {}),
-    ...(source.density !== undefined ? { density: source.density } : {}),
-    ...(source.shaded !== undefined ? { shaded: source.shaded } : {}),
-    ...(source.worldHalfExtent !== undefined ? { worldHalfExtent: source.worldHalfExtent } : {}),
-  });
-  // A scene built mid-gesture (stream rebuild) inherits the live interaction quality + projection.
-  scene.setStepScale(qualityLevel(quality).stepScale);
-  scene.setProjection(projection === "orthographic");
-  return { scene, kind: "volume", source };
-}
-
-// Superseding guard for the async warms: an id's epoch bumps on every replace/remove (and on a
-// device rebuild), so a warm that loses the race discards its scene instead of committing a stale one.
-const layerEpochs = new Map<string, number>();
-
-function bumpLayerEpoch(id: string): number {
-  const next = (layerEpochs.get(id) ?? 0) + 1;
-  layerEpochs.set(id, next);
-  return next;
-}
-
-// Install a layer's scene from a fully-specified source, releasing the prior scene's Data3DTexture
-// without leaking. Warm-then-commit: the prospective composite's pipelines compile asynchronously
-// (createRenderPipelineAsync, off the render path) before the swap, so the new scene's first visible
-// frame neither stalls on a sync compile nor draws half-formed. Swap-then-defer on commit: the new
-// scene is live in the map before the old one's GPUTextures are released, and the release waits one
-// rebuild so an in-flight rAF frame never samples a destroyed texture. Used by upsertLayer (main)
-// and as swapLayerField's fallback when an in-place ping-pong upload can't apply (the common
-// streamed step takes the in-place path, not this rebuild).
-async function replaceLayer(id: string, source: LayerSource): Promise<void> {
-  const epoch = bumpLayerEpoch(id);
-  const next = buildScene(source);
-  const committed = await warmScene(
-    next,
-    () => renderer?.compileComposite(compositeItems({ id, entry: next })),
-    () => layerEpochs.get(id) === epoch,
-    (entry) => entry.scene.dispose(),
-    reportFault,
-  );
-  if (!committed) return;
-  // The warm's await is a real yield: a setProjection / quality change that landed mid-warm only
-  // reached committed scenes, so re-assert the live state on this one before it becomes visible.
-  if ("setStepScale" in next.scene) next.scene.setStepScale(qualityLevel(quality).stepScale);
-  if ("setProjection" in next.scene) next.scene.setProjection(projection === "orthographic");
-  const previous = layers.get(id);
-  layers.set(id, next);
-  pendingDispose?.scene.dispose();
-  pendingDispose = previous;
-  requestRender();
-}
-
-// Build or rebuild one layer's scene from a transferred field (main → render).
+// Build or rebuild one layer's scene from a transferred field (main → render). The decode + source
+// assembly + warm-then-commit live in the layer registry; this gates on init and delegates.
 async function upsertLayer(
   request: Extract<RenderWorkerRequest, { kind: "upsertLayer" }>,
 ): Promise<void> {
@@ -474,65 +340,14 @@ async function upsertLayer(
   if (renderer === undefined) {
     throw new Error("upsertLayer before init");
   }
-  const source: LayerSource = {
-    layerKind: request.layerKind,
-    field: decodeSliceField(request.field),
-    colormap: request.colormap,
-    scale: request.scale,
-    opacity: request.opacity,
-    ...(request.windowLevel !== undefined ? { windowLevel: request.windowLevel } : {}),
-    ...(request.axis !== undefined ? { axis: request.axis } : {}),
-    ...(request.position !== undefined ? { position: request.position } : {}),
-    ...(request.steps !== undefined ? { steps: request.steps } : {}),
-    ...(request.density !== undefined ? { density: request.density } : {}),
-    ...(request.shaded !== undefined ? { shaded: request.shaded } : {}),
-    ...(request.worldHalfExtent !== undefined ? { worldHalfExtent: request.worldHalfExtent } : {}),
-  };
-  await replaceLayer(request.id, source);
-}
-
-// A streamed timestep's scalar (data worker → render, over the paired port): swap only the field on
-// an existing layer, keeping its retained look (colormap/scale/window/opacity/shaded). The layer is
-// created by main's initial upsertLayer; a step arriving before it (or after a remove) is ignored —
-// it heals on the next upsert, mirroring setLayerColormap.
-//
-// The swap is an in-place ping-pong: the scene uploads the field into its inactive
-// Data3DTexture and re-binds — reusing geometry/material/transfer-function, no 64 MiB pipeline
-// rebuild per step. We retain the field on the source so a device-restore rebuild reproduces the
-// *live* timestep. If the scene declines the in-place swap (a shape change, or an empty-space-skip
-// volume whose acceleration grid would go stale), fall back to a full rebuild.
-function swapLayerField(message: StreamStepMessage): void {
-  const entry = layers.get(message.id);
-  if (entry === undefined) return;
-  const field = decodeSliceField(message.field);
-  if (entry.scene.setField(field)) {
-    // Retain the live step so a device-restore rebuild reproduces the on-screen field (not stale
-    // step 0). The retained windowLevel keeps the colors fixed too — EXCEPT on the defensive
-    // no-window path (source.windowLevel undefined), where a rebuild would renormalize to the live
-    // step's range (buildScene → createNormalization → full-range). That can't happen in the app:
-    // a streamed layer always carries a seeded binding's window (layerSync), so windowLevel is set.
-    entry.source.field = field;
-    requestRender();
-    return;
-  }
-  // Fire-and-forget: the stream port's onmessage can't await; a failed rebuild is reported and the
-  // next streamed step retries through the same path.
-  void replaceLayer(message.id, { ...entry.source, field }).catch(reportFault);
+  await registry.upsert(request);
 }
 
 async function removeLayer(
   request: Extract<RenderWorkerRequest, { kind: "removeLayer" }>,
 ): Promise<void> {
   await initDone;
-  bumpLayerEpoch(request.id); // an in-flight warm for this id must not resurrect the removed layer
-  const entry = layers.get(request.id);
-  layers.delete(request.id);
-  if (entry !== undefined) {
-    // Same one-frame deferral as upsertLayer — the old composite may still list this id for a tick.
-    pendingDispose?.scene.dispose();
-    pendingDispose = entry;
-  }
-  requestRender();
+  registry.remove(request.id);
 }
 
 // Cheap reorder/visibility/opacity over the full ordered list — retune per-layer opacity uniforms
@@ -541,16 +356,7 @@ async function setComposite(
   request: Extract<RenderWorkerRequest, { kind: "setComposite" }>,
 ): Promise<void> {
   await initDone;
-  const previous = new Map(composite.map((entry) => [entry.id, entry.opacity]));
-  for (const entry of request.order) {
-    if (previous.get(entry.id) === entry.opacity) continue;
-    const layer = layers.get(entry.id);
-    if (layer === undefined) continue;
-    layer.scene.setOpacity(entry.opacity);
-    layer.source.opacity = entry.opacity; // keep the retained source current for a device-restore rebuild
-  }
-  composite = request.order;
-  requestRender();
+  registry.setComposite(request.order);
 }
 
 // Live per-layer color: one layer's resolved ColormapBinding (colormap + window/level + scale).
@@ -563,16 +369,7 @@ async function setLayerColormap(
   if (renderer === undefined) {
     throw new Error("setLayerColormap before init");
   }
-  const entry = layers.get(request.id);
-  if (entry === undefined) return; // binding update ahead of its upsert — heals on the upsert repaint
-  entry.scene.setColormap(request.colormap);
-  entry.scene.setWindowLevel(request.windowLevel.center, request.windowLevel.width);
-  entry.scene.setScale(request.scale);
-  // Keep the retained source current so a device-restore rebuild reproduces the live color.
-  entry.source.colormap = request.colormap;
-  entry.source.windowLevel = request.windowLevel;
-  entry.source.scale = request.scale;
-  requestRender();
+  registry.setColormap(request);
 }
 
 // Camera-motion liveness → quality tier: volumes march coarser (uniform flip, no rebuild) AND the
@@ -587,9 +384,7 @@ function applyQuality(): void {
   const level = qualityLevel(quality);
   let changed = false;
   if (level.stepScale !== appliedLevel.stepScale) {
-    for (const entry of layers.values()) {
-      if ("setStepScale" in entry.scene) entry.scene.setStepScale(level.stepScale);
-    }
+    registry.applyStepScale(level.stepScale);
     changed = true;
   }
   if (level.renderScale !== appliedLevel.renderScale) {
@@ -615,20 +410,12 @@ async function setCameraMotion(
 }
 
 // Live per-layer Phong toggle — a uniform flip on the volume scene, no rebuild/re-upload. Slice
-// layers have no shading normal, so the message is inert for them (no scene method to call).
+// layers have no shading normal, so the message is inert for them.
 async function setLayerShading(
   request: Extract<RenderWorkerRequest, { kind: "setLayerShading" }>,
 ): Promise<void> {
   await initDone;
-  const entry = layers.get(request.id);
-  if (entry === undefined) return; // toggle ahead of its upsert — heals on the upsert (carries shaded)
-  // `setShading` exists only on RaymarchScene; the `in` check narrows the SliceScene | RaymarchScene
-  // union (and silently no-ops a slice — it has no normal to light).
-  if ("setShading" in entry.scene) {
-    entry.scene.setShading(request.shaded);
-    entry.source.shaded = request.shaded; // retain for a device-restore rebuild
-    requestRender();
-  }
+  registry.setShading(request);
 }
 
 // Live camera pose: re-aim the perspective camera and repaint. Always repaints — a volume-only
@@ -657,12 +444,7 @@ async function setProjection(
   if (projection === request.projection) return;
   projection = request.projection;
   applyVolumePose(); // the incoming camera re-aims at the live pose before it paints
-  const orthographic = projection === "orthographic";
-  for (const entry of layers.values()) {
-    // `setProjection` exists only on RaymarchScene; the `in` check narrows the union (slices are
-    // screen-aligned and pose-invariant, so the flip is inert for them).
-    if ("setProjection" in entry.scene) entry.scene.setProjection(orthographic);
-  }
+  registry.applyProjection(projection === "orthographic");
   requestRender();
 }
 
@@ -686,22 +468,21 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   if (canvas === undefined) return; // pre-init loss — nothing to rebuild yet
   // Any in-flight warm raced the loss: bump every epoch so its commit discards (a superseded
   // streamed field heals on the next step) instead of landing a dead-device scene post-rebuild.
-  for (const id of layers.keys()) bumpLayerEpoch(id);
+  registry.bumpAllEpochs();
   overlayEpoch += 1;
   markerEpoch += 1; // an in-flight buildMarker warm must discard rather than land a dead-device scene
   // Drop the dead-device resources best-effort: disposing GPU handles on a lost device can throw,
   // and the fresh renderer below is what matters.
   try {
     renderer?.dispose();
-    for (const layer of layers.values()) layer.scene.dispose();
-    pendingDispose?.scene.dispose();
+    registry.disposeForRebuild();
     overlay?.dispose();
     marker?.dispose();
     testScene?.dispose();
   } catch {
     // a lost device throws on teardown — ignore; we're replacing everything anyway
   }
-  pendingDispose = undefined;
+  registry.clearPendingDispose();
   renderer = await installRenderer({
     canvas,
     width: dims.width,
@@ -712,8 +493,7 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   frameTimer = createFrameTimer(device);
   if (debugScene) testScene = createTestScene();
   applyVolumePose();
-  // Replace each layer's scene in place (Map.set on an existing key is safe mid-iteration).
-  for (const [id, entry] of layers) layers.set(id, buildScene(entry.source));
+  registry.rebuildScenes();
   // Replay the overlay from its retained config on the fresh device (its line buffers + CanvasTextures
   // belonged to the dead device). Sprites re-billboard on the next render.
   overlay = overlaySource !== undefined ? createSceneOverlay(overlaySource) : undefined;
@@ -725,7 +505,7 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
     marker.setState(markerHovered, markerActive);
   }
   lastMarkerTickMs = undefined;
-  // The fresh renderer starts at scale 1 and buildScene already applied the live step scale —
+  // The fresh renderer starts at scale 1 and the rebuilt scenes already carry the live step scale —
   // resync the applied-level cache, then re-apply in case a gesture is live across the restore.
   appliedLevel = { stepScale: qualityLevel(quality).stepScale, renderScale: 1 };
   applyQuality();
@@ -751,10 +531,10 @@ async function setContinuous(
 }
 
 // Build/replace the axes + grid overlay from a config (or tear it down on null). Warm-then-commit
-// like replaceLayer — the warm also compiles the volume's pipelines for the ≥2-layer composite
+// like a layer replace — the warm also compiles the volume's pipelines for the ≥2-layer composite
 // context this overlay usually activates. New scene live before the old one's GPU resources are
-// freed — the overlay has no readback-borrowed texture, so a same-tick dispose is safe (unlike
-// replaceLayer's deferral). Retains the source for a device-restore rebuild.
+// freed — the overlay has no readback-borrowed texture, so a same-tick dispose is safe (unlike the
+// layer registry's one-frame deferral). Retains the source for a device-restore rebuild.
 let overlayEpoch = 0;
 
 async function buildOverlay(config: SceneOverlayConfig | null): Promise<void> {
@@ -856,33 +636,12 @@ async function pickRay(request: Extract<RenderWorkerRequest, { kind: "pickRay" }
   const near = new Vector3(request.ndcX, request.ndcY, -1).unproject(camera);
   const far = new Vector3(request.ndcX, request.ndcY, 1).unproject(camera);
   const dir = far.sub(near).normalize();
-  // A source with no windowLevel normalizes over its full finite range (buildScene's default) —
-  // the in-app path always carries a binding window, so the scan is the defensive branch only.
-  const pickWindow = (source: LayerSource): WindowLevel => {
-    if (source.windowLevel !== undefined) return source.windowLevel;
-    const { min, max } = finiteRange(source.field.data);
-    return fullRangeWindow(min, max);
-  };
-  const pickLayers: PickLayer[] = [];
-  let pickHalfExtent: Vec3 = [0.5, 0.5, 0.5]; // all volume layers share the dataset's box
-  for (const entry of composite) {
-    if (!entry.visible) continue;
-    const layer = layers.get(entry.id);
-    if (layer === undefined || layer.kind !== "volume") continue;
-    pickHalfExtent = layer.source.worldHalfExtent ?? pickHalfExtent;
-    pickLayers.push({
-      field: layer.source.field,
-      windowLevel: pickWindow(layer.source),
-      scale: layer.source.scale,
-      density: layer.source.density ?? 1, // the scene factory default
-      opacity: entry.opacity,
-    });
-  }
+  const { layers: pickLayers, halfExtent } = registry.pickLayers();
   const point = pickPointOnRay(
     [near.x, near.y, near.z],
     [dir.x, dir.y, dir.z],
     pickLayers,
-    pickHalfExtent,
+    halfExtent,
   );
   ctx.postMessage({
     kind: "pickResult",
@@ -902,7 +661,7 @@ async function pair(request: Extract<RenderWorkerRequest, { kind: "pair" }>): Pr
   streamPort = request.port;
   streamPort.onmessage = (event: MessageEvent<StreamStepMessage>) => {
     try {
-      swapLayerField(event.data);
+      registry.swapField(event.data);
     } catch (error) {
       reportFault(error);
     }
@@ -967,10 +726,7 @@ export function dispose(): void {
   streamPort?.close();
   streamPort = undefined;
   stopRenderLoop();
-  for (const layer of layers.values()) layer.scene.dispose();
-  layers.clear();
-  pendingDispose?.scene.dispose();
-  pendingDispose = undefined;
+  registry.disposeAll();
   overlay?.dispose();
   overlay = undefined;
   overlaySource = undefined;
