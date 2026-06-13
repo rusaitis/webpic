@@ -15,6 +15,7 @@ import {
   type QualityState,
   qualityLevel,
 } from "./interactionQuality.ts";
+import { warmScene } from "./managedScene.ts";
 import { createMarkerScene, type MarkerScene } from "./marker/markerScene.ts";
 import type {
   CameraPose,
@@ -145,6 +146,11 @@ function reportError(message: string): void {
   ctx.postMessage({ kind: "error", requestId: -1, message });
 }
 
+// Same, from a caught `unknown` (the warm-then-commit + fire-and-forget catch sites).
+function reportFault(error: unknown): void {
+  reportError(error instanceof Error ? error.message : String(error));
+}
+
 function aspect(): number {
   return dims.height > 0 ? dims.width / dims.height : 1;
 }
@@ -193,9 +199,7 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
     }
   });
   const offRestored = onDeviceRestored((device) => {
-    void rebuildOnDevice(device).catch((error: unknown) => {
-      reportError(error instanceof Error ? error.message : String(error));
-    });
+    void rebuildOnDevice(device).catch(reportFault);
   });
   unsubscribeGpu = () => {
     offLost();
@@ -308,9 +312,7 @@ function renderTick(frameTimeMs: number): void {
     if (continuous) {
       frameTimer?.beginFrame();
       renderer.renderComposite(paintItems());
-      void sampleAndPostTiming().catch((error: unknown) => {
-        reportError(error instanceof Error ? error.message : String(error));
-      });
+      void sampleAndPostTiming().catch(reportFault);
     } else {
       renderer.renderComposite(paintItems());
     }
@@ -324,7 +326,7 @@ function renderTick(frameTimeMs: number): void {
   } catch (error) {
     // A single bad frame (transient validation, mid-rebuild sample) must not kill the loop; on-demand
     // mode won't re-enter until the next requestRender, so this self-rate-limits to real changes.
-    reportError(error instanceof Error ? error.message : String(error));
+    reportFault(error);
   }
 }
 
@@ -445,16 +447,14 @@ function bumpLayerEpoch(id: string): number {
 async function replaceLayer(id: string, source: LayerSource): Promise<void> {
   const epoch = bumpLayerEpoch(id);
   const next = buildScene(source);
-  try {
-    await renderer?.compileComposite(compositeItems({ id, entry: next }));
-  } catch (error) {
-    // A failed warm must not block the commit — the paint falls back to the sync compile.
-    reportError(error instanceof Error ? error.message : String(error));
-  }
-  if (layerEpochs.get(id) !== epoch) {
-    next.scene.dispose(); // superseded mid-warm — discard rather than resurrect a stale scene
-    return;
-  }
+  const committed = await warmScene(
+    next,
+    () => renderer?.compileComposite(compositeItems({ id, entry: next })),
+    () => layerEpochs.get(id) === epoch,
+    (entry) => entry.scene.dispose(),
+    reportFault,
+  );
+  if (!committed) return;
   // The warm's await is a real yield: a setProjection / quality change that landed mid-warm only
   // reached committed scenes, so re-assert the live state on this one before it becomes visible.
   if ("setStepScale" in next.scene) next.scene.setStepScale(qualityLevel(quality).stepScale);
@@ -517,9 +517,7 @@ function swapLayerField(message: StreamStepMessage): void {
   }
   // Fire-and-forget: the stream port's onmessage can't await; a failed rebuild is reported and the
   // next streamed step retries through the same path.
-  void replaceLayer(message.id, { ...entry.source, field }).catch((error: unknown) => {
-    reportError(error instanceof Error ? error.message : String(error));
-  });
+  void replaceLayer(message.id, { ...entry.source, field }).catch(reportFault);
 }
 
 async function removeLayer(
@@ -736,7 +734,7 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   try {
     await renderer.compileComposite(paintItems());
   } catch (error) {
-    reportError(error instanceof Error ? error.message : String(error));
+    reportFault(error);
   }
   deviceLost = false;
   requestRender();
@@ -762,17 +760,14 @@ let overlayEpoch = 0;
 async function buildOverlay(config: SceneOverlayConfig | null): Promise<void> {
   const epoch = ++overlayEpoch;
   const next = config !== null ? createSceneOverlay(config) : undefined;
-  if (next !== undefined) {
-    try {
-      await renderer?.compileComposite(compositeItems(undefined, next));
-    } catch (error) {
-      reportError(error instanceof Error ? error.message : String(error));
-    }
-    if (overlayEpoch !== epoch) {
-      next.dispose(); // superseded mid-warm
-      return;
-    }
-  }
+  const committed = await warmScene(
+    next,
+    () => renderer?.compileComposite(compositeItems(undefined, next)),
+    () => overlayEpoch === epoch,
+    (scene) => scene.dispose(),
+    reportFault,
+  );
+  if (!committed) return;
   const previous = overlay;
   overlay = next;
   overlaySource = config ?? undefined;
@@ -799,20 +794,21 @@ let markerEpoch = 0;
 async function buildMarker(config: MarkerConfig | null): Promise<void> {
   const epoch = ++markerEpoch;
   const next = config !== null ? createMarkerScene(config) : undefined;
+  // Seed the live pose + position before the warm, so it compiles the real composite and the first
+  // committed frame shows the marker in place.
   if (next !== undefined) {
     next.updateForPose(pose, projection === "orthographic");
     next.setPoint(markerPoint);
     next.setState(markerHovered, markerActive);
-    try {
-      await renderer?.compileComposite(compositeItems(undefined, undefined, next));
-    } catch (error) {
-      reportError(error instanceof Error ? error.message : String(error));
-    }
-    if (markerEpoch !== epoch) {
-      next.dispose(); // superseded mid-warm
-      return;
-    }
   }
+  const committed = await warmScene(
+    next,
+    () => renderer?.compileComposite(compositeItems(undefined, undefined, next)),
+    () => markerEpoch === epoch,
+    (scene) => scene.dispose(),
+    reportFault,
+  );
+  if (!committed) return;
   const previous = marker;
   marker = next;
   markerSource = config ?? undefined;
@@ -908,7 +904,7 @@ async function pair(request: Extract<RenderWorkerRequest, { kind: "pair" }>): Pr
     try {
       swapLayerField(event.data);
     } catch (error) {
-      reportError(error instanceof Error ? error.message : String(error));
+      reportFault(error);
     }
   };
 }
