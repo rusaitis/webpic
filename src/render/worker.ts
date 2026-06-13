@@ -3,14 +3,8 @@ import { getCapabilities, getDevice, installGpu, onDeviceLost, onDeviceRestored 
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
-import {
-  applyPose,
-  applyPoseOrtho,
-  createOrthographicCamera,
-  createPerspectiveCamera,
-  createVolumeOrthographicCamera,
-  DEFAULT_POSE,
-} from "./camera.ts";
+import { DEFAULT_POSE } from "./camera.ts";
+import { type CameraRig, createCameraRig } from "./cameraRig.ts";
 import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
 import { createSceneOverlay, type SceneOverlay } from "./grid/overlayScene.ts";
 import {
@@ -93,12 +87,9 @@ let testScene: TestScene | undefined;
 // worker composites the visible layers; the app drives exactly one for now.
 const layers = new Map<string, LayerEntry>();
 let composite: readonly CompositeEntry[] = [];
-// The worker owns the cameras (lifted out of the scene factories): the pose-driven pair for
-// volumes (perspective, plus the matched-frustum ortho the projection toggle swaps in) and the
-// screen-aligned orthographic one for slices + the boot triangle.
-let perspCamera: PerspectiveCamera | undefined;
-let orthoVolumeCamera: OrthographicCamera | undefined;
-let orthoCamera: OrthographicCamera | undefined;
+// The worker's cameras (cameraRig): the pose-driven volume pair + the screen-aligned ortho for slices
+// + boot. Created in init; survives a device loss (pure JS matrices, no GPU resources).
+let rig: CameraRig | undefined;
 let projection: CameraProjection = "perspective";
 let pose: CameraPose = DEFAULT_POSE;
 let dims = { width: 0, height: 0 };
@@ -161,13 +152,12 @@ function aspect(): number {
 // The pose drives BOTH volume cameras (cheap — keeps the inactive one fresh so a projection flip
 // never shows a stale frustum); compositeItems picks the active one by `projection`.
 function applyVolumePose(): void {
-  if (perspCamera !== undefined) applyPose(perspCamera, pose, aspect());
-  if (orthoVolumeCamera !== undefined) applyPoseOrtho(orthoVolumeCamera, pose, aspect());
+  rig?.apply(pose, aspect());
   marker?.updateForPose(pose, projection === "orthographic"); // zoom scale + handle gating track the pose
 }
 
 function volumeCamera(): PerspectiveCamera | OrthographicCamera | undefined {
-  return projection === "orthographic" ? orthoVolumeCamera : perspCamera;
+  return rig?.volumeCamera(projection === "orthographic");
 }
 
 async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Promise<void> {
@@ -184,9 +174,7 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
   dims = { width: request.width, height: request.height };
   float32Filterable = getCapabilities().hasFloat32Filterable;
   frameTimer = createFrameTimer(getDevice());
-  perspCamera = createPerspectiveCamera(aspect());
-  orthoVolumeCamera = createVolumeOrthographicCamera(aspect());
-  orthoCamera = createOrthographicCamera();
+  rig = createCameraRig(aspect());
   applyVolumePose();
   debugScene = request.debugScene === true;
   if (debugScene) testScene = createTestScene();
@@ -232,7 +220,7 @@ function compositeItems(
   markerOverride?: MarkerScene | null,
 ): CompositeItem[] {
   const volume = volumeCamera();
-  const ortho = orthoCamera;
+  const ortho = rig?.orthoCamera;
   if (volume === undefined || ortho === undefined) {
     throw new Error("render before init");
   }
@@ -274,12 +262,13 @@ function compositeItems(
 // What the next paint draws: the composited layers, the opt-in debug triangle when empty, else
 // nothing — renderComposite([]) presents the bare clear color, the flash-free boot/empty frame.
 function paintItems(): CompositeItem[] {
-  if (orthoCamera === undefined) {
+  const ortho = rig?.orthoCamera;
+  if (ortho === undefined) {
     throw new Error("render before init");
   }
   const items = compositeItems();
   if (items.length === 0 && testScene !== undefined) {
-    return [{ scene: testScene.scene, camera: orthoCamera }];
+    return [{ scene: testScene.scene, camera: ortho }];
   }
   return items;
 }
@@ -652,7 +641,7 @@ async function setCameraPose(
   request: Extract<RenderWorkerRequest, { kind: "setCameraPose" }>,
 ): Promise<void> {
   await initDone;
-  if (renderer === undefined || perspCamera === undefined) {
+  if (renderer === undefined || rig === undefined) {
     throw new Error("setCameraPose before init");
   }
   pose = request.pose;
@@ -682,7 +671,7 @@ async function setProjection(
 // Viewport resize: re-size the swapchain + readback targets, fix the perspective aspect, repaint.
 async function resize(request: Extract<RenderWorkerRequest, { kind: "resize" }>): Promise<void> {
   await initDone;
-  if (renderer === undefined || perspCamera === undefined) {
+  if (renderer === undefined || rig === undefined) {
     throw new Error("resize before init");
   }
   dims = { width: request.width, height: request.height };
