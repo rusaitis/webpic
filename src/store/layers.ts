@@ -2,13 +2,12 @@ import type { FieldName } from "@schema/types.ts";
 
 // The instance-first layer registry (DESIGN §"Layers & navigation"): the scene is a flat,
 // ordered list of renderable instances, each owning its kind, field, visibility, opacity, and
-// (M2.5b) ColormapBinding. The store owns the list; the app diffs it to the render worker, which
+// a ColormapBinding. The store owns the list; the app diffs it to the render worker, which
 // composites the visible layers by draw order. These are pure list ops — node-testable, framework-
 // free, fresh-object-per-change for `subscribeWithSelector`, identity-preserving on no-ops.
 
-// Restated, not shared, with render/sliceScene.ts's SliceAxis: the ui→store→render DAG forbids
-// store importing render (same precedent as WindowLevel / CameraPose). Members are identical, so
-// the app re-narrows store SliceAxis → render SliceAxis on the wire.
+// Restated, not shared, with render/sliceScene.ts's SliceAxis (store can't import render). Members
+// are identical, so the app re-narrows store SliceAxis → render SliceAxis on the wire.
 export type SliceAxis = "x" | "y" | "z";
 
 interface LayerBase {
@@ -28,8 +27,8 @@ export type Layer =
       readonly kind: "volume";
       readonly steps: number | null;
       readonly density: number | null;
-      // Phong shading toggle (M2.7): a shape-perception aid, off by default for quantitative work
-      // (the lit surface is a TF-dependent opacity isosurface, not a physical boundary).
+      // Phong shading toggle: a shape-perception aid, off by default for quantitative work (the lit
+      // surface is a TF-dependent opacity isosurface, not a physical boundary).
       readonly shaded: boolean;
     })
   | (LayerBase & { readonly kind: "fieldlines" })

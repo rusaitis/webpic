@@ -28,15 +28,15 @@ export type { WindowLevel };
 
 const DEFAULT_FIELD: FieldName = "|B|";
 
-// The kind of the single layer auto-seeded pre-M4 (no Layers UI yet). `volume` makes the M2.4a/4b
-// camera visibly live on the synthetic field. The only change-point until M4 adds a kind toggle.
+// The kind of the single auto-seeded layer (no Layers UI yet). `volume` makes the camera visibly
+// live on the synthetic field; the only change-point until a kind toggle lands.
 const DEFAULT_LAYER_KIND: LayerKind = "volume";
 
 export type SimulationStatus = "empty" | "ready" | "error";
 
 // Which clock produced a frame-timing sample — the diagnostics panel labels them distinctly so
 // wall-clock (incl. JS/queue latency) never reads as the pure-GPU timestamp-query number. Restates
-// render/frameTimer's FrameClock (the store can't import render — the DAG forbids it).
+// render/frameTimer's FrameClock (store can't import render).
 export type FrameClock = "timestamp" | "wallclock";
 
 // Full finite extent of the active field — the slider track bounds.
@@ -83,10 +83,10 @@ export interface SimulationState {
   // The active field's finite extent — the slider track bounds (independent of any binding).
   readonly dataRange: DataRange | null;
   // The ColormapBinding registry (DESIGN §1010): the color-mapping layers reference by id, owning
-  // colormap + window/level + scale. Layers share or split bindings; GC/merge wait for the M4 UI.
+  // colormap + window/level + scale. Layers share or split bindings; GC/merge wait for the multi-layer UI.
   readonly colormapBindings: Readonly<Record<string, ColormapBinding>>;
   // Orbit camera pose. Non-nullable — DEFAULT_POSE is always valid; the app streams it to the
-  // render worker. M2.4b's pointer controls dispatch setCameraPose; the worker derives the camera.
+  // render worker. The pointer controls dispatch setCameraPose; the worker derives the camera.
   readonly cameraPose: CameraPose;
   // Camera-motion liveness: "gesture" while the hand is on the camera (drag, glide, held key,
   // wheel trail), "fly" while only a machine-driven eased flight runs. The app forwards it so the
@@ -122,14 +122,13 @@ export interface SimulationState {
   // render worker eases (hover/pulse/active). Set by ui/pointerPicker, forwarded by pickerSync.
   readonly pickerHover: MarkerPart;
   readonly pickerActive: boolean;
-  // Time cursor (M2.9): the active timestep + the discrete domain the scrub control walks. The
-  // reader's availableTimesteps seeds `availableSteps` (setAvailableSteps); setStep moves the cursor,
-  // tracking the loaded dataset's `step`. Pre-M2.10 nothing re-reads on a step change — this lands
-  // the state + control the streaming core will react to (the cursor is inert until then).
+  // Time cursor: the active timestep + the discrete domain the scrub control walks. The reader's
+  // availableTimesteps seeds `availableSteps` (setAvailableSteps); setStep moves the cursor, tracking
+  // the loaded dataset's `step` — the streaming worker re-reads on the change.
   readonly currentStep: number;
   readonly availableSteps: readonly number[];
   // The instance-first scene: an ordered list of renderable layers (draw order = array order) and
-  // the selected one. Pre-M4 the store auto-seeds exactly one layer for the active field.
+  // the selected one. For now the store auto-seeds exactly one layer for the active field.
   readonly layers: readonly Layer[];
   readonly selectedLayerId: string | null;
   // Scene overlay (axes + grid + gnomon) display prefs — user-owned, independent of the dataset. The
@@ -137,9 +136,9 @@ export interface SimulationState {
   readonly overlay: OverlayState;
   readonly status: SimulationStatus;
   readonly error: string | null;
-  // Render diagnostics (M2.8): the latest GPU frame time + its clock, and the panel's explicit
-  // "Measure" toggle (drives the worker's continuous-repaint mode for sustained timing). `null`
-  // until the first frame; the app forwards `frameTiming` worker replies via setFrameTiming.
+  // Render diagnostics: the latest GPU frame time + its clock, and the panel's explicit "Measure"
+  // toggle (drives the worker's continuous-repaint mode for sustained timing). `null` until the
+  // first frame; the app forwards `frameTiming` worker replies via setFrameTiming.
   readonly frameTimeMs: number | null;
   readonly frameTimeClock: FrameClock | null;
   readonly isMeasuringContinuous: boolean;
@@ -259,9 +258,9 @@ export function createSimulationStore() {
           const dataRange = finiteRange(computed.data);
           const window = dataRange ? fullRangeWindow(dataRange) : FALLBACK_WINDOW;
           const state = get();
-          // Pre-M4 (no Layers UI): auto-seed one volume layer + its binding for the active field so
-          // the field selector + colormap panel still drive the scene. Only when empty — re-selecting
-          // a field or reloading must not spawn duplicates.
+          // No Layers UI yet: auto-seed one volume layer + its binding for the active field so the
+          // field selector + colormap panel still drive the scene. Only when empty — re-selecting a
+          // field or reloading must not spawn duplicates.
           const seed = state.layers.length === 0;
           let { layers, selectedLayerId, colormapBindings } = state;
           if (seed) {
@@ -351,8 +350,8 @@ export function createSimulationStore() {
         },
         selectField(name) {
           if (name === get().activeField) return; // recompute yields a fresh array — skip the no-op re-render
-          // Pre-M4 the one layer follows the field selector — re-point it so its `field` stays
-          // honest (the spread preserves the union member's kind-specific keys).
+          // The one layer follows the field selector — re-point it so its `field` stays honest
+          // (the spread preserves the union member's kind-specific keys).
           const { selectedLayerId, layers } = get();
           const repointed =
             selectedLayerId !== null
@@ -453,7 +452,7 @@ export function createSimulationStore() {
           });
         },
         removeLayer(id) {
-          // Orphaned bindings are left in the registry — GC/merge wait for the M4 multi-layer UI.
+          // Orphaned bindings are left in the registry — GC/merge wait for the multi-layer UI.
           const { layers, selectedLayerId } = get();
           const next = layerOps.removeLayer(layers, id);
           if (next === layers) return; // absent id → no-op

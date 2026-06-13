@@ -1,8 +1,8 @@
 import type { DataHandle } from "./readers/_protocols.ts";
 
-// Time-series streaming wire protocol (M2.10a). Lives in the `data` layer on purpose: the data
-// worker (`workers`) and the render worker (`render`) both need these types, and the DAG forbids
-// `workers → render` (and `render → workers`) — but both may import `data`. Two surfaces:
+// Time-series streaming wire protocol. Lives in the `data` layer on purpose: the data worker and
+// the render worker both need these types but can't import each other — both may import `data`.
+// Two surfaces:
 //   • main → data worker  (DataStreamRequest / DataStreamResponse), alongside the cache protocol
 //   • data worker → render worker, over a private MessagePort (StreamStepMessage)
 // All field buffers move by transfer, never clone.

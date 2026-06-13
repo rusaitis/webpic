@@ -17,11 +17,11 @@ import {
   windowToInterval,
 } from "../controls/index.ts";
 
-// The Colormap panel drives the *selected layer's* ColormapBinding (M2.5b): colormap, value→color
-// scale (linear/log/symlog), and the window/level interval. Each control dispatches a setBinding*
-// intent; the app's layerSync resolves the changed binding to the layers that reference it. Window
-// is an [lo, hi] interval; the binding stores the canonical {center, width} (intervalToWindow at the
-// seam). Multi-layer selection + per-layer settings land with the M4 Layers UI.
+// The Colormap panel drives the *selected layer's* ColormapBinding: colormap, value→color scale
+// (linear/log/symlog), and the window/level interval. Each control dispatches a setBinding* intent;
+// the app's layerSync resolves the changed binding to the layers that reference it. Window is an
+// [lo, hi] interval; the binding stores the canonical {center, width} (intervalToWindow at the seam).
+// Multi-layer selection + per-layer settings land with the Layers UI.
 
 // Narrowest window as a fraction of the track — the UI-side floor that keeps the in-shader width > 0
 // (parallels render's MIN_WIDTH in normalization.ts).
@@ -54,8 +54,8 @@ export function installColormapPanel(host: HTMLElement, store: SimulationStore):
   const pane = createPane({ parent: host, title: "Colormap" });
   const folder = pane.addFolder({ title: "Display range" });
   // Shading is a per-layer (not per-binding) property — a render toggle, not a color choice — so it
-  // lives in its own folder. Pre-M4 this is the only per-layer control; it migrates to M4's
-  // per-layer settings component when the Layers UI lands.
+  // lives in its own folder. The only per-layer control for now; it migrates to a per-layer settings
+  // component when the Layers UI lands.
   const shadingFolder = pane.addFolder({ title: "Shading" });
 
   let colormapControl: SelectHandle<ColormapId> | null = null;

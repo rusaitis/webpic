@@ -1,8 +1,8 @@
 import { SCHEMA_VERSION } from "@schema/version.ts";
 
-// OPFS-backed key→bytes cache. Reads run async on the main thread; writes dispatch to
-// data.worker.ts, which holds the createSyncAccessHandle() fast path (worker-only in every
-// engine) under an exclusive web-lock for multi-tab safety. See docs/DESIGN.md §Caching.
+// OPFS-backed key→bytes cache. Reads run async on the main thread; writes dispatch to data.worker.ts,
+// which holds the worker-only createSyncAccessHandle() fast path under an exclusive web-lock for
+// multi-tab safety. See docs/DESIGN.md §Caching.
 
 export interface CacheKeyParts {
   /** Cache namespace, e.g. "fields" | "calibration". Filesystem-safe: [a-z0-9_-]. */

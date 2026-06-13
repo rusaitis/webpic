@@ -2,13 +2,11 @@ import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import { abs, float, max, sign, uniform } from "three/tsl";
 import type { Node } from "three/webgpu";
 
-// The domain half of the transfer function: maps a raw scalar value → t∈[0,1], which the
-// slice/raymarch materials then sample the colormap LUT at (transferFunction.ts is the range half,
-// t → rgba). The window/level {center, width} picks the data interval [center−w/2, center+w/2]; the
-// ColormapBinding's `scale` picks how values within it map to [0,1] (linear / log / symlog). Both
-// ride uniforms (uCenter, uWidth, uScaleMode) so window AND scale changes are live retunes, never a
-// node rebuild. `windowedT` is the pure-TS twin the tests check and the TSL graph mirrors (the same
-// reference-impl precedent as rayBox.ts ↔ hitBox). One home for the map, the uniforms, the guards.
+// The domain half of the transfer function: maps a raw value → t∈[0,1] for the colormap LUT
+// (transferFunction.ts is the range half, t → rgba). Window/level {center, width} picks the interval;
+// `scale` picks how values map within it (linear / log / symlog). Both ride uniforms, so window and
+// scale edits are live retunes, never a node rebuild. `windowedT` is the pure-TS twin the tests check
+// and the TSL graph mirrors (the rayBox.ts ↔ hitBox precedent).
 
 export type { WindowLevel };
 

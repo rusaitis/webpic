@@ -1,15 +1,15 @@
-// The time-series ring buffer + prefetch orchestrator (M2.10a) — pure, no DOM/worker globals, so it
-// unit-tests in Node against a fake `readStep`. It owns "which steps are decoded, what to prefetch,
-// what to evict, what to abort" — the heart of "scrub without stalls" (DESIGN §Time-series).
+// The time-series ring buffer + prefetch orchestrator — pure, no DOM/worker globals, so it unit-tests
+// in Node against a fake `readStep`. It owns "which steps are decoded, what to prefetch, what to
+// evict, what to abort" — the heart of "scrub without stalls" (DESIGN §Time-series).
 //
 // Lifecycle of a decoded value (DESIGN §518 "hold until upload, transfer on upload, re-read on
 // scrub-back"): the cursor step is handed to `onDisplay` and *consumed* (the worker transfers its
 // buffer, which detaches — the ring can't reuse it), while prefetched neighbours stay cached so a
 // ±1 scrub displays instantly. Scrubbing back to a consumed/evicted step simply re-reads it.
 //
-// Neighbours are computed in domain-INDEX space over the sorted `steps` array (mirrors the M2.9
-// index-based scrubber), so a sparse/non-contiguous domain prefetches real adjacent steps. The dumb
-// ±1 policy lives here; M2.11's EWMA predictor swaps only `wantedSteps`.
+// Neighbours are computed in domain-INDEX space over the sorted `steps` array, so a sparse/non-
+// contiguous domain prefetches real adjacent steps. The dumb ±1 policy lives here; a smarter
+// predictor would swap only `wantedSteps`.
 
 type Entry<T> =
   | { state: "loading"; controller: AbortController; display: boolean }

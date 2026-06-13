@@ -5,10 +5,10 @@ import type { Vec3 } from "@schema/types.ts";
 import { type OverlayState, type SimulationStore, worldHalfExtentForGrid } from "@store";
 
 // Bridges the store's scene-overlay flags + the dataset GridInfo + the resolved theme palette to the
-// render worker's setSceneOverlay (app-only: it imports both @store and @render, which the DAG forbids
-// either of them from doing). Low-frequency: a toggle, a density change, or a dataset swap re-posts the
-// full config. Gated on `workerReady` with a flushAll catch-up replayed on the worker `ready` message,
-// mirroring layerSync — `setDataset` runs before `ready`, so the initial overlay rides the catch-up.
+// render worker's setSceneOverlay (app-only glue: store and render can't import each other). Low-
+// frequency: a toggle, a density change, or a dataset swap re-posts the full config. Gated on
+// `workerReady` with a flushAll catch-up replayed on the worker `ready` message, mirroring layerSync
+// — `setDataset` runs before `ready`, so the initial overlay rides the catch-up.
 
 // Disjoint from app/main.ts (1-8) and layerSync (9) so worker error echoes attribute correctly.
 const SCENE_REQUEST_ID = 10;

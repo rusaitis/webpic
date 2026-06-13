@@ -30,22 +30,19 @@ import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
 
 // Pointer/wheel/keyboard input on the main-thread canvas → camera-pose intents. The OffscreenCanvas
-// is transferred to the worker, but the <canvas> element still receives DOM events here; we read the
-// live pose from the store, nudge it via the pure helpers (store/camera), and dispatch
-// setCameraPose. No render import — ui → store only.
+// is transferred to the worker, but the <canvas> still receives DOM events here; we read the live
+// pose from the store, nudge it via the pure helpers (store/camera), and dispatch setCameraPose.
+// No render import — ui → store only.
 //
-// Gestures (OrbitControls/magviz parity): left-drag orbits; shift-, middle- or right-drag pans
-// (context menu suppressed); wheel dollies toward the cursor; two touch pointers pinch-dolly about
-// their centroid and two-finger-pan. Drag deltas are normalized to viewport-height fractions —
-// OrbitControls' unit — so the feel is identical at any canvas size. Drags feed a pending-delta
-// momentum that the rAF loop releases through stepMomentum (the damped glide); wheel/pinch dolly is
-// immediate (zoom is undamped). The same loop runs the eased fly-to tween (R reset, double-click
-// pick-to-focus — background double-click resets — and store cameraFlyRequest intents from the
-// gnomon); the tween applies per-frame eased *increments* of its pose delta on top of the live
-// pose, so concurrent drags/wheel/momentum blend with the flight instead of canceling it (magviz
-// semantics). Motion liveness goes out via setCameraMotion — "gesture" while the hand is on the
-// camera (coarse march for responsiveness), "fly" while only a tween runs (gentler tier: a
-// machine flight is predictable and short, so it stays crisp).
+// Gestures (OrbitControls/magviz parity): left-drag orbits; shift/middle/right-drag pans (context
+// menu suppressed); wheel dollies toward the cursor; two pointers pinch-dolly about their centroid
+// and two-finger-pan. Drag deltas are normalized to viewport-height fractions (OrbitControls' unit),
+// so the feel is identical at any canvas size. Drags feed a pending-delta momentum the rAF loop
+// releases through stepMomentum (the damped glide); wheel/pinch dolly is immediate. The same loop
+// runs the eased fly-to tween (R reset, double-click pick-to-focus, gnomon cameraFlyRequest),
+// applying eased *increments* on top of the live pose so concurrent input blends with the flight
+// instead of canceling it. Motion liveness rides setCameraMotion — "gesture" while the hand is on the
+// camera (coarse march), "fly" while only a tween runs (gentler tier, since it's short and predictable).
 
 // A background-tab resume hands rAF a huge dt; clamp so the glide resumes instead of teleporting.
 const GLIDE_MAX_DT_MS = 100;
@@ -60,12 +57,11 @@ const WHEEL_TRAIL_MS = 150;
 const FIT_SPHERE: BoundingSphere = { center: [0, 0, 0], radius: UNIT_BOX_RADIUS };
 
 // Held-key nudges (magviz's orbit keys): A/D sweep the camera left/right around the target, Q/E
-// lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. The same keys remap to
-// fly-mode translation when a fly mode lands; arrows belong to the point picker (pointerPicker).
-// The theme's planned bare-key toggle-slices "S" must move before it's wired — orbit owns S now.
-// Keyed by event.code, NOT event.key — key is modifier-mutated at event time ("=" releases as "+"
-// with Shift held), so a key-tracked Set leaks held entries and the dolly runs away; code names
-// the physical key on both edges (magviz does the same).
+// lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. Arrows belong to the
+// point picker (pointerPicker); these remap to translation when a fly mode lands.
+// Keyed by event.code, NOT event.key — key is modifier-mutated ("=" releases as "+" with Shift
+// held), so a key-tracked Set leaks held entries and the dolly runs away; code names the physical
+// key on both edges (magviz does the same).
 const NUDGE_KEYS: ReadonlyMap<string, KeyNudge> = new Map([
   ["KeyA", { azimuth: -1, elevation: 0, dolly: 0 }], // camera sweeps left around the target
   ["KeyD", { azimuth: 1, elevation: 0, dolly: 0 }],

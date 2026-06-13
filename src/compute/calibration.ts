@@ -105,9 +105,9 @@ export function seedHeuristics(adapter: GpuAdapterSummary): CalibrationScores {
   };
 }
 
-// Placeholder probe — to be replaced by the real |B| `ts` backend. Times a
-// representative typed-array magnitude (sqrt(x²+y²+z²) over three reused
-// Float32Arrays); validates the pipeline end-to-end, not yet a dispatch-quality signal.
+// Placeholder probe until the real |B| `ts` backend lands. Times a representative typed-array
+// magnitude (sqrt(x²+y²+z²) over three reused Float32Arrays); validates the pipeline end-to-end,
+// not yet a dispatch-quality signal.
 function syntheticMagnitudeProbe(): BenchKernel {
   let bx = new Float32Array(0);
   let by = new Float32Array(0);

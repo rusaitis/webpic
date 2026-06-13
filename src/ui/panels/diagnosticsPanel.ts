@@ -6,15 +6,15 @@ import {
   type NoteHandle,
 } from "../controls/index.ts";
 
-// The Diagnostics panel (M2.8): a rolling GPU frame-time readout + the "Measure" toggle that drives
-// the worker's continuous-repaint mode for sustained timing. This panel is the instrument for the M2
-// 8 ms exit gate and the M2.6 empty-space-skipping contingency call. It dispatches store intents
-// only (ui → store; never render); the app forwards the worker's frameTiming replies into the store.
+// The Diagnostics panel: a rolling GPU frame-time readout + the "Measure" toggle that drives the
+// worker's continuous-repaint mode for sustained timing. It's the instrument for the 8 ms raymarch
+// budget and the empty-space-skipping contingency call. It dispatches store intents only (ui →
+// store; never render); the app forwards the worker's frameTiming replies into the store.
 
 // Rolling window over the most recent valid samples — long enough to smooth per-frame jitter, short
 // enough to track a workload change (camera move, dataset swap) within a fraction of a second.
 const WINDOW = 30;
-const GATE_MS = 8; // the M2 per-frame raymarch budget this panel measures against
+const GATE_MS = 8; // the per-frame raymarch budget this panel measures against
 
 // Mean of the finite samples (NaN-skip); NaN when there are none yet. Pure — unit-tested.
 export function rollingMean(values: readonly number[]): number {

@@ -90,7 +90,7 @@ let renderer: InstalledRenderer | undefined;
 let debugScene = false;
 let testScene: TestScene | undefined;
 // The instance-first layer registry: per-id scenes + the ordered visibility/opacity view. The
-// worker composites the visible layers (M2.5a); pre-M4 the app drives exactly one.
+// worker composites the visible layers; the app drives exactly one for now.
 const layers = new Map<string, LayerEntry>();
 let composite: readonly CompositeEntry[] = [];
 // The worker owns the cameras (lifted out of the scene factories): the pose-driven pair for
@@ -143,7 +143,7 @@ let markerHovered: MarkerPart = "none";
 let markerActive = false;
 let lastMarkerTickMs: number | undefined; // wall clock of the previous tick, for the easing dt
 
-// The data worker's end of the streaming MessageChannel (M2.10a). Stored on `pair`; its onmessage
+// The data worker's end of the streaming MessageChannel. Stored on `pair`; its onmessage
 // applies streamed timestep fields (data → render, no main hop). Closed on dispose.
 let streamPort: MessagePort | undefined;
 
@@ -507,7 +507,7 @@ async function upsertLayer(
 // created by main's initial upsertLayer; a step arriving before it (or after a remove) is ignored —
 // it heals on the next upsert, mirroring setLayerColormap.
 //
-// The swap is an in-place ping-pong (M2.10b): the scene uploads the field into its inactive
+// The swap is an in-place ping-pong: the scene uploads the field into its inactive
 // Data3DTexture and re-binds — reusing geometry/material/transfer-function, no 64 MiB pipeline
 // rebuild per step. We retain the field on the source so a device-restore rebuild reproduces the
 // *live* timestep. If the scene declines the in-place swap (a shape change, or an empty-space-skip
@@ -909,7 +909,7 @@ async function pickRay(request: Extract<RenderWorkerRequest, { kind: "pickRay" }
   });
 }
 
-// Pair with the data worker's streaming port (M2.10a). Assigning onmessage implicitly starts the
+// Pair with the data worker's streaming port. Assigning onmessage implicitly starts the
 // port, so streamStep messages posted before this pairing drain here in order — no lost frames.
 async function pair(request: Extract<RenderWorkerRequest, { kind: "pair" }>): Promise<void> {
   await initDone;

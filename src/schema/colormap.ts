@@ -1,11 +1,9 @@
 import type { FieldName } from "./types.ts";
 
 // The reified color-mapping a renderable layer references (DESIGN §1010). @webpic/schema is the
-// authority for this shape — render/store/ui restate nothing, they import it. webpic-native, not a
-// mirror of magviz's prototype: typed FieldName + ColormapId, window/level in the canonical
-// {center, width} form (matching the M2.3 RangeControl), and a discriminated scale. No per-binding
-// `units`/`min,max`/`transparentBounds` (units come from the registry/theme; the range is the
-// window) and no `linthresh` (symlog's linear half-width is auto-derived in UI + render alike).
+// authority for this shape — render/store/ui import it, restating nothing. Window/level in the
+// canonical {center, width} form; a discriminated scale. No per-binding units/min,max (units come
+// from the registry/theme; the range is the window) or linthresh (symlog's half-width is auto-derived).
 
 // The colormaps webpic ships in v0.1 — the keys render/colormap.ts has polynomial fits for. A
 // ColormapBinding stores one of these; theme strings + arbitrary labels resolve to one at the
@@ -19,9 +17,8 @@ export const DEFAULT_COLORMAP: ColormapId = "inferno";
 export type ColorScale = "linear" | "log" | "symlog";
 export const COLOR_SCALES = ["linear", "log", "symlog"] as const;
 
-// Value→color window in the canonical {center, width} form (not a separate min/max). The one
-// definition store and render import — the only restated copy left is ui/controls/rangeMath.ts's,
-// kept local so that sublayer stays dependency-free and liftable.
+// Value→color window in the canonical {center, width} form (not a separate min/max). ui's
+// rangeMath.ts keeps a local copy so that sublayer stays dependency-free and liftable.
 export interface WindowLevel {
   readonly center: number;
   readonly width: number;

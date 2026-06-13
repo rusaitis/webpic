@@ -11,9 +11,9 @@ export type TsFieldOp = (inputs: readonly FieldArray[]) => FloatArray;
 // its own kernels; the WebGPU backend binds the same names to WGSL.
 const TS_FIELD_OPS: Record<string, TsFieldOp> = { ...MAGNITUDE_FIELD_OPS };
 
-// Can the TS backend evaluate this recipe at all (bound op, no unsupported features)?
-// Keep in sync with computeRecipeTs's guards below — used to build the selectable-field
-// list without attempting (and catching) a compute per candidate.
+// Can the TS backend evaluate this recipe at all (bound op, no unsupported features)? Keep in sync
+// with computeRecipeTs's guards below — it builds the selectable-field list without attempting a
+// compute per candidate.
 export function isTsComputable(recipe: RecipeMeta): boolean {
   return (
     !recipe.needsGrid &&

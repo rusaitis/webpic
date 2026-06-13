@@ -1,7 +1,7 @@
 import type { Vec3 } from "./types.ts";
 
-// The orbit camera pose shared across the ui→store→render boundary (schema is the DAG root all
-// three may import). One definition replaces the store/render twins that drifted only by comment.
+// The orbit camera pose, shared across the ui→store→render boundary (schema is the DAG root all
+// three import).
 
 export interface CameraPose {
   readonly target: Vec3; // look-at point, scene/code units
@@ -10,8 +10,7 @@ export interface CameraPose {
   readonly distance: number; // > 0, camera → target
 }
 
-// Volume-view projection (slices are always screen-aligned ortho). Shared here for the same
-// reason as CameraPose: one definition instead of store/render twins synced by comment.
+// Volume-view projection (slices are always screen-aligned ortho).
 export type CameraProjection = "perspective" | "orthographic";
 
 // Camera-motion liveness, ui → store → worker. "gesture" = the hand is on the camera (drag, held
@@ -24,10 +23,7 @@ export type CameraMotion = "idle" | "gesture" | "fly";
 // camera must agree on this, or the world point under the cursor drifts during a dolly.
 export const CAMERA_FOV_DEG = 45;
 
-// z-up 3/4 view — position ≈ (1.31, 1.31, 1.27), +z up, aimed at the box center. An earlier target
-// z=-0.22 nudge compensated a square-canvas overflow (index.html) that sank the render below the
-// visible center; with the canvas filling the viewport, the box center is the honest framing.
-// 2.25 (was 3.0, 25% closer) boots with the volume near-filling the frame, axes readable.
+// z-up 3/4 view aimed at the box center; boots with the volume near-filling the frame, axes readable.
 export const DEFAULT_POSE: CameraPose = {
   target: [0, 0, 0],
   azimuth: Math.PI / 4,

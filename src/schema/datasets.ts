@@ -1,7 +1,5 @@
-// The selectable built-in datasets — pure id+label descriptors, the single list the dataset dropdown
-// and the app's factory map both key off. The app (`app/datasets.ts`) maps each id to its generator +
-// stream handle; the UI panel reads only the labels here (it can't reach `data`). Adding a dataset is
-// one entry here + one in the app factory map.
+// The selectable built-in datasets — id+label descriptors the dataset dropdown and app/datasets.ts
+// (id → generator + stream handle) both key off. Adding one is an entry here + one in the app map.
 
 export interface DatasetDescriptor {
   readonly id: string;

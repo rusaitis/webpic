@@ -1,9 +1,7 @@
 import type { FieldMeta, FieldName, FloatArray, Vec3 } from "@schema/types.ts";
 
-// Minimal typed-array-backed dataset container — the shape every reader produces
-// and the math/render layers consume. Destaggering Yee-mesh components to a co-located
-// grid runs on load in @data/stagger.ts (destaggerToColocated). Mirrors
-// pypic.dataset.FieldDataset + pypic.grid.GridInfo.
+// Minimal typed-array-backed dataset container — the shape every reader produces and the math/render
+// layers consume. Mirrors pypic.dataset.FieldDataset + pypic.grid.GridInfo.
 
 // pypic CoordinateGeometry plus `thetaMode` (FBPIC RZ). Carries the tag; the
 // raymarcher/coordinate transforms interpret it later.

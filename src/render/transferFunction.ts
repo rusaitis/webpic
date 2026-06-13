@@ -17,8 +17,8 @@ const DEFAULT_LUT_SIZE = 256; // conventional colormap LUT width (linear-interpo
 
 export interface TransferFunctionTexture {
   readonly texture: DataTexture;
-  /** Rebake the LUT for a new colormap in place (no reallocation). Idempotent — a repeated name is
-   *  a no-op, so a window-drag message carrying the unchanged colormap costs nothing. */
+  /** Rebake the LUT for a new colormap in place (no reallocation). A repeated name is a no-op, so a
+   *  window-drag carrying the unchanged colormap costs nothing. */
   setColormap(name: string): void;
   dispose(): void;
 }

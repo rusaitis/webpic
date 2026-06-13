@@ -1,22 +1,19 @@
 import { type CameraPose, DEFAULT_POSE } from "./camera.ts";
 import type { Vec3 } from "./types.ts";
 
-// Point-picker marker geometry + the camera-pose gating that drives both its rendering (render/) and
-// its drag interaction (store/ + ui/). render and store can't import each other (the DAG), so the
-// shared definitions live here in schema (the root both reach) — one source of truth for the sphere
-// size, handle offsets, and view-angle gates, instead of a render/store pair synced by comment.
+// Point-picker marker geometry + the camera-pose gating that drives its rendering (render/) and drag
+// interaction (store/ + ui/). Shared here in schema since render and store can't import each other.
 //
-// All lengths are object space: the volume is the unit box [-0.5, 0.5]³ with the identity transform,
-// so object = world. z-up adaptation of magviz's y-up picker: "vertical" drag is world z, the
-// equatorial plane is xy (z held), and the equatorial cross-screen axis is world x or y.
+// All lengths are object space: the volume is the unit box [-0.5, 0.5]³ with identity transform, so
+// object = world. z-up adaptation of magviz's y-up picker: "vertical" drag is world z, the equatorial
+// plane is xy (z held), and the cross-screen axis is world x or y.
 
 // Which part of the marker the cursor is over / grabbing. "vertical" = the ↕ (z) handle; "horizontal"
 // = the ↔ (x or y) handle.
 export type MarkerPart = "none" | "core" | "vertical" | "horizontal";
 
 // What a cursor-ray pick is for: "place" moves the picker marker to the point; "focus" additionally
-// flies the orbit pivot there. Both use the same opacity-weighted ray march (render/pickRay). Lives
-// here (not store) so the render worker can echo it on pickResult without importing store (DAG).
+// flies the orbit pivot there. Both use the same opacity-weighted ray march (render/pickRay).
 export type PickPurpose = "place" | "focus";
 
 // The world axis the ↔ handle drags along in the equatorial regime.
@@ -29,10 +26,8 @@ export const MARKER_SPHERE_RADIUS = 0.012;
 export const HANDLE_OFFSET_SCALE = 8.5;
 export const HANDLE_KNOB_SCALE = 2.7;
 
-// Zoom-aware sizing: a fixed-world-size marker reads huge up close and a speck far out, so the core
-// is scaled per frame by a damped function of the camera distance. k = (dist/REF)^ZOOM_DAMP, clamped;
-// ZOOM_DAMP 0 = world-fixed, 1 = constant on-screen. REF is the default framing distance, so k = 1
-// there and the marker matches its built size.
+// Zoom-aware sizing: scale the core per frame by a damped function of camera distance, so it doesn't
+// read huge up close and a speck far out. ZOOM_DAMP 0 = world-fixed, 1 = constant on-screen.
 export const ZOOM_DAMP = 0.7;
 export const ZOOM_SCALE_MIN = 0.5;
 export const ZOOM_SCALE_MAX = 3.5;

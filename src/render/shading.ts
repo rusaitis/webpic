@@ -1,11 +1,11 @@
 import type { Vec3 } from "@schema/types.ts";
 
-// Render-local volume lighting (M2.7): a shading NORMAL from the field gradient + a headlight
-// Blinn-Phong term. Deliberately NOT `coordinates/operators/gradient` — a lighting normal is an
-// aesthetic, transfer-function-dependent quantity (it shades the *opacity* isosurface, not a
-// physical boundary), so it must not be deduped against the physics gradient operator. This pure
-// twin is the reference the TSL in raymarchScene.ts mirrors (the rayBox.ts ↔ hitBox precedent);
-// the tests check it against analytic fixtures.
+// Render-local volume lighting: a shading NORMAL from the field gradient + a headlight Blinn-Phong
+// term. Deliberately NOT `coordinates/operators/gradient` — a lighting normal is an aesthetic,
+// transfer-function-dependent quantity (it shades the *opacity* isosurface, not a physical boundary),
+// so it must not be deduped against the physics gradient operator. This pure twin is the reference the
+// TSL in raymarchScene.ts mirrors (the rayBox.ts ↔ hitBox precedent); the tests check it against
+// analytic fixtures.
 
 export interface PhongParams {
   /** Constant base term so unlit (edge-on / flat) regions stay visible. */

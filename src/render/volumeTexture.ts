@@ -16,12 +16,10 @@ import { texture3D } from "three/tsl";
 //     3D sampling is unreliable on some Metal drivers (returns NaN / loses the device).
 //   • absent → R16F (half-float) + linear, the core-filterable fallback.
 //
-// Time-series streaming (M2.10b) ping-pongs new timesteps through `setField`: it writes the field
-// into the *inactive* of two identically-configured textures and swaps the sampling node's value
-// (NodeSampledTexture.update reads node.value each frame and rebinds when it changes — a bind-group
-// swap, not a pipeline recompile), so a scrub reuses the scene's geometry/material/transfer-function
-// with no per-step rebuild of the 64 MiB pipeline. The second buffer is allocated lazily on the
-// first swap, so a static (never-streamed) layer holds one texture.
+// Time-series streaming ping-pongs new timesteps through `setField`: it writes into the *inactive* of
+// two identically-configured textures and swaps the sampling node's value (a bind-group rebind, not a
+// pipeline recompile), so a scrub reuses the scene with no per-step rebuild. The second buffer is
+// allocated lazily on the first swap, so a static layer holds one texture.
 
 // Just the typed array + shape the upload needs — a `FieldArray` is structurally assignable,
 // and it lets the render worker reconstruct a slice input from a transferred buffer without
@@ -72,8 +70,8 @@ export function finiteRange(data: FloatArray): { readonly min: number; readonly 
 }
 
 // Pack a field into `out` (R32F float | R16F half), replacing non-finite samples with `fill` so a
-// stray NaN/inf can't poison a trilinear-filtered neighborhood. The array-type branch is hoisted out
-// of the per-voxel loop (16.7M voxels at 256³).
+// stray NaN/inf can't poison a trilinear-filtered neighborhood. Array-type branch hoisted out of the
+// per-voxel loop (16.7M voxels at 256³).
 function packInto(out: Float32Array | Uint16Array, data: FloatArray, fill: number): void {
   if (out instanceof Uint16Array) {
     for (let i = 0; i < out.length; i++) {

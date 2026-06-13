@@ -57,8 +57,8 @@ function axisSlab(o: number, d: number, half: number): readonly [number, number]
 
 // Midpoint of the ray's chord through the render box, or null on a miss. `halfExtent` is the per-axis
 // world half-size — the unit box [-0.5, 0.5]³ for a cubic dataset, anisotropic for a non-cubic one
-// (store `worldHalfExtent`). Restates render/rayBox.ts's slab test — the DAG forbids store → render,
-// and ui (which needs the synchronous miss test) can only reach store.
+// (store `worldHalfExtent`). Restates render/rayBox.ts's slab test, which ui's synchronous miss
+// test can't reach (store can't import render).
 const UNIT_HALF_EXTENT: Vec3 = [0.5, 0.5, 0.5];
 
 export function unitBoxChordMidpoint(

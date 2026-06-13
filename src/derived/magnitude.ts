@@ -1,5 +1,4 @@
-// Vector-field magnitudes — |B|, |E|, |J|, |V|. Pure typed-array math, mirrors
-// pypic.derived (_vector_magnitude + the per-quantity wrappers the compute recipes bind to).
+// Vector-field magnitudes — |B|, |E|, |J|, |V|. Pure typed-array math (mirrors pypic.derived).
 
 import type { FloatArray } from "@schema/types.ts";
 

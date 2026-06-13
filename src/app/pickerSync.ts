@@ -3,11 +3,11 @@ import type { Rgba01, Theme } from "@schema/theme.ts";
 import type { SimulationStore } from "@store";
 import { resolveOverlayColors } from "./sceneSync.ts";
 
-// Bridges the store's point-picker state to the render worker (app-only: it imports both @store and
-// @render, which the DAG forbids either of them from doing). Mirrors sceneSync: the build config
-// (theme colors + guide plane) is low-frequency and rides setMarker on the showPicker toggle; the live
-// position + hover/active state ride the cheap setPickerPoint. Gated on `workerReady` with a flushAll
-// catch-up replayed on the worker `ready` (setDataset + the initial picker state run before `ready`).
+// Bridges the store's point-picker state to the render worker (app-only glue: store and render can't
+// import each other). Mirrors sceneSync: the build config (theme colors + guide plane) is low-
+// frequency and rides setMarker on the showPicker toggle; the live position + hover/active state ride
+// the cheap setPickerPoint. Gated on `workerReady` with a flushAll catch-up replayed on the worker
+// `ready` (setDataset + the initial picker state run before `ready`).
 
 // Disjoint from app/main.ts (1-8, 10), layerSync (9), and sceneSync (10) so worker error echoes
 // attribute correctly.

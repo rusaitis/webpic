@@ -196,10 +196,10 @@ export type RenderWorkerRequest =
       readonly purpose: PickPurpose;
       readonly focusDistance?: number;
     }
-  // Time-series streaming (M2.10a): the data worker's end of a private MessageChannel. The worker
-  // reads + computes each scrubbed step off-main and posts StreamStepMessage (from @data) over this
-  // port, so the 64 MiB scalar flows data → render with no main-thread hop. Stored on receipt; the
-  // port's own onmessage handles the field swaps.
+  // Time-series streaming: the data worker's end of a private MessageChannel. The worker reads +
+  // computes each scrubbed step off-main and posts StreamStepMessage (from @data) over this port, so
+  // the scalar flows data → render with no main-thread hop. Stored on receipt; the port's own
+  // onmessage handles the field swaps.
   | { readonly kind: "pair"; readonly requestId: number; readonly port: MessagePort };
 
 export type RenderWorkerResponse =

@@ -71,7 +71,7 @@ export interface BootstrapOptions {
   readonly createCanvas?: () => HTMLCanvasElement;
   readonly mount?: (canvas: HTMLCanvasElement) => void;
   readonly spawnWorker?: () => Worker;
-  /** Spawns the data/streaming worker (M2.10a); only spawned when `streamSource` is set. */
+  /** Spawns the data/streaming worker; only spawned when `streamSource` is set. */
   readonly spawnDataWorker?: () => Worker;
   /** A multi-step source to stream timesteps from (the scrub cursor drives it). Omit → no streaming
    *  (single-step dataset; the scrub control stays disabled). The default app entry passes the
@@ -152,7 +152,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   uiStore.getState().beginLoading(BOOT_PHASE_KEY, "webpic");
   let workerReady = false;
 
-  // Streaming worker (M2.10a): spawned only when a multi-step source is given. It reads + computes
+  // Streaming worker: spawned only when a multi-step source is given. It reads + computes
   // each scrubbed step off-main and streams the scalar straight to the render worker over a private
   // MessageChannel (no main hop); main only relays the timestep domain (→ setAvailableSteps) and
   // drives the cursor. The channel's port2 pairs into the render worker on `ready`; port1 rides the
@@ -229,7 +229,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   // Camera pose rides the same cheap-message pattern. Pose is always present (DEFAULT_POSE), and the
   // worker already applied it at init, so there's no catch-up post on `ready` — this fires only on
-  // user-driven changes (M2.4b pointer input). Until then it's inert.
+  // user-driven changes (pointer input). Until then it's inert.
   const unsubscribePose = store.subscribe(
     (state) => state.cameraPose,
     (pose) => {
@@ -383,7 +383,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
           projection: store.getState().projection,
         } satisfies RenderWorkerRequest);
       }
-      // Pair the data worker's streaming port (M2.10a) now the renderer is live, so streamed steps
+      // Pair the data worker's streaming port now the renderer is live, so streamed steps
       // flow data → render directly. Buffered until the render worker sets the port's onmessage.
       if (streamChannel !== undefined) {
         worker.postMessage(

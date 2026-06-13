@@ -3,7 +3,7 @@ import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
 import { parsePoseParam } from "@store";
 
 // `?n=<size>` overrides the scaffold volume's per-axis resolution — a dev/profiling affordance for
-// feeding the raymarcher the M2 256³ gate workload (see scripts/profile-raymarch.ts). Absent or
+// feeding the raymarcher the 256³ gate workload (see scripts/profile-raymarch.ts). Absent or
 // invalid → the small default scaffold. Bounded so a fat-fingered query can't OOM the tab.
 const params = new URLSearchParams(location.search);
 const requested = Number.parseInt(params.get("n") ?? "", 10);
@@ -16,7 +16,7 @@ const orthographic = params.get("proj") === "ortho";
 
 // The selectable datasets (the Dataset dropdown); the default (flux rope) seeds the boot dataset +
 // stream. Seed step 0 on the main thread (instant first frame) and stream the rest over the data
-// worker (M2.10a) — scrub the time control to see it evolve; switch the dropdown to the dipole.
+// worker — scrub the time control to see it evolve; switch the dropdown to the dipole.
 // `?debugScene` opts into the RGB test triangle as the empty-layers frame (renderer-alive sanity).
 const catalog = datasetCatalog(n);
 const initial = catalog.get(DEFAULT_DATASET_ID);

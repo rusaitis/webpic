@@ -3,11 +3,11 @@ import type { RenderWorkerRequest } from "@render";
 import { type ColormapBinding, DEFAULT_COLORMAP } from "@schema/colormap.ts";
 import type { Layer, SimulationStore } from "@store";
 
-// Bridges the store's instance-first layer registry to the render worker (app-only: it imports both
-// @store and @render, which the DAG forbids either of them from doing). Two channels: `computed`
-// carries field DATA (heavy, transfers the buffer), `layers` carries STRUCTURE (removals + the
-// cheap composite of order/visibility/opacity). Pre-M4 exactly one layer draws the active field, so
-// the single `computed` buffer is transferred once; M4's per-layer compute generalizes this.
+// Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
+// render can't import each other). Two channels: `computed` carries field DATA (heavy, transfers the
+// buffer), `layers` carries STRUCTURE (removals + the cheap composite of order/visibility/opacity).
+// One layer draws the active field for now, so the single `computed` buffer is transferred once;
+// per-layer compute will generalize this.
 
 // Render-worker request ids are disjoint per posting module (worker errors echo them back):
 // app/main.ts owns 1-8, layerSync 9, sceneSync 10.
@@ -31,15 +31,15 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   let lastLayers: readonly Layer[] = store.getState().layers; // snapshot for the removal diff
   let lastBindings = store.getState().colormapBindings; // snapshot for the per-binding change diff
 
-  // The layer's ColormapBinding, or undefined if it references none (defensive — post-M2.5b every
-  // renderable layer is seeded with one).
+  // The layer's ColormapBinding, or undefined if it references none (defensive — every renderable
+  // layer is seeded with one).
   const bindingFor = (layer: Layer): ColormapBinding | undefined =>
     layer.colormapBindingId !== null
       ? store.getState().colormapBindings[layer.colormapBindingId]
       : undefined;
 
   const sendUpsert = (layer: Layer, field: FieldArray): void => {
-    // Only slice/volume are renderable; fieldlines/particles (M4/M5) have no scene yet.
+    // Only slice/volume are renderable; fieldlines/particles have no scene yet.
     if (layer.kind !== "slice" && layer.kind !== "volume") return;
     const dtype = field.data instanceof Float64Array ? "f64" : "f32";
     // Freshly computed magnitude → an offset-0 ArrayBuffer (not the SharedArrayBuffer that
@@ -110,8 +110,8 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     worker.postMessage(request);
   };
 
-  // Upsert every layer drawing the active field (pre-M4: the one layer) from `computed`. A
-  // transferred buffer detaches, so a (pre-M4 impossible) second same-field layer gets a copy.
+  // Upsert every layer drawing the active field (currently the one layer) from `computed`. A
+  // transferred buffer detaches, so a second same-field layer gets a copy.
   const upsertActiveField = (computed: FieldArray): void => {
     const { layers, activeField } = store.getState();
     let transferred = false;
@@ -145,7 +145,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
 
   // Structure channel — removals, the per-layer shading toggle, and the cheap composite. No upsert
   // here: a new layer's field data (and its initial `shaded`) ride the same-tick `computed` change
-  // (M4's per-layer compute adds a real upsert path).
+  // (per-layer compute will add a real upsert path).
   const unsubscribeLayers = store.subscribe(
     (state) => state.layers,
     (layers) => {
@@ -180,9 +180,8 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   );
 
   // Bindings channel — the live color hot path (colormap / window-drag / scale). Diffs the registry
-  // by reference and posts setLayerColormap for each layer whose binding object changed. Pre-M4 it's
-  // the one layer, same cadence as the old global setWindowLevel; the upsert carries the binding for
-  // a fresh layer, so this fires only on edits to an existing one.
+  // by reference and posts setLayerColormap for each layer whose binding object changed. The upsert
+  // carries the binding for a fresh layer, so this fires only on edits to an existing one.
   const unsubscribeBindings = store.subscribe(
     (state) => state.colormapBindings,
     (bindings) => {

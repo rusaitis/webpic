@@ -1,12 +1,11 @@
 import { ClampToEdgeWrapping, Data3DTexture, FloatType, NearestFilter, RedFormat } from "three";
 import type { ScalarField } from "./volumeTexture.ts";
 
-// Coarse per-brick min/max over the volume — the acceleration structure for the raymarcher's
-// empty-space skipping (TASKS M2.6). A brick whose *max* value maps below an opacity ε contributes
-// nothing to the emission–absorption integral, so the march jumps across it instead of taking fixed
-// steps through transparent space. This is the base level of what could grow into a full min-max mip
-// pyramid; v0.1 ships one coarse level driving a two-level (coarse-skip / fine-march) traversal —
-// bounded and hang-proof, no recursive HDDA.
+// Coarse per-brick min/max over the volume — the acceleration structure for the raymarcher's empty-
+// space skipping. A brick whose *max* value maps below an opacity ε contributes nothing to the
+// emission–absorption integral, so the march jumps across it instead of stepping through transparent
+// space. One coarse level (not a full min-max mip pyramid) drives a two-level coarse-skip / fine-march
+// traversal — bounded and hang-proof, no recursive HDDA.
 //
 // The layout MIRRORS volumeTexture.ts so the same object→texture coords index both: texture dims
 // (width, height, depth) = (shape[2], shape[1], shape[0]), buffer x-fastest. A 1-voxel HALO is folded

@@ -77,9 +77,9 @@ export function createVolumeOrthographicCamera(aspect = 1): OrthographicCamera {
   return camera;
 }
 
-// Matched frustum: halfH = distance·tan(fov/2) shows exactly the perspective view's extent at the
-// target plane, so a projection flip keeps the on-screen scale (only parallax changes) — and
-// `distance` stays the single zoom parameter (wheel/pinch/keys dolly it; the frustum follows).
+// Matched frustum: halfH = distance·tan(fov/2) shows the perspective view's extent at the target
+// plane, so flipping projection keeps the on-screen scale (only parallax changes) and `distance`
+// stays the single zoom parameter (the frustum follows it).
 export function applyPoseOrtho(camera: OrthographicCamera, pose: CameraPose, aspect = 1): void {
   placeCamera(camera, pose);
   const halfH = pose.distance * Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);

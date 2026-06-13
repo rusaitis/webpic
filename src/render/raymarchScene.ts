@@ -34,12 +34,11 @@ import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 // Single-pass volume raymarcher over the shared `uVolume`. The analytic ray-box clip is
 // `wgslFn hitBox` — the WGSL twin of rayBox.ts.
 //
-// Two march paths (M2.6): the default fixed-step `Loop`, and an opt-in (`skipEmptySpace`) two-level
-// coarse-skip / fine-march over a min-max brick grid (minMaxGrid.ts) that jumps transparent bricks
-// while keeping occupied samples on the fixed lattice (output-equivalent). Skipping is OFF by default
-// because it only pays off on *sparse* fields: on space-filling |B| (the common case) almost nothing
-// is below the opacity floor, so the per-step skip-grid fetch is pure overhead — profiled ~1.7×
-// slower on the synthetic flux rope. Enable it for genuinely sparse data (vacuum, isolated ropes).
+// Two march paths: the default fixed-step `Loop`, and an opt-in (`skipEmptySpace`) two-level coarse-
+// skip / fine-march over a min-max brick grid (minMaxGrid.ts) that jumps transparent bricks while
+// keeping occupied samples on the fixed lattice (output-equivalent). OFF by default — it only pays
+// off on sparse fields; on space-filling |B| the per-step skip-grid fetch is pure overhead (~1.7×
+// slower on the synthetic flux rope). Enable it for genuinely sparse data (vacuum, isolated ropes).
 
 export interface RaymarchSceneOptions {
   readonly field: ScalarField;
@@ -212,7 +211,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       .select(orthoForward.normalize(), positionGeometry.sub(perspOrigin).normalize())
       .toVar();
     // Headlight view direction (surface → camera). The Phong light coincides with it, so whatever
-    // faces the camera is lit and orbiting reveals shape (no scene light to manage pre-M4).
+    // faces the camera is lit and orbiting reveals shape (no scene light to manage).
     const viewDir = rayDir.negate();
 
     // wgslFn returns an untyped `Node`; the WGSL signature returns vec2<f32> (entry, exit).
@@ -263,8 +262,8 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       const rgb = texture(tf.texture, vec2(t, 0.5)).rgb.toVar();
 
       // Phong (opt-in via uShade): a render-local lighting normal from the field gradient. Gated on
-      // uShade AND a contributing opacity `t` so transparent samples skip the 6 gradient taps — the
-      // gate that keeps shading off the 8 ms budget (shading.ts is the pure twin of this math).
+      // uShade AND a contributing opacity `t` so transparent samples skip the 6 gradient taps
+      // (shading.ts is the pure twin of this math).
       If(uShade.greaterThan(0.5).and(t.greaterThan(SHADE_T_FLOOR)), () => {
         const dx = vec3(voxelStep.x, 0, 0);
         const dy = vec3(0, voxelStep.y, 0);

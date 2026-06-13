@@ -12,11 +12,11 @@ import type {
   StreamStepMessage,
 } from "@data/streamMessages.ts";
 
-// The data worker owns all off-main data I/O (DESIGN §279): OPFS writes (below) and — from M2.10a —
-// time-series streaming. On `open` it resolves a reader and reports the timestep domain; on
-// `setCursor` it drives a ring buffer (data/stream.ts) that reads + computes the scalar OFF the main
-// thread and transfers it straight to the render worker over a paired MessagePort (no main hop), so
-// scrubbing never stalls the UI. The reader/compute imports run only in this worker chunk.
+// The data worker owns all off-main data I/O (DESIGN §279): OPFS writes (below) and time-series
+// streaming. On `open` it resolves a reader and reports the timestep domain; on `setCursor` it drives
+// a ring buffer (data/stream.ts) that reads + computes the scalar OFF the main thread and transfers it
+// straight to the render worker over a paired MessagePort (no main hop), so scrubbing never stalls the
+// UI. The reader/compute imports run only in this worker chunk.
 //
 // OPFS writes: createSyncAccessHandle() is the synchronous fast path and is worker-only in every
 // engine (and the only write path at all on Safari <26). The main thread reads async and dispatches
@@ -102,8 +102,6 @@ function handleCache(request: DataCacheRequest): Promise<void> {
     }
   });
 }
-
-// --- Time-series streaming (M2.10a) ---
 
 let reader: SimulationReader | undefined;
 let handle: DataHandle | undefined;

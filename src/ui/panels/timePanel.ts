@@ -6,9 +6,9 @@ import {
   type RangeValue,
 } from "../controls/index.ts";
 
-// The Time panel (M2.9): a scrub RangeControl over the discrete timestep domain. It dispatches
-// setStep (ui → store; never render); the M2.10 streaming core reacts to currentStep by reading +
-// uploading the next field — so until then the cursor moves but nothing re-reads.
+// The Time panel: a scrub RangeControl over the discrete timestep domain. It dispatches setStep
+// (ui → store; never render); the streaming worker reacts to currentStep by reading + uploading
+// the next field.
 //
 // The control walks *indices* into availableSteps, not the step numbers themselves: every grip
 // position maps to a real step (robust to sparse/non-contiguous steps, and free of snapping), while
