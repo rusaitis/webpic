@@ -21,6 +21,11 @@ export interface SliceFieldPayload {
   readonly shape: readonly number[];
 }
 
+// The renderable kind of a layer (picks the scene factory + the composite camera). The single home
+// for the render-side discriminant; the store mirrors it structurally as `Layer["kind"]` (the DAG
+// keeps the two layers from importing each other — they agree by validation at the message boundary).
+export type LayerKind = "slice" | "volume";
+
 // One field axis's physical extent + sample count + name, for the scene overlay's labeled grid/axes.
 // FIELD-axis order (0/1/2 = pypic GridInfo). `bounds` are inclusive [min, max] in code units (the app
 // derives them from GridInfo origin/spacing, or falls back to voxel [0, dim]); the worker maps field
@@ -92,7 +97,7 @@ export type RenderWorkerRequest =
       readonly kind: "upsertLayer";
       readonly requestId: number;
       readonly id: string;
-      readonly layerKind: "slice" | "volume";
+      readonly layerKind: LayerKind;
       readonly field: SliceFieldPayload;
       readonly colormap: string;
       readonly scale: ColorScale;

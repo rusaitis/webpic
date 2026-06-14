@@ -244,6 +244,7 @@ describe("installCalibration", () => {
       signal: AbortSignal.abort(),
     }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(DOMException);
+    // Narrowed by the assertion above — read the discriminating `.name` off the DOMException.
     expect((error as DOMException).name).toBe("AbortError");
   });
 

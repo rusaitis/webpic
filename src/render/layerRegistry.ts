@@ -3,7 +3,7 @@ import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
 import { warmScene } from "./managedScene.ts";
-import type { RenderWorkerRequest, SliceFieldPayload } from "./messages.ts";
+import type { LayerKind, RenderWorkerRequest, SliceFieldPayload } from "./messages.ts";
 import { fullRangeWindow } from "./normalization.ts";
 import type { PickLayer } from "./pickRay.ts";
 import { createRaymarchScene, type RaymarchScene } from "./raymarchScene.ts";
@@ -18,7 +18,7 @@ import { finiteRange, type ScalarField } from "./volumeTexture.ts";
 // its residency (CPU + GPU); fine for v0.1's one small volume, and the price of self-contained
 // recovery (no reseed wire).
 export interface LayerSource {
-  readonly layerKind: "slice" | "volume";
+  readonly layerKind: LayerKind;
   field: ScalarField; // mutable: a streamed timestep swaps it in place (see swapField)
   readonly axis?: SliceAxis;
   readonly position?: number;
@@ -36,7 +36,7 @@ export interface LayerSource {
 // it was built from (replayed on device-restore).
 export interface LayerEntry {
   readonly scene: SliceScene | RaymarchScene;
-  readonly kind: "slice" | "volume";
+  readonly kind: LayerKind;
   readonly source: LayerSource;
 }
 
@@ -300,16 +300,16 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
 
     layerItems(volume, ortho, override) {
       const items: CompositeItem[] = [];
-      let overrideListed = false;
+      let isOverrideListed = false;
       for (const entry of composite) {
         if (!entry.visible) continue;
         const isOverride = override !== undefined && entry.id === override.id;
-        if (isOverride) overrideListed = true;
+        if (isOverride) isOverrideListed = true;
         const layer = isOverride ? override.entry : layers.get(entry.id);
         if (layer === undefined) continue; // composite ahead of its upsert — heals on the upsert repaint
         items.push({ scene: layer.scene.scene, camera: layer.kind === "volume" ? volume : ortho });
       }
-      if (override !== undefined && !overrideListed) {
+      if (override !== undefined && !isOverrideListed) {
         items.push({
           scene: override.entry.scene.scene,
           camera: override.entry.kind === "volume" ? volume : ortho,

@@ -1,11 +1,11 @@
 import type { StreamStepMessage } from "@data";
 import { getCapabilities, getDevice, installGpu, onDeviceLost, onDeviceRestored } from "@gpu";
-import type { Vec3 } from "@schema/types.ts";
 import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
 import { DEFAULT_POSE } from "./camera.ts";
 import { type CameraRig, createCameraRig } from "./cameraRig.ts";
 import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
-import { createSceneOverlay, type SceneOverlay } from "./grid/overlayScene.ts";
+import { createManagedOverlay } from "./grid/managedOverlay.ts";
+import type { SceneOverlay } from "./grid/overlayScene.ts";
 import {
   advanceSettling,
   applyCameraMotion,
@@ -15,16 +15,13 @@ import {
   qualityLevel,
 } from "./interactionQuality.ts";
 import { createLayerRegistry, type LayerEntry } from "./layerRegistry.ts";
-import { warmScene } from "./managedScene.ts";
-import { createMarkerScene, type MarkerScene } from "./marker/markerScene.ts";
+import { createManagedMarker } from "./marker/managedMarker.ts";
+import type { MarkerScene } from "./marker/markerScene.ts";
 import type {
   CameraPose,
   CameraProjection,
-  MarkerConfig,
-  MarkerPart,
   RenderWorkerRequest,
   RenderWorkerResponse,
-  SceneOverlayConfig,
 } from "./messages.ts";
 import { pickPointOnRay } from "./pickRay.ts";
 import { type CompositeItem, type InstalledRenderer, installRenderer } from "./renderer.ts";
@@ -42,7 +39,7 @@ let renderer: InstalledRenderer | undefined;
 // The RGB test triangle as the empty-layers frame is opt-in (init.debugScene — `?debugScene`, the
 // parity test): handy "renderer alive, data missing" diagnostic, but as the default boot frame it
 // was a disorienting flash. The user-facing boot/empty frame is the bare clear color instead.
-let debugScene = false;
+let isDebugScene = false;
 let testScene: TestScene | undefined;
 // The worker's cameras (cameraRig): the pose-driven volume pair + the screen-aligned ortho for slices
 // + boot. Created in init; survives a device loss (pure JS matrices, no GPU resources).
@@ -56,7 +53,7 @@ let float32Filterable = false; // R32F linear volume texture when the device sup
 // device.lost recovery: gpu/ re-acquires the device and emits onDeviceRestored; render/ must rebuild
 // the renderer + every scene on the new device (the old ones hold dead GPU handles). Without this a
 // recoverable loss is a permanent frozen swapchain.
-let deviceLost = false; // pauses the loop between loss and restore
+let isDeviceLost = false; // pauses the loop between loss and restore
 let unsubscribeGpu: (() => void) | undefined;
 // The init promise; renderFrame/upsertLayer await it so they can't race a half-built renderer
 // even if a future caller stops gating on the `ready` response.
@@ -66,26 +63,10 @@ let initDone: Promise<void> | undefined;
 // stays dormant and requestRender() paints synchronously, preserving the old one-shot behavior.
 let needsRender = false; // on-demand: the loop paints only when something changed
 let rafId: number | undefined; // undefined ⇒ no loop running
-let readbackInFlight = false; // pauses the loop across a deterministic readPixels (see renderFrame)
-let continuous = false; // diagnostics: force every-frame repaints for sustained GPU timing
+let isReadbackInFlight = false; // pauses the loop across a deterministic readPixels (see renderFrame)
+let isContinuous = false; // diagnostics: force every-frame repaints for sustained GPU timing
 let frameTimer: FrameTimer | undefined; // per-frame GPU timing (timestamp-query or wall-clock)
 let lastErrorMessage: string | undefined; // dedupe so a persistent bad frame can't flood the channel
-
-// The themeable axes + grid overlay (composited last, over the volume) + the config it was built from.
-// overlaySource is retained so a device-restore rebuild reproduces the live overlay, mirroring how a
-// layer retains its LayerSource. Labels are auto-billboarding Sprites, so no per-pose update is needed.
-let overlay: SceneOverlay | undefined;
-let overlaySource: SceneOverlayConfig | undefined;
-
-// The draggable point-picker marker (composited last, over the volume + overlay) + its retained build
-// config + live position/state, all replayed on a device-restore rebuild. Its hover/pulse/active
-// easing is advanced in renderTick (tick()); applyVolumePose re-runs its zoom scale + handle gating.
-let marker: MarkerScene | undefined;
-let markerSource: MarkerConfig | undefined;
-let markerPoint: Vec3 | null = null;
-let markerHovered: MarkerPart = "none";
-let markerActive = false;
-let lastMarkerTickMs: number | undefined; // wall clock of the previous tick, for the easing dt
 
 // The data worker's end of the streaming MessageChannel. Stored on `pair`; its onmessage
 // applies streamed timestep fields (data → render, no main hop). Closed on dispose.
@@ -116,6 +97,25 @@ const registry = createLayerRegistry({
   warmComposite: ({ id, entry }) => renderer?.compileComposite(compositeItems({ id, entry })),
 });
 
+// The themeable axes + grid overlay's lifecycle (build/replace, warm-then-commit, device-restore
+// replay), composited last over the volume. The worker owns the composite, so the warm flows back
+// through warmComposite — which compiles the full prospective composite (overlay spliced in).
+const overlay = createManagedOverlay({
+  requestRender,
+  reportFault,
+  warmComposite: (scene) => renderer?.compileComposite(compositeItems(undefined, scene)),
+});
+
+// The draggable point-picker marker's lifecycle + live position/state + easing clock, composited last
+// over the volume + overlay. Reads the live pose from the worker; warms the full composite like the overlay.
+const marker = createManagedMarker({
+  pose: () => pose,
+  isOrthographic: () => projection === "orthographic",
+  requestRender,
+  reportFault,
+  warmComposite: (scene) => renderer?.compileComposite(compositeItems(undefined, undefined, scene)),
+});
+
 function aspect(): number {
   return dims.height > 0 ? dims.width / dims.height : 1;
 }
@@ -124,7 +124,7 @@ function aspect(): number {
 // never shows a stale frustum); compositeItems picks the active one by `projection`.
 function applyVolumePose(): void {
   rig?.apply(pose, aspect());
-  marker?.updateForPose(pose, projection === "orthographic"); // zoom scale + handle gating track the pose
+  marker.applyPose(); // zoom scale + handle gating track the live pose
 }
 
 function volumeCamera(): PerspectiveCamera | OrthographicCamera | undefined {
@@ -147,12 +147,12 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
   frameTimer = createFrameTimer(getDevice());
   rig = createCameraRig(aspect());
   applyVolumePose();
-  debugScene = request.debugScene === true;
-  if (debugScene) testScene = createTestScene();
+  isDebugScene = request.debugScene === true;
+  if (isDebugScene) testScene = createTestScene();
   // Rebuild the renderer + scenes on the device gpu/ re-acquires after a loss; until then the loop
-  // pauses (deviceLost) instead of painting a dead device into a frozen/magenta swapchain.
+  // pauses (isDeviceLost) instead of painting a dead device into a frozen/magenta swapchain.
   const offLost = onDeviceLost((event) => {
-    deviceLost = true;
+    isDeviceLost = true;
     if (event.terminal) {
       // Recovery gave up (breaker tripped or no adapter) — halt the loop so nothing hammers the dead
       // GPU, and tell the app to show a terminal "reload" state instead of spiraling.
@@ -199,11 +199,13 @@ function compositeItems(
   // 3D chrome over a flat ortho slice or an empty frame is meaningless; a volume whose upsert hasn't
   // landed yet heals on its upsert repaint.
   const hasVolume = items.some((item) => item.camera === volume);
-  const effectiveOverlay = overlayOverride === undefined ? overlay : (overlayOverride ?? undefined);
+  const effectiveOverlay =
+    overlayOverride === undefined ? overlay.current() : (overlayOverride ?? undefined);
   if (effectiveOverlay !== undefined && hasVolume) {
     items.push({ scene: effectiveOverlay.scene, camera: volume });
   }
-  const effectiveMarker = markerOverride === undefined ? marker : (markerOverride ?? undefined);
+  const effectiveMarker =
+    markerOverride === undefined ? marker.current() : (markerOverride ?? undefined);
   if (effectiveMarker !== undefined && hasVolume) {
     items.push({ scene: effectiveMarker.scene, camera: volume });
   }
@@ -228,7 +230,7 @@ function paintItems(): CompositeItem[] {
 // is running (Node, or the init boot paint before startRenderLoop), renders synchronously instead.
 function requestRender(): void {
   needsRender = true;
-  if (rafId === undefined && renderer !== undefined && !deviceLost) {
+  if (rafId === undefined && renderer !== undefined && !isDeviceLost) {
     renderer.renderComposite(paintItems());
     needsRender = false;
   }
@@ -237,26 +239,19 @@ function requestRender(): void {
 function renderTick(frameTimeMs: number): void {
   // Reschedule first so a throwing frame can't permanently strand the loop.
   rafId = requestAnimationFrame(renderTick);
-  if (readbackInFlight || renderer === undefined || deviceLost) return;
+  if (isReadbackInFlight || renderer === undefined || isDeviceLost) return;
   // Advance the marker's hover/pulse/active easing (cheap, alloc-free) and keep painting while it
   // animates. Runs every frame the rAF loop reschedules anyway, so it adds no new loop; it only
-  // dirties needsRender while easing, then the on-demand loop falls back to idle. dt comes from the
-  // vsync-aligned rAF timestamp, not performance.now() — callback scheduling jitter would unevenly
-  // chop the easing steps.
-  if (marker !== undefined) {
-    const dtSec = lastMarkerTickMs === undefined ? 1 / 60 : (frameTimeMs - lastMarkerTickMs) / 1000;
-    lastMarkerTickMs = frameTimeMs;
-    if (marker.tick(dtSec)) needsRender = true;
-  } else {
-    lastMarkerTickMs = undefined;
-  }
+  // dirties needsRender while easing, then the on-demand loop falls back to idle. The manager owns
+  // the dt clock (vsync-aligned rAF timestamp, not performance.now()).
+  if (marker.tick(frameTimeMs)) needsRender = true;
   // Continuous mode repaints every frame for sustained GPU timing; otherwise paint only on change.
-  if (!needsRender && !continuous) return;
+  if (!needsRender && !isContinuous) return;
   needsRender = false;
   try {
     // GPU timing only while measuring (continuous): its onSubmittedWorkDone bracket is a GPU sync,
     // so on-demand interactive frames skip it entirely and stay smooth.
-    if (continuous) {
+    if (isContinuous) {
       frameTimer?.beginFrame();
       renderer.renderComposite(paintItems());
       void sampleAndPostTiming().catch(reportFault);
@@ -310,7 +305,7 @@ async function renderFrame(
   // Deterministic readback renders to an offscreen target, then awaits the GPU. The only async gap
   // in the worker's single thread is that await — block the display loop's swapchain render across
   // it, else a rAF frame between the readback render and its await would corrupt the read pixels.
-  readbackInFlight = true;
+  isReadbackInFlight = true;
   try {
     const pixels = await renderer.readCompositePixels(items);
     // Freshly allocated readback buffer (never shared) — safe to transfer.
@@ -326,7 +321,7 @@ async function renderFrame(
       [buffer],
     );
   } finally {
-    readbackInFlight = false;
+    isReadbackInFlight = false;
     needsRender = true; // repaint the swapchain the readback borrowed the renderer from
   }
 }
@@ -463,21 +458,21 @@ async function resize(request: Extract<RenderWorkerRequest, { kind: "resize" }>)
 
 // Rebuild the renderer + every scene on the device gpu/ re-acquired after a loss. The old renderer
 // and all GPU textures belong to the dead device; the layers' CPU sources survive, so scenes rebuild
-// locally with no main↔worker reseed. The loop stays paused (deviceLost) until this completes.
+// locally with no main↔worker reseed. The loop stays paused (isDeviceLost) until this completes.
 async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   if (canvas === undefined) return; // pre-init loss — nothing to rebuild yet
   // Any in-flight warm raced the loss: bump every epoch so its commit discards (a superseded
   // streamed field heals on the next step) instead of landing a dead-device scene post-rebuild.
   registry.bumpAllEpochs();
-  overlayEpoch += 1;
-  markerEpoch += 1; // an in-flight buildMarker warm must discard rather than land a dead-device scene
+  overlay.bumpEpoch();
+  marker.bumpEpoch(); // an in-flight warm must discard rather than land a dead-device scene
   // Drop the dead-device resources best-effort: disposing GPU handles on a lost device can throw,
   // and the fresh renderer below is what matters.
   try {
     renderer?.dispose();
     registry.disposeForRebuild();
-    overlay?.dispose();
-    marker?.dispose();
+    overlay.disposeForRebuild();
+    marker.disposeForRebuild();
     testScene?.dispose();
   } catch {
     // a lost device throws on teardown — ignore; we're replacing everything anyway
@@ -491,20 +486,13 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
     device,
   });
   frameTimer = createFrameTimer(device);
-  if (debugScene) testScene = createTestScene();
+  if (isDebugScene) testScene = createTestScene();
   applyVolumePose();
   registry.rebuildScenes();
-  // Replay the overlay from its retained config on the fresh device (its line buffers + CanvasTextures
-  // belonged to the dead device). Sprites re-billboard on the next render.
-  overlay = overlaySource !== undefined ? createSceneOverlay(overlaySource) : undefined;
-  // Same for the marker — rebuild from its retained config and replay the live pose + position/state.
-  marker = markerSource !== undefined ? createMarkerScene(markerSource) : undefined;
-  if (marker !== undefined) {
-    marker.updateForPose(pose, projection === "orthographic");
-    marker.setPoint(markerPoint);
-    marker.setState(markerHovered, markerActive);
-  }
-  lastMarkerTickMs = undefined;
+  // Replay the overlay + marker from their retained configs on the fresh device (their GPU resources
+  // belonged to the dead device); the marker re-seeds the live pose + position/state internally.
+  overlay.rebuild();
+  marker.rebuild();
   // The fresh renderer starts at scale 1 and the rebuilt scenes already carry the live step scale —
   // resync the applied-level cache, then re-apply in case a gesture is live across the restore.
   appliedLevel = { stepScale: qualityLevel(quality).stepScale, renderScale: 1 };
@@ -516,7 +504,7 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   } catch (error) {
     reportFault(error);
   }
-  deviceLost = false;
+  isDeviceLost = false;
   requestRender();
 }
 
@@ -526,33 +514,8 @@ async function setContinuous(
   request: Extract<RenderWorkerRequest, { kind: "setContinuous" }>,
 ): Promise<void> {
   await initDone;
-  continuous = request.continuous;
-  if (continuous) needsRender = true;
-}
-
-// Build/replace the axes + grid overlay from a config (or tear it down on null). Warm-then-commit
-// like a layer replace — the warm also compiles the volume's pipelines for the ≥2-layer composite
-// context this overlay usually activates. New scene live before the old one's GPU resources are
-// freed — the overlay has no readback-borrowed texture, so a same-tick dispose is safe (unlike the
-// layer registry's one-frame deferral). Retains the source for a device-restore rebuild.
-let overlayEpoch = 0;
-
-async function buildOverlay(config: SceneOverlayConfig | null): Promise<void> {
-  const epoch = ++overlayEpoch;
-  const next = config !== null ? createSceneOverlay(config) : undefined;
-  const committed = await warmScene(
-    next,
-    () => renderer?.compileComposite(compositeItems(undefined, next)),
-    () => overlayEpoch === epoch,
-    (scene) => scene.dispose(),
-    reportFault,
-  );
-  if (!committed) return;
-  const previous = overlay;
-  overlay = next;
-  overlaySource = config ?? undefined;
-  previous?.dispose();
-  requestRender();
+  isContinuous = request.continuous;
+  if (isContinuous) needsRender = true;
 }
 
 async function setSceneOverlay(
@@ -562,39 +525,7 @@ async function setSceneOverlay(
   if (renderer === undefined) {
     throw new Error("setSceneOverlay before init");
   }
-  await buildOverlay(request.overlay);
-}
-
-// Build/replace the point-picker marker scene (or tear it down on null) — warm-then-commit like
-// buildOverlay, seeding the fresh scene with the live pose + position so the warm compiles the real
-// composite and the first committed frame shows the marker in place. Retains the source for a
-// device-restore rebuild.
-let markerEpoch = 0;
-
-async function buildMarker(config: MarkerConfig | null): Promise<void> {
-  const epoch = ++markerEpoch;
-  const next = config !== null ? createMarkerScene(config) : undefined;
-  // Seed the live pose + position before the warm, so it compiles the real composite and the first
-  // committed frame shows the marker in place.
-  if (next !== undefined) {
-    next.updateForPose(pose, projection === "orthographic");
-    next.setPoint(markerPoint);
-    next.setState(markerHovered, markerActive);
-  }
-  const committed = await warmScene(
-    next,
-    () => renderer?.compileComposite(compositeItems(undefined, undefined, next)),
-    () => markerEpoch === epoch,
-    (scene) => scene.dispose(),
-    reportFault,
-  );
-  if (!committed) return;
-  const previous = marker;
-  marker = next;
-  markerSource = config ?? undefined;
-  previous?.dispose();
-  lastMarkerTickMs = undefined; // restart the easing dt clock for the fresh scene
-  requestRender();
+  await overlay.build(request.overlay);
 }
 
 async function setMarker(
@@ -604,22 +535,16 @@ async function setMarker(
   if (renderer === undefined) {
     throw new Error("setMarker before init");
   }
-  await buildMarker(request.marker);
+  await marker.build(request.marker);
 }
 
-// Live marker position + interaction state (high-frequency during a drag): move the marker and feed
-// its hover/pulse/active easing, retaining both so a device-restore rebuild reproduces the live marker.
+// Live marker position + interaction state (high-frequency during a drag): the manager moves the
+// marker, retains the state for a device-restore rebuild, and repaints.
 async function setPickerPoint(
   request: Extract<RenderWorkerRequest, { kind: "setPickerPoint" }>,
 ): Promise<void> {
   await initDone;
-  markerPoint =
-    request.point === null ? null : [request.point[0], request.point[1], request.point[2]];
-  markerHovered = request.hovered;
-  markerActive = request.active;
-  marker?.setPoint(markerPoint);
-  marker?.setState(markerHovered, markerActive);
-  requestRender();
+  marker.setPoint(request.point, request.hovered, request.active);
 }
 
 // Pick-to-focus: march the cursor ray through the retained CPU fields (no GPU round-trip) and
@@ -727,12 +652,8 @@ export function dispose(): void {
   streamPort = undefined;
   stopRenderLoop();
   registry.disposeAll();
-  overlay?.dispose();
-  overlay = undefined;
-  overlaySource = undefined;
-  marker?.dispose();
-  marker = undefined;
-  markerSource = undefined;
+  overlay.dispose();
+  marker.dispose();
   testScene?.dispose();
   renderer?.dispose();
   gpu?.dispose();

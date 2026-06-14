@@ -37,6 +37,7 @@ function fakeWorker(): { worker: Worker; posts: Post[]; terminated: () => number
       terminated += 1;
     },
   };
+  // Structural test double: a plain object with the Worker surface we exercise, not a real Worker.
   return { worker: worker as unknown as Worker, posts, terminated: () => terminated };
 }
 
@@ -154,6 +155,7 @@ describe("OpfsCacheStore write routing", () => {
       },
       terminate() {},
     };
+    // Structural test double (fake Worker) standing in for the real OPFS cache worker.
     const store = new OpfsCacheStore(() => worker as unknown as Worker);
     await expect(store.write("1.0/fields/x", new Uint8Array([1]))).rejects.toThrow("disk full");
     store.dispose();

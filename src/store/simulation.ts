@@ -25,6 +25,10 @@ export type { WindowLevel };
 // whenever either changes, and owns the instance-first `layers` registry. UI dispatches
 // `setDataset`/`selectField`/layer intents; the app subscribes to `computed`/`layers` and forwards
 // to the render worker (the store never touches `render` — the DAG forbids it).
+//
+// One store by design: subscribeWithSelector already gives per-field subscriptions, the app reads
+// many slices together, and pypic-parity favors a single "simulation" object. Revisit a scene/data
+// split only when a multi-layer UI or animation timeline forces it.
 
 const DEFAULT_FIELD: FieldName = "|B|";
 
@@ -244,6 +248,29 @@ export function createSimulationStore() {
       // Window when a field has no finite samples (all-NaN) — a unit window so the binding stays valid.
       const FALLBACK_WINDOW: WindowLevel = { center: 0, width: 1 };
 
+      // The overlay/bindings/layers setters all share one shape: read the slice, run a pure op, and
+      // commit only a real change — an unchanged result must NOT fire subscribeWithSelector (it would
+      // spuriously re-render). These helpers state that identity-skip invariant once.
+      const updateOverlay = (op: (overlay: OverlayState) => OverlayState): void => {
+        const { overlay } = get();
+        const next = op(overlay);
+        if (next !== overlay) set({ overlay: next });
+      };
+      const updateBindings = (
+        op: (
+          bindings: Readonly<Record<string, ColormapBinding>>,
+        ) => Readonly<Record<string, ColormapBinding>>,
+      ): void => {
+        const { colormapBindings } = get();
+        const next = op(colormapBindings);
+        if (next !== colormapBindings) set({ colormapBindings: next });
+      };
+      const updateLayers = (op: (layers: readonly Layer[]) => readonly Layer[]): void => {
+        const { layers } = get();
+        const next = op(layers);
+        if (next !== layers) set({ layers: next });
+      };
+
       const recompute = (): void => {
         const { dataset, activeField } = get();
         if (dataset === null) {
@@ -363,22 +390,13 @@ export function createSimulationStore() {
           recompute();
         },
         setBindingColormap(id, colormap) {
-          const { colormapBindings } = get();
-          const next = colormapOps.setBindingColormap(colormapBindings, id, colormap);
-          if (next === colormapBindings) return; // missing id / unchanged → no fire
-          set({ colormapBindings: next });
+          updateBindings((b) => colormapOps.setBindingColormap(b, id, colormap));
         },
         setBindingWindow(id, center, width) {
-          const { colormapBindings } = get();
-          const next = colormapOps.setBindingWindow(colormapBindings, id, center, width);
-          if (next === colormapBindings) return;
-          set({ colormapBindings: next });
+          updateBindings((b) => colormapOps.setBindingWindow(b, id, center, width));
         },
         setBindingScale(id, scale) {
-          const { colormapBindings } = get();
-          const next = colormapOps.setBindingScale(colormapBindings, id, scale);
-          if (next === colormapBindings) return;
-          set({ colormapBindings: next });
+          updateBindings((b) => colormapOps.setBindingScale(b, id, scale));
         },
         setCameraPose(pose) {
           set({ cameraPose: pose }); // fresh object each call so subscribeWithSelector fires
@@ -409,10 +427,7 @@ export function createSimulationStore() {
           set({ pickerActive: active });
         },
         setOverlayShowPicker(on) {
-          const { overlay } = get();
-          const next = overlayOps.setShowPicker(overlay, on);
-          if (next === overlay) return;
-          set({ overlay: next });
+          updateOverlay((o) => overlayOps.setShowPicker(o, on));
         },
         setStep(step) {
           const { currentStep, availableSteps } = get();
@@ -467,64 +482,34 @@ export function createSimulationStore() {
           set({ selectedLayerId: id });
         },
         reorderLayer(id, toIndex) {
-          const { layers } = get();
-          const next = layerOps.reorderLayer(layers, id, toIndex);
-          if (next === layers) return;
-          set({ layers: next });
+          updateLayers((l) => layerOps.reorderLayer(l, id, toIndex));
         },
         setLayerVisible(id, visible) {
-          const { layers } = get();
-          const next = layerOps.setLayerVisible(layers, id, visible);
-          if (next === layers) return;
-          set({ layers: next });
+          updateLayers((l) => layerOps.setLayerVisible(l, id, visible));
         },
         setLayerOpacity(id, opacity) {
-          const { layers } = get();
-          const next = layerOps.setLayerOpacity(layers, id, opacity);
-          if (next === layers) return;
-          set({ layers: next });
+          updateLayers((l) => layerOps.setLayerOpacity(l, id, opacity));
         },
         setLayerShading(id, shaded) {
-          const { layers } = get();
-          const next = layerOps.setLayerShading(layers, id, shaded);
-          if (next === layers) return;
-          set({ layers: next });
+          updateLayers((l) => layerOps.setLayerShading(l, id, shaded));
         },
         setOverlayShowGrid(on) {
-          const { overlay } = get();
-          const next = overlayOps.setShowGrid(overlay, on);
-          if (next === overlay) return;
-          set({ overlay: next });
+          updateOverlay((o) => overlayOps.setShowGrid(o, on));
         },
         setOverlayPlane(plane, on) {
-          const { overlay } = get();
-          const next = overlayOps.setPlane(overlay, plane, on);
-          if (next === overlay) return;
-          set({ overlay: next });
+          updateOverlay((o) => overlayOps.setPlane(o, plane, on));
         },
         setOverlayShowAxes(on) {
-          const { overlay } = get();
-          const next = overlayOps.setShowAxes(overlay, on);
-          if (next === overlay) return;
-          set({ overlay: next });
+          updateOverlay((o) => overlayOps.setShowAxes(o, on));
         },
         setOverlayShowLabels(on) {
-          const { overlay } = get();
-          const next = overlayOps.setShowLabels(overlay, on);
-          if (next === overlay) return;
-          set({ overlay: next });
+          updateOverlay((o) => overlayOps.setShowLabels(o, on));
         },
         setOverlayShowGnomon(on) {
-          const { overlay } = get();
-          const next = overlayOps.setShowGnomon(overlay, on);
-          if (next === overlay) return;
-          set({ overlay: next });
+          updateOverlay((o) => overlayOps.setShowGnomon(o, on));
         },
         setGridDivisions(n) {
-          const { overlay } = get();
-          const next = overlayOps.setGridDivisions(overlay, n);
-          if (next === overlay) return;
-          set({ overlay: next });
+          updateOverlay((o) => overlayOps.setGridDivisions(o, n));
         },
         setFrameTiming(ms, clock) {
           const { frameTimeMs, frameTimeClock } = get();
