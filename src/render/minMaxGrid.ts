@@ -40,41 +40,41 @@ export function buildMinMaxGrid(
     throw new Error(`buildMinMaxGrid: brickSize must be a positive integer, got ${brickSize}`);
   }
   const [depth, height, width] = shape as readonly [number, number, number]; // length checked above
-  const gw = Math.ceil(width / brickSize);
-  const gh = Math.ceil(height / brickSize);
-  const gd = Math.ceil(depth / brickSize);
-  const min = new Float32Array(gw * gh * gd);
-  const max = new Float32Array(gw * gh * gd);
+  const gridWidth = Math.ceil(width / brickSize);
+  const gridHeight = Math.ceil(height / brickSize);
+  const gridDepth = Math.ceil(depth / brickSize);
+  const min = new Float32Array(gridWidth * gridHeight * gridDepth);
+  const max = new Float32Array(gridWidth * gridHeight * gridDepth);
 
-  for (let cz = 0; cz < gd; cz++) {
+  for (let cz = 0; cz < gridDepth; cz++) {
     const z0 = Math.max(0, cz * brickSize - HALO);
     const z1 = Math.min(depth, (cz + 1) * brickSize + HALO);
-    for (let cy = 0; cy < gh; cy++) {
+    for (let cy = 0; cy < gridHeight; cy++) {
       const y0 = Math.max(0, cy * brickSize - HALO);
       const y1 = Math.min(height, (cy + 1) * brickSize + HALO);
-      for (let cx = 0; cx < gw; cx++) {
+      for (let cx = 0; cx < gridWidth; cx++) {
         const x0 = Math.max(0, cx * brickSize - HALO);
         const x1 = Math.min(width, (cx + 1) * brickSize + HALO);
-        let mn = Number.POSITIVE_INFINITY;
-        let mx = Number.NEGATIVE_INFINITY;
+        let minValue = Number.POSITIVE_INFINITY;
+        let maxValue = Number.NEGATIVE_INFINITY;
         for (let z = z0; z < z1; z++) {
           for (let y = y0; y < y1; y++) {
             const rowBase = width * (y + height * z);
             for (let x = x0; x < x1; x++) {
               const raw = data[x + rowBase];
               const v = raw === undefined || !Number.isFinite(raw) ? fallback : raw;
-              if (v < mn) mn = v;
-              if (v > mx) mx = v;
+              if (v < minValue) minValue = v;
+              if (v > maxValue) maxValue = v;
             }
           }
         }
-        const ci = cx + gw * (cy + gh * cz);
-        min[ci] = mn;
-        max[ci] = mx;
+        const brickIndex = cx + gridWidth * (cy + gridHeight * cz);
+        min[brickIndex] = minValue;
+        max[brickIndex] = maxValue;
       }
     }
   }
-  return { min, max, dims: [gw, gh, gd], brickSize };
+  return { min, max, dims: [gridWidth, gridHeight, gridDepth], brickSize };
 }
 
 export interface SkipTexture {
@@ -91,8 +91,8 @@ export interface SkipTexture {
  * format dance). Nearest is mandatory: linear filtering would interpolate adjacent bricks' maxima.
  */
 export function createSkipTexture(grid: MinMaxGrid): SkipTexture {
-  const [gw, gh, gd] = grid.dims;
-  const texture = new Data3DTexture(grid.max, gw, gh, gd);
+  const [gridWidth, gridHeight, gridDepth] = grid.dims;
+  const texture = new Data3DTexture(grid.max, gridWidth, gridHeight, gridDepth);
   texture.format = RedFormat;
   texture.type = FloatType;
   texture.minFilter = NearestFilter;

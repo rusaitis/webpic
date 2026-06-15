@@ -29,9 +29,9 @@ export function createCameraRig(aspect: number): CameraRig {
   return {
     volumeCamera: (orthographic) => (orthographic ? orthoVolumeCamera : perspCamera),
     orthoCamera,
-    apply(pose, a) {
-      applyPose(perspCamera, pose, a);
-      applyPoseOrtho(orthoVolumeCamera, pose, a);
+    apply(pose, aspect) {
+      applyPose(perspCamera, pose, aspect);
+      applyPoseOrtho(orthoVolumeCamera, pose, aspect);
     },
   };
 }

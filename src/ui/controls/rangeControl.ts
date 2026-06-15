@@ -61,20 +61,20 @@ export interface RangeControlConfig {
   readonly onChange?: (v: RangeValue) => void;
 }
 
-export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widget<RangeValue> {
-  const { min, max } = cfg;
-  const step = cfg.step;
-  const initRange = cfg.range;
+export function createRangeControl(doc: Document, config: RangeControlConfig): Widget<RangeValue> {
+  const { min, max } = config;
+  const step = config.step;
+  const initRange = config.range;
   const isInterval = initRange !== undefined;
   const scale = makeScale(
-    cfg.scale ?? "linear",
+    config.scale ?? "linear",
     min,
     max,
-    cfg.linthresh !== undefined ? { linthresh: cfg.linthresh } : {},
+    config.linthresh !== undefined ? { linthresh: config.linthresh } : {},
   );
-  const fmt = cfg.format ?? ((v: number): string => String(v));
-  const origin = clamp(cfg.origin ?? min, min, max);
-  const minGap = cfg.minGap ?? (step && step > 0 ? step : 0);
+  const formatter = config.format ?? ((v: number): string => String(v));
+  const origin = clamp(config.origin ?? min, min, max);
+  const minGap = config.minGap ?? (step && step > 0 ? step : 0);
   const kbStep = step && step > 0 ? step : (max - min) / 100;
 
   // On log/symlog, drag + keyboard snap to a log-decade grid rather than the uniform `step`.
@@ -94,7 +94,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     return v;
   };
 
-  let value = clamp(cfg.value ?? min, min, max);
+  let value = clamp(config.value ?? min, min, max);
   let [lo, hi] = initRange
     ? clampInterval(initRange[0], initRange[1], min, max, minGap)
     : [min, max];
@@ -109,8 +109,8 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
   // Tick marks paint above the fill so they stay visible over the colored range. Optional
   // evenly/decade-spaced ticks, plus an always-on tick at an interior fill origin (e.g. 0).
   const tickTs: number[] = [];
-  if (cfg.ticks) {
-    const count = typeof cfg.ticks === "number" ? cfg.ticks : undefined;
+  if (config.ticks) {
+    const count = typeof config.ticks === "number" ? config.ticks : undefined;
     tickTs.push(
       ...tickPositions(scale, {
         ...(step !== undefined ? { step } : {}),
@@ -123,7 +123,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     if (!tickTs.some((t) => Math.abs(t - ot) < 1e-6)) tickTs.push(ot);
   }
   const minorTs =
-    cfg.ticks && cfg.minorTicks !== false && isLogish ? minorTickPositions(scale) : [];
+    config.ticks && config.minorTicks !== false && isLogish ? minorTickPositions(scale) : [];
   if (tickTs.length || minorTs.length) {
     const layer = makeEl(doc, "div", "webpic-range_ticks");
     for (const t of minorTs) {
@@ -156,7 +156,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
 
   let inputA: HTMLInputElement | null = null;
   let inputB: HTMLInputElement | null = null;
-  if (cfg.text !== false) {
+  if (config.text !== false) {
     const wrap = makeEl(doc, "div", "webpic-range_text");
     const mkInput = (): HTMLInputElement => {
       const i = makeEl(doc, "input", "webpic-range_input");
@@ -174,7 +174,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
   const setGripAria = (g: HTMLElement | null, v: number): void => {
     if (!g) return;
     g.setAttribute("aria-valuenow", String(v));
-    g.setAttribute("aria-valuetext", fmt(v));
+    g.setAttribute("aria-valuetext", formatter(v));
   };
 
   function render(): void {
@@ -185,8 +185,8 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
       fill.style.setProperty("--fb", String(scale.toT(hi)));
       setGripAria(gripLo, lo);
       setGripAria(gripHi, hi);
-      if (inputA && doc.activeElement !== inputA) inputA.value = fmt(lo);
-      if (inputB && doc.activeElement !== inputB) inputB.value = fmt(hi);
+      if (inputA && doc.activeElement !== inputA) inputA.value = formatter(lo);
+      if (inputB && doc.activeElement !== inputB) inputB.value = formatter(hi);
     } else {
       const tv = scale.toT(value);
       const t0 = scale.toT(origin);
@@ -198,7 +198,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
       if (interior && value !== origin) fill.dataset.origin = value > origin ? "left" : "right";
       else delete fill.dataset.origin;
       setGripAria(gripValue, value);
-      if (inputA && doc.activeElement !== inputA) inputA.value = fmt(value);
+      if (inputA && doc.activeElement !== inputA) inputA.value = formatter(value);
     }
   }
 
@@ -265,7 +265,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     }
     root.classList.add("is-dragging");
     render();
-    emit(cfg.onInput);
+    emit(config.onInput);
     e.preventDefault();
   };
 
@@ -280,7 +280,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
       applyGrip(drag.kind, valueAt(e.clientX, rect));
     }
     render();
-    emit(cfg.onInput);
+    emit(config.onInput);
   };
 
   const onUp = (e: PointerEvent): void => {
@@ -293,7 +293,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     drag = null;
     dragRect = null;
     root.classList.remove("is-dragging");
-    emit(cfg.onChange);
+    emit(config.onChange);
   };
 
   const onKey = (e: KeyboardEvent, end: "value" | "lo" | "hi"): void => {
@@ -323,8 +323,8 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     }
     applyGrip(end, next, decade ? snapDrag : snapStep);
     render();
-    emit(cfg.onInput);
-    emit(cfg.onChange);
+    emit(config.onInput);
+    emit(config.onChange);
     e.preventDefault();
   };
 
@@ -338,7 +338,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     if (isInterval) [lo, hi] = clampInterval(n, hi, min, max, minGap);
     else value = clamp(n, min, max);
     render();
-    emit(cfg.onChange);
+    emit(config.onChange);
   };
   const onTextB = (): void => {
     const n = Number(inputB?.value);
@@ -348,7 +348,7 @@ export function createRangeControl(doc: Document, cfg: RangeControlConfig): Widg
     }
     [lo, hi] = clampInterval(lo, n, min, max, minGap);
     render();
-    emit(cfg.onChange);
+    emit(config.onChange);
   };
 
   const ac = new AbortController();

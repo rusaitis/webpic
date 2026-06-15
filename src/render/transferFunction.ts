@@ -32,11 +32,11 @@ export function buildTransferFunctionLut(name: string, size = DEFAULT_LUT_SIZE):
   const last = size - 1;
   for (let i = 0; i < size; i++) {
     const [r, g, b] = colormapColor(name, i / last);
-    const o = i * 4;
-    lut[o] = DataUtils.toHalfFloat(r);
-    lut[o + 1] = DataUtils.toHalfFloat(g);
-    lut[o + 2] = DataUtils.toHalfFloat(b);
-    lut[o + 3] = one;
+    const offset = i * 4;
+    lut[offset] = DataUtils.toHalfFloat(r);
+    lut[offset + 1] = DataUtils.toHalfFloat(g);
+    lut[offset + 2] = DataUtils.toHalfFloat(b);
+    lut[offset + 3] = one;
   }
   return lut;
 }
