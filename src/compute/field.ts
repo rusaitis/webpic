@@ -4,7 +4,7 @@ import { tsBackend } from "./backends/ts/index.ts";
 import { RECIPES, type RecipeKey } from "./recipes.generated.ts";
 
 // Registered backends in selection-priority order (first supporting backend wins until calibration
-// scoring lands). v0.1 ships the TS backend only; the WebGPU backend prepends here at M3 — the
+// scoring lands). v0.1 ships the TS backend only; the WebGPU backend prepends here — the
 // dispatcher and every caller (store recompute, the data worker) are already async, so it just slots in.
 const BACKENDS: readonly ComputeBackend[] = [tsBackend];
 

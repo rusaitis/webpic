@@ -1,7 +1,7 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
 import type { OverlayAxis, RenderWorkerRequest, SceneOverlayConfig } from "@render";
+import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Rgba01, Theme } from "@schema/theme.ts";
-import type { Vec3 } from "@schema/types.ts";
 import { type OverlayState, type SimulationStore, worldHalfExtentForGrid } from "@store";
 
 // Bridges the store's scene-overlay flags + the dataset GridInfo + the resolved theme palette to the
@@ -59,8 +59,6 @@ function buildAxis(grid: GridInfo | null, index: number): OverlayAxis {
 
 /** Assemble the worker overlay config from the store flags, the dataset grid, and resolved colors.
  *  Pure — no DOM, no worker — so the bounds math and color resolution are unit-tested directly. */
-const UNIT_HALF_EXTENT: Vec3 = [0.5, 0.5, 0.5];
-
 export function buildOverlayPayload(
   overlay: OverlayState,
   grid: GridInfo | null,
@@ -77,7 +75,7 @@ export function buildOverlayPayload(
     tick: { targetCount: overlay.gridDivisions },
     // Same box the volume mesh is scaled to — derived from the same grid as the axis bounds, so the
     // grid/axes wrap the scaled volume exactly (cubic → unit cube).
-    worldHalfExtent: grid !== null ? worldHalfExtentForGrid(grid) : UNIT_HALF_EXTENT,
+    worldHalfExtent: grid !== null ? worldHalfExtentForGrid(grid) : UNIT_BOX_HALF_EXTENT,
   };
 }
 

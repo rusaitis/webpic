@@ -3,6 +3,11 @@
 // value to the drag step, map value↔normalized track position under a chosen scale
 // (linear/log/symlog), and place tick marks. Ported from magviz's controls.
 
+import { clamp } from "@schema/math.ts";
+
+// Re-exported so ./rangeControl and the range-math tests keep one import site.
+export { clamp };
+
 export type ScaleKind = "linear" | "log" | "symlog";
 
 export interface Scale {
@@ -25,10 +30,6 @@ const MAX_TICKS = 24;
 const MINOR_MAX_DECADES = 3;
 const MINOR_MAX_TICKS = 80;
 
-export function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
-
 /** Quantize a dragged/keyed value to `step` (drag granularity only — typed text bypasses
  *  this so the grip can rest between steps). No step ⇒ clamp only. */
 export function snapToStep(raw: number, min: number, max: number, step?: number): number {
@@ -37,8 +38,7 @@ export function snapToStep(raw: number, min: number, max: number, step?: number)
   return clamp(min + Math.round((c - min) / step) * step, min, max);
 }
 
-/** The log-decade step at magnitude `a`: `10^floor(log10 a)`. `minStep` floors the
- *  granularity near 0. The +ε guards log10's just-under-integer powers. */
+// `minStep` floors the granularity near 0; the +ε guards log10's just-under-integer powers.
 function decadeStep(a: number, minStep: number): number {
   if (!(a > 0)) return minStep > 0 ? minStep : 0;
   const d = 10 ** Math.floor(Math.log10(a) + 1e-9);

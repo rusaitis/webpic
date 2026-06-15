@@ -14,7 +14,7 @@ export interface NiceTicks {
 // Runaway guard: a pathological bounds/targetCount can't allocate an unbounded tick list.
 const MAX_TICKS = 1000;
 
-/** Snap a positive magnitude to {1,2,5,10}×10ᵏ — up (`round=false`) or to nearest (`round=true`). */
+// round=false snaps up to the next 1/2/5×10ᵏ; round=true snaps to the nearest.
 function niceNum(value: number, round: boolean): number {
   if (!(value > 0)) return 0;
   const exp = Math.floor(Math.log10(value));

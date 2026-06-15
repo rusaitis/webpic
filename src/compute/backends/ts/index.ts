@@ -81,7 +81,7 @@ export function computeRecipeTs(name: RecipeKey, dataset: FieldDataset): FieldAr
 }
 
 // The TS reference backend as a ComputeBackend: the synchronous magnitude family behind the async
-// facade. `Promise.resolve` keeps the dispatcher uniform with the async WebGPU backend (M3) — the work
+// facade. `Promise.resolve` keeps the dispatcher uniform with the async WebGPU backend — the work
 // itself still runs synchronously on call, so a streamed step pays no extra hop.
 export const tsBackend: ComputeBackend = {
   id: "ts",

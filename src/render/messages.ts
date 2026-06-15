@@ -16,7 +16,7 @@ export type { CameraMotion, CameraPose, CameraProjection, MarkerPart, PickPurpos
 // answers — `init`→`ready`, `renderFrame`→`frame`, `pickRay`→`pickResult`. The one-way store→worker
 // messages (camera pose, colormap, composite, …) are fire-and-forget, so the hardcoded ids the app
 // bridges post are stable labels, not match keys; collisions across those are harmless. Introduce a
-// real id allocator only when a new reply must match a specific request (e.g. M2.12's compile-complete).
+// real id allocator only when a new reply must match a specific request (e.g. a compile-complete reply).
 
 // A computed scalar field, serialized for transfer to the worker: the typed array can't
 // cross `postMessage` as a view, so it goes as a raw `buffer` + a `dtype` tag the worker

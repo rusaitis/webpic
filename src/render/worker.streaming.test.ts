@@ -1,4 +1,4 @@
-// Render-side streaming (M2.10a/b): the data worker pairs a MessagePort into the render worker and
+// Render-side streaming: the data worker pairs a MessagePort into the render worker and
 // posts streamStep messages over it; the worker routes them through swapLayerField — an in-place
 // ping-pong upload onto the existing scene (scene.setField), keeping its retained look and avoiding a
 // pipeline rebuild. When setField declines (shape change / skip-grid volume) it falls back to a full

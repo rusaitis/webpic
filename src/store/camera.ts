@@ -1,4 +1,5 @@
 import { CAMERA_FOV_DEG, type CameraPose } from "@schema/camera.ts";
+import { clamp } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 
 // Store-owned camera pose: the single source of truth the UI mutates and shader HMR preserves.
@@ -37,10 +38,6 @@ const DAMPING_FACTOR_60FPS = 0.1;
 const DAMPING_LAMBDA_PER_MS = -Math.log(1 - DAMPING_FACTOR_60FPS) / (1000 / 60);
 // Below this every pending delta is sub-pixel (0.1 px on a ~700 px viewport) — stop the loop.
 const MOMENTUM_SETTLED = 1.5e-4;
-
-function clamp(value: number, lo: number, hi: number): number {
-  return Math.min(Math.max(value, lo), hi);
-}
 
 // Keep azimuth in (-π, π] so the readout stays bounded as a drag accumulates turns.
 function wrapAngle(angle: number): number {

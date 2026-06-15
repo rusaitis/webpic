@@ -349,7 +349,7 @@ describe("bootstrap pick-to-focus", () => {
   });
 });
 
-describe("bootstrap streaming (M2.10a)", () => {
+describe("bootstrap streaming", () => {
   it("pairs the data worker, opens the stream, relays the domain, and drives the cursor", async () => {
     const canvas = fakeCanvas();
     const renderPosts: Post[] = [];

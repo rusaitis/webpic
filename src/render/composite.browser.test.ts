@@ -1,5 +1,5 @@
 // Real-WebGPU smoke for the layer compositor: two volume layers sharing one perspective camera
-// (the coherent pre-M4 multi-layer case) must blend by draw order + per-layer opacity. Uses the
+// (the coherent multi-layer case) must blend by draw order + per-layer opacity. Uses the
 // deterministic readback primitive (readCompositePixels) — no swapchain present. Asserts
 // color-space-agnostic relations so it holds whether bytes read back linear or sRGB. Skipped
 // wherever WebGPU is absent (Node PR gate skips green); `three/webgpu` imported dynamically.

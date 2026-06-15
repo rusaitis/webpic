@@ -1,4 +1,5 @@
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
+import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { intersectRayBox } from "./rayBox.ts";
 import { windowedT } from "./volume/normalization.ts";
@@ -18,7 +19,6 @@ export interface PickLayer {
   readonly opacity: number;
 }
 
-const UNIT_HALF: Vec3 = [0.5, 0.5, 0.5];
 const PICK_STEPS = 256; // matches the raymarcher's fine-march depth
 // Below this total the click went through visually empty space inside the box — fall back to the
 // chord midpoint rather than pivot on noise (≈ a few 8-bit color steps of accumulated alpha).
@@ -46,7 +46,7 @@ export function pickPointOnRay(
   origin: Vec3,
   dir: Vec3,
   layers: readonly PickLayer[],
-  halfExtent: Vec3 = UNIT_HALF,
+  halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT,
   steps = PICK_STEPS,
 ): Vec3 | null {
   const boxMin: Vec3 = [-halfExtent[0], -halfExtent[1], -halfExtent[2]];

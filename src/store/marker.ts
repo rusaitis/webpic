@@ -8,6 +8,7 @@ import {
   markerHandleOffset,
   verticalDragAllowed,
 } from "@schema/marker.ts";
+import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { cursorRay } from "./pick.ts";
 
@@ -155,9 +156,7 @@ export function dragAlongAxis(
 
 // Keep a dragged point inside the render box. `halfExtent` is the per-axis world half-size — the unit
 // box [-0.5, 0.5]³ for a cubic dataset, anisotropic for a non-cubic one (store `worldHalfExtent`).
-const UNIT_HALF_EXTENT: Vec3 = [0.5, 0.5, 0.5];
-
-export function clampToBox(point: Vec3, halfExtent: Vec3 = UNIT_HALF_EXTENT): Vec3 {
+export function clampToBox(point: Vec3, halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT): Vec3 {
   return [
     Math.min(Math.max(point[0], -halfExtent[0]), halfExtent[0]),
     Math.min(Math.max(point[1], -halfExtent[1]), halfExtent[1]),

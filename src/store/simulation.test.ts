@@ -106,7 +106,7 @@ describe("simulationStore", () => {
     expect(layers).toHaveLength(1);
     const layer = layers[0];
     expect(layer?.id).toBe(selectedLayerId);
-    expect(layer?.colormapBindingId).not.toBeNull(); // seeded, not the pre-M2.5b null
+    expect(layer?.colormapBindingId).not.toBeNull(); // the store seeds a binding with each renderable layer
     const binding = activeBinding(store);
     expect(binding).toMatchObject({
       field: "|B|",

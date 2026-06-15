@@ -1,5 +1,5 @@
+import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import { cssRgba, type Rgba01 } from "@schema/theme.ts";
-import type { Vec3 } from "@schema/types.ts";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -120,17 +120,13 @@ function makeLabelTexture(
   return { texture: tex, aspect: width / height };
 }
 
-// Per-axis world half-extent of the volume box (THREE-axis order); 0.5 each for a cubic dataset. The
-// overlay positions its grid/axes/labels at the box edges ±half so it wraps the scaled volume.
-const UNIT_HALF: Vec3 = [0.5, 0.5, 0.5];
-
 export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
   const scene = new Scene(); // no background — the renderer owns the clear color
   const geometries: BufferGeometry[] = [];
   const materials: Material[] = [];
   const textures: Texture[] = [];
 
-  const half = config.worldHalfExtent ?? UNIT_HALF;
+  const half = config.worldHalfExtent ?? UNIT_BOX_HALF_EXTENT;
   const halfAt = (axis: number): number => (axis === 0 ? half[0] : axis === 1 ? half[1] : half[2]);
   // The held (out-of-plane) axis position for a plane — center → 0, min/max → the box face ∓/±half.
   const heldFor = (heldAxis: number): number =>

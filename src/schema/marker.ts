@@ -1,4 +1,5 @@
 import { type CameraPose, DEFAULT_POSE } from "./camera.ts";
+import { clamp } from "./math.ts";
 import type { Vec3 } from "./types.ts";
 
 // Point-picker marker geometry + the camera-pose gating that drives its rendering (render/) and drag
@@ -42,10 +43,6 @@ export const HORIZONTAL_MIN_ELEV_DEG = 15; // below this, the free xy-plane give
 export const AZIMUTH_ALIGN_MAX_DEG = 40;
 
 const DEG_PER_RAD = 180 / Math.PI;
-
-function clamp(value: number, lo: number, hi: number): number {
-  return Math.min(Math.max(value, lo), hi);
-}
 
 // Camera position implied by the orbit pose (same basis as store/pick.cursorRay and render/camera).
 function cameraPosition(pose: CameraPose): Vec3 {

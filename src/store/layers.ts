@@ -1,3 +1,4 @@
+import { clamp } from "@schema/math.ts";
 import type { FieldName } from "@schema/types.ts";
 
 // The instance-first layer registry (DESIGN §"Layers & navigation"): the scene is a flat,
@@ -40,10 +41,6 @@ export type LayerKind = Layer["kind"];
 // `Omit<Layer, "id">` would collapse the discriminant correlation.
 type DistributeOmitId<T> = T extends unknown ? Omit<T, "id"> : never;
 export type LayerSpec = DistributeOmitId<Layer>;
-
-function clamp(value: number, lo: number, hi: number): number {
-  return Math.min(Math.max(value, lo), hi);
-}
 
 // The kind's full default (visible, opaque, no binding). Slice defaults reproduce the legacy
 // app slice (axis z, mid-plane); volume defaults defer steps/density to the render-side defaults.

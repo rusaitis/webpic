@@ -1,4 +1,5 @@
 import { CAMERA_FOV_DEG, type CameraPose } from "@schema/camera.ts";
+import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { DISTANCE_MAX, DISTANCE_MIN, ELEVATION_LIMIT, viewPlaneOffset } from "./camera.ts";
 
@@ -59,12 +60,10 @@ function axisSlab(o: number, d: number, half: number): readonly [number, number]
 // world half-size — the unit box [-0.5, 0.5]³ for a cubic dataset, anisotropic for a non-cubic one
 // (store `worldHalfExtent`). Restates render/rayBox.ts's slab test, which ui's synchronous miss
 // test can't reach (store can't import render).
-const UNIT_HALF_EXTENT: Vec3 = [0.5, 0.5, 0.5];
-
 export function unitBoxChordMidpoint(
   origin: Vec3,
   dir: Vec3,
-  halfExtent: Vec3 = UNIT_HALF_EXTENT,
+  halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT,
 ): Vec3 | null {
   const sx = axisSlab(origin[0], dir[0], halfExtent[0]);
   const sy = axisSlab(origin[1], dir[1], halfExtent[1]);

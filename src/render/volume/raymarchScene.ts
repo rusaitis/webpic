@@ -1,4 +1,5 @@
 import type { ColorScale } from "@schema/colormap.ts";
+import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { BoxGeometry, FrontSide, Mesh, Scene } from "three";
 import {
@@ -345,7 +346,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   // model scale stretches it to the dataset's physical aspect in world space. Cubic → (1,1,1), so the
   // flux rope is byte-identical. (Phong normals skew slightly under non-uniform scale — shading is
   // already non-quantitative + default-off, so this is acceptable.)
-  const half = opts.worldHalfExtent ?? [0.5, 0.5, 0.5];
+  const half = opts.worldHalfExtent ?? UNIT_BOX_HALF_EXTENT;
   mesh.scale.set(2 * half[0], 2 * half[1], 2 * half[2]);
 
   // No scene.background — the renderer owns the clear color so layers composite over one

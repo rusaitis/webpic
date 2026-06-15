@@ -1,5 +1,6 @@
 import type { StreamStepMessage } from "@data";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
+import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
 import { warmScene } from "./managedScene.ts";
@@ -316,7 +317,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
 
     pickLayers() {
       const result: PickLayer[] = [];
-      let halfExtent: Vec3 = [0.5, 0.5, 0.5]; // all volume layers share the dataset's box
+      let halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT; // all volume layers share the dataset's box
       for (const entry of composite) {
         if (!entry.visible) continue;
         const layer = layers.get(entry.id);

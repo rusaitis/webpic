@@ -3,6 +3,7 @@ import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_datas
 import type { ColormapBinding, ColormapId, ColorScale, WindowLevel } from "@schema/colormap.ts";
 import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
 import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
+import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { FieldName, FloatArray, Vec3 } from "@schema/types.ts";
 import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
@@ -48,8 +49,6 @@ export interface DataRange {
   readonly min: number;
   readonly max: number;
 }
-
-const UNIT_HALF_EXTENT: Vec3 = [0.5, 0.5, 0.5];
 
 // Per-axis world half-extent for a grid: physical spans normalized so the longest axis is 0.5 (the
 // unit box). Cubic grids → [0.5, 0.5, 0.5] (identity, byte-for-byte the old behavior); non-cubic ones
@@ -345,7 +344,7 @@ export function createSimulationStore() {
       return {
         dataset: null,
         datasetId: DEFAULT_DATASET_ID,
-        worldHalfExtent: UNIT_HALF_EXTENT,
+        worldHalfExtent: UNIT_BOX_HALF_EXTENT,
         activeField: DEFAULT_FIELD,
         availableFields: [],
         computed: null,
