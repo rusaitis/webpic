@@ -30,7 +30,9 @@ import type { RangeValue, Widget } from "./types.ts";
 
 type Pair = readonly [number, number];
 
-export interface RangeControlConfig {
+// The bare widget's construction options (vs the pane-level `RangeControlOptions` in ./types, which
+// adds `label` and is structurally a superset passed straight through to createRangeControl).
+export interface RangeWidgetOptions {
   readonly min: number;
   readonly max: number;
   /** Single-mode initial value (ignored when `range` is given). */
@@ -61,7 +63,7 @@ export interface RangeControlConfig {
   readonly onChange?: (v: RangeValue) => void;
 }
 
-export function createRangeControl(doc: Document, config: RangeControlConfig): Widget<RangeValue> {
+export function createRangeControl(doc: Document, config: RangeWidgetOptions): Widget<RangeValue> {
   const { min, max } = config;
   const step = config.step;
   const initRange = config.range;
