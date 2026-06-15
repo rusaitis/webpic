@@ -1,4 +1,5 @@
 import type { OrthographicCamera, PerspectiveCamera } from "three";
+import type { CameraPose } from "../messages.ts";
 import {
   applyPose,
   applyPoseOrtho,
@@ -6,7 +7,6 @@ import {
   createPerspectiveCamera,
   createVolumeOrthographicCamera,
 } from "./camera.ts";
-import type { CameraPose } from "./messages.ts";
 
 // The worker's three cameras as one unit: the pose-driven volume pair (perspective + the
 // matched-frustum ortho the projection toggle swaps in) and the static screen-aligned ortho for

@@ -6,7 +6,7 @@
 // `three`/`three/webgpu` dynamically so Node never loads them.
 
 import { describe, expect, it } from "vitest";
-import type { ScalarField } from "./volumeTexture.ts";
+import type { ScalarField } from "./volume/volumeTexture.ts";
 
 const hasRealGpu =
   typeof navigator !== "undefined" && "gpu" in navigator && typeof OffscreenCanvas !== "undefined";
@@ -77,9 +77,9 @@ async function renderVolume(
   orthographic = false,
 ): Promise<Uint8Array> {
   const { installRenderer } = await import("./renderer.ts");
-  const { createRaymarchScene } = await import("./raymarchScene.ts");
+  const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
   const { applyPose, applyPoseOrtho, createPerspectiveCamera, createVolumeOrthographicCamera } =
-    await import("./camera.ts");
+    await import("./camera/camera.ts");
   const renderer = await installRenderer({
     canvas: new OffscreenCanvas(SIZE, SIZE),
     width: SIZE,

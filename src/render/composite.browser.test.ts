@@ -5,7 +5,7 @@
 // wherever WebGPU is absent (Node PR gate skips green); `three/webgpu` imported dynamically.
 
 import { describe, expect, it } from "vitest";
-import type { ScalarField } from "./volumeTexture.ts";
+import type { ScalarField } from "./volume/volumeTexture.ts";
 
 const hasRealGpu =
   typeof navigator !== "undefined" && "gpu" in navigator && typeof OffscreenCanvas !== "undefined";
@@ -55,8 +55,8 @@ function dist(a: readonly [number, number, number], b: readonly [number, number,
 describe("layer compositor", () => {
   it.skipIf(!hasRealGpu)("blends by per-layer opacity", async () => {
     const { installRenderer } = await import("./renderer.ts");
-    const { createRaymarchScene } = await import("./raymarchScene.ts");
-    const { applyPose, createPerspectiveCamera } = await import("./camera.ts");
+    const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
+    const { applyPose, createPerspectiveCamera } = await import("./camera/camera.ts");
 
     const renderer = await installRenderer({
       canvas: new OffscreenCanvas(SIZE, SIZE),
@@ -102,8 +102,8 @@ describe("layer compositor", () => {
 
   it.skipIf(!hasRealGpu)("blends by draw order", async () => {
     const { installRenderer } = await import("./renderer.ts");
-    const { createRaymarchScene } = await import("./raymarchScene.ts");
-    const { applyPose, createPerspectiveCamera } = await import("./camera.ts");
+    const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
+    const { applyPose, createPerspectiveCamera } = await import("./camera/camera.ts");
 
     const renderer = await installRenderer({
       canvas: new OffscreenCanvas(SIZE, SIZE),

@@ -67,11 +67,11 @@ function makeFake(
   return scene;
 }
 
-vi.mock("./sliceScene.ts", () => ({
+vi.mock("./volume/sliceScene.ts", () => ({
   createSliceScene: (opts: { opacity: number; field: { shape: readonly number[] } }) =>
     makeFake("slice", opts),
 }));
-vi.mock("./raymarchScene.ts", () => ({
+vi.mock("./volume/raymarchScene.ts", () => ({
   createRaymarchScene: (opts: { opacity: number; field: { shape: readonly number[] } }) =>
     makeFake("volume", opts),
 }));

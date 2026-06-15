@@ -20,7 +20,7 @@ describe("swapchain present orientation", () => {
     async () => {
       const { installRenderer } = await import("./renderer.ts");
       const { createTestScene } = await import("./scene.ts");
-      const { createOrthographicCamera } = await import("./camera.ts");
+      const { createOrthographicCamera } = await import("./camera/camera.ts");
       const { Scene } = await import("three");
 
       const canvas = new OffscreenCanvas(SIZE, SIZE);

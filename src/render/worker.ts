@@ -1,8 +1,8 @@
 import type { StreamStepMessage } from "@data";
 import { getCapabilities, getDevice, installGpu } from "@gpu";
 import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
-import { DEFAULT_POSE } from "./camera.ts";
-import { type CameraRig, createCameraRig } from "./cameraRig.ts";
+import { DEFAULT_POSE } from "./camera/camera.ts";
+import { type CameraRig, createCameraRig } from "./camera/cameraRig.ts";
 import { createDeviceRecovery } from "./deviceRecovery.ts";
 import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
 import { createManagedOverlay } from "./grid/managedOverlay.ts";

@@ -1,7 +1,7 @@
 import { CAMERA_FOV_DEG, DEFAULT_POSE } from "@schema/camera.ts";
 import { OrthographicCamera, PerspectiveCamera } from "three";
-import { FRUSTUM } from "./constants.ts";
-import type { CameraPose } from "./messages.ts";
+import { FRUSTUM } from "../constants.ts";
+import type { CameraPose } from "../messages.ts";
 
 // The render worker owns the cameras (lifted out of the scene factories so the store-owned pose
 // drives them and shader HMR can rebuild a scene without losing the view). This is the one place

@@ -1,7 +1,7 @@
 import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
 import { type PickLayer, pickPointOnRay } from "./pickRay.ts";
-import type { ScalarField } from "./volumeTexture.ts";
+import type { ScalarField } from "./volume/volumeTexture.ts";
 
 const N = 16;
 

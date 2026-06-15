@@ -4,12 +4,12 @@ import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
 import { warmScene } from "./managedScene.ts";
 import type { LayerKind, RenderWorkerRequest, SliceFieldPayload } from "./messages.ts";
-import { fullRangeWindow } from "./normalization.ts";
 import type { PickLayer } from "./pickRay.ts";
-import { createRaymarchScene, type RaymarchScene } from "./raymarchScene.ts";
 import type { CompositeItem } from "./renderer.ts";
-import { createSliceScene, type SliceAxis, type SliceScene } from "./sliceScene.ts";
-import { finiteRange, type ScalarField } from "./volumeTexture.ts";
+import { fullRangeWindow } from "./volume/normalization.ts";
+import { createRaymarchScene, type RaymarchScene } from "./volume/raymarchScene.ts";
+import { createSliceScene, type SliceAxis, type SliceScene } from "./volume/sliceScene.ts";
+import { finiteRange, type ScalarField } from "./volume/volumeTexture.ts";
 
 // Everything needed to rebuild a layer's scene without the main thread: the decoded field (its CPU
 // buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity

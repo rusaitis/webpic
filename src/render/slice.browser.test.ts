@@ -38,8 +38,8 @@ function rampField(): FieldArray {
 
 async function renderSlicePixels(): Promise<Uint8Array> {
   const { installRenderer } = await import("./renderer.ts");
-  const { createSliceScene } = await import("./sliceScene.ts");
-  const { createOrthographicCamera } = await import("./camera.ts");
+  const { createSliceScene } = await import("./volume/sliceScene.ts");
+  const { createOrthographicCamera } = await import("./camera/camera.ts");
   const renderer = await installRenderer({
     canvas: new OffscreenCanvas(SIZE, SIZE),
     width: SIZE,

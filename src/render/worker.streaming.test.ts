@@ -49,8 +49,8 @@ vi.mock("@gpu", () => ({
   onDeviceRestored: () => () => {},
 }));
 vi.mock("./renderer.ts", () => ({ installRenderer: h.installRenderer }));
-vi.mock("./raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
-vi.mock("./sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
+vi.mock("./volume/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
+vi.mock("./volume/sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
 vi.mock("./scene.ts", () => ({ createTestScene: h.createTestScene }));
 
 let onmessage: (event: { data: RenderWorkerRequest }) => void;

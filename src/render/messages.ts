@@ -3,7 +3,7 @@ import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
 import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
-import type { SliceAxis } from "./sliceScene.ts";
+import type { SliceAxis } from "./volume/sliceScene.ts";
 
 export type { CameraMotion, CameraPose, CameraProjection, MarkerPart, PickPurpose, WindowLevel };
 

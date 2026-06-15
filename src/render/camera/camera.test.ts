@@ -1,5 +1,7 @@
 import { Vector3 } from "three";
 import { describe, expect, it } from "vitest";
+import { FRUSTUM } from "../constants.ts";
+import type { CameraPose } from "../messages.ts";
 import {
   applyPose,
   applyPoseOrtho,
@@ -8,8 +10,6 @@ import {
   createVolumeOrthographicCamera,
   DEFAULT_POSE,
 } from "./camera.ts";
-import { FRUSTUM } from "./constants.ts";
-import type { CameraPose } from "./messages.ts";
 
 describe("createOrthographicCamera", () => {
   it("builds an identical screen-aligned camera each call (the main/worker parity precondition)", () => {
