@@ -277,7 +277,7 @@ webpic/
       src/
         compute.worker.ts         #   pool worker; imports compute backends/ts,wasm
         data.worker.ts            #   reader + prefetch worker (owns OPFS writes)
-        messages.ts               #   typed message protocol (StoreToRender, RenderToStore, DataToRender)
+        messages.ts               #   typed message protocol (RenderWorkerRequest / RenderWorkerResponse; StoreToRender/RenderToStore/DataToRender are conceptual labels)
     embed/                        # @webpic/embed — headless library export
       src/
         index.ts                  #   public API; no UI imports
