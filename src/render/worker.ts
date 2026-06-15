@@ -6,14 +6,6 @@ import { type CameraRig, createCameraRig } from "./cameraRig.ts";
 import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
 import { createManagedOverlay } from "./grid/managedOverlay.ts";
 import type { SceneOverlay } from "./grid/overlayScene.ts";
-import {
-  advanceSettling,
-  applyCameraMotion,
-  QUALITY_FULL,
-  type QualityLevel,
-  type QualityState,
-  qualityLevel,
-} from "./interactionQuality.ts";
 import { createLayerRegistry, type LayerEntry } from "./layerRegistry.ts";
 import { createManagedMarker } from "./marker/managedMarker.ts";
 import type { MarkerScene } from "./marker/markerScene.ts";
@@ -24,6 +16,7 @@ import type {
   RenderWorkerResponse,
 } from "./messages.ts";
 import { pickPointOnRay } from "./pickRay.ts";
+import { createQualityController } from "./qualityController.ts";
 import { type CompositeItem, type InstalledRenderer, installRenderer } from "./renderer.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
 
@@ -84,13 +77,25 @@ function reportFault(error: unknown): void {
   reportError(error instanceof Error ? error.message : String(error));
 }
 
+// Camera-motion liveness → quality tier: volumes march coarser (uniform flip, no rebuild) AND the
+// swapchain renders at a reduced scale while a gesture is live; machine-driven flies keep full
+// resolution with a mildly coarser march; the idle edge starts a short settle ramp the display loop
+// advances one painted frame at a time, instead of a one-frame pop back to full quality. The
+// controller owns the state machine; the loop and device-restore drive it through the seam.
+const quality = createQualityController({
+  hasLoop: () => rafId !== undefined,
+  applyStepScale: (stepScale) => registry.applyStepScale(stepScale),
+  setRenderScale: (scale) => renderer?.setRenderScale(scale),
+  requestRender,
+});
+
 // The renderable layers + their lifecycle (build/replace/remove, composite, color/shading, the
 // warm-then-commit, the device-restore replay). It reaches back for live quality/projection + the
 // repaint/fault seams, and warms the FULL composite — overlay + marker live here, so the worker
 // assembles it via compositeItems.
 const registry = createLayerRegistry({
   float32Filterable: () => float32Filterable,
-  stepScale: () => qualityLevel(quality).stepScale,
+  stepScale: () => quality.stepScale(),
   isOrthographic: () => projection === "orthographic",
   requestRender,
   reportFault,
@@ -259,12 +264,9 @@ function renderTick(frameTimeMs: number): void {
       renderer.renderComposite(paintItems());
     }
     lastErrorMessage = undefined; // a clean frame re-arms error reporting
-    // Each settle level paints exactly one frame: advancing re-arms needsRender via applyQuality
-    // until the ramp lands at full, where the level stops changing and the loop goes quiet.
-    if (quality.kind === "settling") {
-      quality = advanceSettling(quality);
-      applyQuality();
-    }
+    // Each settle level paints exactly one frame: advancing re-arms needsRender via the quality
+    // controller until the ramp lands at full, where the level stops changing and the loop goes quiet.
+    quality.advanceSettling();
   } catch (error) {
     // A single bad frame (transient validation, mid-rebuild sample) must not kill the loop; on-demand
     // mode won't re-enter until the next requestRender, so this self-rate-limits to real changes.
@@ -367,41 +369,13 @@ async function setLayerColormap(
   registry.setColormap(request);
 }
 
-// Camera-motion liveness → quality tier: volumes march coarser (uniform flip, no rebuild) AND the
-// swapchain renders at a reduced scale while a gesture is live; machine-driven flies keep full
-// resolution with a mildly coarser march; the idle edge starts a short settle ramp the display
-// loop advances one painted frame at a time, instead of a one-frame pop back to full quality.
-// State transitions are pure (interactionQuality.ts).
-let quality: QualityState = QUALITY_FULL;
-let appliedLevel: QualityLevel = qualityLevel(QUALITY_FULL);
-
-function applyQuality(): void {
-  const level = qualityLevel(quality);
-  let changed = false;
-  if (level.stepScale !== appliedLevel.stepScale) {
-    registry.applyStepScale(level.stepScale);
-    changed = true;
-  }
-  if (level.renderScale !== appliedLevel.renderScale) {
-    renderer?.setRenderScale(level.renderScale);
-    changed = true;
-  }
-  appliedLevel = level;
-  if (changed) requestRender();
-}
-
+// Camera-motion liveness → quality tier (the controller owns the transition, level apply, and the
+// settle kick; see createQualityController).
 async function setCameraMotion(
   request: Extract<RenderWorkerRequest, { kind: "setCameraMotion" }>,
 ): Promise<void> {
   await initDone;
-  quality = applyCameraMotion(quality, request.motion);
-  // No display loop (Node) means nothing advances a settle ramp — collapse straight to full so
-  // the synchronous one-shot paints land at final quality.
-  if (rafId === undefined && quality.kind === "settling") quality = QUALITY_FULL;
-  applyQuality();
-  // animating → settling step 0 is level-identical, so applyQuality posts no repaint — but the
-  // ramp only advances after a *painted* frame; without this kick it would stall at 0.7 forever.
-  if (quality.kind === "settling") requestRender();
+  quality.setMotion(request.motion);
 }
 
 // Live per-layer Phong toggle — a uniform flip on the volume scene, no rebuild/re-upload. Slice
@@ -494,9 +468,8 @@ async function rebuildOnDevice(device: GPUDevice): Promise<void> {
   overlay.rebuild();
   marker.rebuild();
   // The fresh renderer starts at scale 1 and the rebuilt scenes already carry the live step scale —
-  // resync the applied-level cache, then re-apply in case a gesture is live across the restore.
-  appliedLevel = { stepScale: qualityLevel(quality).stepScale, renderScale: 1 };
-  applyQuality();
+  // resync the controller's level cache, then re-apply in case a gesture is live across the restore.
+  quality.resyncAfterRebuild();
   // Warm the rebuilt composite on the fresh device before un-pausing the loop, so the first
   // restored frame neither stalls nor draws half-compiled.
   try {
