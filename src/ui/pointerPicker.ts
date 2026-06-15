@@ -2,13 +2,11 @@ import { horizontalDragAllowed, type MarkerPart, verticalDragAllowed } from "@sc
 import type { Vec3 } from "@schema/types.ts";
 import {
   clampToBox,
-  cursorRay,
   dragAlongAxis,
   dragOnPlane,
   markerEdgePoint,
   markerHandlePositions,
   type SimulationStore,
-  unitBoxChordMidpoint,
   worldToScreen,
 } from "@store";
 import type { Disposer } from "./controls/index.ts";
@@ -23,14 +21,14 @@ import { isTypingTarget } from "./keyboard.ts";
 // only — no render import.
 //
 // Gestures (magviz parity): drag the sphere to move it on the equatorial plane (Shift, or a steep
-// view, switches to vertical-z); the ↕/↔ handles drag along a single axis; a tap on empty volume
-// places the marker at the opacity-weighted pick (purpose "place"); double-click is left to
-// pointerCamera (purpose "focus"). Held arrow keys slide the marker view-relative — ←/→ along the
-// horizontal screen-right axis, ↑/↓ into/out of the screen (horizontal), Shift+↑/↓ vertically (z)
-// — magviz's selection-cube arrows, minus its world-fixed axes, so the on-screen direction always
-// matches the key. All inert while the marker is hidden (overlay.showPicker false).
+// view, switches to vertical-z); the ↕/↔ handles drag along a single axis. A press on empty volume
+// falls through to pointerCamera (orbit/pan; its double-click focuses) — there is no tap-to-place,
+// so a stray tap (touch especially) never jumps the marker; reposition by dragging it or the held
+// arrow keys. Held arrows slide the marker view-relative — ←/→ along the horizontal screen-right
+// axis, ↑/↓ into/out of the screen (horizontal), Shift+↑/↓ vertically (z) — magviz's selection-cube
+// arrows, minus its world-fixed axes, so the on-screen direction always matches the key. All inert
+// while the marker is hidden (overlay.showPicker false).
 
-const TAP_PX = 4; // pointer travel below this counts as a tap (placement), not an orbit
 // Hover/grab target: 2× the marker's projected core radius — tracking the rendered size across
 // dolly — with a floor so it never shrinks into a flickery sliver. Core and handle stems share it
 // (magviz's max(26, radiusPx·2)).
@@ -72,9 +70,6 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   const ac = new AbortController();
   const { signal } = ac;
   let drag: ActiveDrag | undefined;
-  // Start of the current primary-pointer press (for tap-vs-orbit at release); set on every left
-  // pointerdown, claimed or not, so a release on empty volume can place the marker.
-  let downAt: { pointerId: number; x: number; y: number; claimed: boolean } | undefined;
 
   const ndcOf = (clientX: number, clientY: number, rect: DOMRect): { x: number; y: number } => ({
     x: ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -163,12 +158,6 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     if (event.button !== 0 || !event.isPrimary) return; // primary left-button only; rest → camera
     const rect = target.getBoundingClientRect();
     const part = hitTest(event.clientX, event.clientY, rect);
-    downAt = {
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      claimed: part !== "none",
-    };
     if (part === "none") return; // not on the marker — let the event reach pointerCamera (orbit/pan)
 
     // Claim the marker interaction: the camera must not orbit. stopImmediatePropagation (not
@@ -220,37 +209,18 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   };
 
   const onPointerUp = (event: PointerEvent): void => {
-    if (drag !== undefined && event.pointerId === drag.pointerId) {
-      event.stopImmediatePropagation();
-      target.releasePointerCapture?.(event.pointerId);
-      drag = undefined;
-      store.getState().setPickerActive(false);
-      target.style.cursor = "grab";
-      downAt = undefined;
-      return;
-    }
-    // Tap on empty volume (not a marker grab, negligible travel) → place the marker at the cursor's
-    // opacity-weighted pick. The double-click that may follow rides pointerCamera (purpose "focus").
-    const pending = downAt;
-    downAt = undefined;
-    if (pending === undefined || pending.pointerId !== event.pointerId || pending.claimed) return;
-    if (Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > TAP_PX) return;
-    const { overlay, cameraPose, projection, worldHalfExtent } = store.getState();
-    if (!overlay.showPicker) return;
-    const rect = target.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    const ndc = ndcOf(event.clientX, event.clientY, rect);
-    const aspect = rect.width / rect.height;
-    const ray = cursorRay(cameraPose, ndc.x, ndc.y, aspect, projection === "orthographic");
-    if (unitBoxChordMidpoint(ray.origin, ray.dir, worldHalfExtent) === null) return; // off the box
-    store.getState().requestPick({ ndcX: ndc.x, ndcY: ndc.y, aspect, purpose: "place" });
+    if (drag === undefined || event.pointerId !== drag.pointerId) return;
+    event.stopImmediatePropagation();
+    target.releasePointerCapture?.(event.pointerId);
+    drag = undefined;
+    store.getState().setPickerActive(false);
+    target.style.cursor = "grab";
   };
 
   const onPointerCancel = (event: PointerEvent): void => {
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
     target.releasePointerCapture?.(event.pointerId);
     drag = undefined;
-    downAt = undefined;
     store.getState().setPickerActive(false);
     target.style.cursor = "grab";
   };
@@ -349,7 +319,6 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     ac.abort();
     if (drag !== undefined) target.releasePointerCapture?.(drag.pointerId);
     drag = undefined;
-    downAt = undefined;
     heldArrows.clear();
     if (arrowRafId !== undefined) cancelAnimationFrame(arrowRafId);
     arrowRafId = undefined;
