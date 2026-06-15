@@ -18,6 +18,7 @@ import type {
 import { pickPointOnRay } from "./pickRay.ts";
 import { createQualityController } from "./qualityController.ts";
 import { type CompositeItem, type InstalledRenderer, installRenderer } from "./renderer.ts";
+import { createRenderLoop } from "./renderLoop.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
 
 // Worker-scope view of `self`. The DOM lib types `self` as Window (whose
@@ -52,12 +53,6 @@ let unsubscribeGpu: (() => void) | undefined;
 // even if a future caller stops gating on the `ready` response.
 let initDone: Promise<void> | undefined;
 
-// Display-loop state. The loop runs in browser workers (requestAnimationFrame present); in Node it
-// stays dormant and requestRender() paints synchronously, preserving the old one-shot behavior.
-let needsRender = false; // on-demand: the loop paints only when something changed
-let rafId: number | undefined; // undefined ⇒ no loop running
-let isReadbackInFlight = false; // pauses the loop across a deterministic readPixels (see renderFrame)
-let isContinuous = false; // diagnostics: force every-frame repaints for sustained GPU timing
 let frameTimer: FrameTimer | undefined; // per-frame GPU timing (timestamp-query or wall-clock)
 let lastErrorMessage: string | undefined; // dedupe so a persistent bad frame can't flood the channel
 
@@ -83,7 +78,7 @@ function reportFault(error: unknown): void {
 // advances one painted frame at a time, instead of a one-frame pop back to full quality. The
 // controller owns the state machine; the loop and device-restore drive it through the seam.
 const quality = createQualityController({
-  hasLoop: () => rafId !== undefined,
+  hasLoop: () => loop.isRunning(),
   applyStepScale: (stepScale) => registry.applyStepScale(stepScale),
   setRenderScale: (scale) => renderer?.setRenderScale(scale),
   requestRender,
@@ -120,6 +115,33 @@ const marker = createManagedMarker({
   reportFault,
   warmComposite: (scene) => renderer?.compileComposite(compositeItems(undefined, undefined, scene)),
 });
+
+// The on-demand display loop: a dirty-flag rAF painter (synchronous in Node). It owns no renderable
+// state — it calls back here to paint (plain or GPU-timed), tick the marker easing, and advance the
+// settle ramp. paint/paintTimed read the worker's live renderer + paintItems; the loop only decides
+// when to call them.
+const loop = createRenderLoop({
+  hasRenderer: () => renderer !== undefined,
+  isDeviceLost: () => isDeviceLost,
+  paint: () => renderer?.renderComposite(paintItems()),
+  paintTimed: () => {
+    frameTimer?.beginFrame();
+    renderer?.renderComposite(paintItems());
+    void sampleAndPostTiming().catch(reportFault);
+  },
+  tickAnimations: (frameTimeMs) => marker.tick(frameTimeMs),
+  advanceQuality: () => quality.advanceSettling(),
+  reportFault,
+  clearError: () => {
+    lastErrorMessage = undefined;
+  },
+});
+
+// requestRender forwards to the loop's dirty-flag entry point — a hoisted seam so every manager host
+// and message handler can reference it before `loop` is constructed.
+function requestRender(): void {
+  loop.requestRender();
+}
 
 function aspect(): number {
   return dims.height > 0 ? dims.width / dims.height : 1;
@@ -161,7 +183,7 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
     if (event.terminal) {
       // Recovery gave up (breaker tripped or no adapter) — halt the loop so nothing hammers the dead
       // GPU, and tell the app to show a terminal "reload" state instead of spiraling.
-      stopRenderLoop();
+      loop.stop();
       const reason = event.message.includes("GPUAdapter") ? "no-adapter" : "repeated-loss";
       ctx.postMessage({ kind: "gpuRecoveryFailed", requestId: -1, reason, message: event.message });
     } else {
@@ -180,7 +202,7 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
   // yet that frame is the bare clear color, which matches the page background — a seamless boot.
   requestRender();
   ctx.postMessage({ kind: "ready", requestId: request.requestId });
-  startRenderLoop();
+  loop.start();
 }
 
 // The visible layers in draw order, each paired with the camera its projection needs (perspective
@@ -231,49 +253,6 @@ function paintItems(): CompositeItem[] {
   return items;
 }
 
-// The single repaint entry point for message handlers. Sets the dirty flag for the loop; if no loop
-// is running (Node, or the init boot paint before startRenderLoop), renders synchronously instead.
-function requestRender(): void {
-  needsRender = true;
-  if (rafId === undefined && renderer !== undefined && !isDeviceLost) {
-    renderer.renderComposite(paintItems());
-    needsRender = false;
-  }
-}
-
-function renderTick(frameTimeMs: number): void {
-  // Reschedule first so a throwing frame can't permanently strand the loop.
-  rafId = requestAnimationFrame(renderTick);
-  if (isReadbackInFlight || renderer === undefined || isDeviceLost) return;
-  // Advance the marker's hover/pulse/active easing (cheap, alloc-free) and keep painting while it
-  // animates. Runs every frame the rAF loop reschedules anyway, so it adds no new loop; it only
-  // dirties needsRender while easing, then the on-demand loop falls back to idle. The manager owns
-  // the dt clock (vsync-aligned rAF timestamp, not performance.now()).
-  if (marker.tick(frameTimeMs)) needsRender = true;
-  // Continuous mode repaints every frame for sustained GPU timing; otherwise paint only on change.
-  if (!needsRender && !isContinuous) return;
-  needsRender = false;
-  try {
-    // GPU timing only while measuring (continuous): its onSubmittedWorkDone bracket is a GPU sync,
-    // so on-demand interactive frames skip it entirely and stay smooth.
-    if (isContinuous) {
-      frameTimer?.beginFrame();
-      renderer.renderComposite(paintItems());
-      void sampleAndPostTiming().catch(reportFault);
-    } else {
-      renderer.renderComposite(paintItems());
-    }
-    lastErrorMessage = undefined; // a clean frame re-arms error reporting
-    // Each settle level paints exactly one frame: advancing re-arms needsRender via the quality
-    // controller until the ramp lands at full, where the level stops changing and the loop goes quiet.
-    quality.advanceSettling();
-  } catch (error) {
-    // A single bad frame (transient validation, mid-rebuild sample) must not kill the loop; on-demand
-    // mode won't re-enter until the next requestRender, so this self-rate-limits to real changes.
-    reportFault(error);
-  }
-}
-
 // Read the just-submitted frame's GPU time and post it. Fire-and-forget off the loop: the read is
 // async (and NaNs for in-flight / bad samples the timer rejects) — skip those rather than back up
 // the loop. The timer guarantees a valid ms or NaN, so no plausibility filter is needed here.
@@ -282,18 +261,6 @@ async function sampleAndPostTiming(): Promise<void> {
   const gpuTimeMs = await frameTimer.sampleAfterSubmit();
   if (Number.isNaN(gpuTimeMs)) return;
   ctx.postMessage({ kind: "frameTiming", gpuTimeMs, clock: frameTimer.mode });
-}
-
-function startRenderLoop(): void {
-  if (rafId !== undefined) return; // idempotent
-  if (typeof requestAnimationFrame !== "function") return; // Node: requestRender paints synchronously
-  rafId = requestAnimationFrame(renderTick);
-}
-
-function stopRenderLoop(): void {
-  if (rafId !== undefined && typeof cancelAnimationFrame === "function")
-    cancelAnimationFrame(rafId);
-  rafId = undefined;
 }
 
 async function renderFrame(
@@ -307,7 +274,7 @@ async function renderFrame(
   // Deterministic readback renders to an offscreen target, then awaits the GPU. The only async gap
   // in the worker's single thread is that await — block the display loop's swapchain render across
   // it, else a rAF frame between the readback render and its await would corrupt the read pixels.
-  isReadbackInFlight = true;
+  loop.beginReadback();
   try {
     const pixels = await renderer.readCompositePixels(items);
     // Freshly allocated readback buffer (never shared) — safe to transfer.
@@ -323,8 +290,7 @@ async function renderFrame(
       [buffer],
     );
   } finally {
-    isReadbackInFlight = false;
-    needsRender = true; // repaint the swapchain the readback borrowed the renderer from
+    loop.endReadback(); // re-dirty so the swapchain the readback borrowed repaints
   }
 }
 
@@ -487,8 +453,7 @@ async function setContinuous(
   request: Extract<RenderWorkerRequest, { kind: "setContinuous" }>,
 ): Promise<void> {
   await initDone;
-  isContinuous = request.continuous;
-  if (isContinuous) needsRender = true;
+  loop.setContinuous(request.continuous);
 }
 
 async function setSceneOverlay(
@@ -623,7 +588,7 @@ export function dispose(): void {
   unsubscribeGpu = undefined;
   streamPort?.close();
   streamPort = undefined;
-  stopRenderLoop();
+  loop.stop();
   registry.disposeAll();
   overlay.dispose();
   marker.dispose();
