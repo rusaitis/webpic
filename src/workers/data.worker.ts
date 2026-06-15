@@ -121,12 +121,13 @@ function streamError(error: unknown, step?: number): void {
   });
 }
 
-// Read one step + compute its scalar — the slow work, run here off the main thread. The read honors
-// the abort signal (the ring cancels reads the cursor scrubbed past); the compute is synchronous.
+// Read one step + compute its scalar — the slow work, run here off the main thread. The read and the
+// compute both honor the abort signal (the ring cancels work the cursor scrubbed past); the TS backend
+// resolves synchronously, but the async dispatcher lets a GPU backend (M3) cancel mid-compute.
 async function readStep(step: number, signal: AbortSignal): Promise<FieldArray> {
   if (reader === undefined || handle === undefined) throw new Error("stream read before open");
   const dataset = await reader.readTimestep(handle, step, { signal });
-  return computeField(activeField, dataset); // computeField takes a plain string (validated upstream)
+  return computeField(activeField, dataset, signal); // computeField takes a plain string (validated upstream)
 }
 
 // Transfer a decoded scalar to the render worker over the paired port — the buffer detaches here, so

@@ -1,5 +1,6 @@
 import type { GpuAdapterSummary } from "@gpu";
 import { z } from "zod";
+import type { BackendId } from "./backend.ts";
 
 // Background backend microbench + calibration cache. On install: warm-start from cached
 // per-adapter scores, else seed hardcoded heuristics so the dispatcher has scores immediately
@@ -10,8 +11,6 @@ import { z } from "zod";
 
 export const CALIBRATION_VERSION = "1"; // bump on kernel/bench change → silent invalidation
 export const CALIBRATION_NAMESPACE = "calibration";
-
-export type BackendId = "ts" | "wasm" | "webgpu";
 
 export interface CalibrationScores {
   readonly calibrationVersion: string;

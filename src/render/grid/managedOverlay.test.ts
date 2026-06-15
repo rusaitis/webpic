@@ -85,7 +85,7 @@ describe("createManagedOverlay", () => {
     let release = () => {};
     setWarm(new Promise<void>((resolve) => (release = resolve)));
     const pending = overlay.build(config());
-    overlay.bumpEpoch(); // a device loss raced the build — supersede the in-flight warm
+    overlay.supersedeWarms(); // a device loss raced the build — supersede the in-flight warm
     release();
     await pending;
     expect(created[0]?.disposed).toBe(true); // discarded, not committed

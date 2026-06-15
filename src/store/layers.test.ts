@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
+import { flushAsync } from "../../tests/helpers.ts";
 import {
   addLayer,
   type Layer,
@@ -98,9 +99,10 @@ describe("layer helpers", () => {
 });
 
 describe("simulationStore layers", () => {
-  it("auto-seeds one volume layer for the active field on setDataset", () => {
+  it("auto-seeds one volume layer for the active field on setDataset", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     const { layers, selectedLayerId } = store.getState();
     expect(layers).toHaveLength(1);
     expect(layers[0]).toMatchObject({
@@ -113,44 +115,51 @@ describe("simulationStore layers", () => {
     expect(selectedLayerId).toBe("layer-0");
   });
 
-  it("does not spawn duplicate layers on a second setDataset", () => {
+  it("does not spawn duplicate layers on a second setDataset", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     expect(store.getState().layers).toHaveLength(1);
   });
 
-  it("re-points the selected layer's field on selectField, with a fresh computed", () => {
+  it("re-points the selected layer's field on selectField, with a fresh computed", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(beDataset());
+    await flushAsync();
     const before = store.getState().computed;
     store.getState().selectField("|E|");
+    await flushAsync();
     const { layers, computed, activeField } = store.getState();
     expect(activeField).toBe("|E|");
     expect(layers[0]?.field).toBe("|E|");
     expect(computed).not.toBe(before);
   });
 
-  it("selectField to the active field is a no-op on layers", () => {
+  it("selectField to the active field is a no-op on layers", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     const before = store.getState().layers;
     store.getState().selectField("|B|");
     expect(store.getState().layers).toBe(before);
   });
 
-  it("addLayer stamps a monotonic id and selects the new layer", () => {
+  it("addLayer stamps a monotonic id and selects the new layer", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset()); // seeds layer-0
+    await flushAsync();
     store.getState().addLayer(makeDefaultLayer("ignored", "|B|", "slice"));
     const { layers, selectedLayerId } = store.getState();
     expect(layers.map((l) => l.id)).toEqual(["layer-0", "layer-1"]);
     expect(selectedLayerId).toBe("layer-1"); // the addLayer-stamped id, not "ignored"
   });
 
-  it("removeLayer of the selected layer reselects the first remaining, then null", () => {
+  it("removeLayer of the selected layer reselects the first remaining, then null", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset()); // layer-0 (selected)
+    await flushAsync();
     store.getState().addLayer(makeDefaultLayer("x", "|B|", "slice")); // layer-1 (selected)
     store.getState().removeLayer("layer-1");
     expect(store.getState().selectedLayerId).toBe("layer-0");
@@ -159,18 +168,20 @@ describe("simulationStore layers", () => {
     expect(store.getState().layers).toHaveLength(0);
   });
 
-  it("removeLayer of a non-selected layer keeps the selection", () => {
+  it("removeLayer of a non-selected layer keeps the selection", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset()); // layer-0 (selected)
+    await flushAsync();
     store.getState().addLayer(makeDefaultLayer("x", "|B|", "slice")); // layer-1 (selected)
     store.getState().selectLayer("layer-0");
     store.getState().removeLayer("layer-1");
     expect(store.getState().selectedLayerId).toBe("layer-0");
   });
 
-  it("selectLayer(null) deselects; re-selecting the same id is a no-op fire", () => {
+  it("selectLayer(null) deselects; re-selecting the same id is a no-op fire", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     let fires = 0;
     const unsub = store.subscribe(
       (s) => s.selectedLayerId,
@@ -183,9 +194,10 @@ describe("simulationStore layers", () => {
     expect(store.getState().selectedLayerId).toBeNull();
   });
 
-  it("layer mutations notify the layers subscriber with a fresh array", () => {
+  it("layer mutations notify the layers subscriber with a fresh array", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     const seen: (readonly Layer[])[] = [];
     const unsub = store.subscribe(
       (s) => s.layers,
@@ -200,11 +212,13 @@ describe("simulationStore layers", () => {
     expect(seen[1]?.[0]?.opacity).toBeCloseTo(0.5);
   });
 
-  it("ids reset per store (deterministic, test-isolated)", () => {
+  it("ids reset per store (deterministic, test-isolated)", async () => {
     const a = createSimulationStore();
     a.getState().setDataset(bDataset());
+    await flushAsync();
     const b = createSimulationStore();
     b.getState().setDataset(bDataset());
+    await flushAsync();
     expect(a.getState().layers[0]?.id).toBe("layer-0");
     expect(b.getState().layers[0]?.id).toBe("layer-0");
   });

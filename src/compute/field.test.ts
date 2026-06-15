@@ -3,8 +3,8 @@ import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
 import { computableFields, computeField } from "./field.ts";
 
 describe("computeField", () => {
-  it("computes |B| via the canonical recipe registry", () => {
-    const out = computeField("|B|", vectorTriple("B"));
+  it("computes |B| via the canonical recipe registry", async () => {
+    const out = await computeField("|B|", vectorTriple("B"));
     expect(Array.from(out.data)).toEqual([5]); // sqrt(3^2 + 4^2)
     expect(out.meta.siUnit).toBe("T");
   });

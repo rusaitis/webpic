@@ -11,6 +11,12 @@ export type { CameraMotion, CameraPose, CameraProjection, MarkerPart, PickPurpos
 // ways; `requestId` correlates a response to its request and pre-stages the
 // cancellation plumbing the fuller StoreToRender/RenderToStore protocol will need.
 // Transferables (OffscreenCanvas, field/pixel ArrayBuffer) move by transfer, never clone.
+//
+// requestId convention: it is genuinely *correlated* only for the request/response pairs the worker
+// answers — `init`→`ready`, `renderFrame`→`frame`, `pickRay`→`pickResult`. The one-way store→worker
+// messages (camera pose, colormap, composite, …) are fire-and-forget, so the hardcoded ids the app
+// bridges post are stable labels, not match keys; collisions across those are harmless. Introduce a
+// real id allocator only when a new reply must match a specific request (e.g. M2.12's compile-complete).
 
 // A computed scalar field, serialized for transfer to the worker: the typed array can't
 // cross `postMessage` as a view, so it goes as a raw `buffer` + a `dtype` tag the worker

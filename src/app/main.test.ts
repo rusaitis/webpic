@@ -3,6 +3,7 @@ import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import { createSimulationStore, createUiStore, DEFAULT_POSE, focusPoseOnPoint } from "@store";
 import { describe, expect, it, vi } from "vitest";
 import { vectorTriple } from "../../tests/fixtures.ts";
+import { flushAsync } from "../../tests/helpers.ts";
 import { bootstrap } from "./main.ts";
 
 interface Post {
@@ -74,7 +75,7 @@ describe("bootstrap OffscreenCanvas handshake", () => {
 });
 
 describe("bootstrap store → compute → render", () => {
-  it("computes |B| and posts an upsertLayer + setComposite once the worker is ready", () => {
+  it("computes |B| and posts an upsertLayer + setComposite once the worker is ready", async () => {
     const offscreen = { tag: "offscreen" } as unknown as OffscreenCanvas;
     const canvas = {
       width: 0,
@@ -103,6 +104,7 @@ describe("bootstrap store → compute → render", () => {
     // Compute runs eagerly, but nothing is shown until the worker reports ready.
     expect(posts.map((p) => p.message.kind)).toEqual(["init"]);
 
+    await flushAsync(); // the seed recompute is async — settle it before the worker reports ready
     const ready = { data: { kind: "ready", requestId: 1 } } as MessageEvent<RenderWorkerResponse>;
     worker.onmessage?.(ready);
 
@@ -348,7 +350,7 @@ describe("bootstrap pick-to-focus", () => {
 });
 
 describe("bootstrap streaming (M2.10a)", () => {
-  it("pairs the data worker, opens the stream, relays the domain, and drives the cursor", () => {
+  it("pairs the data worker, opens the stream, relays the domain, and drives the cursor", async () => {
     const canvas = fakeCanvas();
     const renderPosts: Post[] = [];
     const renderWorker = {
@@ -382,6 +384,7 @@ describe("bootstrap streaming (M2.10a)", () => {
       store,
     });
 
+    await flushAsync(); // the seed + deferred stream open are async — settle them first
     // `open` is posted after the store seeds its layer, carrying the layer id + active field + a port.
     const open = dataPosts.find((p) => p.message.kind === "open");
     if (open === undefined || open.message.kind !== "open")
@@ -416,7 +419,7 @@ describe("bootstrap streaming (M2.10a)", () => {
     expect(dataTerminated).toBe(1);
   });
 
-  it("drives the loading phases: boot, dataset open, step acks, field switches, errors", () => {
+  it("drives the loading phases: boot, dataset open, step acks, field switches, errors", async () => {
     const canvas = fakeCanvas();
     const renderWorker = {
       onmessage: null,
@@ -447,6 +450,7 @@ describe("bootstrap streaming (M2.10a)", () => {
     const phaseKeys = () => uiStore.getState().loadingPhases.map((p) => p.key);
     const message = () => uiStore.getState().loadingPhases[0]?.message; // oldest = displayed
 
+    await flushAsync(); // the stream open is deferred onto the async seed; settle it
     // Bootstrap begins the boot phase synchronously and the open phase with the stream open.
     expect(phaseKeys()).toEqual(["boot", "open"]);
 

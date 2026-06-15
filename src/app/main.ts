@@ -178,12 +178,18 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     (id) => {
       const entry = options.datasetCatalog?.get(id);
       if (entry === undefined) return;
-      store.getState().setDataset(entry.makeDataset());
-      const state = store.getState();
-      const layer = state.layers.find((candidate) => candidate.id === state.selectedLayerId);
-      const bindingId = layer?.colormapBindingId ?? null;
-      if (bindingId !== null) state.setBindingScale(bindingId, entry.defaultScale);
-      streaming?.reopen(entry.streamSource);
+      // setDataset re-seeds asynchronously; apply the dataset's default scale to the retargeted binding
+      // and re-open the stream onto the new handle once that lands.
+      void store
+        .getState()
+        .setDataset(entry.makeDataset())
+        .then(() => {
+          const state = store.getState();
+          const layer = state.layers.find((candidate) => candidate.id === state.selectedLayerId);
+          const bindingId = layer?.colormapBindingId ?? null;
+          if (bindingId !== null) state.setBindingScale(bindingId, entry.defaultScale);
+          streaming?.reopen(entry.streamSource);
+        });
     },
   );
 
@@ -231,9 +237,18 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   };
   worker.postMessage(request, [offscreen]); // transfer the OffscreenCanvas
 
-  store.getState().setDataset(options.dataset ?? createSyntheticDataset());
-  // Open the streaming source now the store has seeded its layer (streamed fields address it by id).
-  streaming?.open();
+  // The recompute that seeds the layer streamed fields address is async (compute is Promise-based), so
+  // open the stream once that layer lands — open() carries its id. The UI reacts to computed/status
+  // through its own subscription, so it needn't wait on this.
+  const dataset = options.dataset ?? createSyntheticDataset();
+  if (streaming !== undefined) {
+    void store
+      .getState()
+      .setDataset(dataset)
+      .then(() => streaming?.open());
+  } else {
+    void store.getState().setDataset(dataset);
+  }
 
   // Mount the UI after the dataset so the field selector sees the computed availableFields. Skipped
   // headless (no DOM) — the overlay is a sibling to the canvas, not in the render path.

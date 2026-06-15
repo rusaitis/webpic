@@ -34,9 +34,9 @@ describe("createSyntheticDataset", () => {
     expect(nearCenter).toBeLessThanOrEqual(1);
   });
 
-  it("computeField('|B|') matches sqrt(B_1²+B_2²+B_3²) over the whole field", () => {
+  it("computeField('|B|') matches sqrt(B_1²+B_2²+B_3²) over the whole field", async () => {
     const ds = createSyntheticDataset();
-    const mag = computeField("|B|", ds);
+    const mag = await computeField("|B|", ds);
     expect(mag.shape).toEqual([N, N, N]);
 
     const b1 = ds.fields.get("B_1")?.data ?? new Float32Array();

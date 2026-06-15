@@ -2,6 +2,7 @@ import type { ColorScale } from "@schema/colormap.ts";
 import { Mesh, PlaneGeometry, Scene } from "three";
 import { texture, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
+import type { LayerScene } from "../layerScene.ts";
 import { createNormalization, type WindowLevel } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
@@ -29,21 +30,8 @@ export interface SliceSceneOptions {
   readonly float32Filterable?: boolean;
 }
 
-export interface SliceScene {
-  readonly scene: Scene;
-  /** Update the value→color window in place (no texture re-upload). */
-  setWindowLevel(center: number, width: number): void;
-  /** Rebake the colormap LUT in place (idempotent on an unchanged name). */
-  setColormap(name: string): void;
-  /** Switch the value→color scale in place (uniform only). */
-  setScale(scale: ColorScale): void;
-  /** Update the per-layer opacity in place (uniform only, no rebuild). */
-  setOpacity(opacity: number): void;
-  /** Ping-pong a new timestep's field into the volume in place (no rebuild). Returns false on a shape
-   *  change (the caller rebuilds). */
-  setField(field: ScalarField): boolean;
-  dispose(): void;
-}
+// A slice is exactly the base LayerScene — no march to scale, no normal to light, no projection flip.
+export type SliceScene = LayerScene;
 
 // Plane uv (a,b) spans the two free axes; `position` fixes the third. Texture coords
 // (x,y,z) = field (axis2, axis1, axis0) — the reverse of axisLabels (createVolumeTexture) —

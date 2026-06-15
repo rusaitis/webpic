@@ -156,7 +156,7 @@ describe("createManagedMarker", () => {
     let release = () => {};
     setWarm(new Promise<void>((resolve) => (release = resolve)));
     const pending = marker.build(config());
-    marker.bumpEpoch();
+    marker.supersedeWarms();
     release();
     await pending;
     expect(created[0]?.disposed).toBe(true);

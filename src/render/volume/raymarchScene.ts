@@ -25,6 +25,7 @@ import {
   wgslFn,
 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
+import type { VolumeLayerScene } from "../layerScene.ts";
 import { buildMinMaxGrid, createSkipTexture } from "./minMaxGrid.ts";
 import { createNormalization, type WindowLevel } from "./normalization.ts";
 import { GRAD_EPS, PHONG } from "./shading.ts";
@@ -72,31 +73,8 @@ export interface RaymarchSceneOptions {
   readonly worldHalfExtent?: Vec3;
 }
 
-export interface RaymarchScene {
-  readonly scene: Scene;
-  /** Update the value→color window in place (no texture re-upload). */
-  setWindowLevel(center: number, width: number): void;
-  /** Rebake the colormap LUT in place (idempotent on an unchanged name). */
-  setColormap(name: string): void;
-  /** Switch the value→color scale in place (uniform only). */
-  setScale(scale: ColorScale): void;
-  /** Toggle Phong shading in place (uniform only, no rebuild — the volume stays uploaded). */
-  setShading(enabled: boolean): void;
-  /** Update the per-layer opacity in place (uniform only, no rebuild). */
-  setOpacity(opacity: number): void;
-  /** Scale the marched step count in place (uniform only) — interaction-time quality. The march
-   *  always allocates `steps` iterations and Breaks at ceil(steps·scale), so full quality (1) is
-   *  bit-identical to a fixed march. Clamped to (0, 1]. */
-  setStepScale(scale: number): void;
-  /** Ping-pong a new timestep's field into the volume in place (no rebuild — time-series scrub).
-   *  Returns false when the in-place swap can't apply (shape change, or an empty-space-skip volume
-   *  whose acceleration grid would go stale); the caller then rebuilds the scene. */
-  setField(field: ScalarField): boolean;
-  /** Switch ray generation between perspective and orthographic (parallel rays) in place — a
-   *  uniform flip, no rebuild. The worker pairs it with the matching camera. */
-  setProjection(orthographic: boolean): void;
-  dispose(): void;
-}
+// A raymarched volume is exactly the VolumeLayerScene contract (base look ops + march/projection/shading).
+export type RaymarchScene = VolumeLayerScene;
 
 const DEFAULT_STEPS = 256; // fine-march / perf-gate depth
 const DEFAULT_BRICK_SIZE = 8; // empty-space-skip brick edge (voxels); (256/8)³ = 32³ skip grid

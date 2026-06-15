@@ -1,6 +1,7 @@
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import { fieldInfo } from "@schema/registry.ts";
 import type { FloatArray } from "@schema/types.ts";
+import type { ComputeBackend } from "../../backend.ts";
 import type { RecipeMeta } from "../../recipe.ts";
 import { RECIPES, type RecipeKey } from "../../recipes.generated.ts";
 import { MAGNITUDE_FIELD_OPS } from "./magnitude.ts";
@@ -78,3 +79,14 @@ export function computeRecipeTs(name: RecipeKey, dataset: FieldDataset): FieldAr
   const meta = fieldInfo(name);
   return { data, shape: first.shape, meta, units: first.units, latex: meta.latex, reduction: null };
 }
+
+// The TS reference backend as a ComputeBackend: the synchronous magnitude family behind the async
+// facade. `Promise.resolve` keeps the dispatcher uniform with the async WebGPU backend (M3) — the work
+// itself still runs synchronously on call, so a streamed step pays no extra hop.
+export const tsBackend: ComputeBackend = {
+  id: "ts",
+  supports: isTsComputable,
+  compute(name, dataset) {
+    return Promise.resolve(computeRecipeTs(name, dataset));
+  },
+};

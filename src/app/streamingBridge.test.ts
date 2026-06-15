@@ -3,6 +3,7 @@ import type { RenderWorkerRequest } from "@render";
 import { createSimulationStore, createUiStore } from "@store";
 import { describe, expect, it, vi } from "vitest";
 import { vectorTriple } from "../../tests/fixtures.ts";
+import { flushAsync } from "../../tests/helpers.ts";
 import { installStreamingBridge } from "./streamingBridge.ts";
 
 interface DataPost {
@@ -14,7 +15,7 @@ interface RenderPost {
   readonly transfer: Transferable[] | undefined;
 }
 
-function harness() {
+async function harness() {
   const dataPosts: DataPost[] = [];
   let terminated = 0;
   const dataWorker = {
@@ -35,6 +36,7 @@ function harness() {
   const store = createSimulationStore();
   const uiStore = createUiStore();
   store.getState().setDataset(vectorTriple("B")); // seeds one layer → selectedLayerId non-null
+  await flushAsync(); // the seed recompute is async — settle it before the bridge reads the layer
   const bridge = installStreamingBridge({
     store,
     uiStore,
@@ -56,15 +58,15 @@ function harness() {
 }
 
 describe("installStreamingBridge", () => {
-  it("posts nothing to the data worker before open()", () => {
-    const { store, bridge, dataPosts } = harness();
+  it("posts nothing to the data worker before open()", async () => {
+    const { store, bridge, dataPosts } = await harness();
     store.getState().selectField("B_1"); // activeField change, but the worker has no reader yet
     expect(dataPosts).toHaveLength(0);
     bridge.dispose();
   });
 
-  it("open posts the open message with the seeded layer and a transferred port", () => {
-    const { store, bridge, dataPosts } = harness();
+  it("open posts the open message with the seeded layer and a transferred port", async () => {
+    const { store, bridge, dataPosts } = await harness();
     bridge.open();
     const open = dataPosts.find((p) => p.message.kind === "open");
     if (open === undefined || open.message.kind !== "open") throw new Error("expected open");
@@ -74,8 +76,8 @@ describe("installStreamingBridge", () => {
     bridge.dispose();
   });
 
-  it("pair posts the streaming port into the render worker (transferred)", () => {
-    const { bridge, renderPosts } = harness();
+  it("pair posts the streaming port into the render worker (transferred)", async () => {
+    const { bridge, renderPosts } = await harness();
     bridge.pair();
     const pair = renderPosts.find((p) => p.message.kind === "pair");
     expect(pair?.message.kind).toBe("pair");
@@ -83,8 +85,8 @@ describe("installStreamingBridge", () => {
     bridge.dispose();
   });
 
-  it("relays the opened domain and drives the cursor, ignoring a stale step ack", () => {
-    const { store, uiStore, bridge, dataPosts, emit } = harness();
+  it("relays the opened domain and drives the cursor, ignoring a stale step ack", async () => {
+    const { store, uiStore, bridge, dataPosts, emit } = await harness();
     bridge.open();
     emit({ kind: "opened", steps: [0, 1, 2, 3] });
     expect(store.getState().availableSteps).toEqual([0, 1, 2, 3]);
@@ -102,8 +104,8 @@ describe("installStreamingBridge", () => {
     bridge.dispose();
   });
 
-  it("re-streams a field switch only after a first scrub", () => {
-    const { store, uiStore, bridge, dataPosts, emit } = harness();
+  it("re-streams a field switch only after a first scrub", async () => {
+    const { store, uiStore, bridge, dataPosts, emit } = await harness();
     bridge.open();
     emit({ kind: "opened", steps: [0, 1, 2, 3] });
 
@@ -117,8 +119,8 @@ describe("installStreamingBridge", () => {
     bridge.dispose();
   });
 
-  it("reopen is a no-op before open and posts a reopen after", () => {
-    const { bridge, dataPosts } = harness();
+  it("reopen is a no-op before open and posts a reopen after", async () => {
+    const { bridge, dataPosts } = await harness();
     bridge.reopen(syntheticHandle(4, 4));
     expect(dataPosts.some((p) => p.message.kind === "reopen")).toBe(false);
 
@@ -131,9 +133,9 @@ describe("installStreamingBridge", () => {
     bridge.dispose();
   });
 
-  it("surfaces a stream error via the ui store", () => {
+  it("surfaces a stream error via the ui store", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { uiStore, bridge, emit } = harness();
+    const { uiStore, bridge, emit } = await harness();
     bridge.open();
     emit({ kind: "streamError", message: "read failed" });
     expect(uiStore.getState().statusError?.message).toBe("read failed");
@@ -141,8 +143,8 @@ describe("installStreamingBridge", () => {
     bridge.dispose();
   });
 
-  it("dispose terminates the data worker and stops driving the cursor", () => {
-    const { store, bridge, dataPosts, emit, terminated } = harness();
+  it("dispose terminates the data worker and stops driving the cursor", async () => {
+    const { store, bridge, dataPosts, emit, terminated } = await harness();
     bridge.open();
     emit({ kind: "opened", steps: [0, 1, 2, 3] });
     bridge.dispose();

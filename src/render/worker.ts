@@ -20,6 +20,7 @@ import { pickPointOnRay } from "./pickRay.ts";
 import { createQualityController } from "./qualityController.ts";
 import { type CompositeItem, type InstalledRenderer, installRenderer } from "./renderer.ts";
 import { createRenderLoop } from "./renderLoop.ts";
+import type { RenderModule } from "./renderModule.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
 
 // Worker-scope view of `self`. The DOM lib types `self` as Window (whose
@@ -112,6 +113,12 @@ const marker = createManagedMarker({
   warmComposite: (scene) => renderer?.compileComposite(compositeItems(undefined, undefined, scene)),
 });
 
+// Every managed render subsystem, viewed through its RenderModule lifecycle face. The device-restore
+// host and dispose() iterate this instead of naming each manager — a new renderable is one more entry.
+// ORDER IS LOAD-BEARING: registry first, then the overlay + marker decorations on top, matching the
+// composite draw order and the rebuild sequence deviceRecovery depends on.
+const modules: readonly RenderModule[] = [registry, overlay, marker];
+
 // The on-demand display loop: a dirty-flag rAF painter (synchronous in Node). It owns no renderable
 // state — it calls back here to paint (plain or GPU-timed), tick the marker easing, and advance the
 // settle ramp. paint/paintTimed read the worker's live renderer + paintItems; the loop only decides
@@ -147,22 +154,19 @@ const recovery = createDeviceRecovery({
   supersedeInFlightWarms: () => {
     // Any in-flight warm raced the loss: bump every epoch so its commit discards (a superseded
     // streamed field heals on the next step) instead of landing a dead-device scene post-rebuild.
-    registry.bumpAllEpochs();
-    overlay.bumpEpoch();
-    marker.bumpEpoch();
+    for (const renderModule of modules) renderModule.supersedeWarms();
   },
   teardownDeadResources: () => {
     // Drop the dead-device resources best-effort: disposing GPU handles on a lost device can throw,
     // and the fresh renderer below is what matters.
     try {
       renderer?.dispose();
-      registry.disposeForRebuild();
-      overlay.disposeForRebuild();
-      marker.disposeForRebuild();
+      for (const renderModule of modules) renderModule.disposeForRebuild();
       testScene?.dispose();
     } catch {
       // a lost device throws on teardown — ignore; we're replacing everything anyway
     }
+    // Outside the try so it runs even if a dead-device scene dispose threw above (registry-only).
     registry.clearPendingDispose();
   },
   rebuildOnDevice: async (device) => {
@@ -177,11 +181,9 @@ const recovery = createDeviceRecovery({
     frameTimer = createFrameTimer(device);
     if (isDebugScene) testScene = createTestScene();
     applyVolumePose();
-    registry.rebuildScenes();
-    // Replay the overlay + marker from their retained configs on the fresh device (their GPU
-    // resources belonged to the dead device); the marker re-seeds the live pose + state internally.
-    overlay.rebuild();
-    marker.rebuild();
+    // Replay every module from its retained source on the fresh device (their GPU resources belonged
+    // to the dead device); the marker re-seeds the live pose + state internally. Order = modules order.
+    for (const renderModule of modules) renderModule.rebuild();
     quality.resyncAfterRebuild();
   },
   warmComposite: async () => {
@@ -577,9 +579,7 @@ export function dispose(): void {
   streamPort?.close();
   streamPort = undefined;
   loop.stop();
-  registry.disposeAll();
-  overlay.dispose();
-  marker.dispose();
+  for (const renderModule of modules) renderModule.dispose();
   testScene?.dispose();
   renderer?.dispose();
   gpu?.dispose();

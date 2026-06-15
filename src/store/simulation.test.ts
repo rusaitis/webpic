@@ -2,6 +2,7 @@ import type { FieldArray, GridInfo } from "@containers/field_dataset.ts";
 import type { ColormapBinding } from "@schema/colormap.ts";
 import { describe, expect, it } from "vitest";
 import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
+import { flushAsync } from "../../tests/helpers.ts";
 import {
   createSimulationStore,
   type SimulationStore,
@@ -50,9 +51,10 @@ describe("simulationStore", () => {
     expect(activeField).toBe("|B|");
   });
 
-  it("computes the active field on setDataset", () => {
+  it("computes the active field on setDataset", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     const { computed, status } = store.getState();
     expect(status).toBe("ready");
     expect(computed).not.toBeNull();
@@ -60,7 +62,7 @@ describe("simulationStore", () => {
     expect(computed?.shape).toEqual([1]);
   });
 
-  it("notifies subscribers when the computed field changes", () => {
+  it("notifies subscribers when the computed field changes", async () => {
     const store = createSimulationStore();
     const seen: (FieldArray | null)[] = [];
     const unsubscribe = store.subscribe(
@@ -68,22 +70,25 @@ describe("simulationStore", () => {
       (c) => seen.push(c),
     );
     store.getState().setDataset(bDataset());
+    await flushAsync();
     unsubscribe();
     expect(seen).toHaveLength(1);
     expect(Array.from(seen[0]?.data ?? [])).toEqual([5]);
   });
 
-  it("skips recompute when the field is re-selected (no new array, no re-render)", () => {
+  it("skips recompute when the field is re-selected (no new array, no re-render)", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     const before = store.getState().computed;
-    store.getState().selectField("|B|"); // already active
+    store.getState().selectField("|B|"); // already active (early return — no recompute)
     expect(store.getState().computed).toBe(before); // same reference → subscribers don't fire
   });
 
-  it("reports an error for an unknown field without throwing", () => {
+  it("reports an error for an unknown field without throwing", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     store.getState().selectField("not-a-recipe");
     const { status, error, computed } = store.getState();
     expect(status).toBe("error");
@@ -91,9 +96,10 @@ describe("simulationStore", () => {
     expect(computed).toBeNull();
   });
 
-  it("derives the data range and seeds a full-range binding on setDataset", () => {
+  it("derives the data range and seeds a full-range binding on setDataset", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     const { dataRange, layers, selectedLayerId } = store.getState();
     // |B| = 5 everywhere (constant field) → widened to [5, 6] so the window has finite width.
     expect(dataRange).toEqual({ min: 5, max: 6 });
@@ -110,39 +116,44 @@ describe("simulationStore", () => {
     });
   });
 
-  it("setBindingWindow updates the binding window without touching the data range", () => {
+  it("setBindingWindow updates the binding window without touching the data range", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     const id = activeBinding(store)?.id ?? "";
     store.getState().setBindingWindow(id, 10, 2);
     expect(activeBinding(store)?.window).toEqual({ center: 10, width: 2 });
     expect(store.getState().dataRange).toEqual({ min: 5, max: 6 }); // unchanged
   });
 
-  it("setBindingColormap and setBindingScale patch the bound binding", () => {
+  it("setBindingColormap and setBindingScale patch the bound binding", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     const id = activeBinding(store)?.id ?? "";
     store.getState().setBindingColormap(id, "viridis");
     store.getState().setBindingScale(id, "log");
     expect(activeBinding(store)).toMatchObject({ colormap: "viridis", scale: "log" });
   });
 
-  it("a no-op binding intent keeps the registry reference (no spurious fire)", () => {
+  it("a no-op binding intent keeps the registry reference (no spurious fire)", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     const before = store.getState().colormapBindings;
     store.getState().setBindingColormap(activeBinding(store)?.id ?? "", "inferno"); // already inferno
     expect(store.getState().colormapBindings).toBe(before);
   });
 
-  it("repoints the binding to the new field (full range) on a field switch, keeping the colormap", () => {
+  it("repoints the binding to the new field (full range) on a field switch, keeping the colormap", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(beDataset());
+    await flushAsync();
     const id = activeBinding(store)?.id ?? "";
     store.getState().setBindingColormap(id, "magma");
     store.getState().setBindingWindow(id, 0, 2); // user-narrowed window on |B|
     store.getState().selectField("|E|"); // |E| = 10 → constant → range [10, 11]
+    await flushAsync();
     expect(store.getState().dataRange).toEqual({ min: 10, max: 11 });
     // same binding instance, repointed: field + window reset, colormap preserved.
     expect(activeBinding(store)).toMatchObject({
@@ -152,9 +163,10 @@ describe("simulationStore", () => {
     });
   });
 
-  it("clears the range when compute fails (the binding survives the transient error)", () => {
+  it("clears the range when compute fails (the binding survives the transient error)", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
+    await flushAsync();
     store.getState().selectField("not-a-recipe");
     expect(store.getState().dataRange).toBeNull();
     expect(store.getState().computed).toBeNull();

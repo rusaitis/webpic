@@ -6,6 +6,7 @@ import { warmScene } from "./managedScene.ts";
 import type { LayerKind, RenderWorkerRequest, SliceFieldPayload } from "./messages.ts";
 import type { PickLayer } from "./pickRay.ts";
 import type { CompositeItem } from "./renderer.ts";
+import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
 import { fullRangeWindow } from "./volume/normalization.ts";
 import { createRaymarchScene, type RaymarchScene } from "./volume/raymarchScene.ts";
 import { createSliceScene, type SliceAxis, type SliceScene } from "./volume/sliceScene.ts";
@@ -51,19 +52,17 @@ interface CompositeEntry {
 // freshly built scenes), the repaint + fault-report seams, and `warmComposite` — which compiles the
 // *full* prospective composite (layers + overlay + marker), so it lives in the worker (the registry
 // doesn't own overlay/marker/cameras).
-export interface LayerHost {
+export interface LayerHost extends RenderModuleContext {
   float32Filterable(): boolean;
   stepScale(): number;
   isOrthographic(): boolean;
-  requestRender(): void;
-  reportFault(error: unknown): void;
   warmComposite(override: {
     readonly id: string;
     readonly entry: LayerEntry;
   }): Promise<unknown> | undefined;
 }
 
-export interface LayerRegistry {
+export interface LayerRegistry extends RenderModule {
   upsert(request: Extract<RenderWorkerRequest, { kind: "upsertLayer" }>): Promise<void>;
   remove(id: string): void;
   swapField(message: StreamStepMessage): void;
@@ -83,13 +82,10 @@ export interface LayerRegistry {
   ): CompositeItem[];
   /** The visible volume layers' CPU fields + look, for the worker's opacity-weighted ray pick. */
   pickLayers(): { layers: PickLayer[]; halfExtent: Vec3 };
-  // device-restore (the worker orchestrates renderer/overlay/marker around these).
-  bumpAllEpochs(): void;
-  disposeForRebuild(): void;
+  /** Registry-only step of the restore teardown: drop the deferred-dispose entry. The worker calls it
+   *  after the modules' `disposeForRebuild` loop so it runs even if a dead-device dispose threw. */
   clearPendingDispose(): void;
-  rebuildScenes(): void;
-  // teardown
-  disposeAll(): void;
+  // RenderModule (supersedeWarms / disposeForRebuild / rebuild / dispose) — the worker iterates these.
 }
 
 export function createLayerRegistry(host: LayerHost): LayerRegistry {
@@ -337,7 +333,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       return { layers: result, halfExtent };
     },
 
-    bumpAllEpochs() {
+    supersedeWarms() {
       for (const id of layers.keys()) bumpEpoch(id);
     },
 
@@ -351,12 +347,12 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       pendingDispose = undefined;
     },
 
-    rebuildScenes() {
+    rebuild() {
       // Replace each layer's scene in place (Map.set on an existing key is safe mid-iteration).
       for (const [id, entry] of layers) layers.set(id, buildScene(entry.source));
     },
 
-    disposeAll() {
+    dispose() {
       for (const layer of layers.values()) layer.scene.dispose();
       layers.clear();
       pendingDispose?.scene.dispose();

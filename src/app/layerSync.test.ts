@@ -2,6 +2,7 @@ import type { RenderWorkerRequest } from "@render";
 import { createSimulationStore, makeDefaultLayer } from "@store";
 import { describe, expect, it } from "vitest";
 import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import { flushAsync } from "../../tests/helpers.ts";
 import { installLayerSync } from "./layerSync.ts";
 
 interface Post {
@@ -49,9 +50,10 @@ describe("installLayerSync", () => {
     expect(posts).toHaveLength(0);
   });
 
-  it("flushAll posts the field (transferred) and the composite", () => {
+  it("flushAll posts the field (transferred) and the composite", async () => {
     const { store, posts, sync, setReady } = harness(false);
     store.getState().setDataset(beDataset());
+    await flushAsync();
     setReady(true);
     sync.flushAll();
 
@@ -74,21 +76,24 @@ describe("installLayerSync", () => {
     expect(composite.message.order).toEqual([{ id: "layer-0", visible: true, opacity: 1 }]);
   });
 
-  it("re-uploads the field exactly once on a field switch", () => {
+  it("re-uploads the field exactly once on a field switch", async () => {
     const { store, posts, setReady } = harness(true);
     store.getState().setDataset(beDataset());
+    await flushAsync();
     posts.length = 0; // ignore the initial upload
     setReady(true);
     store.getState().selectField("|E|");
+    await flushAsync();
 
     const upserts = posts.filter((p) => p.message.kind === "upsertLayer");
     expect(upserts).toHaveLength(1); // one layer, one transfer — never a detached double-send
     expect(upserts[0]?.transfer).toHaveLength(1);
   });
 
-  it("rides visibility/opacity changes on setComposite (no field re-transfer)", () => {
+  it("rides visibility/opacity changes on setComposite (no field re-transfer)", async () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset());
+    await flushAsync();
     posts.length = 0;
     store.getState().setLayerVisible("layer-0", false);
     store.getState().setLayerOpacity("layer-0", 0.5);
@@ -98,9 +103,10 @@ describe("installLayerSync", () => {
     expect(last.message.order[0]).toEqual({ id: "layer-0", visible: false, opacity: 0.5 });
   });
 
-  it("posts setLayerColormap when the bound binding is edited (the live color path)", () => {
+  it("posts setLayerColormap when the bound binding is edited (the live color path)", async () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset()); // seeds layer-0 + binding-0
+    await flushAsync();
     posts.length = 0; // ignore the seed traffic (binding rides the upsert, not this channel)
     const bindingId = store.getState().layers[0]?.colormapBindingId ?? "";
     store.getState().setBindingColormap(bindingId, "viridis");
@@ -116,15 +122,17 @@ describe("installLayerSync", () => {
     expect(msg.transfer).toBeUndefined(); // no field buffer — the live path never re-transfers
   });
 
-  it("does not post setLayerColormap for a freshly seeded binding (rides the upsert)", () => {
+  it("does not post setLayerColormap for a freshly seeded binding (rides the upsert)", async () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset());
+    await flushAsync();
     expect(kinds(posts)).not.toContain("setLayerColormap");
   });
 
-  it("upsert carries the volume layer's shaded flag (default off)", () => {
+  it("upsert carries the volume layer's shaded flag (default off)", async () => {
     const { store, posts, sync, setReady } = harness(false);
     store.getState().setDataset(beDataset());
+    await flushAsync();
     setReady(true);
     sync.flushAll();
     const upsert = posts.find((p) => p.message.kind === "upsertLayer");
@@ -134,9 +142,10 @@ describe("installLayerSync", () => {
     expect(upsert.message.shaded).toBe(false);
   });
 
-  it("posts setLayerShading when an existing volume layer is toggled (no field re-transfer)", () => {
+  it("posts setLayerShading when an existing volume layer is toggled (no field re-transfer)", async () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset()); // seeds layer-0 (volume)
+    await flushAsync();
     posts.length = 0; // ignore the seed traffic (shaded rides the upsert, not this channel)
     store.getState().setLayerShading("layer-0", true);
 
@@ -149,15 +158,17 @@ describe("installLayerSync", () => {
     expect(msg.transfer).toBeUndefined(); // uniform flip — never re-transfers the volume
   });
 
-  it("does not post setLayerShading for a freshly seeded layer (rides the upsert)", () => {
+  it("does not post setLayerShading for a freshly seeded layer (rides the upsert)", async () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset());
+    await flushAsync();
     expect(kinds(posts)).not.toContain("setLayerShading");
   });
 
-  it("posts removeLayer when a layer is removed", () => {
+  it("posts removeLayer when a layer is removed", async () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset()); // layer-0
+    await flushAsync();
     store.getState().addLayer(makeDefaultLayer("ignored", "|B|", "slice")); // layer-1
     posts.length = 0;
     store.getState().removeLayer("layer-1");

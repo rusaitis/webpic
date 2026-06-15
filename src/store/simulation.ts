@@ -146,9 +146,12 @@ export interface SimulationState {
   readonly frameTimeMs: number | null;
   readonly frameTimeClock: FrameClock | null;
   readonly isMeasuringContinuous: boolean;
-  setDataset(dataset: FieldDataset): void;
+  // setDataset/selectField recompute the active field through the async dispatcher — they resolve once
+  // the field is computed + the layer/binding seeded, so callers that depend on the seed (bootstrap's
+  // stream open) can await; the UI just reacts to the computed/status subscription.
+  setDataset(dataset: FieldDataset): Promise<void>;
   selectDataset(id: string): void;
-  selectField(name: FieldName): void;
+  selectField(name: FieldName): Promise<void>;
   setBindingColormap(id: string, colormap: ColormapId): void;
   setBindingWindow(id: string, center: number, width: number): void;
   setBindingScale(id: string, scale: ColorScale): void;
@@ -271,7 +274,13 @@ export function createSimulationStore() {
         if (next !== layers) set({ layers: next });
       };
 
-      const recompute = (): void => {
+      // Bumped on every recompute so an async compute that loses a race (a newer setDataset/selectField
+      // started while it awaited) discards instead of committing a stale field/error — the pull-based
+      // invalidation counter (DESIGN §compute) in its v0.1 shape.
+      let computeGeneration = 0;
+
+      const recompute = async (): Promise<void> => {
+        const generation = ++computeGeneration;
         const { dataset, activeField } = get();
         if (dataset === null) {
           // Leave `layers`/`colormapBindings`/`selectedLayerId` untouched — a transient empty/error
@@ -280,7 +289,8 @@ export function createSimulationStore() {
           return;
         }
         try {
-          const computed = computeField(activeField, dataset);
+          const computed = await computeField(activeField, dataset);
+          if (generation !== computeGeneration) return; // superseded mid-compute — drop the stale result
           // A fresh quantity has a fresh value scale — reset the bound window to its full range.
           const dataRange = finiteRange(computed.data);
           const window = dataRange ? fullRangeWindow(dataRange) : FALLBACK_WINDOW;
@@ -322,6 +332,7 @@ export function createSimulationStore() {
             colormapBindings,
           });
         } catch (err) {
+          if (generation !== computeGeneration) return; // superseded — don't clobber with a stale error
           set({
             computed: null,
             status: "error",
@@ -369,14 +380,14 @@ export function createSimulationStore() {
             currentStep: dataset.step,
             ...(availableSteps.length === 0 ? { availableSteps: [dataset.step] } : {}),
           });
-          recompute();
+          return recompute(); // resolves once the seed lands — callers may await (bootstrap sequences on it)
         },
         selectDataset(id) {
           if (id === get().datasetId) return; // unchanged → no fire (the app reacts to a real switch)
           set({ datasetId: id });
         },
         selectField(name) {
-          if (name === get().activeField) return; // recompute yields a fresh array — skip the no-op re-render
+          if (name === get().activeField) return Promise.resolve(); // no-op — skip the re-render
           // The one layer follows the field selector — re-point it so its `field` stays honest
           // (the spread preserves the union member's kind-specific keys).
           const { selectedLayerId, layers } = get();
@@ -387,7 +398,7 @@ export function createSimulationStore() {
                 )
               : layers;
           set({ activeField: name, ...(repointed !== layers ? { layers: repointed } : {}) });
-          recompute();
+          return recompute(); // resolves once the seed lands — callers may await (bootstrap sequences on it)
         },
         setBindingColormap(id, colormap) {
           updateBindings((b) => colormapOps.setBindingColormap(b, id, colormap));

@@ -2,6 +2,7 @@ import type { ColormapBinding } from "@schema/colormap.ts";
 import { createSimulationStore, type SimulationStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
 import { fieldArray, makeDataset } from "../../../tests/fixtures.ts";
+import { flushAsync } from "../../../tests/helpers.ts";
 import { installColormapPanel } from "./colormapPanel.ts";
 
 // B triple → |B| = 5 (constant) → finite range widened to [5, 6], window {center 5.5, width 1}.
@@ -43,7 +44,7 @@ afterEach(() => {
 });
 
 describe("colormap panel (binding)", () => {
-  it("is disabled until a field's range is known, then rebuilds enabled on setDataset", () => {
+  it("is disabled until a field's range is known, then rebuilds enabled on setDataset", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
@@ -54,6 +55,7 @@ describe("colormap panel (binding)", () => {
     for (const select of selects(host)) expect(select.disabled).toBe(true);
 
     store.getState().setDataset(bTriple());
+    await flushAsync();
     expect(host.querySelector(".webpic-range")?.classList.contains("is-disabled")).toBe(false);
     const [lo, hi] = rangeInputs(host);
     expect(lo?.value).toBe("5"); // window interval [5, 6] from {center 5.5, width 1}
@@ -64,11 +66,12 @@ describe("colormap panel (binding)", () => {
     expect(host.querySelector(".webpic-pane")).toBeNull();
   });
 
-  it("dispatches setBindingWindow on edit and reflects external window changes", () => {
+  it("dispatches setBindingWindow on edit and reflects external window changes", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
+    await flushAsync();
     const dispose = installColormapPanel(host, store);
     const id = activeBinding(store)?.id ?? "";
 
@@ -88,11 +91,12 @@ describe("colormap panel (binding)", () => {
     dispose();
   });
 
-  it("colormap select dispatches setBindingColormap and reflects external changes", () => {
+  it("colormap select dispatches setBindingColormap and reflects external changes", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
+    await flushAsync();
     const dispose = installColormapPanel(host, store);
     const id = activeBinding(store)?.id ?? "";
 
@@ -109,11 +113,12 @@ describe("colormap panel (binding)", () => {
     dispose();
   });
 
-  it("scale select dispatches setBindingScale and re-bakes the window control", () => {
+  it("scale select dispatches setBindingScale and re-bakes the window control", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
+    await flushAsync();
     const dispose = installColormapPanel(host, store);
 
     const scale = selects(host)[1];
@@ -128,7 +133,7 @@ describe("colormap panel (binding)", () => {
     dispose();
   });
 
-  it("shading checkbox is disabled until a volume layer exists", () => {
+  it("shading checkbox is disabled until a volume layer exists", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
@@ -136,16 +141,18 @@ describe("colormap panel (binding)", () => {
     expect(shadingCheckbox(host).disabled).toBe(true);
 
     store.getState().setDataset(bTriple()); // seeds a volume layer
+    await flushAsync();
     expect(shadingCheckbox(host).disabled).toBe(false);
 
     dispose();
   });
 
-  it("shading checkbox toggles the volume layer's Phong flag and reflects external changes", () => {
+  it("shading checkbox toggles the volume layer's Phong flag and reflects external changes", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
+    await flushAsync();
     const dispose = installColormapPanel(host, store);
 
     const box = shadingCheckbox(host);
