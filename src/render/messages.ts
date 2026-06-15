@@ -14,9 +14,29 @@ export type { CameraMotion, CameraPose, CameraProjection, MarkerPart, PickPurpos
 //
 // requestId convention: it is genuinely *correlated* only for the request/response pairs the worker
 // answers — `init`→`ready`, `renderFrame`→`frame`, `pickRay`→`pickResult`. The one-way store→worker
-// messages (camera pose, colormap, composite, …) are fire-and-forget, so the hardcoded ids the app
-// bridges post are stable labels, not match keys; collisions across those are harmless. Introduce a
-// real id allocator only when a new reply must match a specific request (e.g. a compile-complete reply).
+// messages (camera pose, colormap, composite, …) are fire-and-forget, so their ids are stable labels
+// for error attribution, not match keys. All ids are assigned once in REQUEST_IDS below — unique by
+// construction (each bridge used to hardcode its own, and the set had drifted into a collision: a
+// `pickRay` shared id 10 with `setSceneOverlay`). Introduce a real allocator only when a reply must
+// match one of many concurrent same-kind requests.
+
+// Single source of truth for every store→render-worker request id (one per posting site). Object keys
+// are unique, so a collision is unrepresentable; the app bridges import these instead of hardcoding
+// ints. (The data-worker stream id is separate — it lives with its sole owner, app/streamingBridge.)
+export const REQUEST_IDS = {
+  init: 1,
+  projection: 2,
+  pose: 3,
+  continuous: 4,
+  resize: 5,
+  pair: 6,
+  motion: 7,
+  layer: 8,
+  scene: 9,
+  pick: 10,
+  marker: 11,
+  pickerPoint: 12,
+} as const;
 
 // A computed scalar field, serialized for transfer to the worker: the typed array can't
 // cross `postMessage` as a view, so it goes as a raw `buffer` + a `dtype` tag the worker

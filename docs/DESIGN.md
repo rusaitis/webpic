@@ -972,7 +972,7 @@ Cross-cutting concerns and explicitly deferred items. Milestone-bound work lives
 
 ## Critical files & references
 
-**Codegen + scripts.** Shipped (M0): `scripts/codegen/{bundle,emit,render-schema,render-aliases,render-recipes,render-registry}.ts` (driven by `npm run gen`), `scripts/check-boundaries.ts`, `scripts/sync-themes.ts`, `scripts/perf-gate.ts`. To create: `gen-synthetic.ts` (M3 analytical fields), `gen-fixtures.ts` (dev), `sync-shaders.ts` (rustpic-gated), `tests/tolerances.ts` (M3 tolerance table). See §Package shape for the full file inventory.
+**Codegen + scripts.** Shipped (M0): `scripts/codegen/{bundle,emit,render-schema,render-aliases,render-recipes,render-registry}.ts` (driven by `npm run gen`), `scripts/check-boundaries.ts`, `scripts/sync-themes.ts`, `scripts/perf-gate.ts`. Shipped since: `tests/tolerances.ts` (per-precision presets `ts_f64`/`ts_f32`/`webgpu_f16`; per-kernel granularity at M3). To create: `gen-synthetic.ts` (M3 analytical fields), `gen-fixtures.ts` (dev), `sync-shaders.ts` (rustpic-gated). See §Package shape for the full file inventory.
 
 **Upstream PR.** pypic theme TOMLs — `[webpic]` section (shipped M0; see §UI for schema).
 

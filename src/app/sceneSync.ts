@@ -1,17 +1,21 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
-import type { OverlayAxis, RenderWorkerRequest, SceneOverlayConfig } from "@render";
+import {
+  type OverlayAxis,
+  REQUEST_IDS,
+  type RenderWorkerRequest,
+  type SceneOverlayConfig,
+} from "@render/messages.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Rgba01, Theme } from "@schema/theme.ts";
 import { type OverlayState, type SimulationStore, worldHalfExtentForGrid } from "@store";
+import { createStoreBridge } from "./storeBridge.ts";
 
 // Bridges the store's scene-overlay flags + the dataset GridInfo + the resolved theme palette to the
 // render worker's setSceneOverlay (app-only glue: store and render can't import each other). Low-
 // frequency: a toggle, a density change, or a dataset swap re-posts the full config. Gated on
-// `workerReady` with a flushAll catch-up replayed on the worker `ready` message, mirroring layerSync
-// — `setDataset` runs before `ready`, so the initial overlay rides the catch-up.
+// `workerReady` (via the shared store bridge) with a flushAll catch-up replayed on the worker `ready`
+// message, mirroring layerSync — `setDataset` runs before `ready`, so the initial overlay rides the catch-up.
 
-// Disjoint from app/main.ts (1-8) and layerSync (9) so worker error echoes attribute correctly.
-const SCENE_REQUEST_ID = 10;
 const GRID_MAJOR_OPACITY = 0.4;
 
 const AXIS_NAMES = ["x", "y", "z"] as const;
@@ -96,27 +100,25 @@ export interface SceneSync {
 export function installSceneSync(opts: SceneSyncOptions): SceneSync {
   const { store, worker, isReady } = opts;
   const colors = resolveOverlayColors(opts.theme);
+  const bridge = createStoreBridge(store, isReady);
 
+  // The readiness gate lives in the bridge (subscribeWhenReady); flushAll is only called post-ready.
   const post = (): void => {
-    if (!isReady()) return;
     const { overlay, dataset } = store.getState();
     const request: RenderWorkerRequest = {
       kind: "setSceneOverlay",
-      requestId: SCENE_REQUEST_ID,
+      requestId: REQUEST_IDS.scene,
       overlay: buildOverlayPayload(overlay, dataset?.grid ?? null, colors),
     };
     worker.postMessage(request);
   };
 
   // Overlay flags + density (one selector, identity-skipped in the store) and dataset (bounds change).
-  const unsubscribeOverlay = store.subscribe((state) => state.overlay, post);
-  const unsubscribeDataset = store.subscribe((state) => state.dataset, post);
+  bridge.subscribeWhenReady((state) => state.overlay, post);
+  bridge.subscribeWhenReady((state) => state.dataset, post);
 
   return {
     flushAll: post,
-    dispose() {
-      unsubscribeOverlay();
-      unsubscribeDataset();
-    },
+    dispose: () => bridge.dispose(),
   };
 }

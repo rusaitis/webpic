@@ -1,5 +1,5 @@
 import type { DataHandle, DataStreamRequest, DataStreamResponse } from "@data";
-import type { RenderWorkerRequest } from "@render";
+import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import type { SimulationStore, UiStore } from "@store";
 
 // Owns the streaming data worker (app-only glue). The worker reads + computes each scrubbed step
@@ -8,8 +8,8 @@ import type { SimulationStore, UiStore } from "@store";
 // field. The render-side port pairs into the render worker on its `ready` (pair()); the data-side port
 // rides the open message once the store has seeded its layer (open()).
 
+// The data worker's request label — its sole posting module, so a local const, not render REQUEST_IDS.
 const STREAM_REQUEST_ID = 7;
-const PAIR_REQUEST_ID = 6;
 
 export interface StreamingBridgeOptions {
   readonly store: SimulationStore;
@@ -111,7 +111,7 @@ export function installStreamingBridge(opts: StreamingBridgeOptions): StreamingB
       renderWorker.postMessage(
         {
           kind: "pair",
-          requestId: PAIR_REQUEST_ID,
+          requestId: REQUEST_IDS.pair,
           port: channel.port2,
         } satisfies RenderWorkerRequest,
         [channel.port2], // transfer the render-side port

@@ -1,6 +1,10 @@
 import type { FieldDataset } from "@containers/field_dataset.ts";
 import type { DataHandle } from "@data";
-import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
+import {
+  REQUEST_IDS,
+  type RenderWorkerRequest,
+  type RenderWorkerResponse,
+} from "@render/messages.ts";
 import type { Theme } from "@schema/theme.ts";
 import {
   BOOT_PHASE_KEY,
@@ -22,7 +26,6 @@ import { createSyntheticDataset } from "./syntheticDataset.ts";
 import { currentDevicePixelRatio, installViewportTracking } from "./viewportTracking.ts";
 
 const DEFAULT_SIZE = 256;
-const INIT_REQUEST_ID = 1; // app/main.ts owns init; the bridges own the rest (disjoint per module).
 
 // Terminal GPU-loss state: the worker's recovery circuit-breaker gave up. Replace the dead view with
 // a reload prompt rather than leaving a frozen canvas. Idempotent; skipped headless (no DOM).
@@ -228,7 +231,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   const request: RenderWorkerRequest = {
     kind: "init",
-    requestId: INIT_REQUEST_ID,
+    requestId: REQUEST_IDS.init,
     canvas: offscreen,
     width: initial.width,
     height: initial.height,

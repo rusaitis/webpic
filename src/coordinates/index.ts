@@ -1,4 +1,4 @@
-// Reserved layer (pypic-mirrored DAG): coordinate transforms + the single TS reference impl for
-// operators (curl/grad/div), against which the compute backends are tested. Pure leaf — typed arrays
-// in/out, no THREE/DOM/GPU. Lands with the math layers; see docs/DESIGN.md.
-export {};
+// Coordinate transforms + the TS reference impls of the differential operators (curl/divergence/
+// gradient) the compute backends are tested against. Pure leaf — typed arrays in/out, no THREE/DOM/GPU.
+// Mirrors pypic.coordinates; see docs/DESIGN.md.
+export * from "./operators.ts";

@@ -1,18 +1,14 @@
-import type { MarkerConfig, RenderWorkerRequest } from "@render";
+import { type MarkerConfig, REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import type { Rgba01, Theme } from "@schema/theme.ts";
 import type { SimulationStore } from "@store";
 import { resolveOverlayColors } from "./sceneSync.ts";
+import { createStoreBridge } from "./storeBridge.ts";
 
 // Bridges the store's point-picker state to the render worker (app-only glue: store and render can't
 // import each other). Mirrors sceneSync: the build config (theme colors + guide plane) is low-
 // frequency and rides setMarker on the showPicker toggle; the live position + hover/active state ride
-// the cheap setPickerPoint. Gated on `workerReady` with a flushAll catch-up replayed on the worker
-// `ready` (setDataset + the initial picker state run before `ready`).
-
-// Disjoint from app/main.ts (1-8, 10), layerSync (9), and sceneSync (10) so worker error echoes
-// attribute correctly.
-const MARKER_REQUEST_ID = 11;
-const PICKER_POINT_REQUEST_ID = 12;
+// the cheap setPickerPoint. Gated on `workerReady` (via the shared store bridge) with a flushAll
+// catch-up replayed on the worker `ready` (setDataset + the initial picker state run before `ready`).
 
 // Default accent when the theme omits one — a warm amber that reads on the dark default background.
 const FALLBACK_ACCENT: Rgba01 = [1, 0.78, 0.25, 1];
@@ -47,22 +43,22 @@ export interface PickerSync {
 export function installPickerSync(opts: PickerSyncOptions): PickerSync {
   const { store, worker, isReady } = opts;
   const config = buildMarkerConfig(opts.theme);
+  const bridge = createStoreBridge(store, isReady);
 
+  // The readiness gate lives in the bridge (subscribeWhenReady); flushAll is only called post-ready.
   const postMarker = (): void => {
-    if (!isReady()) return;
     worker.postMessage({
       kind: "setMarker",
-      requestId: MARKER_REQUEST_ID,
+      requestId: REQUEST_IDS.marker,
       marker: store.getState().overlay.showPicker ? config : null,
     } satisfies RenderWorkerRequest);
   };
 
   const postPoint = (): void => {
-    if (!isReady()) return;
     const { pickerPoint, pickerHover, pickerActive } = store.getState();
     worker.postMessage({
       kind: "setPickerPoint",
-      requestId: PICKER_POINT_REQUEST_ID,
+      requestId: REQUEST_IDS.pickerPoint,
       point: pickerPoint,
       hovered: pickerHover,
       active: pickerActive,
@@ -70,21 +66,16 @@ export function installPickerSync(opts: PickerSyncOptions): PickerSync {
   };
 
   // showPicker toggle builds/tears down; position + hover + active move/animate the live marker.
-  const unsubShow = store.subscribe((s) => s.overlay.showPicker, postMarker);
-  const unsubPoint = store.subscribe((s) => s.pickerPoint, postPoint);
-  const unsubHover = store.subscribe((s) => s.pickerHover, postPoint);
-  const unsubActive = store.subscribe((s) => s.pickerActive, postPoint);
+  bridge.subscribeWhenReady((s) => s.overlay.showPicker, postMarker);
+  bridge.subscribeWhenReady((s) => s.pickerPoint, postPoint);
+  bridge.subscribeWhenReady((s) => s.pickerHover, postPoint);
+  bridge.subscribeWhenReady((s) => s.pickerActive, postPoint);
 
   return {
     flushAll() {
       postMarker();
       postPoint();
     },
-    dispose() {
-      unsubShow();
-      unsubPoint();
-      unsubHover();
-      unsubActive();
-    },
+    dispose: () => bridge.dispose(),
   };
 }

@@ -1,11 +1,10 @@
-import type { RenderWorkerRequest } from "@render";
+import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 
 // Tracks the canvas viewport + device-pixel-ratio and posts `resize` to the render worker (app-only
 // glue). transferControlToOffscreen() moves the drawing surface, but the <canvas> still lays out on
 // the main thread, so the size + DPR are observed here. Gated on `workerReady`; the headless fake
 // canvas (no addEventListener) installs nothing.
 
-const RESIZE_REQUEST_ID = 5;
 // Cap the drawing-buffer scale: a raymarcher's cost is per physical pixel, so honor Retina (2×) but
 // don't quadruple the work on 3×+ panels.
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -37,7 +36,7 @@ export function installViewportTracking(opts: ViewportTrackingOptions): Viewport
     const size = logicalSize();
     worker.postMessage({
       kind: "resize",
-      requestId: RESIZE_REQUEST_ID,
+      requestId: REQUEST_IDS.resize,
       width: size.width,
       height: size.height,
       devicePixelRatio: currentDevicePixelRatio(),

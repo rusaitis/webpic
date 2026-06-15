@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assertAllclose } from "../../tests/helpers.ts";
+import { TOL } from "../../tests/tolerances.ts";
 import {
   currentDensityMagnitude,
   electricFieldMagnitude,
@@ -33,7 +34,16 @@ describe("vectorMagnitude", () => {
       new Float64Array([4, 12, 15]),
       new Float64Array([0, 0, 0]),
     );
-    assertAllclose(out, [5, 13, 17]);
+    assertAllclose(out, [5, 13, 17], TOL.ts_f64);
+  });
+
+  it("computes at render (f32) precision", () => {
+    const out = vectorMagnitude(
+      new Float32Array([3, 5, 8]),
+      new Float32Array([4, 12, 15]),
+      new Float32Array([0, 0, 0]),
+    );
+    assertAllclose(out, [5, 13, 17], TOL.ts_f32);
   });
 
   it("returns f32 for f32 inputs and f64 for f64 inputs", () => {

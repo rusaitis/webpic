@@ -1,4 +1,5 @@
 import { expect } from "vitest";
+import { TOL, type Tolerance } from "./tolerances.ts";
 
 // Drain the microtask queue (via a macrotask tick) so a fire-and-forget async store action settles
 // before assertions — the recompute that setDataset/selectField kick off computes the active field
@@ -6,13 +7,15 @@ import { expect } from "vitest";
 // one macrotask hop is always enough; it's the test-side mirror of "subscribers react when it lands".
 export const flushAsync = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-// Shared array-wise tolerance assertion for the numeric kernels. Pre-stages the
-// per-precision tolerance tables planned for tests/tolerances.ts.
+// Shared array-wise tolerance assertion for the numeric kernels. Defaults to the f64 reference
+// precision; pass a tests/tolerances.ts preset (TOL.ts_f32, …) or a partial override otherwise.
 export function assertAllclose(
   actual: ArrayLike<number>,
   expected: ArrayLike<number>,
-  { rtol = 1e-12, atol = 0 }: { rtol?: number; atol?: number } = {},
+  tol: Partial<Tolerance> = TOL.ts_f64,
 ): void {
+  const rtol = tol.rtol ?? TOL.ts_f64.rtol;
+  const atol = tol.atol ?? TOL.ts_f64.atol;
   expect(actual.length).toBe(expected.length);
   for (let i = 0; i < actual.length; i++) {
     const a = actual[i] ?? Number.NaN;

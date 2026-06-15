@@ -1,17 +1,14 @@
 import type { FieldArray } from "@containers/field_dataset.ts";
-import type { RenderWorkerRequest } from "@render";
+import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import { type ColormapBinding, DEFAULT_COLORMAP } from "@schema/colormap.ts";
 import type { Layer, SimulationStore } from "@store";
+import { createStoreBridge } from "./storeBridge.ts";
 
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
 // render can't import each other). Two channels: `computed` carries field DATA (heavy, transfers the
 // buffer), `layers` carries STRUCTURE (removals + the cheap composite of order/visibility/opacity).
 // One layer draws the active field for now, so the single `computed` buffer is transferred once;
 // per-layer compute will generalize this.
-
-// Render-worker request ids are disjoint per posting module (worker errors echo them back):
-// app/main.ts owns 1-8, layerSync 9, sceneSync 10.
-const LAYER_REQUEST_ID = 9;
 
 export interface LayerSyncOptions {
   readonly store: SimulationStore;
@@ -28,6 +25,7 @@ export interface LayerSync {
 
 export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   const { store, worker, isReady } = opts;
+  const bridge = createStoreBridge(store, isReady);
   let lastLayers: readonly Layer[] = store.getState().layers; // snapshot for the removal diff
   let lastBindings = store.getState().colormapBindings; // snapshot for the per-binding change diff
 
@@ -56,7 +54,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
           };
     const request: RenderWorkerRequest = {
       kind: "upsertLayer",
-      requestId: LAYER_REQUEST_ID,
+      requestId: REQUEST_IDS.layer,
       id: layer.id,
       layerKind: layer.kind,
       field: { buffer, dtype, shape: field.shape },
@@ -77,7 +75,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     if (layer.kind !== "slice" && layer.kind !== "volume") return;
     const request: RenderWorkerRequest = {
       kind: "setLayerColormap",
-      requestId: LAYER_REQUEST_ID,
+      requestId: REQUEST_IDS.layer,
       id: layer.id,
       colormap: binding.colormap,
       windowLevel: binding.window,
@@ -91,7 +89,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     if (layer.kind !== "volume") return;
     const request: RenderWorkerRequest = {
       kind: "setLayerShading",
-      requestId: LAYER_REQUEST_ID,
+      requestId: REQUEST_IDS.layer,
       id: layer.id,
       shaded: layer.shaded,
     };
@@ -104,7 +102,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       .layers.map((layer) => ({ id: layer.id, visible: layer.visible, opacity: layer.opacity }));
     const request: RenderWorkerRequest = {
       kind: "setComposite",
-      requestId: LAYER_REQUEST_ID,
+      requestId: REQUEST_IDS.layer,
       order,
     };
     worker.postMessage(request);
@@ -134,7 +132,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
 
   // Data channel — registered before the structure channel so the worker has a layer's scene
   // before any composite references it (a stray reference self-heals on the upsert repaint anyway).
-  const unsubscribeComputed = store.subscribe(
+  bridge.subscribe(
     (state) => state.computed,
     (computed) => {
       if (!isReady() || computed === null) return;
@@ -146,7 +144,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   // Structure channel — removals, the per-layer shading toggle, and the cheap composite. No upsert
   // here: a new layer's field data (and its initial `shaded`) ride the same-tick `computed` change
   // (per-layer compute will add a real upsert path).
-  const unsubscribeLayers = store.subscribe(
+  bridge.subscribe(
     (state) => state.layers,
     (layers) => {
       if (!isReady()) {
@@ -159,7 +157,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
         if (liveIds.has(prev.id)) continue;
         const request: RenderWorkerRequest = {
           kind: "removeLayer",
-          requestId: LAYER_REQUEST_ID,
+          requestId: REQUEST_IDS.layer,
           id: prev.id,
         };
         worker.postMessage(request);
@@ -182,7 +180,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   // Bindings channel — the live color hot path (colormap / window-drag / scale). Diffs the registry
   // by reference and posts setLayerColormap for each layer whose binding object changed. The upsert
   // carries the binding for a fresh layer, so this fires only on edits to an existing one.
-  const unsubscribeBindings = store.subscribe(
+  bridge.subscribe(
     (state) => state.colormapBindings,
     (bindings) => {
       if (!isReady()) {
@@ -205,9 +203,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   return {
     flushAll,
     dispose() {
-      unsubscribeComputed();
-      unsubscribeLayers();
-      unsubscribeBindings();
+      bridge.dispose();
     },
   };
 }

@@ -1,18 +1,16 @@
-import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
+import {
+  REQUEST_IDS,
+  type RenderWorkerRequest,
+  type RenderWorkerResponse,
+} from "@render/messages.ts";
 import { cursorRay, focusPoseOnPoint, type SimulationStore, unitBoxChordMidpoint } from "@store";
+import { createStoreBridge } from "./storeBridge.ts";
 
 // The cheap store→render-worker control channel (app-only glue: store and render can't import each
 // other). Pose, projection, camera-motion, and the diagnostics continuous-measure toggle each ride a
 // guarded one-line post; a pick request marches a cursor ray (with a pre-ready geometric fallback) and
-// its reply (handlePickResult) places the marker + retargets a focus fly. Gated on `workerReady`;
-// pose/projection get a ready-time catch-up via flushAll, mirroring layerSync.
-
-// Disjoint request ids per posting module (worker error echoes use them); app/main.ts owns init (1).
-const PROJECTION_REQUEST_ID = 2;
-const POSE_REQUEST_ID = 3;
-const CONTINUOUS_REQUEST_ID = 4;
-const MOTION_REQUEST_ID = 8;
-const PICK_REQUEST_ID = 10;
+// its reply (handlePickResult) places the marker + retargets a focus fly. Gated on `workerReady` via
+// the shared store bridge; pose/projection get a ready-time catch-up via flushAll, mirroring layerSync.
 
 export interface RenderWorkerSyncOptions {
   readonly store: SimulationStore;
@@ -33,65 +31,62 @@ export interface RenderWorkerSync {
 
 export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWorkerSync {
   const { store, worker, isReady } = opts;
+  const bridge = createStoreBridge(store, isReady);
 
   // Pose is always present (DEFAULT_POSE) and the worker applied it at init, so this fires only on
   // user-driven changes; the ready catch-up (flushAll) covers a drag during worker init.
-  const unsubscribePose = store.subscribe(
+  bridge.subscribeWhenReady(
     (state) => state.cameraPose,
     (pose) => {
-      if (!isReady()) return;
       worker.postMessage({
         kind: "setCameraPose",
-        requestId: POSE_REQUEST_ID,
+        requestId: REQUEST_IDS.pose,
         pose,
       } satisfies RenderWorkerRequest);
     },
   );
 
   // Volume-view projection (persp ↔ ortho). Default perspective on both sides, so only user flips post.
-  const unsubscribeProjection = store.subscribe(
+  bridge.subscribeWhenReady(
     (state) => state.projection,
     (projection) => {
-      if (!isReady()) return;
       worker.postMessage({
         kind: "setProjection",
-        requestId: PROJECTION_REQUEST_ID,
+        requestId: REQUEST_IDS.projection,
         projection,
       } satisfies RenderWorkerRequest);
     },
   );
 
   // Camera-motion liveness → worker quality tier (gesture = coarse march, fly = crisp animating tier).
-  const unsubscribeMotion = store.subscribe(
+  bridge.subscribeWhenReady(
     (state) => state.cameraMotion,
     (motion) => {
-      if (!isReady()) return;
       worker.postMessage({
         kind: "setCameraMotion",
-        requestId: MOTION_REQUEST_ID,
+        requestId: REQUEST_IDS.motion,
         motion,
       } satisfies RenderWorkerRequest);
     },
   );
 
   // Diagnostics "Measure" toggle → the worker's continuous-repaint mode for sustained GPU timing.
-  const unsubscribeContinuous = store.subscribe(
+  bridge.subscribeWhenReady(
     (state) => state.isMeasuringContinuous,
     (continuous) => {
-      if (!isReady()) return;
       worker.postMessage({
         kind: "setContinuous",
-        requestId: CONTINUOUS_REQUEST_ID,
+        requestId: REQUEST_IDS.continuous,
         continuous,
       } satisfies RenderWorkerRequest);
     },
   );
 
   // Pick-to-place / pick-to-focus: forward the cursor NDC to the worker's opacity-weighted ray march
-  // (its pickResult routes through handlePickResult). Pre-ready there's no field to weight by, so fall
-  // back to the box-chord midpoint (the same store math ui used for the hit test) — the gesture still
-  // places/focuses, just geometrically.
-  const unsubscribePick = store.subscribe(
+  // (its pickResult routes through handlePickResult). It runs in BOTH ready states — pre-ready there's
+  // no field to weight by, so it falls back to the box-chord midpoint (the same store math ui used for
+  // the hit test) — so it's a raw subscription with its own branch, not the plain isReady gate.
+  bridge.subscribe(
     (state) => state.pickRequest,
     (request) => {
       if (request === null) return;
@@ -99,7 +94,7 @@ export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWo
       if (isReady()) {
         worker.postMessage({
           kind: "pickRay",
-          requestId: PICK_REQUEST_ID,
+          requestId: REQUEST_IDS.pick,
           ndcX,
           ndcY,
           purpose,
@@ -135,13 +130,13 @@ export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWo
       const state = store.getState();
       worker.postMessage({
         kind: "setCameraPose",
-        requestId: POSE_REQUEST_ID,
+        requestId: REQUEST_IDS.pose,
         pose: state.cameraPose,
       } satisfies RenderWorkerRequest);
       if (state.projection !== "perspective") {
         worker.postMessage({
           kind: "setProjection",
-          requestId: PROJECTION_REQUEST_ID,
+          requestId: REQUEST_IDS.projection,
           projection: state.projection,
         } satisfies RenderWorkerRequest);
       }
@@ -163,11 +158,7 @@ export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWo
       }
     },
     dispose() {
-      unsubscribePose();
-      unsubscribeProjection();
-      unsubscribeMotion();
-      unsubscribeContinuous();
-      unsubscribePick();
+      bridge.dispose();
     },
   };
 }

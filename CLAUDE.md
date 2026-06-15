@@ -12,6 +12,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 ## Architecture
 
 - **Hard layer boundaries (pypic-mirrored).** Layers: `schema`, `containers`, `coordinates`, `numerics`, `reductions`, `derived`, `diagnostics`, `gpu`, `shaders`, `compute`, `data`, `remote`, `render`, `store`, `ui`, `app`, `workers`, `embed`. Full dependency DAG in `docs/DESIGN.md`. Rule of thumb: `schema` depends on nothing (root + canonical-name authority); the math layers (`coordinates`/`numerics`/`reductions`/`derived`/`diagnostics`) are pure leaves; `ui` → `store` → `render`, and `ui` never imports `render` or calls `scene.add(...)` — it dispatches typed store intents. Boundary violations are CI errors (`scripts/check-boundaries.ts`, ts-morph).
+- **Built vs reserved layers.** Live today: `schema`, `containers`, `coordinates` (curl/div/grad), `derived` (magnitudes), `gpu`, `compute` (TS magnitude backend), `data`, `render`, `store`, `ui`, `app`, `workers`. Reserved stubs — `export {}` until their milestone, file header says which — `numerics`, `reductions`, `diagnostics`, `shaders`, `remote`, `embed`. The DAG is wired for all 18; the empty ones just have no impl yet.
 - **v0.1 packaging: one package, `src/<layer>/` folders.** The 18-package pnpm-workspace split is deferred (DESIGN §Package shape, M2 checkpoint). Use path aliases (`@schema/*`, `@compute/*`, …), not deep relatives — they pre-stage the eventual `@webpic/<layer>` specifiers.
 - **The math layers are pure.** Typed arrays in, typed arrays out. No `THREE.*`, no DOM, no `GPUDevice`. One TS reference impl per operator lives in `coordinates/` (e.g. `curl`); `compute/backends/ts` delegates to it, and cross-backend tests compare the WGSL kernel against it — never a duplicate.
 - **Canonical names everywhere.** `B_1`, `B_2`, `B_3`, `|B|`, `beta`, `v_A`, `omega_p_s0` — same keys as `pypic.compute.RECIPES`. Aliases (`B_mag`, `plasma_beta`) resolve at boundaries only. Field component labels are **1-indexed**; array indices **0-indexed** (`B_1` ↔ component=0). `grep B_1` works across pypic, magviz, webpic.
@@ -67,9 +68,9 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 ## Testing
 
 - **Vitest.** Pure-function tests for the math layers (`coordinates/`, `numerics/`, `derived/`), `store/intents`, `compute/backends/ts`. Node mode by default.
-- **Numerical kernels** test against analytical fixtures (Orszag–Tang, Harris, GEM) with explicit tolerances. `expect(a).toBeCloseTo(b, n)` for scalars; array-wise `assertAllclose(actual, expected, { rtol, atol })` helper for fields. Per-precision tolerances (`ts_f64`, `ts_f32`, `webgpu_f16`) once webpic ships its `tests/tolerances.ts`.
+- **Numerical kernels** test against analytical fixtures at explicit per-precision tolerances (`ts_f64`/`ts_f32`/`webgpu_f16`, in `tests/tolerances.ts`). `expect(a).toBeCloseTo(b, n)` for scalars; the array-wise `assertAllclose(actual, expected, TOL.ts_f64)` helper for fields. Live: the `coordinates` operators (curl/div/grad) + the magnitude family. The named MHD fixtures (Orszag–Tang, Harris, GEM) and cross-backend WGSL parity land with M3 compute.
 - **No flaky render/visual tests.** One smoke E2E maximum.
-- **Conservation tests** are gold: `div(curl F)` to machine precision, energy conservation in synthetic traces.
+- **Conservation tests** are gold: `div(curl F)` and `curl(grad f)` to machine precision (live in `coordinates/conservation.test.ts`); energy conservation in synthetic traces lands with field-line tracing (M4).
 - No network, no large data files in fixtures. Synthetic over real.
 
 ## Dependencies
