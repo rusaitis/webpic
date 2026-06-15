@@ -11,6 +11,7 @@ import { createLayerRegistry, type LayerEntry } from "./layerRegistry.ts";
 import { createManagedMarker } from "./marker/managedMarker.ts";
 import type { MarkerScene } from "./marker/markerScene.ts";
 import type {
+  CameraMotion,
   CameraPose,
   CameraProjection,
   RenderWorkerRequest,
@@ -80,6 +81,25 @@ const quality = createQualityController({
   setRenderScale: (scale) => renderer?.setRenderScale(scale),
   requestRender,
 });
+
+// Two independent interaction-liveness sources feed the one quality tier: camera motion
+// (setCameraMotion) and a live marker manipulation (setPickerPoint's `active` — a drag or a held-arrow
+// slide). A marker move re-marches the whole volume per frame, so it must coarsen the same way an orbit
+// does; without this a marker drag renders at full res + full step density and stutters under Phong.
+// OR-merged so a hand gesture (either source) dominates a machine fly, and releasing one source never
+// settles while the other is still live.
+let cameraMotion: CameraMotion = "idle";
+let isPickerActive = false;
+
+function syncQualityMotion(): void {
+  const motion: CameraMotion =
+    cameraMotion === "gesture" || isPickerActive
+      ? "gesture"
+      : cameraMotion === "fly"
+        ? "fly"
+        : "idle";
+  quality.setMotion(motion);
+}
 
 // The renderable layers + their lifecycle (build/replace/remove, composite, color/shading, the
 // warm-then-commit, the device-restore replay). It reaches back for live quality/projection + the
@@ -383,7 +403,8 @@ async function setCameraMotion(
   request: Extract<RenderWorkerRequest, { kind: "setCameraMotion" }>,
 ): Promise<void> {
   await initDone;
-  quality.setMotion(request.motion);
+  cameraMotion = request.motion;
+  syncQualityMotion();
 }
 
 // Live per-layer Phong toggle — a uniform flip on the volume scene, no rebuild/re-upload. Slice
@@ -474,6 +495,12 @@ async function setPickerPoint(
 ): Promise<void> {
   await initDone;
   marker.setPoint(request.point, request.hovered, request.active);
+  // Active edges only (the position rides every move) — drive the shared quality tier so a marker
+  // drag coarsens the volume like a camera gesture; the merge keeps a concurrent fly/orbit live.
+  if (request.active !== isPickerActive) {
+    isPickerActive = request.active;
+    syncQualityMotion();
+  }
 }
 
 // Pick-to-focus: march the cursor ray through the retained CPU fields (no GPU round-trip) and

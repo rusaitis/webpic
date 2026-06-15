@@ -186,3 +186,111 @@ it("a fly runs the animating tier: coarser march at full resolution, settling to
   });
   expect(renderer.setRenderScale).not.toHaveBeenCalled(); // stayed at 1 throughout
 });
+
+it("a marker drag coarsens the volume like a gesture, settling to full on release", async () => {
+  const renderer = (await h.installRenderer.mock.results[0]?.value) as {
+    setRenderScale: ReturnType<typeof vi.fn>;
+  };
+  const scene = h.createRaymarchScene.mock.results[0]?.value as {
+    setStepScale: ReturnType<typeof vi.fn>;
+  };
+  scene.setStepScale.mockClear();
+  renderer.setRenderScale.mockClear();
+
+  // Grab (active edge false→true): the interacting tier, with no camera motion involved at all.
+  onmessage({
+    data: {
+      kind: "setPickerPoint",
+      requestId: 12,
+      point: [0, 0, 0],
+      hovered: "core",
+      active: true,
+    },
+  });
+  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
+  expect(renderer.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE);
+
+  // A drag move (active unchanged, position rides every message): must NOT re-drive the tier — the
+  // absence of a second 0.4 in the sequence below proves the active-edge gate holds.
+  onmessage({
+    data: {
+      kind: "setPickerPoint",
+      requestId: 13,
+      point: [0.1, 0, 0],
+      hovered: "core",
+      active: true,
+    },
+  });
+
+  // Release (active edge true→false): the settle ramp restores full quality, one painted frame later.
+  onmessage({
+    data: {
+      kind: "setPickerPoint",
+      requestId: 14,
+      point: [0.1, 0, 0],
+      hovered: "core",
+      active: false,
+    },
+  });
+  await vi.waitFor(() => expect(renderer.setRenderScale).toHaveBeenCalledWith(1));
+  tickFrame();
+  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
+
+  // Same restore sequence as a camera gesture: 0.4 (drag) → 0.7 (settle frame) → 1 (full).
+  expect(scene.setStepScale.mock.calls.map((c) => c[0])).toEqual([INTERACTION_STEP_SCALE, 0.7, 1]);
+});
+
+it("a marker release while a fly is live falls back to the fly tier, not a settle", async () => {
+  const renderer = (await h.installRenderer.mock.results[0]?.value) as {
+    setRenderScale: ReturnType<typeof vi.fn>;
+  };
+  const scene = h.createRaymarchScene.mock.results[0]?.value as {
+    setStepScale: ReturnType<typeof vi.fn>;
+  };
+  scene.setStepScale.mockClear();
+  renderer.setRenderScale.mockClear();
+
+  // A machine fly is running (animating: coarser march, full resolution)...
+  onmessage({ data: { kind: "setCameraMotion", requestId: 15, motion: "fly" } });
+  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
+  // ...then the user grabs the marker mid-flight: the hand gesture dominates (interacting tier).
+  onmessage({
+    data: {
+      kind: "setPickerPoint",
+      requestId: 16,
+      point: [0, 0, 0],
+      hovered: "core",
+      active: true,
+    },
+  });
+  await vi.waitFor(() =>
+    expect(renderer.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE),
+  );
+  expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE);
+
+  // Release the marker while the fly is STILL live: the OR-merge drops back to the fly tier (render
+  // scale restored to 1, march back to 0.7) — it must NOT settle to full while the flight continues.
+  renderer.setRenderScale.mockClear();
+  scene.setStepScale.mockClear();
+  onmessage({
+    data: {
+      kind: "setPickerPoint",
+      requestId: 17,
+      point: [0, 0, 0],
+      hovered: "core",
+      active: false,
+    },
+  });
+  await vi.waitFor(() => expect(renderer.setRenderScale).toHaveBeenCalledWith(1));
+  expect(scene.setStepScale).toHaveBeenCalledWith(0.7);
+  tickFrame();
+  tickFrame();
+  expect(scene.setStepScale).not.toHaveBeenCalledWith(1); // animating doesn't advance — fly still live
+
+  // The fly ends: now it settles to full.
+  onmessage({ data: { kind: "setCameraMotion", requestId: 18, motion: "idle" } });
+  await vi.waitFor(() => {
+    tickFrame();
+    expect(scene.setStepScale).toHaveBeenCalledWith(1);
+  });
+});
