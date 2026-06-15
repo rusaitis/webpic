@@ -17,13 +17,20 @@ import type { Disposer } from "./controls/index.ts";
 
 const RAD_TO_DEG = 180 / Math.PI;
 
+// Banking under ~0.5° reads as 0° and clutters the HUD; hide it until the view is actually rolled.
+const ROLL_READOUT_EPSILON = 0.0087;
+
 function formatPose(pose: CameraPose, orthographic: boolean): string {
   const [tx, ty, tz] = pose.target;
   const az = (pose.azimuth * RAD_TO_DEG).toFixed(0);
   const el = (pose.elevation * RAD_TO_DEG).toFixed(0);
+  const roll =
+    Math.abs(pose.roll) > ROLL_READOUT_EPSILON
+      ? `  roll ${(pose.roll * RAD_TO_DEG).toFixed(0)}°`
+      : "";
   const target = `${tx.toFixed(2)}, ${ty.toFixed(2)}, ${tz.toFixed(2)}`;
   const suffix = orthographic ? "  ·  ortho" : "";
-  return `az ${az}°  el ${el}°  d ${pose.distance.toFixed(2)}  ·  [${target}]${suffix}`;
+  return `az ${az}°  el ${el}°  d ${pose.distance.toFixed(2)}${roll}  ·  [${target}]${suffix}`;
 }
 
 // The gnomon shows the world axes as the camera sees them. The arms are a fixed CSS triad — is-x→right,
@@ -143,7 +150,12 @@ export function installCameraChrome(
       readout.textContent = formatPose(pose, store.getState().projection === "orthographic");
     }
     if (gnomon.hidden) return;
-    scene.style.transform = gnomonTransform(pose);
+    // Roll is a screen-Z image rotation, so it composes as an outer 2D rotate on the whole triad
+    // (tips ride along through preserve-3d). The scene appears to spin opposite the camera bank.
+    scene.style.transform =
+      pose.roll === 0
+        ? gnomonTransform(pose)
+        : `rotate(${(-pose.roll).toFixed(5)}rad) ${gnomonTransform(pose)}`;
     const counter = gnomonCounterTransform(pose);
     for (const tip of tips) {
       const [x, y, z] = tip.offset;

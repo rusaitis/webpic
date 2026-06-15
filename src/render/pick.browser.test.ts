@@ -30,7 +30,7 @@ function ballField(): Float32Array {
 }
 
 // Level straight-on view down −x: the centered ray runs through the box center AND the ball.
-const POSE = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } as const;
+const POSE = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 } as const;
 
 function pickPoints(): Promise<{ persp: readonly number[]; ortho: readonly number[] }> {
   return new Promise((resolve, reject) => {

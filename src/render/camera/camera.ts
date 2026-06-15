@@ -1,5 +1,5 @@
 import { CAMERA_FOV_DEG, DEFAULT_POSE } from "@schema/camera.ts";
-import { OrthographicCamera, PerspectiveCamera } from "three";
+import { OrthographicCamera, PerspectiveCamera, Vector3 } from "three";
 import { FRUSTUM } from "../constants.ts";
 import type { CameraPose } from "../messages.ts";
 
@@ -35,8 +35,13 @@ export function createOrthographicCamera(): OrthographicCamera {
 // (√3/2 ≈ 0.87, box centered at the origin) plus the overlay labels just outside it, rounded up.
 const SCENE_RADIUS = 1;
 
+// Reused per placeCamera() call (render-hot — no per-frame Vector3 churn).
+const FORWARD = new Vector3();
+const UP = new Vector3();
+
 // Orbit-spherical placement shared by both volume cameras. z-up (world=physical): azimuth sweeps
-// the xy-plane (0 → +x, increasing toward +y, CCW about +z), elevation lifts toward +z.
+// the xy-plane (0 → +x, increasing toward +y, CCW about +z), elevation lifts toward +z. `roll` banks
+// the up vector about the view-forward axis (0 = level world +z).
 function placeCamera(camera: PerspectiveCamera | OrthographicCamera, pose: CameraPose): void {
   const [tx, ty, tz] = pose.target;
   const ce = Math.cos(pose.elevation);
@@ -45,7 +50,13 @@ function placeCamera(camera: PerspectiveCamera | OrthographicCamera, pose: Camer
     ty + pose.distance * ce * Math.sin(pose.azimuth),
     tz + pose.distance * Math.sin(pose.elevation),
   );
-  camera.up.set(0, 0, 1);
+  if (pose.roll === 0) {
+    camera.up.set(0, 0, 1);
+  } else {
+    // Bank: world +z rotated about the unit view-forward (camera → target) by roll.
+    FORWARD.set(tx, ty, tz).sub(camera.position).normalize();
+    camera.up.copy(UP.set(0, 0, 1).applyAxisAngle(FORWARD, pose.roll));
+  }
   camera.lookAt(tx, ty, tz);
 }
 

@@ -4,7 +4,13 @@ import { DISTANCE_MAX, DISTANCE_MIN } from "./camera.ts";
 import { cursorRay, focusDistance, focusPoseOnPoint, unitBoxChordMidpoint } from "./pick.ts";
 
 // Level straight-on view: camera at (+2, 0, 0) looking down −x, screenRight = +y, screenUp = +z.
-const STRAIGHT_ON: CameraPose = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 };
+const STRAIGHT_ON: CameraPose = {
+  target: [0, 0, 0],
+  azimuth: 0,
+  elevation: 0,
+  distance: 2,
+  roll: 0,
+};
 
 const HALF_FOV_TAN = Math.tan((45 * Math.PI) / 360); // CAMERA_FOV_DEG = 45
 
@@ -77,7 +83,13 @@ describe("unitBoxChordMidpoint", () => {
 });
 
 describe("focusPoseOnPoint", () => {
-  const POSE: CameraPose = { target: [0, 0, 0], azimuth: 1.1, elevation: 0.4, distance: 2 };
+  const POSE: CameraPose = {
+    target: [0, 0, 0],
+    azimuth: 1.1,
+    elevation: 0.4,
+    distance: 2,
+    roll: 0,
+  };
 
   function cameraOf(pose: CameraPose): readonly [number, number, number] {
     const ce = Math.cos(pose.elevation);
@@ -118,7 +130,13 @@ describe("focusPoseOnPoint", () => {
 
   it("an off-axis pick swivels the aim toward the point's side", () => {
     // Straight-on from +x: camera at (2, 0, 0), looking down −x; the point sits toward +y.
-    const straight: CameraPose = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 };
+    const straight: CameraPose = {
+      target: [0, 0, 0],
+      azimuth: 0,
+      elevation: 0,
+      distance: 2,
+      roll: 0,
+    };
     const focused = focusPoseOnPoint(straight, [0, 0.4, 0]);
     expect(focused.azimuth).toBeCloseTo(Math.atan2(-0.4, 2), 12); // sweeps toward the point
     expect(focused.elevation).toBeCloseTo(0, 12);
@@ -132,12 +150,19 @@ describe("focusPoseOnPoint", () => {
       azimuth: 0,
       elevation: 0,
       distance: DISTANCE_MIN,
+      roll: 0,
     };
     expect(focusPoseOnPoint(pose, [0, 0, 0]).distance).toBe(DISTANCE_MIN);
   });
 
   it("uses an explicit gesture-time distance verbatim (no re-applied dolly)", () => {
-    const pose: CameraPose = { target: [0, 0, 0], azimuth: 0.3, elevation: 0.2, distance: 1.4 };
+    const pose: CameraPose = {
+      target: [0, 0, 0],
+      azimuth: 0.3,
+      elevation: 0.2,
+      distance: 1.4,
+      roll: 0,
+    };
     expect(focusPoseOnPoint(pose, [0.1, 0.2, 0.3], 1.23).distance).toBe(1.23);
   });
 });

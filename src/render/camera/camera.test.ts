@@ -41,16 +41,16 @@ describe("applyPose", () => {
     };
 
     // azimuth 0 looks from +x; elevation 0 stays in the xy-plane.
-    const px = at({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 1 });
+    const px = at({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 1, roll: 0 });
     expect(px[0]).toBeCloseTo(1, 6);
     expect(px[1]).toBeCloseTo(0, 6);
     expect(px[2]).toBeCloseTo(0, 6);
     // azimuth +π/2 sweeps toward +y.
-    const py = at({ target: [0, 0, 0], azimuth: Math.PI / 2, elevation: 0, distance: 1 });
+    const py = at({ target: [0, 0, 0], azimuth: Math.PI / 2, elevation: 0, distance: 1, roll: 0 });
     expect(py[0]).toBeCloseTo(0, 6);
     expect(py[1]).toBeCloseTo(1, 6);
     // elevation lifts toward +z; the target offsets the whole orbit.
-    const up = at({ target: [1, 2, 3], azimuth: 0, elevation: Math.PI / 2, distance: 2 });
+    const up = at({ target: [1, 2, 3], azimuth: 0, elevation: Math.PI / 2, distance: 2, roll: 0 });
     expect(up[0]).toBeCloseTo(1, 6);
     expect(up[1]).toBeCloseTo(2, 6);
     expect(up[2]).toBeCloseTo(5, 6); // 3 + 2·sin(π/2)
@@ -75,19 +75,25 @@ describe("applyPose", () => {
 
   it("keeps the scene inside the frustum across the full dolly range", () => {
     const camera = createPerspectiveCamera();
-    applyPose(camera, { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 50 });
+    applyPose(camera, { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 50, roll: 0 });
     expect(camera.far).toBeGreaterThanOrEqual(50 + Math.sqrt(3) / 2); // box back face visible
   });
 
   it("extends far to cover a panned-away target", () => {
     const camera = createPerspectiveCamera();
-    applyPose(camera, { target: [3, 4, 0], azimuth: 0, elevation: 0, distance: 2 });
+    applyPose(camera, { target: [3, 4, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 });
     expect(camera.far).toBeCloseTo(2 + 5 + 1, 12); // distance + |target| + scene radius
   });
 });
 
 describe("applyPoseOrtho", () => {
-  const pose: CameraPose = { target: [0, 0, 0], azimuth: 0.8, elevation: 0.3, distance: 4 };
+  const pose: CameraPose = {
+    target: [0, 0, 0],
+    azimuth: 0.8,
+    elevation: 0.3,
+    distance: 4,
+    roll: 0,
+  };
 
   it("places the camera exactly where applyPose does (shared orbit placement)", () => {
     const persp = createPerspectiveCamera();

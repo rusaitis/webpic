@@ -36,7 +36,9 @@ describe("installCameraChrome", () => {
     const scene = chrome.querySelector<HTMLElement>(".webpic-gnomon_scene");
     const before = scene?.style.transform;
 
-    store.getState().setCameraPose({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 9.99 });
+    store
+      .getState()
+      .setCameraPose({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 9.99, roll: 0 });
     expect(chrome.querySelector(".webpic-readout")?.textContent).toContain("d 9.99");
     expect(scene?.style.transform).not.toBe(before);
   });
@@ -136,7 +138,7 @@ describe("installCameraChrome", () => {
     const { store, chrome } = setup();
     store
       .getState()
-      .setCameraPose({ target: [0, 0, 0], azimuth: 0.7, elevation: 0.4, distance: 2 });
+      .setCameraPose({ target: [0, 0, 0], azimuth: 0.7, elevation: 0.4, distance: 2, roll: 0 });
     const tip = chrome.querySelector<HTMLElement>(".webpic-gnomon_tip.is-px");
     expect(tip?.style.transform).toContain("translate3d(24px, 0px, 0px)");
     expect(tip?.style.transform).toContain(gnomonCounterTransform(store.getState().cameraPose));
@@ -150,7 +152,7 @@ describe("gnomonTransform", () => {
     (gnomonTransform(pose).match(/matrix3d\(([^)]*)\)/)?.[1] ?? "").split(",").map(Number);
 
   it("from a level +x view, maps world x→toward-viewer, y→screen-right, z→screen-up", () => {
-    const m = cols({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 1 });
+    const m = cols({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 1, roll: 0 });
     const worldX = [m[0], m[1], m[2]]; // col1
     const worldY = [-(m[8] ?? 0), -(m[9] ?? 0), -(m[10] ?? 0)]; // −col3
     const worldZ = [-(m[4] ?? 0), -(m[5] ?? 0), -(m[6] ?? 0)]; // −col2
@@ -163,7 +165,7 @@ describe("gnomonTransform", () => {
   });
 
   it("is a proper rotation (orthonormal columns, no mirror)", () => {
-    const m = cols({ target: [0, 0, 0], azimuth: 0.7, elevation: 0.4, distance: 2 });
+    const m = cols({ target: [0, 0, 0], azimuth: 0.7, elevation: 0.4, distance: 2, roll: 0 });
     const c1 = [m[0] ?? 0, m[1] ?? 0, m[2] ?? 0];
     const c2 = [m[4] ?? 0, m[5] ?? 0, m[6] ?? 0];
     const len = (v: number[]) => Math.hypot(v[0] ?? 0, v[1] ?? 0, v[2] ?? 0);
@@ -176,7 +178,7 @@ describe("gnomonTransform", () => {
   });
 
   it("gnomonCounterTransform is its exact inverse (R·R⁻¹ = I on the 3×3 block)", () => {
-    const pose = { target: [0, 0, 0] as const, azimuth: 0.7, elevation: 0.4, distance: 2 };
+    const pose = { target: [0, 0, 0] as const, azimuth: 0.7, elevation: 0.4, distance: 2, roll: 0 };
     const parse = (s: string): number[] =>
       (s.match(/matrix3d\(([^)]*)\)/)?.[1] ?? "").split(",").map(Number);
     const a = parse(gnomonTransform(pose));

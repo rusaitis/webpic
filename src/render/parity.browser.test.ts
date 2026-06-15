@@ -106,9 +106,9 @@ function workerSustainsSwapchain(): Promise<{ frames: number; errors: string[] }
     let frames = 0;
     const errors: string[] = [];
     const poses = [
-      { target: [0, 0, 0], azimuth: 0.4, elevation: 0.3, distance: 2.4 },
-      { target: [0, 0, 0], azimuth: 1.2, elevation: 0.6, distance: 2.2 },
-      { target: [0, 0, 0], azimuth: 2.0, elevation: 0.2, distance: 2.6 },
+      { target: [0, 0, 0], azimuth: 0.4, elevation: 0.3, distance: 2.4, roll: 0 },
+      { target: [0, 0, 0], azimuth: 1.2, elevation: 0.6, distance: 2.2, roll: 0 },
+      { target: [0, 0, 0], azimuth: 2.0, elevation: 0.2, distance: 2.6, roll: 0 },
     ] as const;
     worker.onmessage = (event: MessageEvent<RenderWorkerResponse>) => {
       const message = event.data;

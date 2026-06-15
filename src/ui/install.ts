@@ -3,6 +3,7 @@ import type { SimulationStore, UiStore } from "@store";
 import { installBootReveal } from "./bootReveal.ts";
 import { installCameraChrome } from "./cameraChrome.ts";
 import type { Disposer } from "./controls/index.ts";
+import { installHelpOverlay } from "./helpOverlay.ts";
 import { isTypingTarget } from "./keyboard.ts";
 import { mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
@@ -49,6 +50,9 @@ export function installUi(opts: InstallUiOptions): () => void {
 
   // Loading/error feedback; unlike the chrome it ignores the global UI toggle — status, not chrome.
   disposers.push(installStatusPill(opts.parent, opts.uiStore));
+
+  // Keyboard cheat-sheet modal (? / H). Its own keydown listener — independent of the UI toggle.
+  disposers.push(installHelpOverlay(opts.parent, opts.uiStore));
 
   // Global UI toggle bound to the theme's bare-key shortcut (default "F"); ignore it while
   // typing in a control and when modifiers are held (those are reserved for the palette).

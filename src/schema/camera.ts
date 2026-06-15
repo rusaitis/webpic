@@ -8,6 +8,7 @@ export interface CameraPose {
   readonly azimuth: number; // radians; 0 looks from +x toward the target, increasing toward +y (CCW about +z)
   readonly elevation: number; // radians from the xy-plane toward +z
   readonly distance: number; // > 0, camera → target
+  readonly roll: number; // radians, banking about the view-forward axis; 0 = level (world +z up)
 }
 
 // Volume-view projection (slices are always screen-aligned ortho).
@@ -29,4 +30,5 @@ export const DEFAULT_POSE: CameraPose = {
   azimuth: Math.PI / 4,
   elevation: 0.6,
   distance: 2.25,
+  roll: 0,
 };

@@ -19,6 +19,7 @@ const CENTERED_POSE = {
   azimuth: Math.PI / 4,
   elevation: 0.4773,
   distance: 2.3937,
+  roll: 0,
 } as const;
 
 // A radial blob peaked at the volume center, falling to zero by r = 0.4 (normalized).

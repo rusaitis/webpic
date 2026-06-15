@@ -504,7 +504,13 @@ describe("bootstrap streaming", () => {
       terminate: () => {},
     } as unknown as Worker;
     const store = createSimulationStore();
-    const initialPose = { target: [0, 0, 0], azimuth: 1.5, elevation: 0.2, distance: 3 } as const;
+    const initialPose = {
+      target: [0, 0, 0],
+      azimuth: 1.5,
+      elevation: 0.2,
+      distance: 3,
+      roll: 0,
+    } as const;
 
     const dispose = bootstrap({
       width: 64,

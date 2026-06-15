@@ -90,8 +90,14 @@ async function renderVolume(
   // Pinned poses, not DEFAULT_POSE: the assertions index the center pixel, so the target must be
   // the box center — the app default trades that for screen composition (offset target).
   const pose = straightOn
-    ? ({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } as const)
-    : ({ target: [0, 0, 0], azimuth: Math.PI / 4, elevation: 0.4773, distance: 2.3937 } as const);
+    ? ({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 } as const)
+    : ({
+        target: [0, 0, 0],
+        azimuth: Math.PI / 4,
+        elevation: 0.4773,
+        distance: 2.3937,
+        roll: 0,
+      } as const);
   let camera: import("three").PerspectiveCamera | import("three").OrthographicCamera;
   if (orthographic) {
     camera = createVolumeOrthographicCamera();

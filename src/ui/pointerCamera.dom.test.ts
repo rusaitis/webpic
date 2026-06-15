@@ -320,7 +320,7 @@ describe("installPointerCamera", () => {
 
   it("a wheel dolly composes with an in-flight fly-to (log-additive distance)", async () => {
     const { target, store } = setup();
-    const to = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } as const;
+    const to = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 } as const;
     store.getState().requestCameraFly({ kind: "pose", pose: to });
     await frame(); // flight underway
     target.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, cancelable: true }));
@@ -334,7 +334,7 @@ describe("installPointerCamera", () => {
 
   it("consumes cameraFlyRequest intents (gnomon snaps)", async () => {
     const { store } = setup();
-    const to = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 } as const;
+    const to = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 } as const;
     store.getState().requestCameraFly({ kind: "pose", pose: to });
     expect(store.getState().cameraFlyRequest).toBeNull(); // consumed synchronously
     await pumpUntil(() => store.getState().cameraPose === to);

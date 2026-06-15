@@ -1,7 +1,9 @@
 import {
+  type AxisView,
   addOrbitMomentum,
   addPanMomentum,
   applyPoseDelta,
+  axisViewPose,
   type BoundingSphere,
   type CameraMomentum,
   type CameraPose,
@@ -57,20 +59,34 @@ const WHEEL_TRAIL_MS = 150;
 const FIT_SPHERE: BoundingSphere = { center: [0, 0, 0], radius: UNIT_BOX_RADIUS };
 
 // Held-key nudges (magviz's orbit keys): A/D sweep the camera left/right around the target, Q/E
-// lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. Arrows belong to the
-// point picker (pointerPicker); these remap to translation when a fly mode lands.
+// lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. Shift+Q/E reinterpret the
+// same physical keys as roll (banking) — see rollMode in onKeyDown. Arrows belong to the point picker
+// (pointerPicker); these remap to translation when a fly mode lands.
 // Keyed by event.code, NOT event.key — key is modifier-mutated ("=" releases as "+" with Shift
 // held), so a key-tracked Set leaks held entries and the dolly runs away; code names the physical
 // key on both edges (magviz does the same).
 const NUDGE_KEYS: ReadonlyMap<string, KeyNudge> = new Map([
-  ["KeyA", { azimuth: -1, elevation: 0, dolly: 0 }], // camera sweeps left around the target
-  ["KeyD", { azimuth: 1, elevation: 0, dolly: 0 }],
-  ["KeyQ", { azimuth: 0, elevation: -1, dolly: 0 }], // camera descends (magviz orbit/fly parity)
-  ["KeyE", { azimuth: 0, elevation: 1, dolly: 0 }],
-  ["KeyW", { azimuth: 0, elevation: 0, dolly: 1 }],
-  ["KeyS", { azimuth: 0, elevation: 0, dolly: -1 }],
-  ["Equal", { azimuth: 0, elevation: 0, dolly: 1 }],
-  ["Minus", { azimuth: 0, elevation: 0, dolly: -1 }],
+  ["KeyA", { azimuth: -1, elevation: 0, dolly: 0, roll: 0 }], // camera sweeps left around the target
+  ["KeyD", { azimuth: 1, elevation: 0, dolly: 0, roll: 0 }],
+  ["KeyQ", { azimuth: 0, elevation: -1, dolly: 0, roll: 0 }], // camera descends (magviz orbit/fly parity)
+  ["KeyE", { azimuth: 0, elevation: 1, dolly: 0, roll: 0 }],
+  ["KeyW", { azimuth: 0, elevation: 0, dolly: 1, roll: 0 }],
+  ["KeyS", { azimuth: 0, elevation: 0, dolly: -1, roll: 0 }],
+  ["Equal", { azimuth: 0, elevation: 0, dolly: 1, roll: 0 }],
+  ["Minus", { azimuth: 0, elevation: 0, dolly: -1, roll: 0 }],
+]);
+
+// Tap-to-snap axis views (z-up: Top = +z). Digit 0 / backtick returns to the default 3/4 view.
+// Keyed by event.code so the digit row works regardless of layout. null = the home pose.
+const AXIS_KEYS: ReadonlyMap<string, AxisView | null> = new Map([
+  ["Digit1", "+x"], // front
+  ["Digit2", "-x"], // back
+  ["Digit3", "+y"], // right
+  ["Digit4", "-y"], // left
+  ["Digit5", "+z"], // top
+  ["Digit6", "-z"], // bottom
+  ["Digit0", null],
+  ["Backquote", null],
 ]);
 
 interface PoseTween {
@@ -101,25 +117,35 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
   // Nudge keys currently held (event.code). The glide loop turns them into constant-velocity
   // motion; opposite keys cancel per-axis.
   const heldKeys = new Set<string>();
+  // Subset of heldKeys (Q/E) whose elevation intent is reinterpreted as roll (Shift held at
+  // keydown). Kept keyed by code — the modifier-independent name on both edges — so keyup/blur
+  // can never strand it. Invariant: rollMode ⊆ heldKeys.
+  const rollMode = new Set<string>();
 
   const activeNudge = (): KeyNudge | null => {
     if (heldKeys.size === 0) return null;
     let azimuth = 0;
     let elevation = 0;
     let dolly = 0;
+    let roll = 0;
     for (const key of heldKeys) {
       const nudge = NUDGE_KEYS.get(key);
       if (nudge === undefined) continue;
-      azimuth += nudge.azimuth;
-      elevation += nudge.elevation;
-      dolly += nudge.dolly;
+      if (rollMode.has(key)) {
+        roll += nudge.elevation; // Shift+E (elev +1) banks right; Shift+Q (elev -1) banks left
+      } else {
+        azimuth += nudge.azimuth;
+        elevation += nudge.elevation;
+        dolly += nudge.dolly;
+      }
     }
-    if (azimuth === 0 && elevation === 0 && dolly === 0) return null;
+    if (azimuth === 0 && elevation === 0 && dolly === 0 && roll === 0) return null;
     // Sums of -1|0|1 entries: Math.sign restores the literal range exactly (no NaN — finite ints).
     return {
       azimuth: Math.sign(azimuth) as -1 | 0 | 1,
       elevation: Math.sign(elevation) as -1 | 0 | 1,
       dolly: Math.sign(dolly) as -1 | 0 | 1,
+      roll: Math.sign(roll) as -1 | 0 | 1,
     };
   };
 
@@ -395,28 +421,47 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     state.requestPick({ ndcX, ndcY, aspect, purpose: "focus", focusDistance: distance });
   };
 
-  // Hardcoded "r" (reset) / "z" (fit) / nudge keys until theme shortcuts exist; same guards as
-  // ui/install.ts.
+  // Hardcoded shortcuts until theme shortcuts exist; same guards as ui/install.ts. R reset, Z fit,
+  // O projection, 1–6/0 axis snaps, W/A/S/D/Q/E orbit+dolly, Shift+Q/E roll, Shift+R level horizon.
   const doc = target.ownerDocument;
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (
-      event.defaultPrevented ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.altKey ||
-      event.shiftKey
-    ) {
+    if (event.defaultPrevented) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) {
       // macOS swallows keyup for keys released while Meta is held — a chord starting mid-hold
       // would strand the held set, so a modified keydown drops it (the hard stop is harmless).
       if (heldKeys.size > 0) onWindowBlur();
       return;
     }
     if (isTypingTarget(event.target)) return;
+    // Shift+Q/E bank the view (roll); the same physical keys orbit (elevation) unshifted. rollMode
+    // records the mode per code so a later keyup/blur clears it regardless of the modifier state.
+    if (event.shiftKey) {
+      if (event.code === "KeyQ" || event.code === "KeyE") {
+        event.preventDefault();
+        heldKeys.add(event.code);
+        rollMode.add(event.code);
+        syncMotion();
+        ensureGliding();
+      } else if (event.code === "KeyR") {
+        event.preventDefault();
+        flyTo({ ...store.getState().cameraPose, roll: 0 }); // level the horizon, view held
+      } else if (heldKeys.size > 0) {
+        onWindowBlur(); // a stray Shift chord must not strand a held nudge
+      }
+      return;
+    }
     if (NUDGE_KEYS.has(event.code)) {
       event.preventDefault(); // claimed — no quick-find / page side effects while orbiting
       heldKeys.add(event.code); // Set-idempotent, so OS key-repeat keydowns are harmless
+      rollMode.delete(event.code); // unshifted Q/E orbit, not roll
       syncMotion();
       ensureGliding();
+      return;
+    }
+    const axis = AXIS_KEYS.get(event.code);
+    if (axis !== undefined) {
+      event.preventDefault();
+      flyTo(axis === null ? DEFAULT_POSE : axisViewPose(axis, store.getState().cameraPose));
       return;
     }
     const key = event.key.toLowerCase();
@@ -428,12 +473,14 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     }
   };
   const onKeyUp = (event: KeyboardEvent): void => {
+    rollMode.delete(event.code);
     if (heldKeys.delete(event.code)) syncMotion();
   };
   // A key released outside the page (tab switch, cmd-tab) never sends keyup — drop the whole set.
   const onWindowBlur = (): void => {
     if (heldKeys.size === 0) return;
     heldKeys.clear();
+    rollMode.clear();
     syncMotion();
   };
 
@@ -480,6 +527,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     for (const id of pointers.keys()) target.releasePointerCapture?.(id);
     pointers.clear();
     heldKeys.clear();
+    rollMode.clear();
     if (glideId !== undefined) cancelAnimationFrame(glideId);
     momentum = MOMENTUM_ZERO;
     tween = undefined;

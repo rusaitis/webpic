@@ -104,7 +104,13 @@ export function focusPoseOnPoint(
   const len = Math.hypot(vx, vy, vz);
   // Picked point at the camera itself (camera inside the box) — no aim direction; keep the angles.
   if (len < 1e-9) {
-    return { target: point, azimuth: pose.azimuth, elevation: pose.elevation, distance };
+    return {
+      target: point,
+      azimuth: pose.azimuth,
+      elevation: pose.elevation,
+      distance,
+      roll: pose.roll,
+    };
   }
   const sinElevation = Math.min(Math.max(vz / len, -1), 1);
   return {
@@ -112,5 +118,6 @@ export function focusPoseOnPoint(
     azimuth: Math.atan2(vy, vx),
     elevation: Math.min(Math.max(Math.asin(sinElevation), -ELEVATION_LIMIT), ELEVATION_LIMIT),
     distance,
+    roll: pose.roll,
   };
 }

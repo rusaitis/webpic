@@ -15,6 +15,7 @@ const THREE_QUARTER: CameraPose = {
   azimuth: Math.PI / 5,
   elevation: 0.5,
   distance: 2.4,
+  roll: 0,
 };
 
 describe("worldToScreen", () => {
@@ -84,7 +85,7 @@ describe("dragOnPlane", () => {
   it("returns null for a ray parallel to the plane", () => {
     // A level view (elevation 0) looks horizontally; the cursor ray is ⟂ to +z, so it never meets a
     // horizontal (normal +z) plane.
-    const level: CameraPose = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2 };
+    const level: CameraPose = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 };
     expect(dragOnPlane(level, 0, 0, 1, false, [0, 0, 0], [0, 0, 1])).toBeNull();
   });
 });

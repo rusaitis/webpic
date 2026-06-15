@@ -55,6 +55,37 @@ export function orbitPose(pose: CameraPose, dx: number, dy: number): CameraPose 
     azimuth: wrapAngle(pose.azimuth - dx * ORBIT_SENS),
     elevation: clamp(pose.elevation + dy * ORBIT_SENS, -ELEVATION_LIMIT, ELEVATION_LIMIT),
     distance: pose.distance,
+    roll: pose.roll,
+  };
+}
+
+// Unit view-forward (camera → target) in the z-up orbit basis — the axis a dolly travels and roll
+// banks about. The same trig the pick rays and the gnomon use.
+export function viewForward(pose: CameraPose): Vec3 {
+  const ce = Math.cos(pose.elevation);
+  return [-ce * Math.cos(pose.azimuth), -ce * Math.sin(pose.azimuth), -Math.sin(pose.elevation)];
+}
+
+// Geometric dolly distance plus the pivot walk that lets a zoom-in fly THROUGH the near limit
+// instead of stalling: once the raw distance would drop below DISTANCE_MIN, pin it there and spend
+// the leftover zoom as a forward step of the whole rig along the view ray — so close-up motion never
+// crawls to zero (you fly into the volume). Zoom-out keeps the hard DISTANCE_MAX clamp. The walked
+// pivot stays inside [-DISTANCE_MAX, DISTANCE_MAX]³ so a held key in empty space can't march it to
+// f32 infinity. Shared by every dolly entry point (wheel, cursor-anchored wheel, held key).
+function dollyWithWalk(pose: CameraPose, rawDistance: number): { distance: number; target: Vec3 } {
+  if (rawDistance >= DISTANCE_MIN) {
+    return { distance: Math.min(rawDistance, DISTANCE_MAX), target: pose.target };
+  }
+  const forward = viewForward(pose);
+  const step = DISTANCE_MIN - rawDistance; // > 0: the zoom-in distance can't absorb
+  const [tx, ty, tz] = pose.target;
+  return {
+    distance: DISTANCE_MIN,
+    target: [
+      clamp(tx + forward[0] * step, -DISTANCE_MAX, DISTANCE_MAX),
+      clamp(ty + forward[1] * step, -DISTANCE_MAX, DISTANCE_MAX),
+      clamp(tz + forward[2] * step, -DISTANCE_MAX, DISTANCE_MAX),
+    ],
   };
 }
 
@@ -77,13 +108,15 @@ export function normalizeWheelDelta(deltaY: number, deltaMode: number, ctrlKey: 
 }
 
 // Wheel → dolly: geometric, so each notch is a constant fraction of the current distance.
-// Scroll up (deltaY < 0) zooms in (distance shrinks). Clamped to the dolly bounds.
+// Scroll up (deltaY < 0) zooms in (distance shrinks). At the near limit it flies through (dollyWithWalk).
 export function dollyPose(pose: CameraPose, wheelDeltaY: number): CameraPose {
+  const walked = dollyWithWalk(pose, pose.distance * Math.exp(wheelDeltaY * DOLLY_SENS));
   return {
-    target: pose.target,
+    target: walked.target,
     azimuth: pose.azimuth,
     elevation: pose.elevation,
-    distance: clamp(pose.distance * Math.exp(wheelDeltaY * DOLLY_SENS), DISTANCE_MIN, DISTANCE_MAX),
+    distance: walked.distance,
+    roll: pose.roll,
   };
 }
 
@@ -111,17 +144,20 @@ export function dollyPoseToCursor(
   ndcY: number,
   aspect: number,
 ): CameraPose {
-  const next = dollyPose(pose, wheelDeltaY);
+  const next = dollyPose(pose, wheelDeltaY); // includes the fly-through pivot walk in next.target
   const k = next.distance / pose.distance;
   const reach = (1 - k) * pose.distance * Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
   if (reach === 0 || (ndcX === 0 && ndcY === 0)) return next; // clamped or centered → plain dolly
   const o = viewPlaneOffset(pose, reach * ndcX * aspect, reach * ndcY);
-  const [tx, ty, tz] = pose.target;
+  // Anchor offset (distance change down to the clamp) rides on top of the walked pivot, so the
+  // cursor stays put down to the near limit and the overflow then flies straight through.
+  const [tx, ty, tz] = next.target;
   return {
     target: [tx + o[0], ty + o[1], tz + o[2]],
     azimuth: pose.azimuth,
     elevation: pose.elevation,
     distance: next.distance,
+    roll: pose.roll,
   };
 }
 
@@ -138,6 +174,7 @@ export function panPose(pose: CameraPose, dx: number, dy: number): CameraPose {
     azimuth: pose.azimuth,
     elevation: pose.elevation,
     distance: pose.distance,
+    roll: pose.roll,
   };
 }
 
@@ -219,6 +256,7 @@ export interface PoseDelta {
   readonly azimuth: number; // wrapAngle(b − a) — shortest arc, in (−π, π]
   readonly elevation: number;
   readonly logDistance: number; // ln(b/a)
+  readonly roll: number; // wrapAngle(b − a) — shortest bank arc
 }
 
 export function poseDelta(a: CameraPose, b: CameraPose): PoseDelta {
@@ -227,6 +265,7 @@ export function poseDelta(a: CameraPose, b: CameraPose): PoseDelta {
     azimuth: wrapAngle(b.azimuth - a.azimuth),
     elevation: b.elevation - a.elevation,
     logDistance: Math.log(b.distance / a.distance),
+    roll: wrapAngle(b.roll - a.roll),
   };
 }
 
@@ -251,6 +290,7 @@ export function applyPoseDelta(pose: CameraPose, delta: PoseDelta, fraction: num
       DISTANCE_MIN,
       DISTANCE_MAX,
     ),
+    roll: wrapAngle(pose.roll + delta.roll * fraction),
   };
 }
 
@@ -260,24 +300,27 @@ export function applyPoseDelta(pose: CameraPose, delta: PoseDelta, fraction: num
 export interface KeyNudge {
   readonly azimuth: -1 | 0 | 1; // +1 sweeps the camera CCW about +z (view pans right)
   readonly elevation: -1 | 0 | 1; // +1 lifts toward +z
-  readonly dolly: -1 | 0 | 1; // +1 zooms in (distance shrinks, geometric)
+  readonly dolly: -1 | 0 | 1; // +1 zooms in (distance shrinks, geometric, flies through the wall)
+  readonly roll: -1 | 0 | 1; // +1 banks the view clockwise (camera rolls right)
 }
 
 const KEY_ORBIT_RAD_PER_SEC = 1.2;
 const KEY_DOLLY_PER_SEC = 1.5; // fraction-of-distance per second — never fights the clamps
+const KEY_ROLL_RAD_PER_SEC = 1.0; // gentler than orbit — banking is a fine adjustment
 
 export function nudgePose(pose: CameraPose, nudge: KeyNudge, dtMs: number): CameraPose {
   const dt = Math.max(dtMs, 0) / 1000;
   const rot = KEY_ORBIT_RAD_PER_SEC * dt;
+  const walked = dollyWithWalk(
+    pose,
+    pose.distance * Math.exp(-nudge.dolly * KEY_DOLLY_PER_SEC * dt),
+  );
   return {
-    target: pose.target,
+    target: walked.target,
     azimuth: wrapAngle(pose.azimuth + nudge.azimuth * rot),
     elevation: clamp(pose.elevation + nudge.elevation * rot, -ELEVATION_LIMIT, ELEVATION_LIMIT),
-    distance: clamp(
-      pose.distance * Math.exp(-nudge.dolly * KEY_DOLLY_PER_SEC * dt),
-      DISTANCE_MIN,
-      DISTANCE_MAX,
-    ),
+    distance: walked.distance,
+    roll: wrapAngle(pose.roll + nudge.roll * KEY_ROLL_RAD_PER_SEC * dt),
   };
 }
 
@@ -316,7 +359,14 @@ export function poseForBounds(
     DISTANCE_MIN,
     DISTANCE_MAX,
   );
-  return { target: sphere.center, azimuth: pose.azimuth, elevation: pose.elevation, distance };
+  // Fit levels the horizon: a framed overview should be upright, not banked.
+  return {
+    target: sphere.center,
+    azimuth: pose.azimuth,
+    elevation: pose.elevation,
+    distance,
+    roll: 0,
+  };
 }
 
 // Compact pose ⇄ URL-param string ("az,el,d,tx,ty,tz", radians, 4 decimals — finer than the HUD's
@@ -326,17 +376,17 @@ const POSE_PARAM_DECIMALS = 4;
 
 export function formatPoseParam(pose: CameraPose): string {
   const [tx, ty, tz] = pose.target;
-  return [pose.azimuth, pose.elevation, pose.distance, tx, ty, tz]
+  return [pose.azimuth, pose.elevation, pose.distance, tx, ty, tz, pose.roll]
     .map((v) => v.toFixed(POSE_PARAM_DECIMALS))
     .join(",");
 }
 
 export function parsePoseParam(raw: string): CameraPose | null {
   const parts = raw.split(",");
-  if (parts.length !== 6) return null;
+  if (parts.length !== 6 && parts.length !== 7) return null; // 6 = pre-roll links (roll defaults 0)
   const numbers = parts.map(Number);
   if (numbers.some((v) => !Number.isFinite(v))) return null;
-  const [azimuth = 0, elevation = 0, distance = 0, tx = 0, ty = 0, tz = 0] = numbers;
+  const [azimuth = 0, elevation = 0, distance = 0, tx = 0, ty = 0, tz = 0, roll = 0] = numbers;
   if (distance <= 0) return null;
   // Targets clamp too (URL input is a trust boundary): a huge crafted target overflows the
   // render-side far-plane math (hypot → Inf → NaN projection matrix) and f32 GPU uniforms.
@@ -346,6 +396,7 @@ export function parsePoseParam(raw: string): CameraPose | null {
     azimuth: wrapAngle(azimuth),
     elevation: clamp(elevation, -ELEVATION_LIMIT, ELEVATION_LIMIT),
     distance: clamp(distance, DISTANCE_MIN, DISTANCE_MAX),
+    roll: wrapAngle(roll),
   };
 }
 
@@ -355,19 +406,20 @@ export type AxisView = "+x" | "-x" | "+y" | "-y" | "+z" | "-z";
 // target, distance preserved — magviz's ViewHelper behavior. ±z keeps the current azimuth (the
 // camera tips straight over, no surprise spin) and clamps at ELEVATION_LIMIT, so the up vector
 // never crosses the pole.
+// Axis snaps level the horizon (roll: 0) so each canonical view is upright.
 export function axisViewPose(view: AxisView, pose: CameraPose): CameraPose {
   switch (view) {
     case "+x":
-      return { ...pose, azimuth: 0, elevation: 0 };
+      return { ...pose, azimuth: 0, elevation: 0, roll: 0 };
     case "-x":
-      return { ...pose, azimuth: Math.PI, elevation: 0 };
+      return { ...pose, azimuth: Math.PI, elevation: 0, roll: 0 };
     case "+y":
-      return { ...pose, azimuth: Math.PI / 2, elevation: 0 };
+      return { ...pose, azimuth: Math.PI / 2, elevation: 0, roll: 0 };
     case "-y":
-      return { ...pose, azimuth: -Math.PI / 2, elevation: 0 };
+      return { ...pose, azimuth: -Math.PI / 2, elevation: 0, roll: 0 };
     case "+z":
-      return { ...pose, elevation: ELEVATION_LIMIT };
+      return { ...pose, elevation: ELEVATION_LIMIT, roll: 0 };
     case "-z":
-      return { ...pose, elevation: -ELEVATION_LIMIT };
+      return { ...pose, elevation: -ELEVATION_LIMIT, roll: 0 };
   }
 }

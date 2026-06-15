@@ -186,4 +186,22 @@ const UI_CSS = `
   .webpic-status, .webpic-status.is-visible { transition: opacity 160ms ease; transform: translateX(-50%); }
   .webpic-status_spinner { animation-duration: 2s; }
 }
+/* Keyboard cheat-sheet modal (ui/helpOverlay.ts): full-viewport dimmer + a centered card. */
+.webpic-help { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
+  justify-content: center; padding: 24px; box-sizing: border-box; background: rgba(8, 12, 16, 0.55);
+  color: var(--webpic-fg); font: 500 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
+.webpic-help[hidden] { display: none; }
+.webpic-help_panel { width: 100%; max-width: 680px; max-height: 100%; overflow-y: auto;
+  padding: 18px 20px; box-sizing: border-box; background: var(--webpic-bg);
+  border: 1px solid var(--webpic-border); border-radius: 10px; }
+.webpic-help_title { font-size: 13px; margin-bottom: 14px; }
+.webpic-help_grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px 28px; }
+.webpic-help_section-title { color: var(--webpic-accent); margin-bottom: 6px; }
+.webpic-help_row { display: flex; justify-content: space-between; gap: 14px; padding: 2px 0; }
+.webpic-help_keys { color: var(--webpic-fg); white-space: nowrap; font: inherit; }
+.webpic-help_action { color: var(--webpic-muted); text-align: right; }
+@media (prefers-reduced-motion: reduce) {
+  .webpic-help { background: rgba(8, 12, 16, 0.7); }
+}
 `;

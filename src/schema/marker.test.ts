@@ -13,7 +13,7 @@ import {
 
 // Point at the orbit target so the camera→point distance equals pose.distance.
 function poseAt(distance: number, azimuth = 0, elevation = 0): CameraPose {
-  return { target: [0, 0, 0], azimuth, elevation, distance };
+  return { target: [0, 0, 0], azimuth, elevation, distance, roll: 0 };
 }
 
 describe("markerCoreScale", () => {

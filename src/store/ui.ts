@@ -20,6 +20,7 @@ export const BOOT_PHASE_KEY = "boot";
 
 export interface UiState {
   readonly isUiVisible: boolean;
+  readonly isHelpVisible: boolean;
   readonly panels: Readonly<Record<string, boolean>>;
   /** Insertion-ordered; the pill shows while nonempty and the oldest entry owns the
    *  message — newest-wins reverts the text when a later phase ends first (A→B→A). */
@@ -27,6 +28,8 @@ export interface UiState {
   readonly statusError: { readonly message: string } | null;
   toggleUi(): void;
   setUiVisible(visible: boolean): void;
+  toggleHelp(): void;
+  setHelpVisible(visible: boolean): void;
   togglePanel(name: string): void;
   setPanelVisible(name: string, visible: boolean): void;
   beginLoading(key: string, message: string): void;
@@ -43,6 +46,7 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
   return createStore<UiState>()(
     subscribeWithSelector((set, get) => ({
       isUiVisible: true,
+      isHelpVisible: false,
       panels: initialPanels,
       loadingPhases: [],
       statusError: null,
@@ -51,6 +55,12 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       },
       setUiVisible(visible) {
         set({ isUiVisible: visible });
+      },
+      toggleHelp() {
+        set({ isHelpVisible: !get().isHelpVisible });
+      },
+      setHelpVisible(visible) {
+        if (get().isHelpVisible !== visible) set({ isHelpVisible: visible });
       },
       togglePanel(name) {
         const { panels } = get();

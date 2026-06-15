@@ -60,7 +60,7 @@ vi.mock("./markerScene.ts", () => ({
 
 const { createManagedMarker } = await import("./managedMarker.ts");
 
-const POSE: CameraPose = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 3 };
+const POSE: CameraPose = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 3, roll: 0 };
 
 function harness() {
   created.length = 0;
@@ -143,7 +143,13 @@ describe("createManagedMarker", () => {
   it("applyPose re-applies the live pose + projection", async () => {
     const { marker, created, setPose, setOrtho } = harness();
     await marker.build(config());
-    const moved: CameraPose = { target: [1, 1, 1], azimuth: 1, elevation: 0.5, distance: 5 };
+    const moved: CameraPose = {
+      target: [1, 1, 1],
+      azimuth: 1,
+      elevation: 0.5,
+      distance: 5,
+      roll: 0,
+    };
     setPose(moved);
     setOrtho(true);
     marker.applyPose();

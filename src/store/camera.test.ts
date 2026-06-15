@@ -33,7 +33,7 @@ import {
 
 // Drag deltas are viewport-height fractions (px / viewport height) — OrbitControls' unit, so the
 // parity pins below are exact: a full-height drag is a full revolution, pan tracks the cursor.
-const LEVEL: CameraPose = { target: [1, 2, 3], azimuth: 0, elevation: 0, distance: 4 };
+const LEVEL: CameraPose = { target: [1, 2, 3], azimuth: 0, elevation: 0, distance: 4, roll: 0 };
 const TAN_HALF_FOV = Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
 
 describe("orbitPose", () => {
@@ -90,6 +90,25 @@ describe("dollyPose", () => {
     expect(next.elevation).toBe(LEVEL.elevation);
     expect(next.target).toBe(LEVEL.target);
   });
+
+  it("flies through the near limit: zoom-in past DISTANCE_MIN pins distance and walks the pivot", () => {
+    const deltaY = -300;
+    // The geometric scale this delta applies, measured where nothing clamps (distance 10).
+    const scale = dollyPose({ ...LEVEL, distance: 10 }, deltaY).distance / 10;
+    const pinned: CameraPose = { ...LEVEL, distance: DISTANCE_MIN }; // viewForward = (-1, 0, 0)
+    const next = dollyPose(pinned, deltaY);
+    const step = DISTANCE_MIN - DISTANCE_MIN * scale; // the zoom-in distance couldn't absorb
+    expect(next.distance).toBe(DISTANCE_MIN);
+    expect(next.target[0]).toBeCloseTo((pinned.target[0] ?? Number.NaN) - step, 12); // forward = −x
+    expect(next.target[1]).toBeCloseTo(pinned.target[1] ?? Number.NaN, 12);
+    expect(next.target[2]).toBeCloseTo(pinned.target[2] ?? Number.NaN, 12);
+  });
+
+  it("zoom-out at the near limit grows distance instead of walking", () => {
+    const next = dollyPose({ ...LEVEL, distance: DISTANCE_MIN }, 200);
+    expect(next.distance).toBeGreaterThan(DISTANCE_MIN);
+    expect(next.target).toBe(LEVEL.target); // no fly-through on the way out
+  });
 });
 
 describe("normalizeWheelDelta", () => {
@@ -113,7 +132,13 @@ describe("normalizeWheelDelta", () => {
 });
 
 describe("viewPlaneOffset", () => {
-  const TILTED: CameraPose = { target: [0, 0, 0], azimuth: 0.7, elevation: 0.4, distance: 2 };
+  const TILTED: CameraPose = {
+    target: [0, 0, 0],
+    azimuth: 0.7,
+    elevation: 0.4,
+    distance: 2,
+    roll: 0,
+  };
 
   it("spans an orthonormal screen basis: unit axes, ⟂ each other and the view forward", () => {
     const right = viewPlaneOffset(TILTED, 1, 0);
@@ -246,7 +271,13 @@ describe("stepMomentum", () => {
 });
 
 describe("dollyPoseToCursor", () => {
-  const POSE: CameraPose = { target: [1, 2, 3], azimuth: 0.9, elevation: 0.5, distance: 3 };
+  const POSE: CameraPose = {
+    target: [1, 2, 3],
+    azimuth: 0.9,
+    elevation: 0.5,
+    distance: 3,
+    roll: 0,
+  };
 
   // World point → ndc under the z-up orbit camera (the inverse of the cursor-ray construction).
   function projectToNdc(
@@ -317,11 +348,14 @@ describe("dollyPoseToCursor", () => {
     expect(up.target[2]).toBeGreaterThan(LEVEL.target[2]);
   });
 
-  it("does not drift the target when the distance clamp pins the dolly", () => {
+  it("flies through the near limit: a pinned zoom-in walks the pivot forward, doesn't stall", () => {
+    // LEVEL is level along +x ⇒ viewForward = (-1, 0, 0): the pivot advances in −x and nowhere else.
     const pinned: CameraPose = { ...LEVEL, distance: DISTANCE_MIN };
     const next = dollyPoseToCursor(pinned, -500, 0.8, 0.8, 1.7);
-    expect(next.distance).toBeCloseTo(DISTANCE_MIN, 12);
-    expect(next.target).toBe(pinned.target);
+    expect(next.distance).toBeCloseTo(DISTANCE_MIN, 12); // distance stays pinned at the wall
+    expect(next.target[0]).toBeLessThan(pinned.target[0] ?? Number.NaN); // marched forward
+    expect(next.target[1]).toBeCloseTo(pinned.target[1] ?? Number.NaN, 12);
+    expect(next.target[2]).toBeCloseTo(pinned.target[2] ?? Number.NaN, 12);
   });
 });
 
@@ -353,8 +387,8 @@ describe("easeInOutCubic", () => {
 });
 
 describe("poseDelta / applyPoseDelta", () => {
-  const A: CameraPose = { target: [0, 0, 0], azimuth: 0.4, elevation: 0.2, distance: 1 };
-  const B: CameraPose = { target: [2, -4, 6], azimuth: -1.1, elevation: 0.9, distance: 4 };
+  const A: CameraPose = { target: [0, 0, 0], azimuth: 0.4, elevation: 0.2, distance: 1, roll: 0 };
+  const B: CameraPose = { target: [2, -4, 6], azimuth: -1.1, elevation: 0.9, distance: 4, roll: 0 };
 
   it("reproduces the endpoint at fraction 1 on an unperturbed base", () => {
     const end = applyPoseDelta(A, poseDelta(A, B), 1);
@@ -393,7 +427,13 @@ describe("poseDelta / applyPoseDelta", () => {
 
   it("blends on a perturbed base: the result is base ⊕ fraction·delta, not from ⊕", () => {
     const delta = poseDelta(A, B);
-    const perturbed: CameraPose = { target: [1, 1, 1], azimuth: 0.9, elevation: 0.1, distance: 2 };
+    const perturbed: CameraPose = {
+      target: [1, 1, 1],
+      azimuth: 0.9,
+      elevation: 0.1,
+      distance: 2,
+      roll: 0,
+    };
     const next = applyPoseDelta(perturbed, delta, 0.5);
     expect(next.azimuth).toBeCloseTo(0.9 + 0.5 * delta.azimuth, 12);
     expect(next.elevation).toBeCloseTo(0.1 + 0.5 * delta.elevation, 12);
@@ -411,7 +451,7 @@ describe("poseDelta / applyPoseDelta", () => {
 });
 
 describe("nudgePose", () => {
-  const still: KeyNudge = { azimuth: 0, elevation: 0, dolly: 0 };
+  const still: KeyNudge = { azimuth: 0, elevation: 0, dolly: 0, roll: 0 };
 
   it("orbits at the magviz keyboard rate: 1.2 rad over a held second", () => {
     const next = nudgePose(LEVEL, { ...still, azimuth: 1 }, 1000);
@@ -438,6 +478,44 @@ describe("nudgePose", () => {
     const up = nudgePose(LEVEL, { ...still, elevation: 1 }, 1e7);
     expect(up.elevation).toBe(ELEVATION_LIMIT);
     expect(up.target).toBe(LEVEL.target);
+  });
+
+  it("flies through the near limit when held: a long zoom-in walks the pivot, doesn't stall", () => {
+    const pinned: CameraPose = { ...LEVEL, distance: DISTANCE_MIN }; // viewForward = (-1, 0, 0)
+    const next = nudgePose(pinned, { ...still, dolly: 1 }, 1000);
+    expect(next.distance).toBe(DISTANCE_MIN);
+    expect(next.target[0]).toBeLessThan(pinned.target[0] ?? Number.NaN); // marched forward in −x
+  });
+
+  it("banks at the keyboard roll rate (1.0 rad/s) without touching the orbit", () => {
+    const banked = nudgePose(LEVEL, { ...still, roll: 1 }, 1000);
+    expect(banked.roll).toBeCloseTo(LEVEL.roll + 1.0, 12);
+    expect(banked.azimuth).toBe(LEVEL.azimuth);
+    expect(banked.elevation).toBe(LEVEL.elevation);
+    expect(banked.distance).toBe(LEVEL.distance);
+  });
+});
+
+describe("roll", () => {
+  it("poseDelta/applyPoseDelta take the shortest bank arc across ±π", () => {
+    const a: CameraPose = { ...LEVEL, roll: 2.9 };
+    const b: CameraPose = { ...LEVEL, roll: -2.9 };
+    const delta = poseDelta(a, b);
+    expect(delta.roll).toBeCloseTo(2 * Math.PI - 5.8, 12); // through ±π, not the long way back
+    expect(Math.abs(applyPoseDelta(a, delta, 0.5).roll)).toBeCloseTo(Math.PI, 6);
+  });
+
+  it("axisViewPose and poseForBounds level the horizon", () => {
+    const rolled: CameraPose = { ...DEFAULT_POSE, roll: 0.7 };
+    expect(axisViewPose("+z", rolled).roll).toBe(0);
+    expect(axisViewPose("-x", rolled).roll).toBe(0);
+    expect(poseForBounds(rolled, { center: [0, 0, 0], radius: UNIT_BOX_RADIUS }, 1).roll).toBe(0);
+  });
+
+  it("round-trips through the pose param and defaults to 0 for pre-roll (6-field) links", () => {
+    const pose: CameraPose = { ...DEFAULT_POSE, roll: -1.234 };
+    expect(parsePoseParam(formatPoseParam(pose))?.roll).toBeCloseTo(-1.234, 4);
+    expect(parsePoseParam("0.5,0.3,2,0,0,0")?.roll).toBe(0); // legacy link, no roll field
   });
 });
 
@@ -492,7 +570,13 @@ describe("poseForBounds", () => {
   });
 
   it("keeps the viewing direction and recenters on the sphere", () => {
-    const start: CameraPose = { target: [1, 2, 3], azimuth: 1.1, elevation: -0.3, distance: 9 };
+    const start: CameraPose = {
+      target: [1, 2, 3],
+      azimuth: 1.1,
+      elevation: -0.3,
+      distance: 9,
+      roll: 0,
+    };
     const fitted = poseForBounds(start, { center: [4, 5, 6], radius: 2 }, 1.5);
     expect(fitted.azimuth).toBe(start.azimuth);
     expect(fitted.elevation).toBe(start.elevation);
@@ -522,6 +606,7 @@ describe("pose param round-trip", () => {
       azimuth: -1.234,
       elevation: 0.6,
       distance: 3.21,
+      roll: 0,
     };
     const back = parsePoseParam(formatPoseParam(pose));
     expect(back).not.toBeNull();
@@ -561,7 +646,13 @@ describe("pose param round-trip", () => {
 });
 
 describe("axisViewPose", () => {
-  const POSE: CameraPose = { target: [1, 2, 3], azimuth: 0.7, elevation: 0.4, distance: 5 };
+  const POSE: CameraPose = {
+    target: [1, 2, 3],
+    azimuth: 0.7,
+    elevation: 0.4,
+    distance: 5,
+    roll: 0,
+  };
 
   it("aims down each lateral axis at level elevation, distance and target preserved", () => {
     expect(axisViewPose("+x", POSE)).toMatchObject({ azimuth: 0, elevation: 0 });
