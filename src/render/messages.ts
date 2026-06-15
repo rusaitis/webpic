@@ -207,6 +207,10 @@ export type RenderWorkerRequest =
   // onmessage handles the field swaps.
   | { readonly kind: "pair"; readonly requestId: number; readonly port: MessagePort };
 
+// Why a terminal GPU loss could not be recovered: re-acquisition found no adapter, or the recovery
+// circuit-breaker tripped on repeated rapid losses.
+export type GpuRecoveryReason = "no-adapter" | "repeated-loss";
+
 export type RenderWorkerResponse =
   | { readonly kind: "ready"; readonly requestId: number }
   | {
@@ -241,6 +245,6 @@ export type RenderWorkerResponse =
   | {
       readonly kind: "gpuRecoveryFailed";
       readonly requestId: number;
-      readonly reason: "no-adapter" | "repeated-loss";
+      readonly reason: GpuRecoveryReason;
       readonly message: string;
     };

@@ -1,8 +1,9 @@
 import type { StreamStepMessage } from "@data";
-import { getCapabilities, getDevice, installGpu, onDeviceLost, onDeviceRestored } from "@gpu";
+import { getCapabilities, getDevice, installGpu } from "@gpu";
 import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
 import { DEFAULT_POSE } from "./camera.ts";
 import { type CameraRig, createCameraRig } from "./cameraRig.ts";
+import { createDeviceRecovery } from "./deviceRecovery.ts";
 import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
 import { createManagedOverlay } from "./grid/managedOverlay.ts";
 import type { SceneOverlay } from "./grid/overlayScene.ts";
@@ -44,11 +45,6 @@ let dims = { width: 0, height: 0 };
 let canvas: OffscreenCanvas | undefined; // retained to rebuild the renderer on device-restore
 let devicePixelRatio = 1; // retained for the rebuild's drawing-buffer scale
 let float32Filterable = false; // R32F linear volume texture when the device supports it
-// device.lost recovery: gpu/ re-acquires the device and emits onDeviceRestored; render/ must rebuild
-// the renderer + every scene on the new device (the old ones hold dead GPU handles). Without this a
-// recoverable loss is a permanent frozen swapchain.
-let isDeviceLost = false; // pauses the loop between loss and restore
-let unsubscribeGpu: (() => void) | undefined;
 // The init promise; renderFrame/upsertLayer await it so they can't race a half-built renderer
 // even if a future caller stops gating on the `ready` response.
 let initDone: Promise<void> | undefined;
@@ -122,7 +118,7 @@ const marker = createManagedMarker({
 // when to call them.
 const loop = createRenderLoop({
   hasRenderer: () => renderer !== undefined,
-  isDeviceLost: () => isDeviceLost,
+  isDeviceLost: () => recovery.isDeviceLost(),
   paint: () => renderer?.renderComposite(paintItems()),
   paintTimed: () => {
     frameTimer?.beginFrame();
@@ -142,6 +138,68 @@ const loop = createRenderLoop({
 function requestRender(): void {
   loop.requestRender();
 }
+
+// GPU device-loss recovery: the loss policy + the isDeviceLost flag the loop pauses on + the rebuild
+// order. The worker owns the GPU resources the rebuild touches (renderer, frameTimer, testScene,
+// cameras), exposed here as cohesive capabilities; the manager sequences them on a restore.
+const recovery = createDeviceRecovery({
+  hasCanvas: () => canvas !== undefined,
+  supersedeInFlightWarms: () => {
+    // Any in-flight warm raced the loss: bump every epoch so its commit discards (a superseded
+    // streamed field heals on the next step) instead of landing a dead-device scene post-rebuild.
+    registry.bumpAllEpochs();
+    overlay.bumpEpoch();
+    marker.bumpEpoch();
+  },
+  teardownDeadResources: () => {
+    // Drop the dead-device resources best-effort: disposing GPU handles on a lost device can throw,
+    // and the fresh renderer below is what matters.
+    try {
+      renderer?.dispose();
+      registry.disposeForRebuild();
+      overlay.disposeForRebuild();
+      marker.disposeForRebuild();
+      testScene?.dispose();
+    } catch {
+      // a lost device throws on teardown — ignore; we're replacing everything anyway
+    }
+    registry.clearPendingDispose();
+  },
+  rebuildOnDevice: async (device) => {
+    if (canvas === undefined) return; // the manager guards hasCanvas() first; this narrows for TS
+    renderer = await installRenderer({
+      canvas,
+      width: dims.width,
+      height: dims.height,
+      devicePixelRatio,
+      device,
+    });
+    frameTimer = createFrameTimer(device);
+    if (isDebugScene) testScene = createTestScene();
+    applyVolumePose();
+    registry.rebuildScenes();
+    // Replay the overlay + marker from their retained configs on the fresh device (their GPU
+    // resources belonged to the dead device); the marker re-seeds the live pose + state internally.
+    overlay.rebuild();
+    marker.rebuild();
+    quality.resyncAfterRebuild();
+  },
+  warmComposite: async () => {
+    // Warm the rebuilt composite on the fresh device before un-pausing the loop, so the first
+    // restored frame neither stalls nor draws half-compiled.
+    try {
+      await renderer?.compileComposite(paintItems());
+    } catch (error) {
+      reportFault(error);
+    }
+  },
+  requestRender,
+  stopLoop: () => loop.stop(),
+  reportError,
+  reportFault,
+  postRecoveryFailed: (reason, message) =>
+    ctx.postMessage({ kind: "gpuRecoveryFailed", requestId: -1, reason, message }),
+});
 
 function aspect(): number {
   return dims.height > 0 ? dims.width / dims.height : 1;
@@ -176,27 +234,9 @@ async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Pr
   applyVolumePose();
   isDebugScene = request.debugScene === true;
   if (isDebugScene) testScene = createTestScene();
-  // Rebuild the renderer + scenes on the device gpu/ re-acquires after a loss; until then the loop
-  // pauses (isDeviceLost) instead of painting a dead device into a frozen/magenta swapchain.
-  const offLost = onDeviceLost((event) => {
-    isDeviceLost = true;
-    if (event.terminal) {
-      // Recovery gave up (breaker tripped or no adapter) — halt the loop so nothing hammers the dead
-      // GPU, and tell the app to show a terminal "reload" state instead of spiraling.
-      loop.stop();
-      const reason = event.message.includes("GPUAdapter") ? "no-adapter" : "repeated-loss";
-      ctx.postMessage({ kind: "gpuRecoveryFailed", requestId: -1, reason, message: event.message });
-    } else {
-      reportError(`WebGPU device lost (${event.kind}): ${event.message}`);
-    }
-  });
-  const offRestored = onDeviceRestored((device) => {
-    void rebuildOnDevice(device).catch(reportFault);
-  });
-  unsubscribeGpu = () => {
-    offLost();
-    offRestored();
-  };
+  // Subscribe to gpu/'s loss + restore signals: a recoverable loss pauses the loop and rebuilds the
+  // renderer + scenes on the re-acquired device; a terminal loss halts and surfaces a reload state.
+  recovery.start();
   // Paint the boot frame synchronously (the loop isn't started yet) so "first frame" honestly
   // means a frame is on the swapchain before `ready` fires — the perf-gate contract. With no layers
   // yet that frame is the bare clear color, which matches the page background — a seamless boot.
@@ -396,57 +436,6 @@ async function resize(request: Extract<RenderWorkerRequest, { kind: "resize" }>)
   requestRender();
 }
 
-// Rebuild the renderer + every scene on the device gpu/ re-acquired after a loss. The old renderer
-// and all GPU textures belong to the dead device; the layers' CPU sources survive, so scenes rebuild
-// locally with no main↔worker reseed. The loop stays paused (isDeviceLost) until this completes.
-async function rebuildOnDevice(device: GPUDevice): Promise<void> {
-  if (canvas === undefined) return; // pre-init loss — nothing to rebuild yet
-  // Any in-flight warm raced the loss: bump every epoch so its commit discards (a superseded
-  // streamed field heals on the next step) instead of landing a dead-device scene post-rebuild.
-  registry.bumpAllEpochs();
-  overlay.bumpEpoch();
-  marker.bumpEpoch(); // an in-flight warm must discard rather than land a dead-device scene
-  // Drop the dead-device resources best-effort: disposing GPU handles on a lost device can throw,
-  // and the fresh renderer below is what matters.
-  try {
-    renderer?.dispose();
-    registry.disposeForRebuild();
-    overlay.disposeForRebuild();
-    marker.disposeForRebuild();
-    testScene?.dispose();
-  } catch {
-    // a lost device throws on teardown — ignore; we're replacing everything anyway
-  }
-  registry.clearPendingDispose();
-  renderer = await installRenderer({
-    canvas,
-    width: dims.width,
-    height: dims.height,
-    devicePixelRatio,
-    device,
-  });
-  frameTimer = createFrameTimer(device);
-  if (isDebugScene) testScene = createTestScene();
-  applyVolumePose();
-  registry.rebuildScenes();
-  // Replay the overlay + marker from their retained configs on the fresh device (their GPU resources
-  // belonged to the dead device); the marker re-seeds the live pose + position/state internally.
-  overlay.rebuild();
-  marker.rebuild();
-  // The fresh renderer starts at scale 1 and the rebuilt scenes already carry the live step scale —
-  // resync the controller's level cache, then re-apply in case a gesture is live across the restore.
-  quality.resyncAfterRebuild();
-  // Warm the rebuilt composite on the fresh device before un-pausing the loop, so the first
-  // restored frame neither stalls nor draws half-compiled.
-  try {
-    await renderer.compileComposite(paintItems());
-  } catch (error) {
-    reportFault(error);
-  }
-  isDeviceLost = false;
-  requestRender();
-}
-
 // Toggle sustained every-frame measurement. Kicks the loop on enable; the rAF loop carries it from
 // there. Inert in Node (no loop) — continuous timing is a browser concern.
 async function setContinuous(
@@ -584,8 +573,7 @@ ctx.onmessage = (event) => {
 };
 
 export function dispose(): void {
-  unsubscribeGpu?.();
-  unsubscribeGpu = undefined;
+  recovery.stop();
   streamPort?.close();
   streamPort = undefined;
   loop.stop();
