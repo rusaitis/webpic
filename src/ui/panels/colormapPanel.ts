@@ -194,8 +194,19 @@ export function installColormapPanel(host: HTMLElement, store: SimulationStore):
     },
   );
   const unsubRange = store.subscribe((s) => s.dataRange, rebuild); // new extent → re-bake the track
-  const unsubBindings = store.subscribe((s) => s.colormapBindings, sync);
-  const unsubLayers = store.subscribe((s) => s.layers, syncShading); // reflect an external shaded flip
+  // Track only the *selected* layer's slices: edits to other layers' bindings, or opacity/visibility/
+  // order churn on any layer, no longer re-mirror this panel. (Layer switches ride unsubSelected.)
+  const unsubBindings = store.subscribe((s) => {
+    const layer =
+      s.selectedLayerId === null ? undefined : s.layers.find((l) => l.id === s.selectedLayerId);
+    const bindingId = layer?.colormapBindingId ?? null;
+    return bindingId === null ? null : (s.colormapBindings[bindingId] ?? null);
+  }, sync);
+  const unsubLayers = store.subscribe((s) => {
+    const layer =
+      s.selectedLayerId === null ? undefined : s.layers.find((l) => l.id === s.selectedLayerId);
+    return layer?.kind === "volume" ? layer.shaded : null; // reflect an external shaded flip
+  }, syncShading);
 
   return () => {
     unsubLayers();

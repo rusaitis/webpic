@@ -44,7 +44,12 @@ export function createStreamRing<T>(options: StreamRingOptions<T>): StreamRing {
   const capacity = options.capacity ?? 5;
   const radius = options.prefetchRadius ?? 1;
   const steps = options.steps;
-  const indexOf = (step: number): number => steps.indexOf(step);
+  // The domain is fixed for the ring's life (a changed domain builds a new ring), so index lookups
+  // memoize to O(1) — otherwise evict()'s sort comparator calls indexOf O(k log k) times per move.
+  const stepIndex = new Map<number, number>();
+  let i = 0;
+  for (const step of steps) stepIndex.set(step, i++);
+  const indexOf = (step: number): number => stepIndex.get(step) ?? -1;
 
   const entries = new Map<number, Entry<T>>();
   let cursor: number | null = null;

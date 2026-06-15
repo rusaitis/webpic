@@ -302,6 +302,37 @@ describe("ZarrReader — multi-step read", () => {
   });
 });
 
+describe("ZarrReader — per-field caching across a scrub", () => {
+  it("opens each field array + decodes its attrs once, not once per step", async () => {
+    // The array's metadata doc (zarr.json) is fetched when the array is opened, and decodeFieldAttrs
+    // runs right after — so "metadata read once across an N-step scrub" proves both the open and the
+    // boundary-validation are memoized per field, while chunks are still re-read each step.
+    class CountingStore extends Map<string, Uint8Array> {
+      readonly reads = new Map<string, number>();
+      override get(key: string): Uint8Array | undefined {
+        this.reads.set(key, (this.reads.get(key) ?? 0) + 1);
+        return super.get(key);
+      }
+    }
+    const counting = new CountingStore();
+    for (const [k, v] of await buildMultiStepStore()) counting.set(k, v);
+
+    const reader = createZarrReader({ openStore: () => counting });
+    for (const step of [0, 1, 2, 1, 0]) {
+      await reader.readTimestep(HANDLE, step, { fields: ["B_1"] });
+    }
+
+    let metaReads = 0;
+    let chunkReads = 0;
+    for (const [key, count] of counting.reads) {
+      if (key === "/fields/B_1/zarr.json") metaReads += count;
+      else if (key.startsWith("/fields/B_1/c/")) chunkReads += count;
+    }
+    expect(metaReads).toBe(1); // opened once — was once per step before per-field caching
+    expect(chunkReads).toBeGreaterThanOrEqual(2); // data still re-read on scrub-back
+  });
+});
+
 describe("ZarrReader — cancellation", () => {
   it("rejects with AbortError when the signal is already aborted", async () => {
     const reader = readerFor(await buildSingleStepStore());

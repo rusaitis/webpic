@@ -86,22 +86,44 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
     (next) => ortho.set(next === "orthographic"),
   );
 
-  // Reflect external changes (set()-in never re-fires onChange); one overlay selector, re-assert all.
-  const unsubscribe = store.subscribe(
-    (s) => s.overlay,
-    (next) => {
-      grid.set(next.showGrid);
-      for (const { plane, handle } of planes) handle.set(next.planes[plane]);
-      axes.set(next.showAxes);
-      labels.set(next.showLabels);
-      gnomon.set(next.showGnomon);
-      picker.set(next.showPicker);
-      density.set(next.gridDivisions);
-    },
-  );
+  // Reflect external changes (set()-in never re-fires onChange). Per-leaf selectors so a change to
+  // one overlay field updates only its control — a Density drag no longer re-asserts every checkbox
+  // each frame, it just moves the slider.
+  const overlayUnsubs: Disposer[] = [
+    store.subscribe(
+      (s) => s.overlay.showGrid,
+      (on) => grid.set(on),
+    ),
+    store.subscribe(
+      (s) => s.overlay.showAxes,
+      (on) => axes.set(on),
+    ),
+    store.subscribe(
+      (s) => s.overlay.showLabels,
+      (on) => labels.set(on),
+    ),
+    store.subscribe(
+      (s) => s.overlay.showGnomon,
+      (on) => gnomon.set(on),
+    ),
+    store.subscribe(
+      (s) => s.overlay.showPicker,
+      (on) => picker.set(on),
+    ),
+    store.subscribe(
+      (s) => s.overlay.gridDivisions,
+      (n) => density.set(n),
+    ),
+    ...planes.map(({ plane, handle }) =>
+      store.subscribe(
+        (s) => s.overlay.planes[plane],
+        (on) => handle.set(on),
+      ),
+    ),
+  ];
 
   return () => {
-    unsubscribe();
+    for (const unsub of overlayUnsubs) unsub();
     unsubscribeProjection();
     ortho.dispose();
     fit.dispose();

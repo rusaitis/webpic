@@ -148,6 +148,17 @@ interface OpenedStore {
   readonly frame: string;
   readonly transforms: Readonly<Record<string, unknown>>;
   readonly metadata: Readonly<Record<string, unknown>>;
+  // Lazily memoized per-field: the opened array + its immutable attrs (units/latex/meta).
+  // Keyed by field name; populated on first read so a scrub opens/decodes each field once,
+  // not once per step. Mutable contents behind a readonly handle.
+  readonly fieldArrays: Map<string, Promise<OpenedField>>;
+}
+
+// Per-field invariants: the opened zarr.Array plus the attrs that don't vary across steps
+// (decoded once at the data boundary, never re-parsed per timestep).
+interface OpenedField {
+  readonly array: zarr.Array<zarr.DataType, zarr.Readable>;
+  readonly attrs: Omit<FieldArray, "data" | "shape">;
 }
 
 async function openPypicStore(
@@ -218,21 +229,54 @@ async function openPypicStore(
     frame,
     transforms,
     metadata,
+    fieldArrays: new Map(),
   };
 }
 
-async function readField(
+// Open one field's array and decode its step-invariant attrs (validation at the boundary,
+// once). The opened array carries its own store + metadata, so reusing it across reads with
+// different per-read signals is sound — `zarr.get` takes the live signal each step.
+async function openField(
   fields: zarr.Group<zarr.Readable>,
+  name: string,
+  signal: AbortSignal | undefined,
+): Promise<OpenedField> {
+  const array = await zarr.open(
+    fields.resolve(name),
+    signal === undefined ? { kind: "array" } : { kind: "array", signal },
+  );
+  const meta = resolveFieldMeta(name);
+  if (meta === undefined) {
+    throw new Error(`zarr reader: "${name}" is not a known canonical field`);
+  }
+  const { units, latex, reduction } = decodeFieldAttrs(array.attrs, name);
+  return { array, attrs: { meta, units, latex, reduction } };
+}
+
+function getOpenedField(
+  store: OpenedStore,
+  name: string,
+  signal: AbortSignal | undefined,
+): Promise<OpenedField> {
+  const cached = store.fieldArrays.get(name);
+  if (cached !== undefined) return cached;
+  const promise = openField(store.fields, name, signal).catch((error: unknown) => {
+    store.fieldArrays.delete(name); // never cache a failed/aborted open
+    throw error;
+  });
+  store.fieldArrays.set(name, promise);
+  return promise;
+}
+
+async function readField(
+  store: OpenedStore,
   name: string,
   stepIndex: number,
   isMultiStep: boolean,
   signal: AbortSignal | undefined,
 ): Promise<FieldArray> {
-  const arr = await zarr.open(
-    fields.resolve(name),
-    signal === undefined ? { kind: "array" } : { kind: "array", signal },
-  );
-  const ndim = arr.shape.length;
+  const { array, attrs } = await getOpenedField(store, name, signal);
+  const ndim = array.shape.length;
   // All-null selections always return a Chunk (not a Scalar). An integer on the leading
   // axis selects one timestep and drops that axis, leaving the spatial shape.
   const spatial = ndim - (isMultiStep ? 1 : 0);
@@ -240,15 +284,9 @@ async function readField(
     ? [stepIndex, ...Array.from<unknown, null>({ length: spatial }, () => null)]
     : Array.from<unknown, null>({ length: ndim }, () => null);
 
-  const chunk = await zarr.get(arr, selection, getOpts(signal));
-  const data = toFloatArray(chunk.data, arr.dtype, name);
-
-  const meta = resolveFieldMeta(name);
-  if (meta === undefined) {
-    throw new Error(`zarr reader: "${name}" is not a known canonical field`);
-  }
-  const { units, latex, reduction } = decodeFieldAttrs(arr.attrs, name);
-  return { data, shape: chunk.shape, meta, units, latex, reduction };
+  const chunk = await zarr.get(array, selection, getOpts(signal));
+  const data = toFloatArray(chunk.data, array.dtype, name);
+  return { data, shape: chunk.shape, ...attrs };
 }
 
 function partitionFields(
@@ -345,7 +383,7 @@ export function createZarrReader(
       const fields = new Map<FieldName, FieldArray>();
       for (const name of names) {
         throwIfAborted(signal);
-        fields.set(name, await readField(store.fields, name, step, isMultiStep, signal));
+        fields.set(name, await readField(store, name, step, isMultiStep, signal));
       }
 
       const dataset: FieldDataset = {
