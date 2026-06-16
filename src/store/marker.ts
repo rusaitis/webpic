@@ -8,7 +8,7 @@ import {
   markerHandleOffset,
   verticalDragAllowed,
 } from "@schema/marker.ts";
-import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import { UNIT_BOX_HALF_EXTENT, vec3 } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { cursorRay } from "./pick.ts";
 
@@ -70,7 +70,7 @@ export function markerHandlePositions(
 ): HandlePositions {
   const offset = markerHandleOffset(pose, point, orthographic);
   const vertical: Vec3 | null = verticalDragAllowed(pose)
-    ? [point[0], point[1], point[2] + offset]
+    ? vec3(point[0], point[1], point[2] + offset)
     : null;
   // The ↔ handle lives only in the near-equatorial regime — exactly where the free xy-plane drag is
   // unavailable — and only when one horizontal axis is cleanly cross-screen.
@@ -79,12 +79,10 @@ export function markerHandlePositions(
     axis !== null
       ? {
           axis,
-          // The inline literal widens to number[] (no Vec3 contextual type here, unlike `vertical`
-          // above) — assert the 3-tuple.
           position:
             axis === "x"
-              ? ([point[0] + offset, point[1], point[2]] as Vec3)
-              : ([point[0], point[1] + offset, point[2]] as Vec3),
+              ? vec3(point[0] + offset, point[1], point[2])
+              : vec3(point[0], point[1] + offset, point[2]),
         }
       : null;
   return { vertical, horizontal };

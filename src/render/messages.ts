@@ -168,7 +168,7 @@ export type RenderWorkerRequest =
       readonly id: string;
       readonly shaded: boolean;
     }
-  // Camera pose update — high-frequency, delta-only (DESIGN §443); the worker re-applies + repaints.
+  // Camera pose update — high-frequency, delta-only (DESIGN §Worker message protocol); the worker re-applies + repaints.
   | {
       readonly kind: "setCameraPose";
       readonly requestId: number;
@@ -246,7 +246,7 @@ export type RenderWorkerResponse =
       readonly height: number;
       readonly pixels: ArrayBuffer; // RGBA8, row-major
     }
-  // Per-frame GPU time (DESIGN §444 RenderToStore). `clock` labels the source — timestamp-query is
+  // Per-frame GPU time (DESIGN §Worker message protocol, RenderToStore). `clock` labels the source — timestamp-query is
   // GPU-only; wallclock includes JS/queue latency and must not masquerade as the pure-GPU number.
   | {
       readonly kind: "frameTiming";

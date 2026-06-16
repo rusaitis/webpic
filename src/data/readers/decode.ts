@@ -8,8 +8,9 @@ import type {
   StaggerInfo,
 } from "@containers/field_dataset.ts";
 import { SPECIES_SUFFIX_RE } from "@schema/aliases.generated.ts";
+import { vec3 } from "@schema/math.ts";
 import { FIELD_REGISTRY } from "@schema/registry.generated.ts";
-import type { FieldMeta, Vec3 } from "@schema/types.ts";
+import type { FieldMeta } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import { z } from "zod";
 
@@ -186,10 +187,7 @@ export function decodeStagger(raw: unknown): StaggerInfo | null {
     s.position == null
       ? null
       : Object.fromEntries(
-          Object.entries(s.position).map(([k, v]) => [
-            k,
-            [v[0] ?? 0, v[1] ?? 0, v[2] ?? 0] as Vec3,
-          ]),
+          Object.entries(s.position).map(([k, v]) => [k, vec3(v[0] ?? 0, v[1] ?? 0, v[2] ?? 0)]),
         );
   return {
     convention: s.convention,

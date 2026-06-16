@@ -3,7 +3,7 @@ import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_datas
 import type { ColormapBinding, ColormapId, ColorScale, WindowLevel } from "@schema/colormap.ts";
 import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
 import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
-import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import { UNIT_BOX_HALF_EXTENT, vec3 } from "@schema/math.ts";
 import type { FieldName, FloatArray, Vec3 } from "@schema/types.ts";
 import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
@@ -85,7 +85,7 @@ export interface SimulationState {
   readonly computed: FieldArray | null;
   // The active field's finite extent — the slider track bounds (independent of any binding).
   readonly dataRange: DataRange | null;
-  // The ColormapBinding registry (DESIGN §1010): the color-mapping layers reference by id, owning
+  // The ColormapBinding registry (DESIGN §Magviz Stage 8 coordination): the color-mapping layers reference by id, owning
   // colormap + window/level + scale. Layers share or split bindings; GC/merge wait for the multi-layer UI.
   readonly colormapBindings: Readonly<Record<string, ColormapBinding>>;
   // Orbit camera pose. Non-nullable — DEFAULT_POSE is always valid; the app streams it to the
@@ -426,7 +426,7 @@ export function createSimulationStore() {
           set({ pickRequest: request === null ? null : { ...request } });
         },
         setPickerPoint(point) {
-          set({ pickerPoint: point === null ? null : ([point[0], point[1], point[2]] as Vec3) });
+          set({ pickerPoint: point === null ? null : vec3(point[0], point[1], point[2]) });
         },
         setPickerHover(part) {
           if (part === get().pickerHover) return; // unchanged → no fire

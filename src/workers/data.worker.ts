@@ -12,7 +12,7 @@ import type {
   StreamStepMessage,
 } from "@data/streamMessages.ts";
 
-// The data worker owns all off-main data I/O (DESIGN §279): OPFS writes (below) and time-series
+// The data worker owns all off-main data I/O (DESIGN §Package shape): OPFS writes (below) and time-series
 // streaming. On `open` it resolves a reader and reports the timestep domain; on `setCursor` it drives
 // a ring buffer (data/stream.ts) that reads + computes the scalar OFF the main thread and transfers it
 // straight to the render worker over a paired MessagePort (no main hop), so scrubbing never stalls the

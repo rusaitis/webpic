@@ -2,7 +2,7 @@
 // in Node against a fake `readStep`. It owns "which steps are decoded, what to prefetch, what to
 // evict, what to abort" — the heart of "scrub without stalls" (DESIGN §Time-series).
 //
-// Lifecycle of a decoded value (DESIGN §518 "hold until upload, transfer on upload, re-read on
+// Lifecycle of a decoded value (DESIGN §Time-series "hold until upload, transfer on upload, re-read on
 // scrub-back"): the cursor step is handed to `onDisplay` and *consumed* (the worker transfers its
 // buffer, which detaches — the ring can't reuse it), while prefetched neighbours stay cached so a
 // ±1 scrub displays instantly. Scrubbing back to a consumed/evicted step simply re-reads it.
