@@ -13,6 +13,10 @@ export interface RenderLoopHost {
   paint(): void;
   /** Paint with the per-frame GPU timer bracketed around it (continuous measurement only). */
   paintTimed(): void;
+  /** Paint an on-demand frame with the dev perf HUD's cheap sampling (CPU-encode bracket +
+   *  interval EMA, GPU wall-clock throttled internally). Rides frames already painting — it
+   *  never schedules one — so on-demand cadence is unchanged. */
+  paintPerf(): void;
   /** Advance per-frame animations (marker easing); true while still animating, so keep painting. */
   tickAnimations(frameTimeMs: number): boolean;
   /** Advance the quality settle ramp one level — runs once per painted on-demand frame. */
@@ -34,6 +38,9 @@ export interface RenderLoop {
   /** Resume and re-dirty — repaint the swapchain the readback borrowed. */
   endReadback(): void;
   setContinuous(continuous: boolean): void;
+  /** Enable/disable dev perf-HUD sampling on painted on-demand frames. Unlike setContinuous it
+   *  does NOT re-dirty — it must never force a repaint, so idle stays idle. */
+  setPerfActive(active: boolean): void;
 }
 
 export function createRenderLoop(host: RenderLoopHost): RenderLoop {
@@ -41,6 +48,7 @@ export function createRenderLoop(host: RenderLoopHost): RenderLoop {
   let rafId: number | undefined; // undefined ⇒ no loop running
   let isReadbackInFlight = false; // pauses the loop across a deterministic readPixels
   let isContinuous = false; // diagnostics: force every-frame repaints for sustained GPU timing
+  let perfActive = false; // dev perf HUD: sample painted on-demand frames (no forced repaints)
 
   // The single repaint entry point. Sets the dirty flag for the loop; if no loop is running (Node, or
   // the init boot paint before start()), renders synchronously instead.
@@ -64,8 +72,11 @@ export function createRenderLoop(host: RenderLoopHost): RenderLoop {
     needsRender = false;
     try {
       // GPU timing only while measuring (continuous): its onSubmittedWorkDone bracket is a GPU sync,
-      // so on-demand interactive frames skip it entirely and stay smooth.
+      // so on-demand interactive frames skip it entirely and stay smooth. With the perf HUD open
+      // (and not continuous) we paint via the cheap-timed path — it samples the frames already
+      // painting, throttling the GPU sync internally, so it never changes the on-demand cadence.
       if (isContinuous) host.paintTimed();
+      else if (perfActive) host.paintPerf();
       else host.paint();
       host.clearError();
       // Each settle level paints exactly one frame: advancing re-arms needsRender until the ramp
@@ -101,6 +112,11 @@ export function createRenderLoop(host: RenderLoopHost): RenderLoop {
     setContinuous(continuous) {
       isContinuous = continuous;
       if (isContinuous) needsRender = true;
+    },
+    setPerfActive(active) {
+      // Deliberately no needsRender: the HUD samples frames that paint for other reasons; it
+      // must not itself drive the loop, or it would defeat on-demand rendering.
+      perfActive = active;
     },
   };
 }

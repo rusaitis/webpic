@@ -17,6 +17,7 @@ function harness(over: Partial<RenderLoopHost> = {}) {
     isDeviceLost: vi.fn(() => false),
     paint: vi.fn(),
     paintTimed: vi.fn(),
+    paintPerf: vi.fn(),
     tickAnimations: vi.fn(() => false),
     advanceQuality: vi.fn(),
     reportFault: vi.fn(),

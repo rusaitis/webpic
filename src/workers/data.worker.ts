@@ -113,6 +113,11 @@ let steps: readonly number[] = [];
 let cursor: number | null = null; // last requested step — re-streamed on a field switch
 let readerRegistered = false;
 
+// Dev perf HUD self-report — dormant unless setPerfActive(true). The worker has no frame loop, so it
+// posts its heap + last read time on a ~1 Hz timer while active.
+let perfTimer: ReturnType<typeof setInterval> | undefined;
+let lastReadMs: number | null = null; // wall-clock of the most recent readStep
+
 function streamError(error: unknown, step?: number): void {
   const where = step === undefined ? "" : `step ${step}: `;
   ctx.postMessage({
@@ -126,8 +131,11 @@ function streamError(error: unknown, step?: number): void {
 // resolves synchronously, but the async dispatcher lets a GPU backend cancel mid-compute.
 async function readStep(step: number, signal: AbortSignal): Promise<FieldArray> {
   if (reader === undefined || handle === undefined) throw new Error("stream read before open");
+  const startMs = performance.now();
   const dataset = await reader.readTimestep(handle, step, { signal });
-  return computeField(activeField, dataset, signal); // computeField takes a plain string (validated upstream)
+  const field = computeField(activeField, dataset, signal); // takes a plain string (validated upstream)
+  lastReadMs = performance.now() - startMs; // perf HUD: read+compute wall-clock (completed reads only)
+  return field;
 }
 
 // Transfer a decoded scalar to the render worker over the paired port — the buffer detaches here, so
@@ -211,6 +219,26 @@ function disposeStream(): void {
   cursor = null;
 }
 
+// performance.memory is Chrome-only and absent from the worker lib types; read defensively.
+function readHeapBytes(): number | null {
+  const memory = (performance as { memory?: { readonly usedJSHeapSize: number } }).memory;
+  return memory !== undefined ? memory.usedJSHeapSize : null;
+}
+
+// Dev perf HUD: start/stop the ~1 Hz self-report (heap + last read time). Idempotent — clears any
+// prior timer first, so a repeated enable doesn't stack intervals.
+function setPerfActive(active: boolean): void {
+  if (perfTimer !== undefined) {
+    clearInterval(perfTimer);
+    perfTimer = undefined;
+  }
+  if (!active) return;
+  const post = (): void =>
+    ctx.postMessage({ kind: "perfSample", heapBytes: readHeapBytes(), lastReadMs });
+  post(); // first sample immediately, then on the interval
+  perfTimer = setInterval(post, 1000);
+}
+
 ctx.onmessage = (event) => {
   const request = event.data;
   switch (request.kind) {
@@ -234,6 +262,9 @@ ctx.onmessage = (event) => {
       return;
     case "setCursor":
       handleSetCursor(request);
+      return;
+    case "setPerfActive":
+      setPerfActive(request.active);
       return;
     case "streamDispose":
       disposeStream();

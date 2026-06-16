@@ -1,3 +1,4 @@
+import { releaseAlloc, trackAlloc } from "@gpu/vramLedger.ts";
 import type { FloatArray } from "@schema/types.ts";
 import {
   ClampToEdgeWrapping,
@@ -86,8 +87,14 @@ function packInto(out: Float32Array | Uint16Array, data: FloatArray, fill: numbe
   }
 }
 
-/** Build a ping-pong-capable volume (R32F when `float32Filterable`, else R16F) + finite range. */
-export function createVolumeTexture(field: ScalarField, float32Filterable = false): VolumeTexture {
+/** Build a ping-pong-capable volume (R32F when `float32Filterable`, else R16F) + finite range.
+ *  `ledgerKey` (the layer id) opts the two texture slots into the VRAM ledger for the perf HUD;
+ *  omit it (e.g. in tests) to allocate untracked. */
+export function createVolumeTexture(
+  field: ScalarField,
+  float32Filterable = false,
+  ledgerKey?: string,
+): VolumeTexture {
   const { shape } = field;
   if (shape.length !== 3) {
     throw new Error(`createVolumeTexture: expected a 3D field, got shape [${shape.join(", ")}]`);
@@ -100,8 +107,9 @@ export function createVolumeTexture(field: ScalarField, float32Filterable = fals
   const voxels = width * height * depth;
 
   const { min, max } = finiteRange(field.data);
+  const bytesPerVoxel = float32Filterable ? 4 : 2; // R32F vs R16F
 
-  const makeBuffer = (data: FloatArray, fill: number): PingPongBuffer => {
+  const makeBuffer = (data: FloatArray, fill: number, slot: number): PingPongBuffer => {
     const array = float32Filterable ? new Float32Array(voxels) : new Uint16Array(voxels);
     packInto(array, data, fill);
     const texture = new Data3DTexture(array, width, height, depth);
@@ -116,12 +124,13 @@ export function createVolumeTexture(field: ScalarField, float32Filterable = fals
     texture.wrapT = ClampToEdgeWrapping;
     texture.wrapR = ClampToEdgeWrapping;
     texture.needsUpdate = true; // mandatory — the backend never uploads otherwise
+    if (ledgerKey !== undefined) trackAlloc(`${ledgerKey}:slot${slot}`, voxels * bytesPerVoxel);
     return { texture, array };
   };
 
   // Two-slot ping-pong; the second slot is allocated lazily on the first setField so a static layer
   // holds one texture. `active` indexes the live slot the node samples.
-  const front = makeBuffer(field.data, min);
+  const front = makeBuffer(field.data, min, 0);
   const buffers: [PingPongBuffer, PingPongBuffer | undefined] = [front, undefined];
   let active = 0;
   const node = texture3D(front.texture);
@@ -139,7 +148,7 @@ export function createVolumeTexture(field: ScalarField, float32Filterable = fals
       const slot = active ^ 1; // the inactive buffer
       let target = buffers[slot];
       if (target === undefined) {
-        target = makeBuffer(next.data, fill);
+        target = makeBuffer(next.data, fill, slot);
         buffers[slot] = target;
       } else {
         packInto(target.array, next.data, fill);
@@ -152,6 +161,10 @@ export function createVolumeTexture(field: ScalarField, float32Filterable = fals
     dispose() {
       front.texture.dispose();
       buffers[1]?.texture.dispose();
+      if (ledgerKey !== undefined) {
+        releaseAlloc(`${ledgerKey}:slot0`);
+        releaseAlloc(`${ledgerKey}:slot1`); // no-op if the lazy slot was never allocated
+      }
     },
   };
 }

@@ -25,6 +25,8 @@ bootstrap({
   dataset: initial.makeDataset(),
   streamSource: initial.streamSource,
   datasetCatalog: catalog,
+  // Dev performance HUD (Shift+P): always in dev builds, opt-in via ?perf in production.
+  perf: import.meta.env.DEV || params.has("perf"),
   ...(params.has("debugScene") ? { debugScene: true } : {}),
   ...(pose !== null ? { initialPose: pose } : {}),
   ...(orthographic ? { initialProjection: "orthographic" as const } : {}),

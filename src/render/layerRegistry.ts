@@ -116,7 +116,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // Build one layer's scene from its retained source — the single build path, shared by upsert and the
   // device-restore rebuild so both produce an identical scene from the same params.
   // exactOptionalPropertyTypes: only forward params that are set, so the scene factory defaults apply.
-  function buildScene(source: LayerSource): LayerEntry {
+  function buildScene(id: string, source: LayerSource): LayerEntry {
     const windowLevel = source.windowLevel !== undefined ? { windowLevel: source.windowLevel } : {};
     const float32Filterable = host.float32Filterable();
     if (source.layerKind === "slice") {
@@ -128,6 +128,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
         position: source.position ?? 0.5,
         opacity: source.opacity,
         float32Filterable,
+        ledgerKey: id,
         ...windowLevel,
       });
       return { scene, kind: "slice", source };
@@ -138,6 +139,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       scale: source.scale,
       opacity: source.opacity,
       float32Filterable,
+      ledgerKey: id,
       ...windowLevel,
       ...(source.steps !== undefined ? { steps: source.steps } : {}),
       ...(source.density !== undefined ? { density: source.density } : {}),
@@ -159,7 +161,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // fallback when an in-place ping-pong upload can't apply.
   async function replace(id: string, source: LayerSource): Promise<void> {
     const epoch = bumpEpoch(id);
-    const next = buildScene(source);
+    const next = buildScene(id, source);
     const committed = await warmScene(
       next,
       () => host.warmComposite({ id, entry: next }),
@@ -350,7 +352,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
 
     rebuild() {
       // Replace each layer's scene in place (Map.set on an existing key is safe mid-iteration).
-      for (const [id, entry] of layers) layers.set(id, buildScene(entry.source));
+      for (const [id, entry] of layers) layers.set(id, buildScene(id, entry.source));
     },
 
     dispose() {

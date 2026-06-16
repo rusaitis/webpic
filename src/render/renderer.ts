@@ -1,3 +1,4 @@
+import { releaseAlloc, trackAlloc } from "@gpu/vramLedger.ts";
 import type { Camera, Object3D } from "three";
 import { Color, RenderTarget, RGBAFormat, UnsignedByteType, Vector2 } from "three";
 import { texture, uv } from "three/tsl";
@@ -74,11 +75,16 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
   };
   let buffer = drawingBuffer();
 
+  // RGBA8 UnsignedByte render targets = 4 B/texel; track them in the VRAM ledger (perf HUD).
+  const trackRt = (key: string, target: RenderTarget): void =>
+    trackAlloc(key, target.width * target.height * 4);
+
   const applyBufferSize = (): void => {
     renderer.setPixelRatio(dpr * renderScale);
     renderer.setSize(logical.width, logical.height, false);
     buffer = drawingBuffer();
     compositeTarget?.setSize(buffer.width, buffer.height);
+    if (compositeTarget !== undefined) trackRt("rt:composite", compositeTarget);
   };
 
   // The readback target is pinned to the FULL logical × DPR size (never × renderScale), so the
@@ -98,6 +104,7 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
     format: RGBAFormat,
     type: UnsignedByteType,
   });
+  trackRt("rt:read", readTarget);
 
   // Lazily built only when a ≥2-layer swapchain composite first occurs (single-layer is the common
   // case and uses the direct path). compositeTarget accumulates the layers; the quad presents it.
@@ -113,6 +120,7 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
         format: RGBAFormat,
         type: UnsignedByteType,
       });
+      trackRt("rt:composite", compositeTarget);
       // Prime the fresh RenderTarget before the present material samples it: WebGPU/Metal validates
       // the binding at shader-compile and an unwritten target reads back as the magenta sentinel.
       renderer.setRenderTarget(compositeTarget);
@@ -220,6 +228,7 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
       if (devicePixelRatio !== undefined) dpr = devicePixelRatio;
       applyBufferSize();
       readTarget.setSize(fullSize().width, fullSize().height);
+      trackRt("rt:read", readTarget);
     },
     setRenderScale(scale) {
       if (scale === renderScale) return;
@@ -231,6 +240,8 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
       // belongs to whoever called installGpu().
       readTarget.dispose();
       compositeTarget?.dispose();
+      releaseAlloc("rt:read");
+      releaseAlloc("rt:composite");
       // QuadMesh's geometry is a module-level singleton shared by every QuadMesh — never dispose it.
       if (presentQuad?.material instanceof NodeMaterial) presentQuad.material.dispose();
       renderer.dispose();

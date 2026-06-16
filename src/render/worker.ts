@@ -1,5 +1,5 @@
 import type { StreamStepMessage } from "@data";
-import { getCapabilities, getDevice, installGpu } from "@gpu";
+import { getCapabilities, getDevice, installGpu, resetLedger, vramSnapshot } from "@gpu";
 import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
 import { DEFAULT_POSE } from "./camera/camera.ts";
 import { type CameraRig, createCameraRig } from "./camera/cameraRig.ts";
@@ -53,6 +53,18 @@ let initDone: Promise<void> | undefined;
 
 let frameTimer: FrameTimer | undefined; // per-frame GPU timing (timestamp-query or wall-clock)
 let lastErrorMessage: string | undefined; // dedupe so a persistent bad frame can't flood the channel
+
+// Dev perf HUD sampling state — dormant unless setPerfActive(true). The CPU-encode bracket + painted-
+// frame interval EMA cost ~nothing per frame; the GPU wall-clock sync (onSubmittedWorkDone) is
+// throttled to PERF_GPU_SAMPLE_MS so it can't perturb a sustained gesture, and only ever rides frames
+// already painting — it never forces one (renderLoop.setPerfActive deliberately doesn't re-dirty).
+const PERF_GPU_SAMPLE_MS = 200; // ≤5 Hz GPU sync
+const PERF_EMA_ALPHA = 0.2; // painted-frame interval smoothing
+const PERF_IDLE_GAP_MS = 500; // a longer gap means we resumed after idle — don't fold it into the EMA
+let perfActive = false;
+let lastPaintMs = Number.NaN;
+let frameIntervalEma = Number.NaN;
+let lastGpuSampleMs = Number.NaN;
 
 // The data worker's end of the streaming MessageChannel. Stored on `pair`; its onmessage
 // applies streamed timestep fields (data → render, no main hop). Closed on dispose.
@@ -152,6 +164,30 @@ const loop = createRenderLoop({
     renderer?.renderComposite(paintItems());
     void sampleAndPostTiming().catch(reportFault);
   },
+  paintPerf: () => {
+    const startMs = performance.now();
+    if (!Number.isNaN(lastPaintMs)) {
+      const interval = startMs - lastPaintMs;
+      // A long gap means the on-demand loop was idle and just resumed — don't fold it into the EMA.
+      frameIntervalEma =
+        interval > PERF_IDLE_GAP_MS
+          ? Number.NaN
+          : Number.isNaN(frameIntervalEma)
+            ? interval
+            : frameIntervalEma + PERF_EMA_ALPHA * (interval - frameIntervalEma);
+    }
+    lastPaintMs = startMs;
+    // The cheap CPU-encode bracket + interval EMA ride every painted frame; throttle only the GPU
+    // wall-clock sync, and bracket the timer just for those frames so its measurement stays exact.
+    const sampleGpu =
+      Number.isNaN(lastGpuSampleMs) || startMs - lastGpuSampleMs >= PERF_GPU_SAMPLE_MS;
+    if (sampleGpu) frameTimer?.beginFrame();
+    renderer?.renderComposite(paintItems());
+    if (sampleGpu) {
+      lastGpuSampleMs = startMs;
+      void postPerfSample(performance.now() - startMs, frameIntervalEma).catch(reportFault);
+    }
+  },
   tickAnimations: (frameTimeMs) => marker.tick(frameTimeMs),
   advanceQuality: () => quality.advanceSettling(),
   reportFault,
@@ -191,6 +227,7 @@ const recovery = createDeviceRecovery({
   },
   rebuildOnDevice: async (device) => {
     if (canvas === undefined) return; // the manager guards hasCanvas() first; this narrows for TS
+    resetLedger(); // dead-device disposes may have thrown before releaseAlloc — start the ledger clean
     renderer = await installRenderer({
       canvas,
       width: dims.width,
@@ -323,6 +360,43 @@ async function sampleAndPostTiming(): Promise<void> {
   const gpuTimeMs = await frameTimer.sampleAfterSubmit();
   if (Number.isNaN(gpuTimeMs)) return;
   ctx.postMessage({ kind: "frameTiming", gpuTimeMs, clock: frameTimer.mode });
+  // HUD open alongside continuous measurement: it reads the same wall-clock. CPU-encode + interval
+  // aren't measured on the continuous path, so they ride as NaN (the HUD renders them blank).
+  if (perfActive) postPerfSampleMessage(Number.NaN, gpuTimeMs, Number.NaN, true);
+}
+
+// performance.memory is Chrome-only and absent from the worker lib types; read it defensively (a
+// cheap synchronous property access) and report null where it's missing.
+function readWorkerHeapBytes(): number | null {
+  const memory = (performance as { memory?: { readonly usedJSHeapSize: number } }).memory;
+  return memory !== undefined ? memory.usedJSHeapSize : null;
+}
+
+// Post one perf-HUD sample. vram + heap are read here (both cheap); timing fields are supplied by the
+// caller — they differ between the on-demand perf path and the continuous diagnostics path.
+function postPerfSampleMessage(
+  cpuEncodeMs: number,
+  frameWallMs: number,
+  frameIntervalMs: number,
+  isContinuous: boolean,
+): void {
+  ctx.postMessage({
+    kind: "perfSample",
+    cpuEncodeMs,
+    frameWallMs,
+    frameIntervalMs,
+    isContinuous,
+    vramBytes: vramSnapshot().totalBytes,
+    workerHeapBytes: readWorkerHeapBytes(),
+  });
+}
+
+// The on-demand perf path's GPU sample: await the throttled wall-clock (NaN if the timer is absent or
+// a read is already in flight — the HUD's rolling mean skips those) and post with the frame's CPU
+// encode + interval.
+async function postPerfSample(cpuEncodeMs: number, frameIntervalMs: number): Promise<void> {
+  const frameWallMs = frameTimer === undefined ? Number.NaN : await frameTimer.sampleAfterSubmit();
+  postPerfSampleMessage(cpuEncodeMs, frameWallMs, frameIntervalMs, false);
 }
 
 async function renderFrame(
@@ -468,6 +542,22 @@ async function setContinuous(
   loop.setContinuous(request.continuous);
 }
 
+// Dev perf HUD: gate the worker's per-frame sampling. Resets the interval EMA + GPU throttle on
+// enable so a re-open neither folds the idle gap nor fires the GPU sync on the stale clock. Unlike
+// setContinuous it doesn't kick the loop — sampling rides frames painting for other reasons.
+async function setPerfActive(
+  request: Extract<RenderWorkerRequest, { kind: "setPerfActive" }>,
+): Promise<void> {
+  await initDone;
+  perfActive = request.active;
+  loop.setPerfActive(request.active);
+  if (request.active) {
+    lastPaintMs = Number.NaN;
+    frameIntervalEma = Number.NaN;
+    lastGpuSampleMs = Number.NaN;
+  }
+}
+
 async function setSceneOverlay(
   request: Extract<RenderWorkerRequest, { kind: "setSceneOverlay" }>,
 ): Promise<void> {
@@ -574,6 +664,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return resize(request);
     case "setContinuous":
       return setContinuous(request);
+    case "setPerfActive":
+      return setPerfActive(request);
     case "setCameraMotion":
       return setCameraMotion(request);
     case "setSceneOverlay":

@@ -25,3 +25,10 @@ export {
   type Unsubscribe,
 } from "./device.ts";
 export { createGpuProfiler, type GpuProfiler, type GpuProfilerMode } from "./profiler.ts";
+export {
+  releaseAlloc,
+  resetLedger,
+  snapshot as vramSnapshot,
+  trackAlloc,
+  type VramSnapshot,
+} from "./vramLedger.ts";

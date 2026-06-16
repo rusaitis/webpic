@@ -33,7 +33,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 - **Hot paths use typed arrays.** Per-frame, per-step, per-particle: `Float32Array`, `Int32Array`, `Uint8Array`. Never `number[]`. Preallocate, reuse, pool. No closures-per-frame, no `.map`/`.filter` chains in inner loops, no array literals inside `for` bodies.
 - **`subarray` aliases, `slice` copies.** Pick deliberately. Comment intent when non-obvious.
 - **Workers: transfer, don't clone.** `worker.postMessage(payload, [buf.buffer])`. Never structured-clone a large `Float32Array`. `SharedArrayBuffer` only behind COOP/COEP — and document the dependency.
-- **WebGPU:** one `GPUDevice` singleton; register `device.lost.then(reboot)`; call `.destroy()` on `GPUBuffer`/`GPUTexture`/`GPUQuerySet` you discard. Texture allocations go through a wrapper that halves resolution under pressure.
+- **WebGPU:** one `GPUDevice` singleton; register `device.lost.then(reboot)`; call `.destroy()` on `GPUBuffer`/`GPUTexture`/`GPUQuerySet` you discard. No central texture-allocation wrapper — the big buffers are allocated explicitly at their sites (the volume `Data3DTexture` in `render/volume/volumeTexture.ts`, the `RenderTarget`s in `render/renderer.ts`) and report bytes to `gpu/vramLedger.ts` for the dev perf HUD. Interaction-time pressure scales the **swapchain render scale** (`renderer.setRenderScale` via `qualityController`), not texture resolution.
 - **Profile before tuning.** DevTools "Performance → Memory" trumps micro-opts. Three similar inline loops beat a premature generic helper.
 
 ## Naming

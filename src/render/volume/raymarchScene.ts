@@ -72,6 +72,8 @@ export interface RaymarchSceneOptions {
    *  grid scales the mesh to this so the volume renders at true physical aspect — object/texture space
    *  stays canonical [-0.5,0.5]/[0,1], so the raymarch math (ray-box clip, sampling) is unchanged. */
   readonly worldHalfExtent?: Vec3;
+  /** Layer id keying the volume texture into the VRAM ledger (perf HUD); omit to skip tracking. */
+  readonly ledgerKey?: string;
 }
 
 // A raymarched volume is exactly the VolumeLayerScene contract (base look ops + march/projection/shading).
@@ -129,7 +131,7 @@ const brickAdvance = wgslFn<{ tex_pos: Node; dir: Node; grid: Node }>(`
 
 /** Build a themed single-pass raymarch scene from a 3D scalar field. */
 export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
-  const volume = createVolumeTexture(opts.field, opts.float32Filterable);
+  const volume = createVolumeTexture(opts.field, opts.float32Filterable, opts.ledgerKey);
   const tf = createTransferFunctionTexture(opts.colormap);
   const steps = opts.steps ?? DEFAULT_STEPS;
 

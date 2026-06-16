@@ -36,6 +36,7 @@ export const REQUEST_IDS = {
   pick: 10,
   marker: 11,
   pickerPoint: 12,
+  perf: 13,
 } as const;
 
 // A computed scalar field, serialized for transfer to the worker: the typed array can't
@@ -185,6 +186,11 @@ export type RenderWorkerRequest =
   // exit-gate workload). Off by default — timing is sampled only while continuous, so on-demand
   // interactive frames skip the per-frame GPU sync.
   | { readonly kind: "setContinuous"; readonly requestId: number; readonly continuous: boolean }
+  // Dev-mode perf HUD: enable/disable the worker's lightweight per-frame sampling (CPU-encode
+  // bracket + painted-frame interval EMA + a throttled GPU wall-clock + VRAM/heap snapshot).
+  // Unlike setContinuous it does NOT force repaints — timing rides the frames already painting,
+  // so opening the HUD never perturbs the on-demand cadence. Off by default; zero cost until set.
+  | { readonly kind: "setPerfActive"; readonly requestId: number; readonly active: boolean }
   // Camera-gesture liveness (drag/glide/tween/wheel): volumes march coarser while true (a uniform
   // flip, no rebuild) and the false edge repaints at full quality — interaction-time responsiveness.
   | { readonly kind: "setCameraMotion"; readonly requestId: number; readonly motion: CameraMotion }
@@ -252,6 +258,22 @@ export type RenderWorkerResponse =
       readonly kind: "frameTiming";
       readonly gpuTimeMs: number;
       readonly clock: "timestamp" | "wallclock";
+    }
+  // Dev-mode perf HUD sample (≤5 Hz while active). All wall-clock: `cpuEncodeMs` brackets
+  // renderComposite (encode+submit); `frameWallMs` is the onSubmittedWorkDone bracket (NaN on
+  // ticks that skipped the throttled GPU sync); `frameIntervalMs` is the painted-frame interval
+  // EMA (NaN while the on-demand loop is idle). `computeMs` is omitted until a timed compute
+  // pass exists. `vramBytes` is the tracked-allocation estimate; `workerHeapBytes` is the render
+  // worker's JS heap (null off-Chrome).
+  | {
+      readonly kind: "perfSample";
+      readonly cpuEncodeMs: number;
+      readonly frameWallMs: number;
+      readonly frameIntervalMs: number;
+      readonly isContinuous: boolean;
+      readonly computeMs?: number;
+      readonly vramBytes: number;
+      readonly workerHeapBytes: number | null;
     }
   // Pick reply: the world-space point (unit box has identity transform, so world = object space), or
   // null when the cursor ray misses the box — the app then leaves the marker/camera be. `purpose`

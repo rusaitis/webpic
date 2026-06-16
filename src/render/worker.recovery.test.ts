@@ -63,6 +63,8 @@ vi.mock("@gpu", () => ({
     h.restoredCbs.push(cb);
     return () => {};
   },
+  resetLedger: vi.fn(),
+  vramSnapshot: vi.fn(() => ({ totalBytes: 0, byKey: [] })),
 }));
 vi.mock("./renderer.ts", () => ({ installRenderer: h.installRenderer }));
 vi.mock("./volume/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));

@@ -28,6 +28,8 @@ export interface SliceSceneOptions {
   readonly opacity?: number;
   /** Device supports R32F linear sampling — picks the volume texture format. */
   readonly float32Filterable?: boolean;
+  /** Layer id keying the volume texture into the VRAM ledger (perf HUD); omit to skip tracking. */
+  readonly ledgerKey?: string;
 }
 
 // A slice is exactly the base LayerScene — no march to scale, no normal to light, no projection flip.
@@ -54,7 +56,7 @@ function sliceCoord(
 
 /** Build a themed orthogonal-slice scene from a 3D scalar field. */
 export function createSliceScene(opts: SliceSceneOptions): SliceScene {
-  const volume = createVolumeTexture(opts.field, opts.float32Filterable);
+  const volume = createVolumeTexture(opts.field, opts.float32Filterable, opts.ledgerKey);
   const tf = createTransferFunctionTexture(opts.colormap);
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.

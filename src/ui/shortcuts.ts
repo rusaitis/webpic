@@ -48,6 +48,7 @@ export const SHORTCUTS: readonly ShortcutSection[] = [
       { keys: "Z", action: "Fit data" },
       { keys: "O", action: "Toggle orthographic" },
       { keys: "F", action: "Toggle UI" },
+      { keys: "Shift+P", action: "Toggle performance HUD (dev)" },
       { keys: "? · H", action: "Toggle this help" },
     ],
   },

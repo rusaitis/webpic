@@ -19,6 +19,11 @@ export interface StreamingBridgeOptions {
   readonly dataWorker: Worker;
   /** The multi-step source the cursor scrubs through. */
   readonly streamSource: DataHandle;
+  /** Dev perf HUD: forward the data worker's ~1 Hz self-report (heap + last read time). */
+  readonly onPerfSample?: (sample: {
+    readonly heapBytes: number | null;
+    readonly lastReadMs: number | null;
+  }) => void;
 }
 
 export interface StreamingBridge {
@@ -28,6 +33,8 @@ export interface StreamingBridge {
   readonly pair: () => void;
   /** Swap the source onto a new handle for a dataset switch; no-op until opened. */
   readonly reopen: (handle: DataHandle) => void;
+  /** Dev perf HUD: enable/disable the data worker's self-report. */
+  readonly setPerfActive: (active: boolean) => void;
   readonly dispose: () => void;
 }
 
@@ -51,6 +58,8 @@ export function installStreamingBridge(opts: StreamingBridgeOptions): StreamingB
       uiStore.getState().endLoading("open");
       uiStore.getState().endLoading("step");
       uiStore.getState().flashError(message.message);
+    } else if (message.kind === "perfSample") {
+      opts.onPerfSample?.({ heapBytes: message.heapBytes, lastReadMs: message.lastReadMs });
     }
   };
 
@@ -125,6 +134,13 @@ export function installStreamingBridge(opts: StreamingBridgeOptions): StreamingB
         requestId: STREAM_REQUEST_ID,
         handle,
         activeField: store.getState().activeField,
+      } satisfies DataStreamRequest);
+    },
+    setPerfActive(active) {
+      dataWorker.postMessage({
+        kind: "setPerfActive",
+        requestId: STREAM_REQUEST_ID,
+        active,
       } satisfies DataStreamRequest);
     },
     dispose() {

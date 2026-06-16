@@ -47,6 +47,8 @@ export type DataStreamRequest =
     }
   | { readonly kind: "setActiveField"; readonly requestId: number; readonly field: string }
   | { readonly kind: "setCursor"; readonly requestId: number; readonly step: number }
+  // Dev-mode perf HUD: while active the worker self-reports its heap + last read time (~1 Hz).
+  | { readonly kind: "setPerfActive"; readonly requestId: number; readonly active: boolean }
   | { readonly kind: "streamDispose"; readonly requestId: number };
 
 // data worker → main. `opened` reports the timestep domain (→ store.setAvailableSteps); `stepLoaded`
@@ -54,4 +56,11 @@ export type DataStreamRequest =
 export type DataStreamResponse =
   | { readonly kind: "opened"; readonly steps: readonly number[] }
   | { readonly kind: "stepLoaded"; readonly step: number }
-  | { readonly kind: "streamError"; readonly message: string };
+  | { readonly kind: "streamError"; readonly message: string }
+  // Dev-mode perf HUD self-report: the data worker's JS heap (null off-Chrome) + the wall-clock
+  // duration of its last field read (null before the first read).
+  | {
+      readonly kind: "perfSample";
+      readonly heapBytes: number | null;
+      readonly lastReadMs: number | null;
+    };

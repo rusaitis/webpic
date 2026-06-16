@@ -10,6 +10,7 @@ import {
   BOOT_PHASE_KEY,
   type CameraPose,
   type CameraProjection,
+  createPerfStore,
   createSimulationStore,
   createUiStore,
   type SimulationStore,
@@ -18,6 +19,7 @@ import {
 import { installPointerCamera, installPointerPicker, installUi } from "@ui";
 import type { DatasetEntry } from "./datasets.ts";
 import { installLayerSync } from "./layerSync.ts";
+import type { PerfBridge } from "./perfBridge.ts";
 import { installPickerSync } from "./pickerSync.ts";
 import { installRenderWorkerSync } from "./renderWorkerSync.ts";
 import { installSceneSync } from "./sceneSync.ts";
@@ -91,6 +93,10 @@ export interface BootstrapOptions {
   /** Render the RGB test triangle while no layers exist (`?debugScene`) — a "renderer alive,
    *  data missing" diagnostic. Off by default: the boot frame is the bare clear color. */
   readonly debugScene?: boolean;
+  /** Mount the dev performance HUD (Shift+P) + its worker sampling. The entry gates this on
+   *  import.meta.env.DEV || ?perf; the HUD + bridge are dynamic-imported so they tree-shake out of
+   *  the default production bundle. */
+  readonly perf?: boolean;
 }
 
 export function bootstrap(options: BootstrapOptions = {}): () => void {
@@ -139,6 +145,9 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   let workerReady = false;
   const isReady = (): boolean => workerReady; // the bridges gate every post on this
 
+  let perfBridge: PerfBridge | undefined; // set asynchronously when the perf feature is enabled
+  let perfDisposed = false; // guards the async perf chunk landing after an early dispose
+
   // Streaming data worker: spawned only when a multi-step source is given (else the scrub control
   // stays disabled and the bridges are absent — a single fixed dataset).
   const streamSource = options.streamSource;
@@ -153,6 +162,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       renderWorker: worker,
       dataWorker: spawnDataWorker(),
       streamSource,
+      onPerfSample: (sample) => perfBridge?.ingestDataSample(sample),
     });
   }
 
@@ -218,6 +228,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       onWorkerReady();
     } else if (message.kind === "frameTiming") {
       store.getState().setFrameTiming(message.gpuTimeMs, message.clock);
+    } else if (message.kind === "perfSample") {
+      perfBridge?.ingestRenderSample(message);
     } else if (message.kind === "pickResult") {
       renderSync.handlePickResult(message);
     } else if (message.kind === "error") {
@@ -261,7 +273,27 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     ? installUi({ parent: uiParent, simulationStore: store, uiStore })
     : undefined;
 
+  // Dev performance HUD (Shift+P): the HUD overlay + worker sampling, dynamic-imported so the feature
+  // is absent from the default prod bundle. Needs a DOM parent; skipped headless.
+  if (options.perf === true && uiParent !== undefined) {
+    const perfStore = createPerfStore();
+    void import("./perfBridge.ts").then(({ installPerf }) => {
+      if (perfDisposed) return; // bootstrap disposed before the chunk loaded
+      perfBridge = installPerf({
+        perfStore,
+        uiStore,
+        uiParent,
+        renderWorker: worker,
+        setDataPerfActive: (active) => streaming?.setPerfActive(active),
+        isRenderReady: () => workerReady,
+        isDataPresent: () => streaming !== undefined,
+      });
+    });
+  }
+
   return () => {
+    perfDisposed = true;
+    perfBridge?.dispose();
     disposeUi?.();
     disposePointer?.();
     disposePicker?.();
