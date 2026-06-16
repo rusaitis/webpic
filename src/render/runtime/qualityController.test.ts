@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
+import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "../constants.ts";
 import { createQualityController } from "./qualityController.ts";
 
 // The controller in isolation: a fake host records every level push (step scale → scenes, render

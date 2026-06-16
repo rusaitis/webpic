@@ -55,7 +55,7 @@ function dist(a: readonly [number, number, number], b: readonly [number, number,
 
 describe("layer compositor", () => {
   it.skipIf(!hasRealGpu)("blends by per-layer opacity", async () => {
-    const { installRenderer } = await import("./renderer.ts");
+    const { installRenderer } = await import("./runtime/renderer.ts");
     const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
     const { applyPose, createPerspectiveCamera } = await import("./camera/camera.ts");
 
@@ -102,7 +102,7 @@ describe("layer compositor", () => {
   });
 
   it.skipIf(!hasRealGpu)("blends by draw order", async () => {
-    const { installRenderer } = await import("./renderer.ts");
+    const { installRenderer } = await import("./runtime/renderer.ts");
     const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
     const { applyPose, createPerspectiveCamera } = await import("./camera/camera.ts");
 

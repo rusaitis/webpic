@@ -3,7 +3,7 @@ import type { Camera, Object3D } from "three";
 import { Color, RenderTarget, RGBAFormat, UnsignedByteType, Vector2 } from "three";
 import { texture, uv } from "three/tsl";
 import { NodeMaterial, QuadMesh, WebGPURenderer } from "three/webgpu";
-import { BACKGROUND_COLOR } from "./constants.ts";
+import { BACKGROUND_COLOR } from "../constants.ts";
 import { compactPaddedRows, toTransferablePixels } from "./pixels.ts";
 
 export interface RendererOptions {

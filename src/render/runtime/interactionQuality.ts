@@ -1,5 +1,5 @@
 import type { CameraMotion } from "@schema/camera.ts";
-import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
+import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "../constants.ts";
 
 // Camera-motion quality as a pure state machine: coarse while a gesture is live, a gentler
 // "animating" tier while a machine-driven fly runs (predictable + short — it should look good),

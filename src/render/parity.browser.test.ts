@@ -16,7 +16,7 @@ const hasRealGpu =
 const SIZE = 64;
 
 async function mainThreadPixels(): Promise<Uint8Array> {
-  const { installRenderer } = await import("./renderer.ts");
+  const { installRenderer } = await import("./runtime/renderer.ts");
   const { createTestScene } = await import("./scene.ts");
   const { createOrthographicCamera } = await import("./camera/camera.ts");
   const renderer = await installRenderer({

@@ -44,7 +44,7 @@ vi.mock("@gpu", () => ({
   onDeviceLost: () => () => {},
   onDeviceRestored: () => () => {},
 }));
-vi.mock("./renderer.ts", () => ({ installRenderer: h.installRenderer }));
+vi.mock("./runtime/renderer.ts", () => ({ installRenderer: h.installRenderer }));
 vi.mock("./volume/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
 vi.mock("./volume/sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
 vi.mock("./scene.ts", () => ({ createTestScene: h.createTestScene }));

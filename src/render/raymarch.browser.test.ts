@@ -76,7 +76,7 @@ async function renderVolume(
   march: { readonly skipEmptySpace?: boolean; readonly brickSize?: number } = {},
   orthographic = false,
 ): Promise<Uint8Array> {
-  const { installRenderer } = await import("./renderer.ts");
+  const { installRenderer } = await import("./runtime/renderer.ts");
   const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
   const { applyPose, applyPoseOrtho, createPerspectiveCamera, createVolumeOrthographicCamera } =
     await import("./camera/camera.ts");

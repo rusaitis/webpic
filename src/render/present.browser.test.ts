@@ -18,7 +18,7 @@ describe("swapchain present orientation", () => {
   it.skipIf(!hasRealGpu)(
     "the ≥2-layer QuadMesh present keeps the image upright and unmirrored",
     async () => {
-      const { installRenderer } = await import("./renderer.ts");
+      const { installRenderer } = await import("./runtime/renderer.ts");
       const { createTestScene } = await import("./scene.ts");
       const { createOrthographicCamera } = await import("./camera/camera.ts");
       const { Scene } = await import("three");

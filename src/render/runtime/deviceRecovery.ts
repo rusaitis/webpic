@@ -1,5 +1,5 @@
 import { type DeviceLossEvent, onDeviceLost, onDeviceRestored } from "@gpu";
-import type { GpuRecoveryReason } from "./messages.ts";
+import type { GpuRecoveryReason } from "../messages.ts";
 
 // GPU device-loss recovery. gpu/ re-acquires the device after a loss and fires onDeviceRestored;
 // render/ must then rebuild the renderer + every scene on the new device (the old ones hold dead GPU

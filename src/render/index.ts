@@ -19,7 +19,7 @@ export {
   type InstalledRenderer,
   installRenderer,
   type RendererOptions,
-} from "./renderer.ts";
+} from "./runtime/renderer.ts";
 export { createTestScene, type TestScene } from "./scene.ts";
 export { type ColormapName, colormapColor, type Rgb } from "./volume/colormap.ts";
 export {

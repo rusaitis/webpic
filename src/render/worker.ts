@@ -3,8 +3,6 @@ import { getCapabilities, getDevice, installGpu, resetLedger, vramSnapshot } fro
 import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
 import { DEFAULT_POSE } from "./camera/camera.ts";
 import { type CameraRig, createCameraRig } from "./camera/cameraRig.ts";
-import { createDeviceRecovery } from "./deviceRecovery.ts";
-import { createFrameTimer, type FrameTimer } from "./frameTimer.ts";
 import { createManagedOverlay } from "./grid/managedOverlay.ts";
 import type { SceneOverlay } from "./grid/overlayScene.ts";
 import { createLayerRegistry, type LayerEntry } from "./layerRegistry.ts";
@@ -18,10 +16,12 @@ import type {
   RenderWorkerResponse,
 } from "./messages.ts";
 import { pickPointOnRay } from "./pickRay.ts";
-import { createQualityController } from "./qualityController.ts";
-import { type CompositeItem, type InstalledRenderer, installRenderer } from "./renderer.ts";
-import { createRenderLoop } from "./renderLoop.ts";
 import type { RenderModule } from "./renderModule.ts";
+import { createDeviceRecovery } from "./runtime/deviceRecovery.ts";
+import { createFrameTimer, type FrameTimer } from "./runtime/frameTimer.ts";
+import { createQualityController } from "./runtime/qualityController.ts";
+import { type CompositeItem, type InstalledRenderer, installRenderer } from "./runtime/renderer.ts";
+import { createRenderLoop } from "./runtime/renderLoop.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
 
 // Worker-scope view of `self`. The DOM lib types `self` as Window (whose

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
+import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "../constants.ts";
 import {
   advanceSettling,
   applyCameraMotion,
