@@ -59,7 +59,7 @@ export function installPerf(opts: PerfBridgeOptions): PerfBridge {
   let dataHeapBytes: number | null = null;
   let dataLastReadMs: number | null = null;
 
-  const reassembleTopology = (): void => {
+  const rebuildTopology = (): void => {
     const topology: PerfWorker[] = [
       { role: "main", live: true, heapBytes: mainHeapBytes },
       { role: "render", live: isRenderReady(), heapBytes: renderHeapBytes },
@@ -76,7 +76,7 @@ export function installPerf(opts: PerfBridgeOptions): PerfBridge {
   };
 
   // performance.memory is Chrome-only and absent from the lib types; read defensively (cheap).
-  const readMainHeap = (): number | null => {
+  const readHeapBytes = (): number | null => {
     const memory = (performance as { memory?: { readonly usedJSHeapSize: number } }).memory;
     return memory !== undefined ? memory.usedJSHeapSize : null;
   };
@@ -108,9 +108,9 @@ export function installPerf(opts: PerfBridgeOptions): PerfBridge {
     Math.round((PAGE_MEMORY_MIN_MS + Math.random() * PAGE_MEMORY_JITTER_MS) / PUMP_INTERVAL_MS);
 
   const pumpTick = (): void => {
-    mainHeapBytes = readMainHeap();
+    mainHeapBytes = readHeapBytes();
     perfStore.getState().setMainMetrics({ mainHeapBytes });
-    reassembleTopology();
+    rebuildTopology();
     ticksUntilPageMemory -= 1;
     if (ticksUntilPageMemory <= 0) {
       samplePageMemory();
@@ -185,12 +185,12 @@ export function installPerf(opts: PerfBridgeOptions): PerfBridge {
         vramByKey: sample.vramByKey,
       });
       renderHeapBytes = sample.workerHeapBytes;
-      reassembleTopology();
+      rebuildTopology();
     },
     ingestDataSample(sample) {
       dataHeapBytes = sample.heapBytes;
       dataLastReadMs = sample.lastReadMs;
-      reassembleTopology();
+      rebuildTopology();
     },
     dispose() {
       unsubVisible();

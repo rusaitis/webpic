@@ -186,7 +186,7 @@ const loop = createRenderLoop({
     renderer?.renderComposite(paintItems());
     if (sampleGpu) {
       lastGpuSampleMs = startMs;
-      void postPerfSample(performance.now() - startMs, frameIntervalEma).catch(reportFault);
+      void samplePerf(performance.now() - startMs, frameIntervalEma).catch(reportFault);
     }
   },
   tickAnimations: (frameTimeMs) => marker.tick(frameTimeMs),
@@ -363,19 +363,19 @@ async function sampleAndPostTiming(): Promise<void> {
   ctx.postMessage({ kind: "frameTiming", gpuTimeMs, clock: frameTimer.mode });
   // HUD open alongside continuous measurement: it reads the same wall-clock. CPU-encode + interval
   // aren't measured on the continuous path, so they ride as NaN (the HUD renders them blank).
-  if (perfActive) postPerfSampleMessage(Number.NaN, gpuTimeMs, Number.NaN, true);
+  if (perfActive) postPerfSample(Number.NaN, gpuTimeMs, Number.NaN, true);
 }
 
 // performance.memory is Chrome-only and absent from the worker lib types; read it defensively (a
 // cheap synchronous property access) and report null where it's missing.
-function readWorkerHeapBytes(): number | null {
+function readHeapBytes(): number | null {
   const memory = (performance as { memory?: { readonly usedJSHeapSize: number } }).memory;
   return memory !== undefined ? memory.usedJSHeapSize : null;
 }
 
 // Post one perf-HUD sample. vram + heap are read here (both cheap); timing fields are supplied by the
 // caller — they differ between the on-demand perf path and the continuous diagnostics path.
-function postPerfSampleMessage(
+function postPerfSample(
   cpuEncodeMs: number,
   frameWallMs: number,
   frameIntervalMs: number,
@@ -390,16 +390,16 @@ function postPerfSampleMessage(
     isContinuous,
     vramBytes: vram.totalBytes,
     vramByKey: vram.byKey.slice(0, VRAM_TOP_N), // tiny: structured-cloned, not transferred
-    workerHeapBytes: readWorkerHeapBytes(),
+    workerHeapBytes: readHeapBytes(),
   });
 }
 
 // The on-demand perf path's GPU sample: await the throttled wall-clock (NaN if the timer is absent or
 // a read is already in flight — the HUD's rolling mean skips those) and post with the frame's CPU
 // encode + interval.
-async function postPerfSample(cpuEncodeMs: number, frameIntervalMs: number): Promise<void> {
+async function samplePerf(cpuEncodeMs: number, frameIntervalMs: number): Promise<void> {
   const frameWallMs = frameTimer === undefined ? Number.NaN : await frameTimer.sampleAfterSubmit();
-  postPerfSampleMessage(cpuEncodeMs, frameWallMs, frameIntervalMs, false);
+  postPerfSample(cpuEncodeMs, frameWallMs, frameIntervalMs, false);
 }
 
 async function renderFrame(

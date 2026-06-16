@@ -61,11 +61,11 @@ const HUD_CSS = `
 .webpic-perf_clk { opacity: 0.4; font-size: 10px; margin-top: 2px; }
 `;
 
-function fmtMs(ms: number): string {
+function formatMs(ms: number): string {
   return Number.isFinite(ms) ? `${ms.toFixed(1)} ms` : "—";
 }
 
-function fmtBytes(bytes: number | null): string {
+function formatBytes(bytes: number | null): string {
   if (bytes === null) return "n/a";
   const mb = bytes / (1024 * 1024);
   return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
@@ -160,7 +160,7 @@ export function installPerfHud(
 
   // Sparkline rings (CPU encode + frame wall-clock), pushed once per NEW sample, drawn every frame.
   const cpuRing = new Float32Array(SPARK_LEN).fill(Number.NaN);
-  const wallRing = new Float32Array(SPARK_LEN).fill(Number.NaN);
+  const frameRing = new Float32Array(SPARK_LEN).fill(Number.NaN);
   let ringIndex = 0;
   let lastSeenSample: PerfSample | null = null;
   let lastSampleAtMs = 0;
@@ -171,7 +171,7 @@ export function installPerfHud(
     lastSeenSample = sample;
     lastSampleAtMs = view ? view.performance.now() : 0;
     cpuRing[ringIndex] = sample.cpuEncodeMs;
-    wallRing[ringIndex] = sample.frameWallMs;
+    frameRing[ringIndex] = sample.frameWallMs;
     ringIndex = (ringIndex + 1) % SPARK_LEN;
   };
 
@@ -205,9 +205,9 @@ export function installPerfHud(
     const yOf = (v: number): number => SPARK_H - (Math.min(v, yMax) / yMax) * SPARK_H;
     for (let j = 0; j < SPARK_LEN - 1; j++) {
       const c0 = cpuRing[(ringIndex + j) % SPARK_LEN];
-      const w0 = wallRing[(ringIndex + j) % SPARK_LEN];
+      const w0 = frameRing[(ringIndex + j) % SPARK_LEN];
       const c1 = cpuRing[(ringIndex + j + 1) % SPARK_LEN];
-      const w1 = wallRing[(ringIndex + j + 1) % SPARK_LEN];
+      const w1 = frameRing[(ringIndex + j + 1) % SPARK_LEN];
       if (c0 === undefined || w0 === undefined || c1 === undefined || w1 === undefined) continue;
       if (!Number.isFinite(c0) || !Number.isFinite(w0)) continue;
       if (!Number.isFinite(c1) || !Number.isFinite(w1)) continue;
@@ -228,21 +228,21 @@ export function installPerfHud(
     ctx2d.clearRect(0, 0, SPARK_W, SPARK_H);
     // Y-scale to the observed peak (min 20 ms) so spikes stay visible and the budget line sits low.
     let peak = 20;
-    let wallPeak = 0; // worst frame in the window (wall-clock), for the corner label
+    let framePeak = 0; // worst frame in the window (wall-clock), for the corner label
     for (let i = 0; i < SPARK_LEN; i++) {
       const a = cpuRing[i];
-      const b = wallRing[i];
+      const b = frameRing[i];
       if (a !== undefined && Number.isFinite(a) && a > peak) peak = a;
       if (b !== undefined && Number.isFinite(b)) {
         if (b > peak) peak = b;
-        if (b > wallPeak) wallPeak = b;
+        if (b > framePeak) framePeak = b;
       }
     }
     // Background highlight over time-regions that missed the 60 fps budget — amber for 30–60 fps,
     // red below 30 — so over-budget stretches read at a glance, not just the latest value.
     const segW = SPARK_W / (SPARK_LEN - 1);
     for (let j = 0; j < SPARK_LEN; j++) {
-      const v = wallRing[(ringIndex + j) % SPARK_LEN];
+      const v = frameRing[(ringIndex + j) % SPARK_LEN];
       if (v === undefined || !Number.isFinite(v) || v <= FRAME_BUDGET_MS) continue;
       ctx2d.fillStyle = v <= FRAME_30_MS ? WARN_BAND : BAD_BAND;
       ctx2d.fillRect((j / (SPARK_LEN - 1)) * SPARK_W - segW / 2, 0, segW, SPARK_H);
@@ -256,14 +256,14 @@ export function installPerfHud(
     ctx2d.lineTo(SPARK_W, budgetY);
     ctx2d.stroke();
     drawGpuBand(peak); // ≈ GPU+queue fill, under the lines
-    drawSeries(wallRing, FRAME_COLOR, peak); // frame wall-clock (cyan)
+    drawSeries(frameRing, FRAME_COLOR, peak); // frame wall-clock (cyan)
     drawSeries(cpuRing, CPU_COLOR, peak); // CPU encode (green)
-    if (wallPeak > 0) {
+    if (framePeak > 0) {
       ctx2d.fillStyle = "rgba(255,255,255,0.4)"; // matches the _clk note opacity; doubles as the y-max
       ctx2d.font = "9px ui-monospace, monospace";
       ctx2d.textAlign = "right";
       ctx2d.textBaseline = "top";
-      ctx2d.fillText(`${Math.round(wallPeak)}ms`, SPARK_W - 1, 1);
+      ctx2d.fillText(`${Math.round(framePeak)}ms`, SPARK_W - 1, 1);
     }
   };
 
@@ -272,12 +272,12 @@ export function installPerfHud(
     const sample = state.sample;
     const rows: string[] = [];
     rows.push('<div class="webpic-perf_sub">memory</div>');
-    rows.push(row("main heap", fmtBytes(state.mainHeapBytes)));
-    rows.push(row("page total", fmtBytes(state.pageMemoryBytes)));
+    rows.push(row("main heap", formatBytes(state.mainHeapBytes)));
+    rows.push(row("page total", formatBytes(state.pageMemoryBytes)));
     rows.push('<div class="webpic-perf_sub">vram (tracked, est.)</div>');
     if (sample !== null) {
-      rows.push(row("total", fmtBytes(sample.vramBytes)));
-      for (const [key, bytes] of sample.vramByKey ?? []) rows.push(row(key, fmtBytes(bytes)));
+      rows.push(row("total", formatBytes(sample.vramBytes)));
+      for (const [key, bytes] of sample.vramByKey ?? []) rows.push(row(key, formatBytes(bytes)));
     }
     rows.push('<div class="webpic-perf_sub">workers</div>');
     for (const w of state.topology) rows.push(workerRow(w));
@@ -310,12 +310,12 @@ export function installPerfHud(
       sample !== null && Number.isFinite(sample.frameWallMs) && Number.isFinite(sample.cpuEncodeMs)
         ? Math.max(0, sample.frameWallMs - sample.cpuEncodeMs)
         : Number.NaN;
-    cpuValue.textContent = sample === null ? "—" : fmtMs(sample.cpuEncodeMs);
-    gpuValue.textContent = fmtMs(gpuEst);
-    frameValue.textContent = sample === null ? "—" : fmtMs(sample.frameWallMs);
+    cpuValue.textContent = sample === null ? "—" : formatMs(sample.cpuEncodeMs);
+    gpuValue.textContent = formatMs(gpuEst);
+    frameValue.textContent = sample === null ? "—" : formatMs(sample.frameWallMs);
     frameValue.style.color = frameHealthColor(sample);
-    vramValue.textContent = sample === null ? "—" : fmtBytes(sample.vramBytes);
-    heapValue.textContent = fmtBytes(state.mainHeapBytes);
+    vramValue.textContent = sample === null ? "—" : formatBytes(sample.vramBytes);
+    heapValue.textContent = formatBytes(state.mainHeapBytes);
     drawSparkline();
   };
 
@@ -394,7 +394,7 @@ function row(label: string, value: string): string {
 
 function workerRow(worker: PerfWorker): string {
   const dot = worker.live ? "●" : "○";
-  const heap = worker.heapBytes === null ? "" : ` · ${fmtBytes(worker.heapBytes)}`;
+  const heap = worker.heapBytes === null ? "" : ` · ${formatBytes(worker.heapBytes)}`;
   const note = worker.note !== undefined ? ` · ${worker.note}` : "";
   return row(
     `${dot} ${worker.role}`,
