@@ -263,8 +263,9 @@ export type RenderWorkerResponse =
   // renderComposite (encode+submit); `frameWallMs` is the onSubmittedWorkDone bracket (NaN on
   // ticks that skipped the throttled GPU sync); `frameIntervalMs` is the painted-frame interval
   // EMA (NaN while the on-demand loop is idle). `computeMs` is omitted until a timed compute
-  // pass exists. `vramBytes` is the tracked-allocation estimate; `workerHeapBytes` is the render
-  // worker's JS heap (null off-Chrome).
+  // pass exists. `vramBytes` is the tracked-allocation total and `vramByKey` its largest-first
+  // per-key breakdown (top few, for the detail panel); `workerHeapBytes` is the render worker's
+  // JS heap (null off-Chrome).
   | {
       readonly kind: "perfSample";
       readonly cpuEncodeMs: number;
@@ -273,6 +274,7 @@ export type RenderWorkerResponse =
       readonly isContinuous: boolean;
       readonly computeMs?: number;
       readonly vramBytes: number;
+      readonly vramByKey: readonly (readonly [string, number])[];
       readonly workerHeapBytes: number | null;
     }
   // Pick reply: the world-space point (unit box has identity transform, so world = object space), or

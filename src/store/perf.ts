@@ -18,6 +18,7 @@ export interface PerfSample {
   readonly isContinuous: boolean;
   readonly computeMs: number | null;
   readonly vramBytes: number;
+  readonly vramByKey?: readonly (readonly [string, number])[];
 }
 
 export type PerfWorkerRole = "main" | "render" | "data";

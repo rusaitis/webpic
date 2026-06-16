@@ -6,20 +6,26 @@ import { isTypingTarget } from "./keyboard.ts";
 // Dev-mode performance HUD: a magviz-style corner meter (top-left, Shift+P) showing FPS + a CPU/frame
 // sparkline + VRAM/heap, with an expandable detail panel (memory breakdown, worker topology, main-
 // thread jank). It reads perfStore only and dispatches visibility intents — all worker plumbing +
-// metric pumps live in app/perfBridge. Self-contained: it injects its own CSS and owns a main-thread
-// rAF that runs ONLY while visible, reading the latest cached sample; it dispatches no store intent
-// the render bridge forwards, so it can never trigger a worker repaint (on-demand stays on-demand).
+// metric pumps live in app/perfBridge. Self-contained: it injects its own CSS and, while visible,
+// redraws on store changes (samples ≤5 Hz) + a slow idle timer — no per-frame rAF, so it never pins
+// the main thread and dispatches no intent the bridge forwards (on-demand stays on-demand).
 
 const SPARK_LEN = 64; // sparkline ring length (~13 s of samples at 5 Hz)
 const IDLE_MS = 400; // no new sample within this → the on-demand loop is idle, show "idle" not stale fps
-const FRAME_BUDGET_MS = 1000 / 60; // reference line on the sparkline
+const IDLE_TICK_MS = 250; // idle-flip + detail refresh cadence while visible (replaces the per-frame rAF)
+const FRAME_BUDGET_MS = 1000 / 60; // 60 fps budget — sparkline reference line + frame-health threshold
+const FRAME_30_MS = 1000 / 30; // 30 fps — the amber/red frame-health threshold
 const SPARK_W = 196;
 const SPARK_H = 40;
-const DETAIL_EVERY = 8; // rebuild the detail panel every Nth frame while open (its row count varies)
 const CPU_COLOR = "#7ee08a"; // CPU-encode sparkline (green)
 const FRAME_COLOR = "#5ad1e6"; // frame wall-clock sparkline (cyan)
 const GPU_BAND = "rgba(245, 176, 80, 0.22)"; // ≈ GPU+queue band (frame − cpu), amber fill
 const GPU_KEY = "#f5b050"; // the band's legend swatch (opaque amber)
+const OK_COLOR = "#8fbf8f"; // frame within the 60 fps budget (desaturated green)
+const WARN_COLOR = "#f5b050"; // frame within 30 fps (reuses the amber warning hue)
+const BAD_COLOR = "#d98a78"; // frame over the 30 fps budget (soft terracotta)
+const WARN_BAND = "rgba(245, 176, 80, 0.13)"; // sparkline bg over 30–60 fps frames (faint amber)
+const BAD_BAND = "rgba(217, 138, 120, 0.2)"; // sparkline bg over sub-30 fps frames (faint terracotta)
 
 const HUD_CSS = `
 .webpic-perf {
@@ -63,6 +69,16 @@ function fmtBytes(bytes: number | null): string {
   if (bytes === null) return "n/a";
   const mb = bytes / (1024 * 1024);
   return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+}
+
+// Frame-time health: a hue-only tint (never weight/size), and "" for idle/NaN frames so they look
+// exactly as before. Thresholds are the 60/30 fps budgets.
+function frameHealthColor(sample: PerfSample | null): string {
+  const ms = sample?.frameWallMs ?? Number.NaN;
+  if (!Number.isFinite(ms)) return "";
+  if (ms <= FRAME_BUDGET_MS) return OK_COLOR;
+  if (ms <= FRAME_30_MS) return WARN_COLOR;
+  return BAD_COLOR;
 }
 
 // Inject the HUD stylesheet once; the returned disposer removes it (single HUD instance).
@@ -148,7 +164,6 @@ export function installPerfHud(
   let ringIndex = 0;
   let lastSeenSample: PerfSample | null = null;
   let lastSampleAtMs = 0;
-  let frameCount = 0;
 
   const pushIfNewSample = (): void => {
     const sample = perfStore.getState().sample;
@@ -213,11 +228,24 @@ export function installPerfHud(
     ctx2d.clearRect(0, 0, SPARK_W, SPARK_H);
     // Y-scale to the observed peak (min 20 ms) so spikes stay visible and the budget line sits low.
     let peak = 20;
+    let wallPeak = 0; // worst frame in the window (wall-clock), for the corner label
     for (let i = 0; i < SPARK_LEN; i++) {
       const a = cpuRing[i];
       const b = wallRing[i];
       if (a !== undefined && Number.isFinite(a) && a > peak) peak = a;
-      if (b !== undefined && Number.isFinite(b) && b > peak) peak = b;
+      if (b !== undefined && Number.isFinite(b)) {
+        if (b > peak) peak = b;
+        if (b > wallPeak) wallPeak = b;
+      }
+    }
+    // Background highlight over time-regions that missed the 60 fps budget — amber for 30–60 fps,
+    // red below 30 — so over-budget stretches read at a glance, not just the latest value.
+    const segW = SPARK_W / (SPARK_LEN - 1);
+    for (let j = 0; j < SPARK_LEN; j++) {
+      const v = wallRing[(ringIndex + j) % SPARK_LEN];
+      if (v === undefined || !Number.isFinite(v) || v <= FRAME_BUDGET_MS) continue;
+      ctx2d.fillStyle = v <= FRAME_30_MS ? WARN_BAND : BAD_BAND;
+      ctx2d.fillRect((j / (SPARK_LEN - 1)) * SPARK_W - segW / 2, 0, segW, SPARK_H);
     }
     // 60 fps budget reference.
     const budgetY = SPARK_H - (FRAME_BUDGET_MS / peak) * SPARK_H;
@@ -230,6 +258,13 @@ export function installPerfHud(
     drawGpuBand(peak); // ≈ GPU+queue fill, under the lines
     drawSeries(wallRing, FRAME_COLOR, peak); // frame wall-clock (cyan)
     drawSeries(cpuRing, CPU_COLOR, peak); // CPU encode (green)
+    if (wallPeak > 0) {
+      ctx2d.fillStyle = "rgba(255,255,255,0.4)"; // matches the _clk note opacity; doubles as the y-max
+      ctx2d.font = "9px ui-monospace, monospace";
+      ctx2d.textAlign = "right";
+      ctx2d.textBaseline = "top";
+      ctx2d.fillText(`${Math.round(wallPeak)}ms`, SPARK_W - 1, 1);
+    }
   };
 
   const renderDetail = (): void => {
@@ -242,6 +277,7 @@ export function installPerfHud(
     rows.push('<div class="webpic-perf_sub">vram (tracked, est.)</div>');
     if (sample !== null) {
       rows.push(row("total", fmtBytes(sample.vramBytes)));
+      for (const [key, bytes] of sample.vramByKey ?? []) rows.push(row(key, fmtBytes(bytes)));
     }
     rows.push('<div class="webpic-perf_sub">workers</div>');
     for (const w of state.topology) rows.push(workerRow(w));
@@ -277,29 +313,44 @@ export function installPerfHud(
     cpuValue.textContent = sample === null ? "—" : fmtMs(sample.cpuEncodeMs);
     gpuValue.textContent = fmtMs(gpuEst);
     frameValue.textContent = sample === null ? "—" : fmtMs(sample.frameWallMs);
+    frameValue.style.color = frameHealthColor(sample);
     vramValue.textContent = sample === null ? "—" : fmtBytes(sample.vramBytes);
     heapValue.textContent = fmtBytes(state.mainHeapBytes);
     drawSparkline();
-    if (!detail.hidden && frameCount % DETAIL_EVERY === 0) renderDetail();
-    frameCount += 1;
   };
 
-  let rafId: number | undefined;
-  const tick = (): void => {
+  // Event-driven, not a 60 Hz rAF: while visible, redraw on each new sample + main-heap change, plus a
+  // slow timer for the idle flip and detail refresh. `active` holds the visible-only subscriptions,
+  // torn down on hide; `idleTimer` doubles as the "am I running?" flag.
+  const active: Disposer[] = [];
+  let idleTimer: number | undefined;
+
+  const startActive = (win: Window): void => {
+    lastSeenSample = null; // a re-open re-detects the first sample (idle until one arrives)
     render();
-    rafId = view?.requestAnimationFrame(tick);
+    active.push(
+      perfStore.subscribe((s) => s.sample, render),
+      perfStore.subscribe((s) => s.mainHeapBytes, render), // heap row would freeze without this
+    );
+    idleTimer = win.setInterval(() => {
+      render(); // re-evaluates the idle → "idle (on-demand)" flip after the last sample
+      if (!detail.hidden) renderDetail();
+    }, IDLE_TICK_MS);
+  };
+
+  const stopActive = (): void => {
+    for (const dispose of active.splice(0).reverse()) dispose();
+    if (idleTimer !== undefined) {
+      view?.clearInterval(idleTimer);
+      idleTimer = undefined;
+    }
   };
 
   const applyVisible = (): void => {
     const visible = uiStore.getState().isUiVisible && perfStore.getState().isPerfHudVisible;
     container.hidden = !visible;
-    if (visible && rafId === undefined && view !== null) {
-      lastSeenSample = null; // a re-open re-detects the first sample (idle until one arrives)
-      rafId = view.requestAnimationFrame(tick);
-    } else if (!visible && rafId !== undefined) {
-      view?.cancelAnimationFrame(rafId);
-      rafId = undefined;
-    }
+    if (visible && idleTimer === undefined && view !== null) startActive(view);
+    else if (!visible && idleTimer !== undefined) stopActive();
   };
 
   const applyDetail = (open: boolean): void => {
@@ -326,7 +377,7 @@ export function installPerfHud(
   const unsubDetail = perfStore.subscribe((s) => s.isPerfDetailOpen, applyDetail);
 
   return () => {
-    if (rafId !== undefined) view?.cancelAnimationFrame(rafId);
+    stopActive();
     unsubUi();
     unsubVisible();
     unsubDetail();

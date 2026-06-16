@@ -182,6 +182,7 @@ export function installPerf(opts: PerfBridgeOptions): PerfBridge {
         isContinuous: sample.isContinuous,
         computeMs: sample.computeMs ?? null,
         vramBytes: sample.vramBytes,
+        vramByKey: sample.vramByKey,
       });
       renderHeapBytes = sample.workerHeapBytes;
       reassembleTopology();

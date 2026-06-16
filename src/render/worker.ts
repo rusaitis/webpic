@@ -61,6 +61,7 @@ let lastErrorMessage: string | undefined; // dedupe so a persistent bad frame ca
 const PERF_GPU_SAMPLE_MS = 200; // ≤5 Hz GPU sync
 const PERF_EMA_ALPHA = 0.2; // painted-frame interval smoothing
 const PERF_IDLE_GAP_MS = 500; // a longer gap means we resumed after idle — don't fold it into the EMA
+const VRAM_TOP_N = 5; // largest tracked allocations surfaced in the HUD detail panel
 let perfActive = false;
 let lastPaintMs = Number.NaN;
 let frameIntervalEma = Number.NaN;
@@ -380,13 +381,15 @@ function postPerfSampleMessage(
   frameIntervalMs: number,
   isContinuous: boolean,
 ): void {
+  const vram = vramSnapshot();
   ctx.postMessage({
     kind: "perfSample",
     cpuEncodeMs,
     frameWallMs,
     frameIntervalMs,
     isContinuous,
-    vramBytes: vramSnapshot().totalBytes,
+    vramBytes: vram.totalBytes,
+    vramByKey: vram.byKey.slice(0, VRAM_TOP_N), // tiny: structured-cloned, not transferred
     workerHeapBytes: readWorkerHeapBytes(),
   });
 }
