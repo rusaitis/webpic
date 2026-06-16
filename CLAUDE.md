@@ -11,7 +11,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 
 ## Architecture
 
-- **Hard layer boundaries (pypic-mirrored).** Layers: `schema`, `containers`, `coordinates`, `numerics`, `reductions`, `derived`, `diagnostics`, `gpu`, `shaders`, `compute`, `data`, `remote`, `render`, `store`, `ui`, `app`, `workers`, `embed`. Full dependency DAG in `docs/DESIGN.md`. Rule of thumb: `schema` depends on nothing (root + canonical-name authority + shared scalar/geometry primitives — `@schema/math`'s `clamp`, `UNIT_BOX_HALF_EXTENT`); the math layers (`coordinates`/`numerics`/`reductions`/`derived`/`diagnostics`) are pure leaves; `ui` → `store` → `render`, and `ui` never imports `render` or calls `scene.add(...)` — it dispatches typed store intents. Boundary violations are CI errors (`scripts/check-boundaries.ts`, ts-morph).
+- **Hard layer boundaries (pypic-mirrored).** Layers: `schema`, `containers`, `coordinates`, `numerics`, `reductions`, `derived`, `diagnostics`, `gpu`, `shaders`, `compute`, `data`, `remote`, `render`, `store`, `ui`, `app`, `workers`, `embed`. Full dependency DAG in `docs/DESIGN.md`. Rule of thumb: `schema` depends on nothing (root + canonical-name authority + shared scalar/geometry primitives — `@schema/math`'s `clamp`, `vec3`, `UNIT_BOX_HALF_EXTENT`); the math layers (`coordinates`/`numerics`/`reductions`/`derived`/`diagnostics`) are pure leaves; `ui` → `store` → `render`, and `ui` never imports `render` or calls `scene.add(...)` — it dispatches typed store intents. Boundary violations are CI errors (`scripts/check-boundaries.ts`, ts-morph).
 - **Built vs reserved layers.** Live today: `schema`, `containers`, `coordinates` (curl/div/grad), `derived` (magnitudes), `gpu`, `compute` (TS magnitude backend), `data`, `render`, `store`, `ui`, `app`, `workers`. Reserved stubs — `export {}` until their milestone, file header says which — `numerics`, `reductions`, `diagnostics`, `shaders`, `remote`, `embed`. The DAG is wired for all 18; the empty ones just have no impl yet.
 - **v0.1 packaging: one package, `src/<layer>/` folders.** The 18-package pnpm-workspace split is deferred (DESIGN §Package shape, M2 checkpoint). Use path aliases (`@schema/*`, `@compute/*`, …), not deep relatives — they pre-stage the eventual `@webpic/<layer>` specifiers.
 - **The math layers are pure.** Typed arrays in, typed arrays out. No `THREE.*`, no DOM, no `GPUDevice`. One TS reference impl per operator lives in `coordinates/` (e.g. `curl`); `compute/backends/ts` delegates to it, and cross-backend tests compare the WGSL kernel against it — never a duplicate.
@@ -23,7 +23,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 
 - **TS ≥ 6.0**, `target: ES2022`, `module: ESNext`, `moduleResolution: Bundler`. Strict everything is on in `tsconfig.base.json` — keep it on: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noFallthroughCasesInSwitch`, `verbatimModuleSyntax`, `isolatedModules`.
 - **Tooling:** Biome (lint), Vite (build), Vitest (test). Don't add ESLint/Prettier.
-- **No `any`.** Use `unknown` and narrow. Type-only escape hatches (`as X`, `!`) need a one-line WHY comment.
+- **No `any`.** Use `unknown` and narrow. Type-only escape hatches (`as X`, `!`) need a one-line WHY comment; better still, a typed constructor that removes the cast (`vec3(x,y,z)` over `[x,y,z] as Vec3`).
 - **Discriminated unions for state.** Exhaustiveness via `satisfies` or a `case _: const _x: never = x` arm in switches. Never `default: throw new Error('unreachable')`.
 - **`readonly` aggressively.** `readonly [number, number, number]` for `Vec3`. `as const` for literal narrowing. `ReadonlyArray<T>` on inputs you don't write to. Don't mutate function inputs.
 - **`import type`** for type-only imports — `verbatimModuleSyntax` will tell you when. Use the path aliases (`@schema/*`, `@store/*`, …) rather than long relatives.
@@ -62,6 +62,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 - **Default to no comments.** WHY only — non-obvious invariants, perf workarounds, links to upstream bugs.
 - No `// --- Section ---` blocks. Use module structure or named functions.
 - No plan/task references in code (e.g. "for Stage 4"). The git log is the audit trail.
+- **Cite `docs/DESIGN.md` by section name, not line number.** `§Caching`, `§Worker message protocol` — never `§443`; the doc moves and numeric pins rot silently.
 - Mark deprecations: `// DEPRECATED: <short reason>`.
 - JSDoc only on public API (future `@webpic/embed` exports). Skip on internal helpers — the type signature is the spec.
 
