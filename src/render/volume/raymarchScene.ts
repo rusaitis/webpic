@@ -1,7 +1,7 @@
 import type { ColorScale } from "@schema/colormap.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { BoxGeometry, FrontSide, Mesh, Scene } from "three";
+import { BackSide, BoxGeometry, Mesh, Scene } from "three";
 import {
   Break,
   cameraPosition,
@@ -178,10 +178,13 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   );
 
   const rgba = Fn(() => {
-    // Camera ray in object space; the box is axis-aligned there so the slab test is exact.
-    // Perspective: rays fan out from the camera point through each fragment. Orthographic: parallel
-    // rays along the camera forward (w=0 — rotation only through both matrices), originating on the
-    // box front face itself (the fragment), where hitBox's entry clamps to 0.
+    // Camera ray in object space; the box is axis-aligned there so the slab test is exact. The box
+    // renders BackSide so a fragment is still generated when the camera is inside (front faces clip on
+    // the near plane and this fragment program would never run).
+    // Perspective: rays fan out from the camera point through each fragment — the origin is the camera,
+    // so front-vs-back fragment is the same ray, and the entry clamps to the camera (t ≥ 0).
+    // Orthographic: parallel rays along the camera forward (w=0 — rotation only through both matrices),
+    // originating on the fragment — now the *back* face — so the march runs the full [entry, exit].
     const perspOrigin = varying(modelWorldMatrixInverse.mul(vec4(cameraPosition, 1.0)).xyz);
     const orthoForward = varying(
       modelWorldMatrixInverse.mul(cameraWorldMatrix.mul(vec4(0, 0, -1, 0))).xyz,
@@ -202,7 +205,9 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     // march only runs on a valid finite interval.
     bounds.y.greaterThan(bounds.x).not().discard();
 
-    const tEntry = max(bounds.x, 0.0); // clamp the entry to the camera
+    // Perspective clamps the entry to the camera (t ≥ 0) so an inside-the-box ray starts at the eye.
+    // Ortho's origin is the back-face fragment, so it marches the full interval from the front wall in.
+    const tEntry = isOrtho.select(bounds.x, max(bounds.x, 0.0));
     const tExit = bounds.y;
     const liveSteps = ceil(float(steps).mul(uStepScale)).max(1.0).toVar();
     const dt = tExit.sub(tEntry).div(liveSteps).toVar(); // fine step; the lattice is tStart + k·dt
@@ -340,7 +345,10 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   material.opacityNode = rgba.a;
   material.transparent = true;
   material.depthWrite = false;
-  material.side = FrontSide;
+  // BackSide so the box still rasterizes a fragment when the camera is inside the volume — front faces
+  // clip on the near plane and the raymarch (a fragment program) would never run. Outside, the ray is
+  // camera-origin + direction, identical to FrontSide per pixel; only the spawning face differs.
+  material.side = BackSide;
 
   const geometry = new BoxGeometry(1, 1, 1);
   const mesh = new Mesh(geometry, material);
