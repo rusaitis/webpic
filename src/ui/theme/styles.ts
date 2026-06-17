@@ -177,6 +177,19 @@ const UI_CSS = `
   background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
 .webpic-rail_btn svg { display: block; width: 16px; height: 16px; fill: none;
   stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+/* Coordinate readout popover: the live pose above the crosshair, shown on hover/focus (and held
+   open through the copied flash). pointer-events: none so it never eats the click; the parent button
+   is at full opacity whenever it's shown (hover/focus/is-copied all set opacity 1), so it reads crisp. */
+.webpic-rail_coord { position: relative; }
+.webpic-rail_popover { position: absolute; left: 50%; bottom: calc(100% + 8px);
+  transform: translateX(-50%); padding: 4px 8px; border: 1px solid var(--webpic-border);
+  border-radius: var(--webpic-radius); background: var(--webpic-bg); color: var(--webpic-muted);
+  white-space: nowrap; font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  pointer-events: none; opacity: 0; visibility: hidden;
+  transition: opacity .12s ease, visibility 0s linear .12s; }
+.webpic-rail_coord:hover .webpic-rail_popover, .webpic-rail_coord:focus-visible .webpic-rail_popover,
+.webpic-rail_coord.is-copied .webpic-rail_popover {
+  opacity: 1; visibility: visible; transition: opacity .12s ease; }
 /* Status pill: bottom-center loading/error feedback (ui/statusPill.ts). Geometry mirrors the
    index.html boot splash exactly so the HTML→JS handoff is pixel-stable. The delayed visibility
    transition on fade-out keeps the element readable through the fade, then drops it from the

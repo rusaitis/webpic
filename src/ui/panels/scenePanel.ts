@@ -7,9 +7,9 @@ import {
 import { type ControlHandle, createPane, type Disposer } from "../controls/index.ts";
 
 // The Scene panel: toggles for the in-scene axes + grid overlay (per-plane), tick labels, the corner
-// gnomon, the grid density, and a Camera folder (fit-to-data). Dispatches store intents only
-// (ui → store; never render) — the app's sceneSync forwards the render-bound flags to the worker,
-// cameraChrome consumes showGnomon, and pointerCamera resolves the fly intents.
+// gnomon, the point marker, and the grid density. Dispatches store intents only (ui → store; never
+// render) — the app's sceneSync forwards the render-bound flags to the worker, cameraChrome consumes
+// showGnomon. Camera controls (fit, projection) live in the bottom rail + keyboard, not here.
 
 const PLANE_LABELS: Readonly<Record<GridPlane, string>> = {
   xy: "XY plane (equator)",
@@ -71,21 +71,6 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
     onChange: (n) => store.getState().setGridDivisions(n),
   });
 
-  const cameraFolder = pane.addFolder({ title: "Camera" });
-  const fit = cameraFolder.addButton({
-    label: "Fit view (Z)",
-    onClick: () => store.getState().requestCameraFly({ kind: "fit" }),
-  });
-  const ortho: ControlHandle<boolean> = cameraFolder.addCheckbox({
-    label: "Orthographic (O)",
-    value: store.getState().projection === "orthographic",
-    onChange: (on) => store.getState().setProjection(on ? "orthographic" : "perspective"),
-  });
-  const unsubscribeProjection = store.subscribe(
-    (s) => s.projection,
-    (next) => ortho.set(next === "orthographic"),
-  );
-
   // Reflect external changes (set()-in never re-fires onChange). Per-leaf selectors so a change to
   // one overlay field updates only its control — a Density drag no longer re-asserts every checkbox
   // each frame, it just moves the slider.
@@ -124,9 +109,6 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
 
   return () => {
     for (const unsub of overlayUnsubs) unsub();
-    unsubscribeProjection();
-    ortho.dispose();
-    fit.dispose();
     density.dispose();
     picker.dispose();
     gnomon.dispose();

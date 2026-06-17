@@ -82,8 +82,16 @@ export function installCameraRail(
   });
   helpBtn.addEventListener("click", () => uiStore.getState().toggleHelp());
 
-  // Click-to-copy permalink: the current pose (+ projection) as a ?pose= URL. Clipboard is undefined
-  // on insecure origins — the click is then a no-op. The brief is-copied tint is the only feedback.
+  // Coordinate button: the crosshair's hover popover shows the live pose; clicking copies a ?pose=
+  // permalink (a brief "view link copied" in the same popover). A custom popover, not the native
+  // title — it appears instantly on hover and surfaces the same readout on click. Clipboard is
+  // undefined on insecure origins, where the click is a silent no-op.
+  coordBtn.setAttribute("aria-label", "Camera position — click to copy a link to this view");
+  const coordPopover = makeEl(doc, "span", "webpic-rail_popover");
+  coordBtn.appendChild(coordPopover);
+  const coordReadout = (): string =>
+    formatPose(store.getState().cameraPose, store.getState().projection === "orthographic");
+
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
   const onCoordClick = (): void => {
     const view = doc.defaultView;
@@ -97,9 +105,13 @@ export function installCameraRail(
     void clipboard
       .writeText(url.toString())
       .then(() => {
-        coordBtn.classList.add("is-copied");
+        coordBtn.classList.add("is-copied"); // keeps the popover open + tints the button
+        coordPopover.textContent = "view link copied";
         clearTimeout(copiedTimer);
-        copiedTimer = setTimeout(() => coordBtn.classList.remove("is-copied"), 1200);
+        copiedTimer = setTimeout(() => {
+          coordBtn.classList.remove("is-copied");
+          coordPopover.textContent = coordReadout(); // restore the live pose
+        }, 1200);
       })
       .catch(() => {
         // NotAllowedError (focus loss, permissions) — no copied flash, nothing else to undo.
@@ -132,14 +144,14 @@ export function installCameraRail(
       ? "Orthographic — click or O for perspective"
       : "Perspective — click or O for orthographic";
   };
-  const applyCoord = (pose: CameraPose): void => {
-    if (container.hidden) return; // skip the per-frame string build while hidden; catch up on show
-    const ortho = store.getState().projection === "orthographic";
-    coordBtn.title = `${formatPose(pose, ortho)} — click to copy a link to this view`;
+  const applyCoord = (): void => {
+    // Skip while hidden (catch up on show) and while the copied flash owns the popover text.
+    if (container.hidden || coordBtn.classList.contains("is-copied")) return;
+    coordPopover.textContent = coordReadout();
   };
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
-    if (visible) applyCoord(store.getState().cameraPose); // catch up — the pose moved while hidden
+    if (visible) applyCoord(); // catch up — the pose moved while hidden
   };
 
   applyGnomon(store.getState().overlay.showGnomon);
@@ -154,7 +166,7 @@ export function installCameraRail(
       (s) => s.projection,
       (projection) => {
         applyProjection(projection);
-        applyCoord(store.getState().cameraPose); // the ortho suffix on the coord tooltip follows
+        applyCoord(); // the ortho suffix on the coord readout follows
       },
     ),
     store.subscribe((s) => s.cameraPose, applyCoord),

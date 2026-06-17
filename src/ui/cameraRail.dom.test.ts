@@ -100,7 +100,7 @@ describe("installCameraRail", () => {
     expect(uiStore.getState().isHelpVisible).toBe(true);
   });
 
-  it("the coord button copies a ?pose= permalink and flashes is-copied", async () => {
+  it("the coord button copies a ?pose= permalink and flashes the popover", async () => {
     const clip = stubClipboard();
     try {
       const { button } = setup();
@@ -111,6 +111,7 @@ describe("installCameraRail", () => {
       expect(clip.writes[0]).toContain("pose=");
       expect(clip.writes[0]).not.toContain("proj="); // perspective default — no param
       expect(coord.classList.contains("is-copied")).toBe(true);
+      expect(coord.querySelector(".webpic-rail_popover")?.textContent).toBe("view link copied");
     } finally {
       clip.restore();
     }
@@ -136,13 +137,14 @@ describe("installCameraRail", () => {
     expect(coord.classList.contains("is-copied")).toBe(false);
   });
 
-  it("the coord tooltip tracks the live pose", () => {
+  it("the coord popover tracks the live pose", () => {
     const { store, button } = setup();
-    expect(button("coord").title).toContain(`d ${DEFAULT_POSE.distance.toFixed(2)}`);
+    const popover = button("coord").querySelector(".webpic-rail_popover");
+    expect(popover?.textContent).toContain(`d ${DEFAULT_POSE.distance.toFixed(2)}`);
     store
       .getState()
       .setCameraPose({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 9.99, roll: 0 });
-    expect(button("coord").title).toContain("d 9.99");
+    expect(popover?.textContent).toContain("d 9.99");
   });
 
   it("hides with the global UI toggle", () => {
