@@ -66,6 +66,18 @@ export function viewForward(pose: CameraPose): Vec3 {
   return [-ce * Math.cos(pose.azimuth), -ce * Math.sin(pose.azimuth), -Math.sin(pose.elevation)];
 }
 
+// Camera world position — the eye on the orbit sphere: target − distance·viewForward. The inverse of
+// the target placement eyeLook does (it holds this point fixed while swinging the look-at around it).
+export function cameraPosition(pose: CameraPose): Vec3 {
+  const forward = viewForward(pose);
+  const [tx, ty, tz] = pose.target;
+  return [
+    tx - pose.distance * forward[0],
+    ty - pose.distance * forward[1],
+    tz - pose.distance * forward[2],
+  ];
+}
+
 // Geometric dolly distance plus the pivot walk that lets a zoom-in fly THROUGH the near limit
 // instead of stalling: once the raw distance would drop below DISTANCE_MIN, pin it there and spend
 // the leftover zoom as a forward step of the whole rig along the view ray — so close-up motion never
@@ -308,17 +320,56 @@ const KEY_ORBIT_RAD_PER_SEC = 1.2;
 const KEY_DOLLY_PER_SEC = 1.5; // fraction-of-distance per second — never fights the clamps
 const KEY_ROLL_RAD_PER_SEC = 1.0; // gentler than orbit — banking is a fine adjustment
 
-export function nudgePose(pose: CameraPose, nudge: KeyNudge, dtMs: number): CameraPose {
+// First-person look: hold the eye fixed and swing the look-at around it (azimuth/elevation deltas),
+// moving the target so the camera stays put — target = eye + distance·viewForward(new angles), the
+// inverse of cameraPosition. Distance/roll preserved. The pivot is the *eye*, not the target, so in
+// fly mode A/D/Q/E turn the view in place instead of orbiting a pivot that, up close, sits at your face.
+function eyeLook(pose: CameraPose, dAzimuth: number, dElevation: number): CameraPose {
+  const azimuth = wrapAngle(pose.azimuth + dAzimuth);
+  const elevation = clamp(pose.elevation + dElevation, -ELEVATION_LIMIT, ELEVATION_LIMIT);
+  const eye = cameraPosition(pose);
+  const forward = viewForward({ ...pose, azimuth, elevation });
+  return {
+    ...pose,
+    azimuth,
+    elevation,
+    target: [
+      eye[0] + pose.distance * forward[0],
+      eye[1] + pose.distance * forward[1],
+      eye[2] + pose.distance * forward[2],
+    ],
+  };
+}
+
+// `lookMode` (fly mode — the deliberate `isFlyMode` toggle, not proximity) reinterprets A/D/Q/E as
+// first-person look: the view swings around the eye with *flipped* handedness (D turns right, E looks
+// up) instead of orbiting the target. The flip is the fix, not the pivot — viewForward depends only on
+// the angles, so the same azimuth delta turns the view the same way regardless of pivot; orbit only
+// *reads* right when the eye's translation dominates the facing rotation (far from the target). Dolly
+// + roll are identical either way, so rotate first, then share the dolly-walk + roll tail.
+export function nudgePose(
+  pose: CameraPose,
+  nudge: KeyNudge,
+  dtMs: number,
+  lookMode = false,
+): CameraPose {
   const dt = Math.max(dtMs, 0) / 1000;
   const rot = KEY_ORBIT_RAD_PER_SEC * dt;
+  const rotated = lookMode
+    ? eyeLook(pose, -nudge.azimuth * rot, -nudge.elevation * rot)
+    : {
+        ...pose,
+        azimuth: wrapAngle(pose.azimuth + nudge.azimuth * rot),
+        elevation: clamp(pose.elevation + nudge.elevation * rot, -ELEVATION_LIMIT, ELEVATION_LIMIT),
+      };
   const walked = dollyWithWalk(
-    pose,
-    pose.distance * Math.exp(-nudge.dolly * KEY_DOLLY_PER_SEC * dt),
+    rotated,
+    rotated.distance * Math.exp(-nudge.dolly * KEY_DOLLY_PER_SEC * dt),
   );
   return {
     target: walked.target,
-    azimuth: wrapAngle(pose.azimuth + nudge.azimuth * rot),
-    elevation: clamp(pose.elevation + nudge.elevation * rot, -ELEVATION_LIMIT, ELEVATION_LIMIT),
+    azimuth: rotated.azimuth,
+    elevation: rotated.elevation,
     distance: walked.distance,
     roll: wrapAngle(pose.roll + nudge.roll * KEY_ROLL_RAD_PER_SEC * dt),
   };

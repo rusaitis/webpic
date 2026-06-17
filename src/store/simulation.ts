@@ -98,6 +98,11 @@ export interface SimulationState {
   // Volume-view projection (slices are always screen-aligned ortho). The app forwards it; the
   // worker swaps the volume camera + flips the raymarch ray generation.
   readonly projection: CameraProjection;
+  // Held-key navigation mode. false = orbit (A/D/Q/E swing the camera around the target); true = fly
+  // (A/D/Q/E are first-person look, turning the view in place). A deliberate user toggle (rail button
+  // / N), NOT auto-engaged by proximity — only W/S's close-up walk (dollyWithWalk) is automatic.
+  // Transient interaction state, so it stays out of the pose permalink.
+  readonly isFlyMode: boolean;
   // One-shot fly-to request (gnomon axis snap, fit-to-data, view presets). ui/pointerCamera — the
   // owner of the camera animation loop — consumes it: resolves the target (fit needs the canvas
   // aspect only it knows), eases the pose over, and clears the request. A fresh wrapper object per
@@ -157,6 +162,8 @@ export interface SimulationState {
   setCameraPose(pose: CameraPose): void;
   setCameraMotion(motion: CameraMotion): void;
   setProjection(projection: CameraProjection): void;
+  setFlyMode(on: boolean): void;
+  toggleFlyMode(): void;
   requestCameraFly(target: CameraFlyTarget | null): void;
   requestPick(
     request: {
@@ -353,6 +360,7 @@ export function createSimulationStore() {
         cameraPose: DEFAULT_POSE,
         cameraMotion: "idle",
         projection: "perspective",
+        isFlyMode: false,
         cameraFlyRequest: null,
         pickRequest: null,
         pickerPoint: [0, 0, 0],
@@ -418,6 +426,13 @@ export function createSimulationStore() {
         setProjection(projection) {
           if (projection === get().projection) return; // unchanged → no fire
           set({ projection });
+        },
+        setFlyMode(on) {
+          if (on === get().isFlyMode) return; // unchanged → no fire
+          set({ isFlyMode: on });
+        },
+        toggleFlyMode() {
+          set({ isFlyMode: !get().isFlyMode });
         },
         requestCameraFly(target) {
           set({ cameraFlyRequest: target === null ? null : { target } });

@@ -174,6 +174,28 @@ describe("simulationStore", () => {
   });
 });
 
+describe("simulationStore fly mode", () => {
+  it("defaults to orbit (fly off)", () => {
+    expect(createSimulationStore().getState().isFlyMode).toBe(false);
+  });
+
+  it("toggleFlyMode flips it; setFlyMode is a guarded no-fire on an unchanged value", () => {
+    const store = createSimulationStore();
+    let fires = 0;
+    const unsubscribe = store.subscribe(
+      (s) => s.isFlyMode,
+      () => fires++,
+    );
+    store.getState().toggleFlyMode();
+    expect(store.getState().isFlyMode).toBe(true);
+    store.getState().setFlyMode(true); // unchanged → no fire
+    store.getState().setFlyMode(false);
+    expect(store.getState().isFlyMode).toBe(false);
+    unsubscribe();
+    expect(fires).toBe(2); // toggle on + set off, the redundant set elided
+  });
+});
+
 describe("simulationStore time cursor", () => {
   it("starts at step 0 with an empty domain", () => {
     const { currentStep, availableSteps } = createSimulationStore().getState();

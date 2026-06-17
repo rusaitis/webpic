@@ -7,6 +7,7 @@ import {
   CAMERA_FOV_DEG,
   type CameraMomentum,
   type CameraPose,
+  cameraPosition,
   DEFAULT_POSE,
   DISTANCE_MAX,
   DISTANCE_MIN,
@@ -28,6 +29,7 @@ import {
   poseForBounds,
   stepMomentum,
   UNIT_BOX_RADIUS,
+  viewForward,
   viewPlaneOffset,
 } from "./camera.ts";
 
@@ -493,6 +495,48 @@ describe("nudgePose", () => {
     expect(banked.azimuth).toBe(LEVEL.azimuth);
     expect(banked.elevation).toBe(LEVEL.elevation);
     expect(banked.distance).toBe(LEVEL.distance);
+  });
+});
+
+describe("cameraPosition", () => {
+  it("places the eye at target − distance·viewForward", () => {
+    const eye = cameraPosition(LEVEL); // azimuth/elevation 0 ⇒ viewForward = (-1, 0, 0)
+    const forward = viewForward(LEVEL);
+    expect(eye[0]).toBeCloseTo(LEVEL.target[0] - LEVEL.distance * forward[0], 12); // 1 − 4·(−1) = 5
+    expect(eye[1]).toBeCloseTo(LEVEL.target[1] - LEVEL.distance * forward[1], 12);
+    expect(eye[2]).toBeCloseTo(LEVEL.target[2] - LEVEL.distance * forward[2], 12);
+  });
+});
+
+describe("nudgePose look mode", () => {
+  const still: KeyNudge = { azimuth: 0, elevation: 0, dolly: 0, roll: 0 };
+  const inside: CameraPose = { ...LEVEL, distance: 0.3 }; // a close-up pose; fly mode drives the flip
+
+  it("pivots around the eye: a turn leaves the camera position fixed", () => {
+    const eye0 = cameraPosition(inside);
+    const eye1 = cameraPosition(nudgePose(inside, { ...still, azimuth: 1 }, 100, true));
+    expect(eye1[0]).toBeCloseTo(eye0[0], 10);
+    expect(eye1[1]).toBeCloseTo(eye0[1], 10);
+    expect(eye1[2]).toBeCloseTo(eye0[2], 10);
+  });
+
+  it("flips A/D handedness vs orbit: azimuth +1 turns the opposite way (D = right)", () => {
+    const orbit = nudgePose(inside, { ...still, azimuth: 1 }, 100, false);
+    const look = nudgePose(inside, { ...still, azimuth: 1 }, 100, true);
+    expect(orbit.azimuth - inside.azimuth).toBeCloseTo(-(look.azimuth - inside.azimuth), 12);
+    expect(look.azimuth).toBeLessThan(inside.azimuth); // azimuth +1 now decreases azimuth
+  });
+
+  it("flips Q/E too: elevation +1 (E) looks up instead of raising the camera", () => {
+    const look = nudgePose(inside, { ...still, elevation: 1 }, 100, true);
+    expect(look.elevation).toBeLessThan(inside.elevation); // facing tilts up (−sin elevation rises)
+  });
+
+  it("leaves dolly and roll exactly as orbit mode — only the rotation pivot changes", () => {
+    const look = nudgePose(inside, { ...still, dolly: 1, roll: 1 }, 100, true);
+    const orbit = nudgePose(inside, { ...still, dolly: 1, roll: 1 }, 100, false);
+    expect(look.distance).toBeCloseTo(orbit.distance, 12);
+    expect(look.roll).toBeCloseTo(orbit.roll, 12);
   });
 });
 

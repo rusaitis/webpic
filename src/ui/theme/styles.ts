@@ -64,7 +64,8 @@ const UI_CSS = `
 /* Cold-start reveal (ui/bootReveal.ts): chrome held invisible while the boot phase is live,
    fading in when the class drops. visibility (not pointer-events) so the gnomon tips' own
    pointer-events: auto can't reach through. The status pill is deliberately not matched. */
-.webpic-booting .webpic-shell, .webpic-booting .webpic-chrome { opacity: 0; visibility: hidden; }
+.webpic-booting .webpic-shell, .webpic-booting .webpic-chrome, .webpic-booting .webpic-rail {
+  opacity: 0; visibility: hidden; }
 .webpic-shell[data-side="left"] { left: 12px; }
 .webpic-shell[data-side="right"] { right: 12px; }
 .webpic-shell[hidden] { display: none; }
@@ -133,13 +134,8 @@ const UI_CSS = `
 .webpic-shell :disabled { opacity: 0.5; cursor: default; }
 .webpic-placeholder { padding: 2px 4px; color: var(--webpic-muted); font-style: italic; }
 .webpic-chrome { position: fixed; left: 12px; bottom: 12px; z-index: 9; pointer-events: none;
-  display: flex; align-items: flex-end; gap: 10px; color: var(--webpic-fg);
-  font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
   transition: opacity 240ms ease; }
 .webpic-chrome[hidden] { display: none; }
-.webpic-readout { padding: 4px 8px; border: 1px solid var(--webpic-border);
-  border-radius: var(--webpic-radius, 4px); background: var(--webpic-bg);
-  color: var(--webpic-muted); white-space: nowrap; }
 .webpic-gnomon { position: relative; flex: 0 0 auto; width: 56px; height: 56px; perspective: 220px; }
 .webpic-gnomon_scene { position: absolute; inset: 0; transform-style: preserve-3d;
   transform-origin: 50% 50%; }
@@ -161,6 +157,26 @@ const UI_CSS = `
 .webpic-gnomon_tip.is-ny { border-color: #98c379; }
 .webpic-gnomon_tip.is-pz { background: #61afef; }
 .webpic-gnomon_tip.is-nz { border-color: #61afef; }
+/* Centered bottom button rail (ui/cameraRail): subtle magviz-style icon toggles. pointer-events:
+   none on the bar so it never blocks the canvas — each button opts back in. has-gnomon reserves the
+   bottom-left gnomon's footprint (12 + 56 + 12) symmetrically, keeping the cluster centered + clear. */
+.webpic-rail { position: fixed; left: 0; right: 0; bottom: 12px; z-index: 9; pointer-events: none;
+  display: flex; justify-content: center; align-items: center; gap: 6px;
+  transition: opacity 240ms ease; }
+.webpic-rail[hidden] { display: none; }
+.webpic-rail.has-gnomon { padding: 0 80px; }
+.webpic-rail_btn { box-sizing: border-box; width: 30px; height: 30px; padding: 0;
+  display: grid; place-items: center; pointer-events: auto; cursor: pointer; opacity: 0.4;
+  background: transparent; color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border); border-radius: 6px;
+  transition: opacity .15s ease, background .15s ease, border-color .15s ease; }
+.webpic-rail_btn:hover, .webpic-rail_btn:focus-visible { opacity: 1; outline: none;
+  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+.webpic-rail_btn[aria-pressed="true"], .webpic-rail_btn.is-copied { opacity: 1;
+  border-color: color-mix(in srgb, var(--webpic-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
+.webpic-rail_btn svg { display: block; width: 16px; height: 16px; fill: none;
+  stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 /* Status pill: bottom-center loading/error feedback (ui/statusPill.ts). Geometry mirrors the
    index.html boot splash exactly so the HTML→JS handoff is pixel-stable. The delayed visibility
    transition on fade-out keeps the element readable through the fade, then drops it from the

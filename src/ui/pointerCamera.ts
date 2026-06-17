@@ -59,9 +59,12 @@ const WHEEL_TRAIL_MS = 150;
 const FIT_SPHERE: BoundingSphere = { center: [0, 0, 0], radius: UNIT_BOX_RADIUS };
 
 // Held-key nudges (magviz's orbit keys): A/D sweep the camera left/right around the target, Q/E
-// lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. Shift+Q/E reinterpret the
-// same physical keys as roll (banking) — see rollMode in onKeyDown. Arrows belong to the point picker
-// (pointerPicker); these remap to translation when a fly mode lands.
+// lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. In fly mode (the store's
+// isFlyMode, toggled by the rail / N) the glide loop passes lookMode, flipping A/D/Q/E to first-person
+// look (turn in place: D right, E up); orbit otherwise. W/S dolly the same either way — and close up
+// that dolly walks the rig forward (dollyWithWalk), the one motion that stays automatic. Shift+Q/E
+// reinterpret the same physical keys as roll (banking) — see rollMode in onKeyDown. Arrows belong to
+// the point picker (pointerPicker); these remap to translation when a fly mode lands.
 // Keyed by event.code, NOT event.key — key is modifier-mutated ("=" releases as "+" with Shift
 // held), so a key-tracked Set leaks held entries and the dolly runs away; code names the physical
 // key on both edges (magviz does the same).
@@ -180,7 +183,10 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     // step above may have moved it this frame).
     const nudge = activeNudge();
     if (nudge !== null) {
-      setCameraPose(nudgePose(store.getState().cameraPose, nudge, dt));
+      // Fly mode (manual toggle) makes A/D/Q/E first-person look; otherwise they orbit. Read fresh —
+      // re-read the pose too (the momentum step above may have moved it this frame).
+      const state = store.getState();
+      setCameraPose(nudgePose(state.cameraPose, nudge, dt, state.isFlyMode));
     }
     // The tween steps last so its perturbation check sees this frame's user motion: any pose
     // object it didn't write means a drag/wheel/momentum blended in, and the flight must keep
@@ -470,7 +476,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     else if (key === "o") {
       const state = store.getState();
       state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
-    }
+    } else if (key === "n") store.getState().toggleFlyMode(); // orbit ⇄ fly (first-person look)
   };
   const onKeyUp = (event: KeyboardEvent): void => {
     rollMode.delete(event.code);

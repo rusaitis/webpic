@@ -1,4 +1,4 @@
-import { createSimulationStore, DEFAULT_POSE, dollyPose } from "@store";
+import { cameraPosition, createSimulationStore, DEFAULT_POSE, dollyPose } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
 import { installPointerCamera } from "./pointerCamera.ts";
 
@@ -68,6 +68,53 @@ describe("installPointerCamera", () => {
     await frame();
     // Momentum persists past pointerup: the pose keeps moving the same way.
     expect(store.getState().cameraPose.azimuth).toBeLessThan(early.azimuth);
+  });
+
+  it("fly mode is manual: with it off, held A/D orbit even when the eye is inside the volume", async () => {
+    const { store } = setup();
+    // Eye well inside the box (target at origin, small distance). The old auto-look flipped A/D here;
+    // now nothing does unless fly mode is explicitly on.
+    store
+      .getState()
+      .setCameraPose({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 0.3, roll: 0 });
+    expect(store.getState().isFlyMode).toBe(false);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "d", code: "KeyD" }));
+    await frame();
+    await frame();
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "d", code: "KeyD" }));
+    expect(store.getState().cameraPose.azimuth).toBeGreaterThan(0); // orbit handedness: D climbs azimuth
+  });
+
+  it("N toggles fly mode; in fly mode held D turns the view in place (flipped handedness)", async () => {
+    const { store } = setup();
+    store
+      .getState()
+      .setCameraPose({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 0.3, roll: 0 });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "n" })); // toggle fly on
+    expect(store.getState().isFlyMode).toBe(true);
+    const eyeBefore = cameraPosition(store.getState().cameraPose);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "d", code: "KeyD" }));
+    await frame();
+    await frame();
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "d", code: "KeyD" }));
+    const pose = store.getState().cameraPose;
+    expect(pose.azimuth).toBeLessThan(0); // look handedness: D now decreases azimuth (turns right)
+    const eyeAfter = cameraPosition(pose);
+    for (let i = 0; i < 3; i++) {
+      expect(eyeAfter[i]).toBeCloseTo(eyeBefore[i] ?? Number.NaN, 6); // eye held — it turned in place
+    }
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "n" })); // toggle back off
+    expect(store.getState().isFlyMode).toBe(false);
+  });
+
+  it("W keeps dollying in with fly mode on (close-up walk stays unconditional)", async () => {
+    const { store } = setup();
+    store.getState().setFlyMode(true);
+    const start = store.getState().cameraPose.distance;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW" }));
+    await frame();
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "w", code: "KeyW" }));
+    expect(store.getState().cameraPose.distance).toBeLessThan(start);
   });
 
   it("pans on shift-drag: only the target moves", async () => {

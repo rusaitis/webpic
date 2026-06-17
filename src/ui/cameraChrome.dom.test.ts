@@ -21,11 +21,9 @@ function setup() {
 }
 
 describe("installCameraChrome", () => {
-  it("renders the default pose into the readout and gnomon", () => {
+  it("renders the default pose into the gnomon", () => {
     const { chrome } = setup();
-    const readout = chrome.querySelector(".webpic-readout");
     const scene = chrome.querySelector<HTMLElement>(".webpic-gnomon_scene");
-    expect(readout?.textContent).toContain(`d ${DEFAULT_POSE.distance.toFixed(2)}`);
     expect(scene?.style.transform).toMatch(/^matrix3d\(/);
     // Three color-coded axis arms (X/Y/Z).
     expect(chrome.querySelectorAll(".webpic-gnomon_axis")).toHaveLength(3);
@@ -39,7 +37,6 @@ describe("installCameraChrome", () => {
     store
       .getState()
       .setCameraPose({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 9.99, roll: 0 });
-    expect(chrome.querySelector(".webpic-readout")?.textContent).toContain("d 9.99");
     expect(scene?.style.transform).not.toBe(before);
   });
 
@@ -74,64 +71,6 @@ describe("installCameraChrome", () => {
     if (side?.target.kind !== "pose") throw new Error("expected a pose fly request");
     expect(side.target.pose.azimuth).toBe(0);
     expect(side.target.pose.elevation).toBe(0);
-  });
-
-  it("copies a ?pose= permalink when the readout is clicked", async () => {
-    const writes: string[] = [];
-    const clipboard = {
-      writeText: (text: string): Promise<void> => {
-        writes.push(text);
-        return Promise.resolve();
-      },
-    };
-    Object.defineProperty(window.navigator, "clipboard", { value: clipboard, configurable: true });
-    try {
-      const { chrome } = setup();
-      const readout = chrome.querySelector<HTMLElement>(".webpic-readout");
-      readout?.dispatchEvent(new MouseEvent("click"));
-      await Promise.resolve(); // the writeText .then flips the copied flash
-      expect(writes).toHaveLength(1);
-      expect(writes[0]).toContain("pose=");
-      expect(writes[0]).not.toContain("proj="); // perspective is the default — no param
-      expect(readout?.classList.contains("is-copied")).toBe(true);
-      expect(readout?.textContent).toBe("view link copied");
-    } finally {
-      Object.defineProperty(window.navigator, "clipboard", {
-        value: undefined,
-        configurable: true,
-      });
-    }
-  });
-
-  it("the copied link carries the projection so an ortho view reopens as ortho", async () => {
-    const writes: string[] = [];
-    const clipboard = {
-      writeText: (text: string): Promise<void> => {
-        writes.push(text);
-        return Promise.resolve();
-      },
-    };
-    Object.defineProperty(window.navigator, "clipboard", { value: clipboard, configurable: true });
-    try {
-      const { store, chrome } = setup();
-      store.getState().setProjection("orthographic");
-      chrome.querySelector(".webpic-readout")?.dispatchEvent(new MouseEvent("click"));
-      await Promise.resolve();
-      expect(writes[0]).toContain("proj=ortho");
-    } finally {
-      Object.defineProperty(window.navigator, "clipboard", {
-        value: undefined,
-        configurable: true,
-      });
-    }
-  });
-
-  it("readout click is a no-op without a clipboard (insecure origin)", () => {
-    const { store, chrome } = setup();
-    const before = chrome.querySelector(".webpic-readout")?.textContent;
-    chrome.querySelector(".webpic-readout")?.dispatchEvent(new MouseEvent("click"));
-    expect(chrome.querySelector(".webpic-readout")?.textContent).toBe(before);
-    expect(store.getState().cameraFlyRequest).toBeNull(); // and certainly no camera motion
   });
 
   it("keeps the tips screen-facing: tip transforms carry the counter-rotation", () => {

@@ -2,6 +2,7 @@ import { DEFAULT_WEBPIC_CONFIG, type Theme } from "@schema/theme.ts";
 import type { SimulationStore, UiStore } from "@store";
 import { installBootReveal } from "./bootReveal.ts";
 import { installCameraChrome } from "./cameraChrome.ts";
+import { installCameraRail } from "./cameraRail.ts";
 import type { Disposer } from "./controls/index.ts";
 import { installHelpOverlay } from "./helpOverlay.ts";
 import { isTypingTarget } from "./keyboard.ts";
@@ -44,9 +45,13 @@ export function installUi(opts: InstallUiOptions): () => void {
     disposers.push(mountPanel(name, shell.panelHost(name), opts.simulationStore));
   }
 
-  // The camera HUD (readout + gnomon) is a fixed bottom-left overlay, not a docked panel — it sits
-  // outside the shell so it stays put when panels collapse, and hides with the global UI toggle.
+  // The camera gnomon is a fixed bottom-left overlay, not a docked panel — it sits outside the shell
+  // so it stays put when panels collapse, and hides with the global UI toggle.
   disposers.push(installCameraChrome(opts.parent, opts.simulationStore, opts.uiStore));
+
+  // The centered bottom button rail (gnomon/fly/projection/coord/help) — also outside the shell, also
+  // UI-toggle-hidden. It reserves the gnomon's footprint so the two never collide.
+  disposers.push(installCameraRail(opts.parent, opts.simulationStore, opts.uiStore));
 
   // Loading/error feedback; unlike the chrome it ignores the global UI toggle — status, not chrome.
   disposers.push(installStatusPill(opts.parent, opts.uiStore));
