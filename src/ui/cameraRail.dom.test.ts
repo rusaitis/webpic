@@ -1,4 +1,4 @@
-import { createSimulationStore, createUiStore, DEFAULT_POSE } from "@store";
+import { createSimulationStore, createUiStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
 import { installCameraRail } from "./cameraRail.ts";
 
@@ -22,36 +22,19 @@ function setup() {
     if (el === null) throw new Error(`missing rail button: ${control}`);
     return el;
   };
-  return { parent, store, uiStore, rail, button, dispose };
-}
-
-// A clipboard stub that records writes; returns a restore fn. happy-dom has no clipboard otherwise.
-function stubClipboard(): { writes: string[]; restore: () => void } {
-  const writes: string[] = [];
-  Object.defineProperty(window.navigator, "clipboard", {
-    value: {
-      writeText: (text: string): Promise<void> => {
-        writes.push(text);
-        return Promise.resolve();
-      },
-    },
-    configurable: true,
-  });
-  return {
-    writes,
-    restore: () =>
-      Object.defineProperty(window.navigator, "clipboard", {
-        value: undefined,
-        configurable: true,
-      }),
+  const card = (): HTMLElement => {
+    const el = parent.querySelector<HTMLElement>(".webpic-coords-card");
+    if (el === null) throw new Error("coords card not mounted");
+    return el;
   };
+  return { parent, store, uiStore, rail, button, card, dispose };
 }
 
 describe("installCameraRail", () => {
-  it("mounts the five controls: gnomon, fly, projection, coord, help", () => {
+  it("mounts the five controls: gnomon, fly, projection, coords, help", () => {
     const { rail, button } = setup();
     expect(rail.querySelectorAll(".webpic-rail_btn")).toHaveLength(5);
-    for (const control of ["gnomon", "fly", "projection", "coord", "help"]) {
+    for (const control of ["gnomon", "fly", "projection", "coords", "help"]) {
       expect(button(control)).toBeInstanceOf(window.HTMLButtonElement);
     }
   });
@@ -100,65 +83,89 @@ describe("installCameraRail", () => {
     expect(uiStore.getState().isHelpVisible).toBe(true);
   });
 
-  it("the coord button copies a ?pose= permalink and flashes the popover", async () => {
-    const clip = stubClipboard();
-    try {
-      const { button } = setup();
-      const coord = button("coord");
-      coord.dispatchEvent(new MouseEvent("click"));
-      await Promise.resolve(); // the writeText .then sets the copied flash
-      expect(clip.writes).toHaveLength(1);
-      expect(clip.writes[0]).toContain("pose=");
-      expect(clip.writes[0]).not.toContain("proj="); // perspective default — no param
-      expect(coord.classList.contains("is-copied")).toBe(true);
-      expect(coord.querySelector(".webpic-rail_popover")?.textContent).toBe("view link copied");
-    } finally {
-      clip.restore();
-    }
-  });
-
-  it("the copied link carries the projection so an ortho view reopens as ortho", async () => {
-    const clip = stubClipboard();
-    try {
-      const { store, button } = setup();
-      store.getState().setProjection("orthographic");
-      button("coord").dispatchEvent(new MouseEvent("click"));
-      await Promise.resolve();
-      expect(clip.writes[0]).toContain("proj=ortho");
-    } finally {
-      clip.restore();
-    }
-  });
-
-  it("the coord click is a no-op without a clipboard (insecure origin)", () => {
+  it("the coords chip reads — with no dataset loaded", () => {
     const { button } = setup();
-    const coord = button("coord");
-    coord.dispatchEvent(new MouseEvent("click")); // no clipboard stubbed → silent no-op
-    expect(coord.classList.contains("is-copied")).toBe(false);
+    expect(button("coords").textContent).toBe("—");
   });
 
-  it("the coord popover tracks the live pose", () => {
-    const { store, button } = setup();
-    const popover = button("coord").querySelector(".webpic-rail_popover");
-    expect(popover?.textContent).toContain(`d ${DEFAULT_POSE.distance.toFixed(2)}`);
+  it("clicking the coords chip toggles the grid-info card + aria-expanded", () => {
+    const { uiStore, button, card } = setup();
+    const coords = button("coords");
+    expect(card().hidden).toBe(true);
+    expect(coords.getAttribute("aria-expanded")).toBe("false");
+    coords.dispatchEvent(new MouseEvent("click"));
+    expect(uiStore.getState().isCoordsInfoVisible).toBe(true);
+    expect(card().hidden).toBe(false);
+    expect(coords.getAttribute("aria-expanded")).toBe("true");
+    coords.dispatchEvent(new MouseEvent("click"));
+    expect(card().hidden).toBe(true);
+    expect(coords.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("Escape closes the open card", () => {
+    const { uiStore, button, card } = setup();
+    button("coords").dispatchEvent(new MouseEvent("click"));
+    expect(card().hidden).toBe(false);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(uiStore.getState().isCoordsInfoVisible).toBe(false);
+    expect(card().hidden).toBe(true);
+  });
+
+  it("the C shortcut toggles the card", () => {
+    const { uiStore, card } = setup();
+    document.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyC" }));
+    expect(uiStore.getState().isCoordsInfoVisible).toBe(true);
+    expect(card().hidden).toBe(false);
+    document.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyC" }));
+    expect(uiStore.getState().isCoordsInfoVisible).toBe(false);
+  });
+
+  it("a pointer-down outside the card + chip closes it", () => {
+    const { uiStore, button, parent } = setup();
+    button("coords").dispatchEvent(new MouseEvent("click")); // open
+    expect(uiStore.getState().isCoordsInfoVisible).toBe(true);
+    parent.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); // outside both
+    expect(uiStore.getState().isCoordsInfoVisible).toBe(false);
+  });
+
+  it("splits the pose into View + Center rows and carries no copy button", () => {
+    const { store, button, card } = setup();
+    button("coords").dispatchEvent(new MouseEvent("click")); // open the card
+    const labels = [...card().querySelectorAll(".webpic-coords-card_label")].map(
+      (n) => n.textContent,
+    );
+    expect(labels).toContain("View");
+    expect(labels).toContain("Center");
+    // Center tracks the orbit target; View carries the angles/zoom, not the target.
     store
       .getState()
-      .setCameraPose({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 9.99, roll: 0 });
-    expect(popover?.textContent).toContain("d 9.99");
+      .setCameraPose({ target: [1, -2, 0.5], azimuth: 0, elevation: 0, distance: 3, roll: 0 });
+    const rows = [...card().querySelectorAll(".webpic-coords-card_row")];
+    const centerRow = rows.find(
+      (r) => r.querySelector(".webpic-coords-card_label")?.textContent === "Center",
+    );
+    expect(centerRow?.querySelector(".webpic-coords-card_value")?.textContent).toBe(
+      "1.00, -2.00, 0.50",
+    );
+    expect(card().querySelector(".webpic-coords-card_copy")).toBeNull(); // sharing moves to a top menu
   });
 
-  it("hides with the global UI toggle", () => {
-    const { uiStore, rail } = setup();
+  it("hides the rail and closes the card on the global UI toggle", () => {
+    const { uiStore, rail, button } = setup();
+    button("coords").dispatchEvent(new MouseEvent("click")); // open the card
+    expect(uiStore.getState().isCoordsInfoVisible).toBe(true);
     expect(rail.hidden).toBe(false);
     uiStore.getState().toggleUi();
     expect(rail.hidden).toBe(true);
+    expect(uiStore.getState().isCoordsInfoVisible).toBe(false); // force-closed with the UI
     uiStore.getState().toggleUi();
     expect(rail.hidden).toBe(false);
   });
 
-  it("removes the container on dispose", () => {
+  it("removes the rail and the card on dispose", () => {
     const { parent, dispose } = setup();
     dispose();
     expect(parent.querySelector(".webpic-rail")).toBeNull();
+    expect(parent.querySelector(".webpic-coords-card")).toBeNull();
   });
 });

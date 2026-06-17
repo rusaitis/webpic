@@ -49,6 +49,7 @@ export const SHORTCUTS: readonly ShortcutSection[] = [
       { keys: "N", action: "Toggle fly mode (A/D/Q/E look)" },
       { keys: "O", action: "Toggle orthographic" },
       { keys: "F", action: "Toggle UI" },
+      { keys: "C", action: "Coordinates & grid info" },
       { keys: "Shift+P", action: "Toggle performance HUD (dev)" },
       { keys: "? · H", action: "Toggle this help" },
     ],

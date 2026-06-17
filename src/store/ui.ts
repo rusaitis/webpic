@@ -21,6 +21,7 @@ export const BOOT_PHASE_KEY = "boot";
 export interface UiState {
   readonly isUiVisible: boolean;
   readonly isHelpVisible: boolean;
+  readonly isCoordsInfoVisible: boolean;
   readonly panels: Readonly<Record<string, boolean>>;
   /** Insertion-ordered; the pill shows while nonempty and the oldest entry owns the
    *  message — newest-wins reverts the text when a later phase ends first (A→B→A). */
@@ -30,6 +31,8 @@ export interface UiState {
   setUiVisible(visible: boolean): void;
   toggleHelp(): void;
   setHelpVisible(visible: boolean): void;
+  toggleCoordsInfo(): void;
+  setCoordsInfoVisible(visible: boolean): void;
   togglePanel(name: string): void;
   setPanelVisible(name: string, visible: boolean): void;
   beginLoading(key: string, message: string): void;
@@ -47,6 +50,7 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
     subscribeWithSelector((set, get) => ({
       isUiVisible: true,
       isHelpVisible: false,
+      isCoordsInfoVisible: false,
       panels: initialPanels,
       loadingPhases: [],
       statusError: null,
@@ -61,6 +65,12 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       },
       setHelpVisible(visible) {
         if (get().isHelpVisible !== visible) set({ isHelpVisible: visible });
+      },
+      toggleCoordsInfo() {
+        set({ isCoordsInfoVisible: !get().isCoordsInfoVisible });
+      },
+      setCoordsInfoVisible(visible) {
+        if (get().isCoordsInfoVisible !== visible) set({ isCoordsInfoVisible: visible });
       },
       togglePanel(name) {
         const { panels } = get();

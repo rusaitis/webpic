@@ -177,19 +177,29 @@ const UI_CSS = `
   background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
 .webpic-rail_btn svg { display: block; width: 16px; height: 16px; fill: none;
   stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-/* Coordinate readout popover: the live pose above the crosshair, shown on hover/focus (and held
-   open through the copied flash). pointer-events: none so it never eats the click; the parent button
-   is at full opacity whenever it's shown (hover/focus/is-copied all set opacity 1), so it reads crisp. */
-.webpic-rail_coord { position: relative; }
-.webpic-rail_popover { position: absolute; left: 50%; bottom: calc(100% + 8px);
-  transform: translateX(-50%); padding: 4px 8px; border: 1px solid var(--webpic-border);
-  border-radius: var(--webpic-radius); background: var(--webpic-bg); color: var(--webpic-muted);
-  white-space: nowrap; font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
-  pointer-events: none; opacity: 0; visibility: hidden;
-  transition: opacity .12s ease, visibility 0s linear .12s; }
-.webpic-rail_coord:hover .webpic-rail_popover, .webpic-rail_coord:focus-visible .webpic-rail_popover,
-.webpic-rail_coord.is-copied .webpic-rail_popover {
-  opacity: 1; visibility: visible; transition: opacity .12s ease; }
+/* Coordinate chip: a text button (geometry · field units) that opens the grid-info card — auto width
+   instead of the 30px icon square, single-line with ellipsis. aria-expanded reuses the pressed
+   accent-tint while the card is open. */
+.webpic-rail_coords { display: block; width: auto; min-width: 30px; max-width: 40vw; padding: 0 9px;
+  font: 500 11px/28px ui-monospace, "SF Mono", Menlo, monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.webpic-rail_coords[aria-expanded="true"] { opacity: 1;
+  border-color: color-mix(in srgb, var(--webpic-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
+/* Grid-info card: a parent-level floating dialog above the rail (ui/cameraRail). pointer-events: auto
+   so its copy button works; z-index over the transient status pill (11), under the help modal (20). */
+.webpic-coords-card { position: fixed; left: 50%; bottom: 54px; transform: translateX(-50%);
+  z-index: 12; pointer-events: auto; box-sizing: border-box; min-width: 248px; max-width: 92vw;
+  padding: 10px 12px; background: var(--webpic-bg); color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border); border-radius: 8px;
+  font: 500 11px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
+.webpic-coords-card[hidden] { display: none; }
+.webpic-coords-card_row { display: flex; justify-content: space-between; gap: 18px; padding: 1px 0; }
+.webpic-coords-card_label { color: var(--webpic-muted); }
+.webpic-coords-card_value { color: var(--webpic-fg); text-align: right; white-space: nowrap; }
+/* Separate the static grid facts from the live View + Center pose rows below. */
+.webpic-coords-card_rows { margin-bottom: 6px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--webpic-border); }
 /* Status pill: bottom-center loading/error feedback (ui/statusPill.ts). Geometry mirrors the
    index.html boot splash exactly so the HTML→JS handoff is pixel-stable. The delayed visibility
    transition on fade-out keeps the element readable through the fade, then drops it from the

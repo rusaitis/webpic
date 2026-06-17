@@ -11,6 +11,22 @@ describe("uiStore", () => {
     expect(store.getState().isUiVisible).toBe(true);
   });
 
+  it("toggles the coordinates/grid-info popover, guarding no-op sets", () => {
+    const store = createUiStore();
+    const seen: boolean[] = [];
+    const unsubscribe = store.subscribe(
+      (s) => s.isCoordsInfoVisible,
+      (v) => seen.push(v),
+    );
+    expect(store.getState().isCoordsInfoVisible).toBe(false);
+    store.getState().toggleCoordsInfo();
+    expect(store.getState().isCoordsInfoVisible).toBe(true);
+    store.getState().setCoordsInfoVisible(true); // unchanged → no fire
+    store.getState().setCoordsInfoVisible(false);
+    unsubscribe();
+    expect(seen).toEqual([true, false]);
+  });
+
   it("toggles per-panel visibility (defaulting unseen panels to visible)", () => {
     const store = createUiStore({ field: true });
     store.getState().togglePanel("field");
