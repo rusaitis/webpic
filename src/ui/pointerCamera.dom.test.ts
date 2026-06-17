@@ -329,6 +329,83 @@ describe("installPointerCamera", () => {
     expect(store.getState().cameraPose).toBe(moved);
   });
 
+  it("touch double-tap focuses the box like a desktop double-click", async () => {
+    const { target, store } = setup();
+    target.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 200, bottom: 100, width: 200, height: 100 }) as DOMRect;
+    const start = store.getState().cameraPose;
+    const tap = (): void => {
+      target.dispatchEvent(
+        pointer("pointerdown", 100, 50, { pointerType: "touch", isPrimary: true }),
+      );
+      target.dispatchEvent(pointer("pointerup", 100, 50, { pointerType: "touch" }));
+    };
+    tap();
+    expect(store.getState().pickRequest).toBeNull(); // a lone tap doesn't focus
+    tap();
+    expect(store.getState().pickRequest).toEqual({
+      ndcX: 0,
+      ndcY: 0,
+      aspect: 2,
+      purpose: "focus",
+      focusDistance: start.distance * 0.7, // same goal-distance commit as dblclick
+    });
+    await pumpUntil(() => store.getState().cameraPose.distance < start.distance * 0.9);
+  });
+
+  it("a touch drag past the slop is not a tap (no focus)", () => {
+    const { target, store } = setup();
+    target.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 200, bottom: 100, width: 200, height: 100 }) as DOMRect;
+    const dragTap = (): void => {
+      target.dispatchEvent(
+        pointer("pointerdown", 100, 50, { pointerType: "touch", isPrimary: true }),
+      );
+      target.dispatchEvent(pointer("pointermove", 140, 50, { pointerType: "touch" })); // 40 px > slop
+      target.dispatchEvent(pointer("pointerup", 140, 50, { pointerType: "touch" }));
+    };
+    dragTap();
+    dragTap();
+    expect(store.getState().pickRequest).toBeNull();
+  });
+
+  it("de-dupes a synthetic touch double-tap against a native dblclick for the same gesture", () => {
+    const { target, store } = setup();
+    target.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 200, bottom: 100, width: 200, height: 100 }) as DOMRect;
+    const tap = (): void => {
+      target.dispatchEvent(
+        pointer("pointerdown", 100, 50, { pointerType: "touch", isPrimary: true }),
+      );
+      target.dispatchEvent(pointer("pointerup", 100, 50, { pointerType: "touch" }));
+    };
+    tap();
+    tap(); // synthetic double-tap focuses
+    const req = store.getState().pickRequest;
+    expect(req).not.toBeNull();
+    // Some touch browsers also synthesize a dblclick for the same gesture — it must not refocus.
+    target.dispatchEvent(new MouseEvent("dblclick", { clientX: 100, clientY: 50 }));
+    expect(store.getState().pickRequest).toBe(req); // same object ⇒ requestPick not called again
+  });
+
+  it("recovers from stranded multitouch: a primary pointerdown purges phantom pointers", async () => {
+    const { target, store } = setup();
+    const start = store.getState().cameraPose;
+    // Two fingers down, but the browser drops both releases (iOS/Android mid-pinch): the map is
+    // stranded at size 2, which used to reject every later finger and freeze the camera.
+    target.dispatchEvent(
+      pointer("pointerdown", 100, 100, { pointerId: 1, pointerType: "touch", isPrimary: true }),
+    );
+    target.dispatchEvent(pointer("pointerdown", 200, 100, { pointerId: 2, pointerType: "touch" }));
+    // A fresh single touch (isPrimary ⇒ nothing else is really down) purges the phantoms and orbits.
+    target.dispatchEvent(
+      pointer("pointerdown", 100, 100, { pointerId: 3, pointerType: "touch", isPrimary: true }),
+    );
+    target.dispatchEvent(pointer("pointermove", 160, 100, { pointerId: 3, pointerType: "touch" }));
+    await frame();
+    expect(store.getState().cameraPose.azimuth).toBeLessThan(start.azimuth); // drag right orbits again
+  });
+
   it("the R key flies back to the default pose", async () => {
     const { store } = setup();
     store.getState().setCameraPose({ ...DEFAULT_POSE, azimuth: 2, distance: 5 });

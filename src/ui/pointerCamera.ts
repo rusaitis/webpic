@@ -58,6 +58,14 @@ const WHEEL_TRAIL_MS = 150;
 // Fit target until non-cube datasets land: the unit render box's bounding sphere.
 const FIT_SPHERE: BoundingSphere = { center: [0, 0, 0], radius: UNIT_BOX_RADIUS };
 
+// Touch/pen double-tap → pick-to-focus (mouse keeps the native dblclick). A "tap" is a short,
+// near-stationary single-finger press; two within DBL_TAP_MS and DBL_TAP_SLOP_PX of each other
+// focus like a desktop double-click. Standard mobile UX thresholds.
+const TAP_SLOP_PX = 10; // a press that travels farther was a drag, not a tap
+const TAP_MAX_MS = 500; // a press held longer was a press-and-hold, not a tap
+const DBL_TAP_MS = 300; // two taps within this window pair into a double-tap
+const DBL_TAP_SLOP_PX = 30; // ...and landing within this distance of each other
+
 // Held-key nudges (magviz's orbit keys): A/D sweep the camera left/right around the target, Q/E
 // lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. In fly mode (the store's
 // isFlyMode, toggled by the rail / N) the glide loop passes lookMode, flipping A/D/Q/E to first-person
@@ -104,8 +112,12 @@ interface PoseTween {
 export function installPointerCamera(target: HTMLElement, store: SimulationStore): Disposer {
   const ac = new AbortController();
   const { signal } = ac;
-  // Live pointers (id → last position, mutated in place per move). One pointer drags; two pinch.
-  const pointers = new Map<number, { x: number; y: number }>();
+  // Live pointers (id → live position + immutable press origin/time). x/y are mutated in place per
+  // move; downX/downY/downAtMs are fixed at press and only read for tap detection. One drags; two pinch.
+  const pointers = new Map<
+    number,
+    { x: number; y: number; downX: number; downY: number; downAtMs: number }
+  >();
   let panning = false;
   let viewportHeight = NOMINAL_VIEWPORT_PX; // measured per gesture; drags normalize px by this
   let momentum: CameraMomentum = MOMENTUM_ZERO;
@@ -117,6 +129,13 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
   // per wheel trail (dolly NDC) rather than per event; the canvas can't resize mid-gesture.
   let gestureRect: DOMRect | undefined;
   let wheelRect: DOMRect | undefined;
+  // Touch double-tap state: a pinch (two fingers ever down this gesture) is never a tap; the last
+  // tap's time/pos pairs the next one; lastFocusMs de-dupes a synthetic tap against a native dblclick.
+  let wasMultiTouch = false;
+  let lastTapMs = Number.NEGATIVE_INFINITY;
+  let lastTapX = 0;
+  let lastTapY = 0;
+  let lastFocusMs = Number.NEGATIVE_INFINITY;
   // Nudge keys currently held (event.code). The glide loop turns them into constant-velocity
   // motion; opposite keys cancel per-axis.
   const heldKeys = new Set<string>();
@@ -261,6 +280,15 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
 
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 && event.button !== 1 && event.button !== 2) return;
+    // A primary pointer means no others are physically down: anything still tracked is a phantom
+    // from a multitouch release the browser never delivered (iOS/Android drop these mid-pinch),
+    // which would otherwise lock the gesture at size >= 2 forever. Purge before this one joins.
+    if (event.isPrimary && pointers.size > 0) {
+      for (const id of pointers.keys()) target.releasePointerCapture?.(id);
+      pointers.clear();
+      momentum = MOMENTUM_ZERO; // drop the phantom's fling so the new gesture starts clean
+      wasMultiTouch = false;
+    }
     if (pointers.has(event.pointerId)) return; // button chord mid-drag — keep the current gesture
     if (pointers.size >= 2) return; // two fingers own the gesture; a third joins nothing
     if (event.button === 1) event.preventDefault(); // no middle-click autoscroll
@@ -268,8 +296,16 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       panning = event.shiftKey || event.button === 1 || event.button === 2;
       gestureRect = target.getBoundingClientRect();
       viewportHeight = gestureRect.height > 0 ? gestureRect.height : NOMINAL_VIEWPORT_PX;
+      wasMultiTouch = false;
     }
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    pointers.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+      downX: event.clientX,
+      downY: event.clientY,
+      downAtMs: performance.now(),
+    });
+    if (pointers.size === 2) wasMultiTouch = true; // a pinch began — no release in it is a tap
     target.setPointerCapture?.(event.pointerId); // keep the drag if the cursor leaves the canvas
     applyCursor();
     syncMotion();
@@ -332,7 +368,34 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
   };
 
   const onPointerEnd = (event: PointerEvent): void => {
-    if (!pointers.delete(event.pointerId)) return;
+    const tracked = pointers.get(event.pointerId);
+    if (tracked === undefined) return;
+    // A clean single-finger tap (touch/pen, never part of a pinch, near-stationary, quick) on a
+    // genuine pointerup; two within the window focus like a desktop double-click. pointercancel /
+    // lostpointercapture are interruptions, not taps — they break the chain.
+    if (event.type === "pointerup") {
+      const isTap =
+        (event.pointerType === "touch" || event.pointerType === "pen") &&
+        !wasMultiTouch &&
+        pointers.size === 1 &&
+        performance.now() - tracked.downAtMs <= TAP_MAX_MS &&
+        Math.hypot(event.clientX - tracked.downX, event.clientY - tracked.downY) <= TAP_SLOP_PX;
+      if (
+        isTap &&
+        performance.now() - lastTapMs <= DBL_TAP_MS &&
+        Math.hypot(event.clientX - lastTapX, event.clientY - lastTapY) <= DBL_TAP_SLOP_PX
+      ) {
+        lastTapMs = Number.NEGATIVE_INFINITY; // consume — a third tap doesn't chain
+        triggerFocus(event.clientX, event.clientY);
+      } else if (isTap) {
+        lastTapMs = performance.now();
+        lastTapX = event.clientX;
+        lastTapY = event.clientY;
+      } else {
+        lastTapMs = Number.NEGATIVE_INFINITY; // a drag/pinch release breaks the double-tap chain
+      }
+    }
+    pointers.delete(event.pointerId);
     target.releasePointerCapture?.(event.pointerId);
     applyCursor();
     syncMotion();
@@ -392,22 +455,21 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     event.preventDefault();
   };
 
-  // Double-click = pick-to-focus: fly the orbit pivot to the feature under the cursor. The box-hit
-  // test runs synchronously here (store math); a hit starts the fly toward the chord midpoint the
-  // same frame — no worker-round-trip dead time — and dispatches a pick intent the app refines via
-  // the worker's opacity-weighted ray march (its pickResult retargets the running flight, masked
-  // by the slow ease-in). The goal distance is committed once here and rides the pick request so
-  // the retarget can't re-apply ×0.7 to the already-flying pose. A background double-click (ray
-  // misses the box) keeps the old reset, where the two gestures can't conflict.
-  const onDoubleClick = (event: MouseEvent): void => {
-    if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+  // Pick-to-focus (double-click / touch double-tap): fly the orbit pivot to the feature under the
+  // cursor. The box-hit test runs synchronously here (store math); a hit starts the fly toward the
+  // chord midpoint the same frame — no worker-round-trip dead time — and dispatches a pick intent
+  // the app refines via the worker's opacity-weighted ray march (its pickResult retargets the
+  // running flight, masked by the slow ease-in). The goal distance is committed once here and rides
+  // the pick request so the retarget can't re-apply ×0.7 to the already-flying pose. A background
+  // gesture (ray misses the box) keeps the old reset, where the two can't conflict.
+  const focusAt = (clientX: number, clientY: number): void => {
     const rect = target.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) {
       flyTo(DEFAULT_POSE); // unlaid-out target — no cursor to pick with
       return;
     }
-    const ndcX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = 1 - ((event.clientY - rect.top) / rect.height) * 2; // screen up = +ndcY
+    const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const ndcY = 1 - ((clientY - rect.top) / rect.height) * 2; // screen up = +ndcY
     const aspect = rect.width / rect.height;
     const state = store.getState();
     const ray = cursorRay(
@@ -425,6 +487,20 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     const distance = focusDistance(state.cameraPose.distance);
     flyTo(focusPoseOnPoint(state.cameraPose, midpoint, distance));
     state.requestPick({ ndcX, ndcY, aspect, purpose: "focus", focusDistance: distance });
+  };
+
+  // One focus per gesture: a touch double-tap and the native dblclick some browsers also synthesize
+  // for it would otherwise both fire — the window keeps the first.
+  const triggerFocus = (clientX: number, clientY: number): void => {
+    const now = performance.now();
+    if (now - lastFocusMs < DBL_TAP_MS) return;
+    lastFocusMs = now;
+    focusAt(clientX, clientY);
+  };
+
+  const onDoubleClick = (event: MouseEvent): void => {
+    if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+    triggerFocus(event.clientX, event.clientY);
   };
 
   // Hardcoded shortcuts until theme shortcuts exist; same guards as ui/install.ts. R reset, Z fit,
