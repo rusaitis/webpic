@@ -12,8 +12,9 @@ import {
 import { isTypingTarget } from "./keyboard.ts";
 
 // Centered bottom button rail (magviz's bottom-cluster, cleaned up to webpic's structure): subtle
-// icon toggles for the gnomon, orbit/fly mode, and projection, a text "coords" chip that names the
-// loaded coordinate frame + its spatial units and opens a grid-info card, and a help button.
+// icon controls for the gnomon, orbit/fly mode, projection, and a momentary fit-to-view (the one
+// touch path to Z, since iPads have no keyboard), a text "coords" chip that names the loaded
+// coordinate frame + its spatial units and opens a grid-info card, and a help button.
 // ui → store only — every button dispatches a typed intent or reads a slice; no render import.
 // "Gnomon-aware": it reserves the bottom-left gnomon's footprint (the has-gnomon inset) so the centered
 // cluster never slides under it. Hides with the global UI toggle, like ui/cameraChrome.
@@ -26,6 +27,7 @@ const ICON = {
   fly: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.5 1.5 1.8 6.9l4.9 1.6 1.6 4.9z"/><path d="M14.5 1.5 6.7 8.5"/></svg>`,
   perspective: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7.7 2 13.5 4.2v6L7.7 12.4 2 10.2v-6z"/><path d="M7.7 2v6.2l5.8-2M7.7 8.2 2 6"/></svg>`,
   ortho: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5h8v8h-8z"/><path d="M5.5 5.5V2.5h8v8h-3"/></svg>`,
+  fit: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.5V2h3.5M14 5.5V2h-3.5M2 10.5V14h3.5M14 10.5V14h-3.5"/></svg>`,
   help: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><path d="M6.2 6.3a1.9 1.9 0 1 1 2.7 1.8c-.7.4-1 .8-1 1.5"/><circle cx="7.9" cy="12" r=".55" fill="currentColor" stroke="none"/></svg>`,
 } as const;
 
@@ -50,6 +52,8 @@ export function installCameraRail(
   const gnomonBtn = makeButton("gnomon", "", ICON.gnomon);
   const flyBtn = makeButton("fly", "", ICON.orbit);
   const projBtn = makeButton("projection", "", ICON.perspective);
+  const fitBtn = makeButton("fit", "", ICON.fit);
+  fitBtn.title = "Fit data to view (Z)";
   const coordsBtn = makeButton("coords", "webpic-rail_coords", "");
   const helpBtn = makeButton("help", "", ICON.help);
   helpBtn.title = "Keyboard shortcuts (? / H)";
@@ -67,10 +71,12 @@ export function installCameraRail(
     const state = store.getState();
     state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
   });
+  // Momentary, not a toggle: re-frame the data (pointerCamera owns the fit math + glide).
+  fitBtn.addEventListener("click", () => store.getState().requestCameraFly({ kind: "fit" }));
   coordsBtn.addEventListener("click", () => uiStore.getState().toggleCoordsInfo());
   helpBtn.addEventListener("click", () => uiStore.getState().toggleHelp());
 
-  container.append(gnomonBtn, flyBtn, projBtn, coordsBtn, helpBtn);
+  container.append(gnomonBtn, flyBtn, projBtn, fitBtn, coordsBtn, helpBtn);
   parent.appendChild(container);
 
   // Grid-info card: a parent-level floating dialog (not a rail child) so it escapes the rail's

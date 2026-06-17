@@ -2,16 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
     <title>webpic</title>
     <style>
       :root { color-scheme: dark; }
-      html, body { margin: 0; height: 100%; background: #101820; }
+      /* overscroll-behavior: none kills mobile pull-to-refresh + rubber-band glow fighting the canvas. */
+      html, body { margin: 0; height: 100%; background: #101820; overscroll-behavior: none; }
       /* Block layout (not grid place-items:center): a <canvas> is a replaced element with an
          intrinsic aspect ratio, and centering (non-stretch) alignment lets height:100% fall back to
          that ratio — a square canvas overflowing a landscape viewport, sinking the centered render
          below the visible center. A definite-height block lets height:100% fill the viewport. */
-      #app { width: 100vw; height: 100vh; overflow: hidden; }
+      /* 100dvh tracks the live viewport so mobile Safari's retracting address bar can't clip the
+         bottom rail (dvh predates WebGPU in every browser that can run this, so no 100vh fallback). */
+      #app { width: 100vw; height: 100dvh; overflow: hidden; }
       /* Boot splash: a pre-painted copy of the ui/statusPill.ts pill (same geometry, the
          styles.ts fallback palette as literals) so feedback paints at HTML parse — the FCP
          anchor the M0 perf gate measures, distinct from the WebGPU first frame. It lives

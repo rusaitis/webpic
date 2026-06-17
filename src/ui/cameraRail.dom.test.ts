@@ -31,12 +31,19 @@ function setup() {
 }
 
 describe("installCameraRail", () => {
-  it("mounts the five controls: gnomon, fly, projection, coords, help", () => {
+  it("mounts the six controls: gnomon, fly, projection, fit, coords, help", () => {
     const { rail, button } = setup();
-    expect(rail.querySelectorAll(".webpic-rail_btn")).toHaveLength(5);
-    for (const control of ["gnomon", "fly", "projection", "coords", "help"]) {
+    expect(rail.querySelectorAll(".webpic-rail_btn")).toHaveLength(6);
+    for (const control of ["gnomon", "fly", "projection", "fit", "coords", "help"]) {
       expect(button(control)).toBeInstanceOf(window.HTMLButtonElement);
     }
+  });
+
+  it("the fit button requests a fit fly-to (the touch path to Z)", () => {
+    const { store, button } = setup();
+    expect(store.getState().cameraFlyRequest).toBeNull();
+    button("fit").dispatchEvent(new MouseEvent("click"));
+    expect(store.getState().cameraFlyRequest?.target).toEqual({ kind: "fit" });
   });
 
   it("the fly button toggles isFlyMode and reflects it on aria-pressed", () => {

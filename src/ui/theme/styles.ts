@@ -161,7 +161,8 @@ const UI_CSS = `
 /* Centered bottom button rail (ui/cameraRail): subtle magviz-style icon toggles. pointer-events:
    none on the bar so it never blocks the canvas — each button opts back in. has-gnomon reserves the
    bottom-left gnomon's footprint (12 + 56 + 12) symmetrically, keeping the cluster centered + clear. */
-.webpic-rail { position: fixed; left: 0; right: 0; bottom: 12px; z-index: 9; pointer-events: none;
+.webpic-rail { position: fixed; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 9; pointer-events: none;
   display: flex; justify-content: center; align-items: center; gap: 6px;
   transition: opacity 240ms ease; }
 .webpic-rail[hidden] { display: none; }
@@ -189,7 +190,8 @@ const UI_CSS = `
   background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
 /* Grid-info card: a parent-level floating dialog above the rail (ui/cameraRail). pointer-events: auto
    so its copy button works; z-index over the transient status pill (11), under the help modal (20). */
-.webpic-coords-card { position: fixed; left: 50%; bottom: 54px; transform: translateX(-50%);
+.webpic-coords-card { position: fixed; left: 50%; bottom: calc(54px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
   z-index: 12; pointer-events: auto; box-sizing: border-box; min-width: 248px; max-width: 92vw;
   padding: 10px 12px; background: var(--webpic-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 8px;
@@ -247,7 +249,9 @@ const UI_CSS = `
 /* Top menu bar (ui/topBar): brand + dataset/field pickers + time scrub + placeholder actions. A fixed
    panel-styled bar (not magviz's glass pill) — matches the docked shell's bg/border/radius/mono. It
    declares the shell-local control tokens itself since it lives outside .webpic-shell. */
-.webpic-topbar { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 10; box-sizing: border-box;
+.webpic-topbar { position: fixed; top: calc(12px + env(safe-area-inset-top));
+  left: calc(12px + env(safe-area-inset-left)); right: calc(12px + env(safe-area-inset-right));
+  z-index: 10; box-sizing: border-box;
   display: flex; align-items: center; gap: 10px; padding: 6px 10px;
   background: var(--webpic-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 8px;
