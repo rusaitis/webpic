@@ -1,0 +1,220 @@
+import { makeEl } from "./dom.ts";
+
+// A lightweight anchored single-select popover (the dataset + content pickers in ui/topBar share it).
+// Content-agnostic: the caller supplies each row's body via renderRow, so one interaction shell —
+// lazy build on open, reposition on scroll/resize, outside-pointerdown + Esc + arrow-key nav, focus
+// return to the trigger — serves both a plain dataset list and a rich field-metadata list. Built off
+// the anchor's ownerDocument (never the global document), so it's happy-dom-testable and embed-safe.
+// Single-select only; multi-select can follow when multi-field datasets arrive.
+
+export interface PopoverItem<V extends string = string> {
+  readonly value: V;
+}
+
+export interface PopoverOptions<T extends PopoverItem> {
+  readonly anchor: HTMLButtonElement; // the trigger; popover sits under it, focus returns here on Esc
+  readonly getItems: () => readonly T[]; // re-read on every open + refresh()
+  readonly getSelected: () => string | null; // current value, for the tick + active seed
+  readonly onSelect: (value: string) => void; // commit (then the popover closes)
+  readonly renderRow: (doc: Document, item: T, selected: boolean) => HTMLElement; // the row's content
+  readonly className?: string; // extra class on the popover root (e.g. "is-fields")
+}
+
+export interface PopoverHandle {
+  open(): void;
+  close(): void;
+  toggle(): void;
+  refresh(): void; // rebuild rows if open (the data changed)
+  isOpen(): boolean;
+  dispose(): void; // close + drop every listener + remove the popover node
+}
+
+const CHECK_SVG = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>`;
+const MIN_WIDTH_PX = 200;
+const GAP_PX = 6;
+
+export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): PopoverHandle {
+  const { anchor } = opts;
+  const doc = anchor.ownerDocument;
+  const win = doc.defaultView;
+
+  let panel: HTMLElement | null = null; // the listbox; built lazily on first open
+  let rows: HTMLElement[] = []; // option elements, parallel to `items`
+  let items: readonly T[] = [];
+  let activeIndex = -1;
+  let visible = false;
+
+  const ensurePanel = (): HTMLElement => {
+    if (panel !== null) return panel;
+    const el = makeEl(
+      doc,
+      "div",
+      opts.className ? `webpic-popover ${opts.className}` : "webpic-popover",
+    );
+    el.setAttribute("role", "listbox");
+    el.tabIndex = -1;
+    el.hidden = true;
+    doc.body.appendChild(el);
+    panel = el;
+    return el;
+  };
+
+  const setActive = (index: number): void => {
+    if (index === activeIndex) return;
+    rows[activeIndex]?.classList.remove("is-active");
+    activeIndex = index;
+    const row = rows[activeIndex];
+    if (row !== undefined) {
+      row.classList.add("is-active");
+      row.scrollIntoView({ block: "nearest" });
+    }
+  };
+
+  const commit = (index: number): void => {
+    const item = items[index];
+    if (item === undefined) return;
+    opts.onSelect(item.value);
+    close(); // the trigger label updates via the caller's store subscription
+  };
+
+  const buildRows = (): void => {
+    const el = ensurePanel();
+    el.replaceChildren();
+    rows = [];
+    items = opts.getItems();
+    const selected = opts.getSelected();
+    items.forEach((item, index) => {
+      const isSelected = item.value === selected;
+      const row = makeEl(doc, "div", "webpic-popover_item");
+      row.setAttribute("role", "option");
+      row.dataset.value = item.value;
+      row.setAttribute("aria-selected", String(isSelected));
+      const check = makeEl(doc, "span", "webpic-popover_check");
+      check.innerHTML = CHECK_SVG;
+      row.append(check, opts.renderRow(doc, item, isSelected));
+      row.addEventListener("mouseenter", () => setActive(index));
+      row.addEventListener("click", (event) => {
+        event.preventDefault();
+        commit(index);
+      });
+      el.appendChild(row);
+      rows.push(row);
+    });
+    // Seed the active option at the current selection (else the first row).
+    activeIndex = -1;
+    const sel = items.findIndex((item) => item.value === selected);
+    setActive(sel >= 0 ? sel : 0);
+  };
+
+  const reposition = (): void => {
+    if (panel === null) return;
+    const rect = anchor.getBoundingClientRect();
+    panel.style.left = `${rect.left}px`;
+    panel.style.top = `${rect.bottom + GAP_PX}px`;
+    panel.style.minWidth = `${Math.max(rect.width, MIN_WIDTH_PX)}px`;
+  };
+
+  const onOutside = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (panel?.contains(target) || anchor.contains(target)) return;
+    close();
+  };
+
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (!visible) return;
+    switch (event.key) {
+      case "Escape":
+        event.preventDefault();
+        close();
+        anchor.focus(); // keyboard dismissal returns focus to the trigger; outside-click does not
+        break;
+      case "ArrowDown":
+        event.preventDefault();
+        setActive(Math.min(activeIndex + 1, rows.length - 1));
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        setActive(Math.max(activeIndex - 1, 0));
+        break;
+      case "Home":
+        event.preventDefault();
+        setActive(0);
+        break;
+      case "End":
+        event.preventDefault();
+        setActive(rows.length - 1);
+        break;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        commit(activeIndex);
+        break;
+      default:
+        break;
+    }
+  };
+
+  function open(): void {
+    if (visible) return;
+    const el = ensurePanel();
+    buildRows();
+    el.hidden = false;
+    visible = true;
+    anchor.setAttribute("aria-expanded", "true");
+    reposition();
+    doc.addEventListener("pointerdown", onOutside, true);
+    doc.addEventListener("keydown", onKeyDown);
+    win?.addEventListener("resize", reposition);
+    win?.addEventListener("scroll", reposition, true);
+  }
+
+  function close(): void {
+    if (!visible) return;
+    visible = false;
+    if (panel !== null) {
+      panel.hidden = true;
+      panel.replaceChildren();
+    }
+    rows = [];
+    activeIndex = -1;
+    anchor.setAttribute("aria-expanded", "false");
+    doc.removeEventListener("pointerdown", onOutside, true);
+    doc.removeEventListener("keydown", onKeyDown);
+    win?.removeEventListener("resize", reposition);
+    win?.removeEventListener("scroll", reposition, true);
+  }
+
+  const toggle = (): void => {
+    if (visible) close();
+    else open();
+  };
+
+  const onAnchorClick = (): void => toggle();
+  const onAnchorKeyDown = (event: KeyboardEvent): void => {
+    if (visible) return; // the doc-level handler owns navigation while open
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      open();
+    }
+  };
+  anchor.addEventListener("click", onAnchorClick);
+  anchor.addEventListener("keydown", onAnchorKeyDown);
+
+  return {
+    open,
+    close,
+    toggle,
+    isOpen: () => visible,
+    refresh: () => {
+      if (visible) buildRows();
+    },
+    dispose: () => {
+      close();
+      anchor.removeEventListener("click", onAnchorClick);
+      anchor.removeEventListener("keydown", onAnchorKeyDown);
+      panel?.remove();
+      panel = null;
+    },
+  };
+}

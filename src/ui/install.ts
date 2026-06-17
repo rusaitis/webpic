@@ -10,6 +10,7 @@ import { mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
 import { installStatusPill } from "./statusPill.ts";
 import { applyControlStyles } from "./theme/styles.ts";
+import { installTopBar } from "./topBar.ts";
 
 // The UI subsystem's install entry (install*() => () => void): styles + docked shell +
 // panels + the global show/hide shortcut. Dispatches store intents and subscribes — never
@@ -44,6 +45,11 @@ export function installUi(opts: InstallUiOptions): () => void {
   for (const name of panels) {
     disposers.push(mountPanel(name, shell.panelHost(name), opts.simulationStore));
   }
+
+  // Fixed top menu bar — dataset/field pickers + time scrub + placeholder actions. Outside the shell
+  // (it spans the top edge), UI-toggle-hidden. It owns dataset/field/time, so those drop from the
+  // default docked panels (schema/theme defaultPanels).
+  disposers.push(installTopBar(opts.parent, opts.simulationStore, opts.uiStore));
 
   // The camera gnomon is a fixed bottom-left overlay, not a docked panel — it sits outside the shell
   // so it stays put when panels collapse, and hides with the global UI toggle.

@@ -1,4 +1,6 @@
 export { createPane } from "./pane.ts";
+export type { PopoverHandle, PopoverItem, PopoverOptions } from "./popover.ts";
+export { createPopover } from "./popover.ts";
 export {
   intervalToWindow,
   type ScaleKind,

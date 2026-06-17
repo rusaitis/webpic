@@ -64,7 +64,8 @@ const UI_CSS = `
 /* Cold-start reveal (ui/bootReveal.ts): chrome held invisible while the boot phase is live,
    fading in when the class drops. visibility (not pointer-events) so the gnomon tips' own
    pointer-events: auto can't reach through. The status pill is deliberately not matched. */
-.webpic-booting .webpic-shell, .webpic-booting .webpic-chrome, .webpic-booting .webpic-rail {
+.webpic-booting .webpic-shell, .webpic-booting .webpic-chrome, .webpic-booting .webpic-rail,
+.webpic-booting .webpic-topbar {
   opacity: 0; visibility: hidden; }
 .webpic-shell[data-side="left"] { left: 12px; }
 .webpic-shell[data-side="right"] { right: 12px; }
@@ -243,4 +244,70 @@ const UI_CSS = `
 @media (prefers-reduced-motion: reduce) {
   .webpic-help { background: rgba(8, 12, 16, 0.7); }
 }
+/* Top menu bar (ui/topBar): brand + dataset/field pickers + time scrub + placeholder actions. A fixed
+   panel-styled bar (not magviz's glass pill) — matches the docked shell's bg/border/radius/mono. It
+   declares the shell-local control tokens itself since it lives outside .webpic-shell. */
+.webpic-topbar { position: fixed; top: 12px; left: 12px; right: 12px; z-index: 10; box-sizing: border-box;
+  display: flex; align-items: center; gap: 10px; padding: 6px 10px;
+  background: var(--webpic-bg); color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border); border-radius: 8px;
+  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 28px;
+  transition: opacity 240ms ease; }
+.webpic-topbar[hidden] { display: none; }
+.webpic-topbar_brand { display: flex; align-items: center; gap: 8px; padding-right: 4px;
+  font-weight: 700; letter-spacing: 0.04em; }
+.webpic-topbar_mark { display: grid; place-items: center; color: var(--webpic-accent); }
+.webpic-topbar_mark svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor;
+  stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.webpic-topbar_btn { box-sizing: border-box; height: var(--webpic-unit); padding: 0 10px;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font: inherit;
+  background: var(--webpic-input-bg); color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border); border-radius: var(--webpic-radius);
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease; }
+.webpic-topbar_btn:hover, .webpic-topbar_btn:focus-visible { outline: none;
+  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+.webpic-topbar_btn[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--webpic-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
+.webpic-topbar_btn:disabled { opacity: 0.4; cursor: default; }
+.webpic-topbar_btn:disabled:hover { background: var(--webpic-input-bg); }
+.webpic-topbar_icon { width: var(--webpic-unit); padding: 0; justify-content: center; }
+.webpic-topbar_btn svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.webpic-topbar_label { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.webpic-topbar_caret { display: grid; place-items: center; color: var(--webpic-muted); }
+.webpic-topbar_caret svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor;
+  stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.webpic-topbar_time { display: flex; align-items: center; gap: 6px; }
+.webpic-topbar_time.is-disabled { opacity: 0.5; }
+.webpic-topbar_slider { width: 132px; accent-color: var(--webpic-accent); cursor: pointer; }
+.webpic-topbar_slider:disabled { cursor: default; }
+.webpic-topbar_step { color: var(--webpic-muted); white-space: nowrap; min-width: 6ch; }
+.webpic-topbar_spacer { flex: 1 1 auto; }
+.webpic-topbar_actions { display: flex; align-items: center; gap: 6px; }
+/* Anchored single-select popover (ui/controls/popover) — the dataset + content pickers share it.
+   Body-appended (escapes the bar's clip); z-index above the help modal so a transient menu is never
+   occluded. Declares the control tokens locally (not a .webpic-shell descendant). */
+.webpic-popover { position: fixed; z-index: 30; box-sizing: border-box; min-width: 200px;
+  max-height: min(60vh, 420px); overflow-y: auto; padding: 4px;
+  background: var(--webpic-bg); color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border); border-radius: 8px;
+  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  --webpic-radius: 4px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36); }
+.webpic-popover[hidden] { display: none; }
+.webpic-popover_item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px;
+  border-radius: var(--webpic-radius); cursor: pointer; }
+.webpic-popover_item.is-active, .webpic-popover_item:hover {
+  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+.webpic-popover_item[aria-selected="true"] {
+  background: color-mix(in srgb, var(--webpic-accent) 18%, transparent); }
+.webpic-popover_check { flex: 0 0 14px; display: grid; place-items: center; height: 16px; opacity: 0; }
+.webpic-popover_item[aria-selected="true"] .webpic-popover_check { opacity: 1; }
+.webpic-popover_check svg { display: block; width: 12px; height: 12px; fill: none;
+  stroke: var(--webpic-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.webpic-popover_field { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.webpic-popover_text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.webpic-popover_meta { color: var(--webpic-muted); font-size: 11px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
 `;
