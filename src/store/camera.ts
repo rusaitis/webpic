@@ -59,6 +59,21 @@ export function orbitPose(pose: CameraPose, dx: number, dy: number): CameraPose 
   };
 }
 
+// Two-finger twist → bank: roll the up-vector by `deltaRoll` (radians) about the view axis.
+// Immediate like a dolly (no momentum) — the bank tracks the fingers and stays put on release.
+// wrapAngle on the result keeps roll in (−π, π] AND absorbs the atan2 branch jump at ±π for free
+// (it's all mod 2π), so the screen side may pass a raw angle difference. Fresh object so
+// subscribeWithSelector fires.
+export function rollPose(pose: CameraPose, deltaRoll: number): CameraPose {
+  return {
+    target: pose.target,
+    azimuth: pose.azimuth,
+    elevation: pose.elevation,
+    distance: pose.distance,
+    roll: wrapAngle(pose.roll + deltaRoll),
+  };
+}
+
 // Unit view-forward (camera → target) in the z-up orbit basis — the axis a dolly travels and roll
 // banks about. The same trig the pick rays and the gnomon use.
 export function viewForward(pose: CameraPose): Vec3 {

@@ -23,6 +23,7 @@ import {
   type PoseDelta,
   poseDelta,
   poseForBounds,
+  rollPose,
   type SimulationStore,
   stepMomentum,
   UNIT_BOX_RADIUS,
@@ -65,6 +66,13 @@ const TAP_SLOP_PX = 10; // a press that travels farther was a drag, not a tap
 const TAP_MAX_MS = 500; // a press held longer was a press-and-hold, not a tap
 const DBL_TAP_MS = 300; // two taps within this window pair into a double-tap
 const DBL_TAP_SLOP_PX = 30; // ...and landing within this distance of each other
+
+// Two-finger twist → camera roll. A pinch decomposes into radial (zoom) and tangential (twist)
+// fingertip travel; roll engages only once the tangential travel clears a floor AND outweighs the
+// radial — so a plain pinch-zoom, however wobbly, never banks, while a deliberate finger-orbit does.
+// Past the gate the bank tracks the fingers 1:1 (direct manipulation). Reset per two-finger gesture.
+const TWIST_ENGAGE_PX = 30; // tangential fingertip arc (px) before banking can engage
+const TWIST_DOMINANCE = 1.5; // ...and the twist travel must outweigh the zoom travel by this factor
 
 // Held-key nudges (magviz's orbit keys): A/D sweep the camera left/right around the target, Q/E
 // lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. In fly mode (the store's
@@ -136,6 +144,12 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
   let lastTapX = 0;
   let lastTapY = 0;
   let lastFocusMs = Number.NEGATIVE_INFINITY;
+  // Two-finger twist→roll intent gate, per pinch gesture: accumulate tangential (twist) vs radial
+  // (zoom) fingertip travel until the twist clearly wins, then bank 1:1. Reset when a second finger
+  // lands (onPointerDown, size === 2).
+  let twistTravelPx = 0;
+  let zoomTravelPx = 0;
+  let twistEngaged = false;
   // Nudge keys currently held (event.code). The glide loop turns them into constant-velocity
   // motion; opposite keys cancel per-axis.
   const heldKeys = new Set<string>();
@@ -305,14 +319,20 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       downY: event.clientY,
       downAtMs: performance.now(),
     });
-    if (pointers.size === 2) wasMultiTouch = true; // a pinch began — no release in it is a tap
+    if (pointers.size === 2) {
+      wasMultiTouch = true; // a pinch began — no release in it is a tap
+      twistTravelPx = 0; // fresh twist/zoom intent gate for this two-finger gesture
+      zoomTravelPx = 0;
+      twistEngaged = false;
+    }
     target.setPointerCapture?.(event.pointerId); // keep the drag if the cursor leaves the canvas
     applyCursor();
     syncMotion();
   };
 
-  // Two-pointer pinch: dolly by the spread ratio about the centroid (immediate, like wheel) and
-  // pan by the centroid translation (damped, like a drag).
+  // Two-pointer pinch: dolly by the spread ratio about the centroid (immediate, like wheel), pan by
+  // the centroid translation (damped, like a drag), and roll by the finger-pair twist (immediate,
+  // once it out-votes the zoom). All three compose — an RTS-style zoom/pan/rotate in one gesture.
   const onPinchMove = (event: PointerEvent, moved: { x: number; y: number }): void => {
     let other: { x: number; y: number } | undefined;
     for (const [id, p] of pointers) {
@@ -322,11 +342,13 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     const prevSpread = Math.hypot(moved.x - other.x, moved.y - other.y);
     const prevCx = (moved.x + other.x) / 2;
     const prevCy = (moved.y + other.y) / 2;
+    const prevTwist = Math.atan2(moved.y - other.y, moved.x - other.x);
     moved.x = event.clientX;
     moved.y = event.clientY;
     const spread = Math.hypot(moved.x - other.x, moved.y - other.y);
     const cx = (moved.x + other.x) / 2;
     const cy = (moved.y + other.y) / 2;
+    const twist = Math.atan2(moved.y - other.y, moved.x - other.x);
     if (cx !== prevCx || cy !== prevCy) {
       momentum = addPanMomentum(
         momentum,
@@ -345,6 +367,25 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       } else {
         setCameraPose(dollyPose(cameraPose, delta));
       }
+    }
+    // Twist → roll. Shortest-arc the angle delta first — the ±π atan2 branch would otherwise spike
+    // it. Until the intent gate opens, accumulate this frame's tangential (rotation) vs radial
+    // (zoom) fingertip travel; engage once the twist clears the floor AND outweighs the zoom.
+    let dTwist = twist - prevTwist;
+    if (dTwist > Math.PI) dTwist -= 2 * Math.PI;
+    else if (dTwist < -Math.PI) dTwist += 2 * Math.PI;
+    if (!twistEngaged) {
+      twistTravelPx += Math.abs(dTwist) * spread; // arc length swept at the orbiting finger
+      zoomTravelPx += Math.abs(spread - prevSpread);
+      if (twistTravelPx >= TWIST_ENGAGE_PX && twistTravelPx >= TWIST_DOMINANCE * zoomTravelPx) {
+        twistEngaged = true; // pre-gate rotation is discarded — track from here, no catch-up jump
+      }
+    }
+    if (twistEngaged && dTwist !== 0) {
+      // Screen y is down, so a clockwise on-screen twist increases atan2; +roll banks the camera CW
+      // (the world then reads CCW), so flip the sign to make the world follow the fingers.
+      const { cameraPose, setCameraPose } = store.getState();
+      setCameraPose(rollPose(cameraPose, -dTwist));
     }
     ensureGliding();
   };

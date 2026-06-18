@@ -264,6 +264,41 @@ describe("installPointerCamera", () => {
     expect(store.getState().cameraPose.target).not.toEqual(start.target); // damped centroid pan
   });
 
+  it("banks the camera when a twist-dominant two-finger gesture clears the intent gate", () => {
+    const { target, store } = setup();
+    const start = store.getState().cameraPose;
+    target.dispatchEvent(pointer("pointerdown", 100, 100, { pointerId: 1, pointerType: "touch" }));
+    target.dispatchEvent(pointer("pointerdown", 200, 100, { pointerId: 2, pointerType: "touch" }));
+    // Finger 2 orbits finger 1 clockwise (screen y is down) with little spread change — a deliberate
+    // twist: tangential travel ≫ radial, so the gate opens.
+    target.dispatchEvent(pointer("pointermove", 190, 160, { pointerId: 2, pointerType: "touch" }));
+    // Clockwise twist ⇒ world follows the fingers (CW) ⇒ camera banks CCW ⇒ negative roll.
+    expect(store.getState().cameraPose.roll).toBeLessThan(start.roll);
+  });
+
+  it("does not bank when the zoom dominates, even past a wide angle swing", () => {
+    const { target, store } = setup();
+    const start = store.getState().cameraPose;
+    target.dispatchEvent(pointer("pointerdown", 100, 100, { pointerId: 1, pointerType: "touch" }));
+    target.dispatchEvent(pointer("pointerdown", 300, 100, { pointerId: 2, pointerType: "touch" }));
+    // Spread collapses 200→~64 px (a hard zoom-in) while the pair angle swings ~50°: the radial
+    // (zoom) travel dwarfs the tangential (twist), so the intent gate keeps the horizon level.
+    target.dispatchEvent(pointer("pointermove", 140, 150, { pointerId: 2, pointerType: "touch" }));
+    expect(store.getState().cameraPose.roll).toBe(start.roll); // zoom-dominant ⇒ no bank
+    expect(store.getState().cameraPose.distance).not.toBe(start.distance); // but it dollied
+  });
+
+  it("ignores a tiny twist below the engage floor so a gentle pinch never drifts the horizon", () => {
+    const { target, store } = setup();
+    const start = store.getState().cameraPose;
+    target.dispatchEvent(pointer("pointerdown", 100, 100, { pointerId: 1, pointerType: "touch" }));
+    target.dispatchEvent(pointer("pointerdown", 200, 100, { pointerId: 2, pointerType: "touch" }));
+    // ~2° of incidental rotation while the spread shrinks — tangential travel under the floor.
+    target.dispatchEvent(pointer("pointermove", 196, 103, { pointerId: 2, pointerType: "touch" }));
+    expect(store.getState().cameraPose.roll).toBe(start.roll); // banking stayed disengaged
+    expect(store.getState().cameraPose.distance).not.toBe(start.distance); // but it still dollied
+  });
+
   it("falls back to a clean single-pointer drag when one finger lifts", async () => {
     const { target, store } = setup();
     target.dispatchEvent(pointer("pointerdown", 100, 100, { pointerId: 1 }));

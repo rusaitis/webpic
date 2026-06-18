@@ -27,6 +27,7 @@ import {
   parsePoseParam,
   poseDelta,
   poseForBounds,
+  rollPose,
   stepMomentum,
   UNIT_BOX_RADIUS,
   viewForward,
@@ -110,6 +111,29 @@ describe("dollyPose", () => {
     const next = dollyPose({ ...LEVEL, distance: DISTANCE_MIN }, 200);
     expect(next.distance).toBeGreaterThan(DISTANCE_MIN);
     expect(next.target).toBe(LEVEL.target); // no fly-through on the way out
+  });
+});
+
+describe("rollPose", () => {
+  it("banks by the delta and touches nothing else", () => {
+    const next = rollPose(LEVEL, 0.3);
+    expect(next.roll).toBeCloseTo(0.3, 12);
+    expect(next.azimuth).toBe(LEVEL.azimuth);
+    expect(next.elevation).toBe(LEVEL.elevation);
+    expect(next.distance).toBe(LEVEL.distance);
+    expect(next.target).toBe(LEVEL.target);
+  });
+
+  it("wraps the result into (−π, π] — also absorbing an atan2 branch jump", () => {
+    expect(rollPose({ ...LEVEL, roll: 3.0 }, 0.4).roll).toBeCloseTo(3.0 + 0.4 - 2 * Math.PI, 12);
+    // A spurious +2π delta (atan2 crossing ±π) wraps back to no net bank.
+    expect(rollPose(LEVEL, 2 * Math.PI).roll).toBeCloseTo(0, 12);
+  });
+
+  it("returns a fresh object so subscribeWithSelector fires on a zero delta", () => {
+    const next = rollPose(LEVEL, 0);
+    expect(next).not.toBe(LEVEL);
+    expect(next.roll).toBeCloseTo(LEVEL.roll, 12);
   });
 });
 
