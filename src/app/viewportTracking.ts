@@ -6,12 +6,18 @@ import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 // canvas (no addEventListener) installs nothing.
 
 // Cap the drawing-buffer scale: a raymarcher's cost is per physical pixel, so honor Retina (2×) but
-// don't quadruple the work on 3×+ panels.
+// don't quadruple the work on 3×+ panels. Touch devices (phones/tablets) are GPU-bound on the volume
+// march yet pack high DPR into modest GPUs, so cap them lower — 1.5× still reads sharp at arm's length
+// but cuts march fragments ~1.8× vs 2×. `(pointer: coarse)` = the primary input is touch; a
+// trackpad-equipped iPad reports `fine` and keeps the full 2×.
 const MAX_DEVICE_PIXEL_RATIO = 2;
+const MAX_DEVICE_PIXEL_RATIO_TOUCH = 1.5;
 
 export function currentDevicePixelRatio(): number {
-  const dpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
-  return Math.max(1, Math.min(dpr || 1, MAX_DEVICE_PIXEL_RATIO));
+  if (typeof window === "undefined") return 1;
+  const isTouch = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+  const cap = isTouch ? MAX_DEVICE_PIXEL_RATIO_TOUCH : MAX_DEVICE_PIXEL_RATIO;
+  return Math.max(1, Math.min(window.devicePixelRatio || 1, cap));
 }
 
 export interface ViewportTrackingOptions {

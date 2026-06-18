@@ -101,6 +101,20 @@ describe("requestGpu", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("no-adapter");
   });
+
+  it("forwards powerPreference to requestAdapter", async () => {
+    let seen: GPURequestAdapterOptions | undefined;
+    vi.stubGlobal("navigator", {
+      gpu: {
+        requestAdapter: async (opts: GPURequestAdapterOptions) => {
+          seen = opts;
+          return null; // captured the options; a no-adapter return is fine here
+        },
+      },
+    });
+    await requestGpu({ powerPreference: "high-performance" });
+    expect(seen?.powerPreference).toBe("high-performance");
+  });
 });
 
 describe("installGpu", () => {

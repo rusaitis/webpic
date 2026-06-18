@@ -579,7 +579,10 @@ describe("bootstrap streaming", () => {
         data: { kind: "ready", requestId: 1 },
       } as MessageEvent<RenderWorkerResponse>);
 
-      expect(dprQueries.at(-1)).toContain("1dppx"); // armed against the boot DPR
+      // currentDevicePixelRatio also probes `(pointer: coarse)` now, so filter to the resolution arm.
+      const lastResolutionQuery = (): string | undefined =>
+        dprQueries.filter((q) => q.includes("dppx")).at(-1);
+      expect(lastResolutionQuery()).toContain("1dppx"); // armed against the boot DPR
       // The stubbed window is a plain object — mutate the live DPR the re-arm must read.
       (window as unknown as { devicePixelRatio: number }).devicePixelRatio = 2;
       dprListeners.shift()?.(); // the armed query fires once: DPR is now something else
@@ -589,7 +592,7 @@ describe("bootstrap streaming", () => {
         throw new Error("expected a resize message after the DPR change");
       expect(resize.message.devicePixelRatio).toBe(2);
       // Re-armed with a FRESH query at the new DPR — a stale template would miss 2→3 transitions.
-      expect(dprQueries.at(-1)).toContain("2dppx");
+      expect(lastResolutionQuery()).toContain("2dppx");
       expect(dprListeners.length).toBeGreaterThan(0);
       dispose();
     } finally {

@@ -277,7 +277,9 @@ function volumeCamera(): PerspectiveCamera | OrthographicCamera | undefined {
 }
 
 async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Promise<void> {
-  gpu = await installGpu();
+  // high-performance picks the discrete GPU on hybrid machines (no-op on a single-GPU phone/tablet);
+  // a volume raymarcher wants the fast adapter. installGpu retains the option for device recovery too.
+  gpu = await installGpu({ powerPreference: "high-performance" });
   canvas = request.canvas;
   devicePixelRatio = request.devicePixelRatio;
   renderer = await installRenderer({

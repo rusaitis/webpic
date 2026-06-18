@@ -41,6 +41,14 @@ describe("currentDevicePixelRatio", () => {
     g.window = undefined;
     expect(currentDevicePixelRatio()).toBe(1);
   });
+
+  it("caps lower on a coarse (touch) pointer: a 3× phone renders at 1.5×, not 2×", () => {
+    g.window = { devicePixelRatio: 3 };
+    g.matchMedia = (q: string) => ({ matches: q.includes("coarse") });
+    expect(currentDevicePixelRatio()).toBe(1.5);
+    g.matchMedia = () => ({ matches: false }); // a fine pointer (desktop/trackpad) keeps the 2× cap
+    expect(currentDevicePixelRatio()).toBe(2);
+  });
 });
 
 describe("installViewportTracking", () => {
