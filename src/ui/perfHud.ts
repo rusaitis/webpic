@@ -81,6 +81,13 @@ function frameHealthColor(sample: PerfSample | null): string {
   return BAD_COLOR;
 }
 
+// Frame-time governor's render-scale ceiling: untinted at full (1, reads as before), amber on the
+// first throttle step, terracotta at the floor — so a thermal/heavy-view throttle is visible at a glance.
+function governorColor(scale: number): string {
+  if (!Number.isFinite(scale) || scale >= 1) return "";
+  return scale >= 0.85 ? WARN_COLOR : BAD_COLOR;
+}
+
 // Inject the HUD stylesheet once; the returned disposer removes it (single HUD instance).
 function injectStyles(doc: Document): Disposer {
   const style = makeEl(doc, "style", "webpic-perf-style");
@@ -150,6 +157,7 @@ export function installPerfHud(
   const cpuValue = makeRow("cpu");
   const gpuValue = makeRow("gpu ≈");
   const frameValue = makeRow("frame ≈");
+  const governorValue = makeRow("governor");
   const vramValue = makeRow("vram");
   const heapValue = makeRow("heap");
 
@@ -314,6 +322,8 @@ export function installPerfHud(
     gpuValue.textContent = formatMs(gpuEst);
     frameValue.textContent = sample === null ? "—" : formatMs(sample.frameWallMs);
     frameValue.style.color = frameHealthColor(sample);
+    governorValue.textContent = sample === null ? "—" : `${sample.governorScale.toFixed(2)}×`;
+    governorValue.style.color = sample === null ? "" : governorColor(sample.governorScale);
     vramValue.textContent = sample === null ? "—" : formatBytes(sample.vramBytes);
     heapValue.textContent = formatBytes(state.mainHeapBytes);
     drawSparkline();

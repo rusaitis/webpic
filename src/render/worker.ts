@@ -391,6 +391,7 @@ function postPerfSample(
     frameWallMs,
     frameIntervalMs,
     isContinuous,
+    governorScale: quality.governorScale(),
     vramBytes: vram.totalBytes,
     vramByKey: vram.byKey.slice(0, VRAM_TOP_N), // tiny: structured-cloned, not transferred
     workerHeapBytes: readHeapBytes(),

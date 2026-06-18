@@ -33,6 +33,8 @@ export interface QualityController {
   advanceSettling(): void;
   /** Feed the frame-time governor one painted-frame interval; a tier change re-folds renderScale. */
   sampleFrameInterval(intervalMs: number): void;
+  /** The governor's current render-scale ceiling (1 = unthrottled) — surfaced in the perf HUD. */
+  governorScale(): number;
   /** The current per-layer step scale (the registry reads it for freshly built scenes). */
   stepScale(): number;
   /** Re-assert the live level on a fresh device, whose renderer restarts at scale 1. */
@@ -82,6 +84,9 @@ export function createQualityController(host: QualityHost): QualityController {
     },
     sampleFrameInterval(intervalMs) {
       if (governor.sample(intervalMs)) apply(); // a tier change re-folds the renderScale ceiling
+    },
+    governorScale() {
+      return governor.scale();
     },
     stepScale() {
       return qualityLevel(state).stepScale;

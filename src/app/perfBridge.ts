@@ -180,6 +180,7 @@ export function installPerf(opts: PerfBridgeOptions): PerfBridge {
         frameWallMs: sample.frameWallMs,
         frameIntervalMs: sample.frameIntervalMs,
         isContinuous: sample.isContinuous,
+        governorScale: sample.governorScale,
         computeMs: sample.computeMs ?? null,
         vramBytes: sample.vramBytes,
         vramByKey: sample.vramByKey,

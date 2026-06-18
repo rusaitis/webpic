@@ -265,13 +265,15 @@ export type RenderWorkerResponse =
   // EMA (NaN while the on-demand loop is idle). `computeMs` is omitted until a timed compute
   // pass exists. `vramBytes` is the tracked-allocation total and `vramByKey` its largest-first
   // per-key breakdown (top few, for the detail panel); `workerHeapBytes` is the render worker's
-  // JS heap (null off-Chrome).
+  // JS heap (null off-Chrome). `governorScale` is the frame-time governor's render-scale ceiling
+  // (1 = unthrottled, dropping to 0.85/0.7 under sustained slow frames).
   | {
       readonly kind: "perfSample";
       readonly cpuEncodeMs: number;
       readonly frameWallMs: number;
       readonly frameIntervalMs: number;
       readonly isContinuous: boolean;
+      readonly governorScale: number;
       readonly computeMs?: number;
       readonly vramBytes: number;
       readonly vramByKey: readonly (readonly [string, number])[];

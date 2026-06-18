@@ -16,6 +16,8 @@ export interface PerfSample {
   readonly frameWallMs: number;
   readonly frameIntervalMs: number;
   readonly isContinuous: boolean;
+  /** Frame-time governor's render-scale ceiling: 1 unthrottled, 0.85/0.7 under sustained slow frames. */
+  readonly governorScale: number;
   readonly computeMs: number | null;
   readonly vramBytes: number;
   readonly vramByKey?: readonly (readonly [string, number])[];

@@ -42,6 +42,7 @@ describe("perfStore", () => {
       frameWallMs: 8,
       frameIntervalMs: 16.6,
       isContinuous: false,
+      governorScale: 1,
       computeMs: null,
       vramBytes: 64 * 1024 * 1024,
     });
