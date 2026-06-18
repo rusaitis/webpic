@@ -314,4 +314,16 @@ const UI_CSS = `
 .webpic-popover_text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .webpic-popover_meta { color: var(--webpic-muted); font-size: 11px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
+/* Coarse pointers (touch): grow the chrome hit targets a notch — desktop layout is untouched. The
+   gnomon tips keep their small visual disc but gain a finger-sized invisible hit area, the same
+   ::before-inset trick the range grip uses. Matches viewportTracking's (pointer: coarse) probe. */
+@media (pointer: coarse) {
+  .webpic-rail { gap: 8px; }
+  .webpic-rail_btn { width: 38px; height: 38px; border-radius: 8px; }
+  .webpic-rail_btn svg { width: 18px; height: 18px; }
+  .webpic-rail_coords { font-size: 12px; line-height: 38px; padding: 0 12px; }
+  .webpic-gnomon_tip::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
+  .webpic-topbar { --webpic-unit: 34px; }
+  .webpic-shell { --webpic-unit: 26px; }
+}
 `;
