@@ -1,4 +1,5 @@
 import type { CameraMotion } from "@schema/camera.ts";
+import { createFrameGovernor } from "./frameGovernor.ts";
 import {
   advanceSettling as advanceSettleStep,
   applyCameraMotion,
@@ -30,6 +31,8 @@ export interface QualityController {
   setMotion(motion: CameraMotion): void;
   /** Advance a live settle ramp one level — the loop calls this once per painted frame. */
   advanceSettling(): void;
+  /** Feed the frame-time governor one painted-frame interval; a tier change re-folds renderScale. */
+  sampleFrameInterval(intervalMs: number): void;
   /** The current per-layer step scale (the registry reads it for freshly built scenes). */
   stepScale(): number;
   /** Re-assert the live level on a fresh device, whose renderer restarts at scale 1. */
@@ -39,20 +42,25 @@ export interface QualityController {
 export function createQualityController(host: QualityHost): QualityController {
   let state: QualityState = QUALITY_FULL;
   let appliedLevel: QualityLevel = qualityLevel(QUALITY_FULL);
+  // The frame-time governor caps renderScale under sustained slow frames (thermal throttle / heavy
+  // view) and restores it on recovery — orthogonal to the motion tier, folded in as a multiplier.
+  const governor = createFrameGovernor();
 
-  // Diff the target level against the applied cache, push only what changed, repaint on any change.
+  // Diff the *effective* level (motion tier, with the governor's ceiling multiplied into renderScale)
+  // against the applied cache, push only what changed, repaint on any change.
   function apply(): void {
     const level = qualityLevel(state);
+    const renderScale = level.renderScale * governor.scale();
     let changed = false;
     if (level.stepScale !== appliedLevel.stepScale) {
       host.applyStepScale(level.stepScale);
       changed = true;
     }
-    if (level.renderScale !== appliedLevel.renderScale) {
-      host.setRenderScale(level.renderScale);
+    if (renderScale !== appliedLevel.renderScale) {
+      host.setRenderScale(renderScale);
       changed = true;
     }
-    appliedLevel = level;
+    appliedLevel = { stepScale: level.stepScale, renderScale };
     if (changed) host.requestRender();
   }
 
@@ -71,6 +79,9 @@ export function createQualityController(host: QualityHost): QualityController {
       if (state.kind !== "settling") return;
       state = advanceSettleStep(state);
       apply();
+    },
+    sampleFrameInterval(intervalMs) {
+      if (governor.sample(intervalMs)) apply(); // a tier change re-folds the renderScale ceiling
     },
     stepScale() {
       return qualityLevel(state).stepScale;

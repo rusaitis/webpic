@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "../constants.ts";
+import { GOVERNOR_SCALES } from "./frameGovernor.ts";
 import { createQualityController } from "./qualityController.ts";
 
 // The controller in isolation: a fake host records every level push (step scale → scenes, render
@@ -117,5 +118,28 @@ describe("createQualityController", () => {
     h.quality.resyncAfterRebuild();
     expect(h.applyStepScale).not.toHaveBeenCalled(); // step scale already correct on the scenes
     expect(h.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE); // re-applied to the swapchain
+  });
+
+  it("the frame governor lowers the idle render-scale ceiling under sustained slow frames", () => {
+    const h = harness();
+    h.setRenderScale.mockClear();
+    h.applyStepScale.mockClear();
+    h.requestRender.mockClear();
+    // Sustained ~20 fps at idle (full tier renderScale 1): the governor sinks its ceiling to the floor.
+    for (let i = 0; i < 200; i++) h.quality.sampleFrameInterval(50);
+    expect(h.setRenderScale).toHaveBeenLastCalledWith(GOVERNOR_SCALES.at(-1));
+    expect(h.requestRender).toHaveBeenCalled(); // a ceiling drop repaints
+    expect(h.applyStepScale).not.toHaveBeenCalled(); // it scales resolution, never step density
+  });
+
+  it("the governor ceiling multiplies into the interaction tier, not just idle", () => {
+    const h = harness();
+    for (let i = 0; i < 40; i++) h.quality.sampleFrameInterval(50); // trip down one tier
+    const tier = GOVERNOR_SCALES[1] ?? 1;
+    h.setRenderScale.mockClear();
+    h.quality.setMotion("gesture"); // interaction renderScale 0.7 × the governor ceiling
+    expect(h.setRenderScale).toHaveBeenLastCalledWith(
+      expect.closeTo(INTERACTION_RENDER_SCALE * tier, 6),
+    );
   });
 });

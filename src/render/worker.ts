@@ -191,6 +191,7 @@ const loop = createRenderLoop({
   },
   tickAnimations: (frameTimeMs) => marker.tick(frameTimeMs),
   advanceQuality: () => quality.advanceSettling(),
+  sampleFrameInterval: (intervalMs) => quality.sampleFrameInterval(intervalMs),
   reportFault,
   clearError: () => {
     lastErrorMessage = undefined;

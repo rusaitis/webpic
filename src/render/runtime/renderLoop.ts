@@ -21,6 +21,9 @@ export interface RenderLoopHost {
   tickAnimations(frameTimeMs: number): boolean;
   /** Advance the quality settle ramp one level — runs once per painted on-demand frame. */
   advanceQuality(): void;
+  /** Feed the frame-time governor the interval since the last painted frame: back-to-back painted
+   *  frames are real frame times; an idle-gap resume reads large and the governor drops it. */
+  sampleFrameInterval(intervalMs: number): void;
   reportFault(error: unknown): void;
   /** A clean frame re-arms the deduped error reporting. */
   clearError(): void;
@@ -49,6 +52,7 @@ export function createRenderLoop(host: RenderLoopHost): RenderLoop {
   let isReadbackInFlight = false; // pauses the loop across a deterministic readPixels
   let isContinuous = false; // diagnostics: force every-frame repaints for sustained GPU timing
   let perfActive = false; // dev perf HUD: sample painted on-demand frames (no forced repaints)
+  let lastPaintMs = Number.NaN; // rAF stamp of the last painted frame; feeds the governor's interval
 
   // The single repaint entry point. Sets the dirty flag for the loop; if no loop is running (Node, or
   // the init boot paint before start()), renders synchronously instead.
@@ -82,6 +86,10 @@ export function createRenderLoop(host: RenderLoopHost): RenderLoop {
       // Each settle level paints exactly one frame: advancing re-arms needsRender until the ramp
       // lands at full, where the level stops changing and the loop goes quiet.
       host.advanceQuality();
+      // Feed the frame-time governor the gap since the last painted frame. NaN-seeded so the first
+      // paint just starts the clock; an idle-gap resume reads large and the governor drops it.
+      if (!Number.isNaN(lastPaintMs)) host.sampleFrameInterval(frameTimeMs - lastPaintMs);
+      lastPaintMs = frameTimeMs;
     } catch (error) {
       // A single bad frame (transient validation, mid-rebuild sample) must not kill the loop;
       // on-demand mode won't re-enter until the next requestRender, so this self-rate-limits.

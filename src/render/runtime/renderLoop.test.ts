@@ -20,6 +20,7 @@ function harness(over: Partial<RenderLoopHost> = {}) {
     paintPerf: vi.fn(),
     tickAnimations: vi.fn(() => false),
     advanceQuality: vi.fn(),
+    sampleFrameInterval: vi.fn(),
     reportFault: vi.fn(),
     clearError: vi.fn(),
     ...over,
