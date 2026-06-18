@@ -246,18 +246,30 @@ const UI_CSS = `
 @media (prefers-reduced-motion: reduce) {
   .webpic-help { background: rgba(8, 12, 16, 0.7); }
 }
-/* Top menu bar (ui/topBar): brand + dataset/field pickers + time scrub + placeholder actions. A fixed
-   panel-styled bar (not magviz's glass pill) — matches the docked shell's bg/border/radius/mono. It
-   declares the shell-local control tokens itself since it lives outside .webpic-shell. */
-.webpic-topbar { position: fixed; top: calc(12px + env(safe-area-inset-top));
-  left: calc(12px + env(safe-area-inset-left)); right: calc(12px + env(safe-area-inset-right));
-  z-index: 10; box-sizing: border-box;
-  display: flex; align-items: center; gap: 10px; padding: 6px 10px;
-  background: var(--webpic-bg); color: var(--webpic-fg);
-  border: 1px solid var(--webpic-border); border-radius: 8px;
+/* Top menu bar (ui/topBar): brand + dataset/field pickers + time scrub + a hover-revealed action
+   cluster. A centered, content-sized translucent glass pill (magviz's topbar): ~25% bg + blur, with
+   content dimmed via --topbar-fg at rest and brightening on hover/focus. The SVG marks stroke with
+   currentColor, so dimming the 'color' prop dims text + icons together; the accent brand mark is exempt.
+   Declares the shell-local control tokens itself since it lives outside .webpic-shell. */
+.webpic-topbar { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%); z-index: 10; box-sizing: border-box;
+  display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 46px;
+  max-width: calc(100vw - 24px);
+  color: color-mix(in srgb, var(--webpic-fg) calc(var(--topbar-fg) * 100%), transparent);
+  background: color-mix(in srgb, var(--webpic-bg) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--webpic-border) 45%, transparent);
+  border-radius: 999px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
   font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
-  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 28px;
-  transition: opacity 240ms ease; }
+  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 999px; --webpic-unit: 30px;
+  --topbar-fg: 0.78;
+  transition: opacity 240ms ease, background .18s ease, border-color .18s ease,
+    box-shadow .18s ease, color .18s ease; }
+.webpic-topbar:hover, .webpic-topbar:focus-within { --topbar-fg: 1;
+  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
+  border-color: color-mix(in srgb, var(--webpic-border) 85%, transparent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34); }
 .webpic-topbar[hidden] { display: none; }
 .webpic-topbar_brand { display: flex; align-items: center; gap: 8px; padding-right: 4px;
   font-weight: 700; letter-spacing: 0.04em; }
@@ -283,13 +295,44 @@ const UI_CSS = `
 .webpic-topbar_caret { display: grid; place-items: center; color: var(--webpic-muted); }
 .webpic-topbar_caret svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.webpic-topbar_time { display: flex; align-items: center; gap: 6px; }
+/* The bar runs --webpic-radius: 999px so the pickers turn into pills; scope it back to 4px on the
+   time cluster so the custom scrub track/fill/grip keep their designed (square-ish) look. */
+.webpic-topbar_time { display: flex; align-items: center; gap: 6px; --webpic-radius: 4px; }
 .webpic-topbar_time.is-disabled { opacity: 0.5; }
-.webpic-topbar_slider { width: 132px; accent-color: var(--webpic-accent); cursor: pointer; }
-.webpic-topbar_slider:disabled { cursor: default; }
+/* The custom range control (ui/controls/rangeControl) wants width:100% for a panel row; pin it to a
+   fixed inline track here. The inner track keeps its half-grip side margins (load-bearing — they keep
+   the grip inside the track at index 0/max). */
+.webpic-topbar_track.webpic-range { width: 132px; flex: 0 0 auto; }
 .webpic-topbar_step { color: var(--webpic-muted); white-space: nowrap; min-width: 6ch; }
-.webpic-topbar_spacer { flex: 1 1 auto; }
-.webpic-topbar_actions { display: flex; align-items: center; gap: 6px; }
+/* Hover-revealed action cluster behind a chevron at the bar's right edge. The reveal is pure CSS on
+   the wrapper's :hover/:focus-within (+ a JS .is-expanded click-pin for touch); the chevron's ::after
+   bridges the gap so the cursor can cross to the popup, and a two-triangle arrow points up at it. */
+.webpic-topbar_reveal { position: relative; display: flex; align-items: center; }
+.webpic-topbar_chevron { position: relative; opacity: 0.7; transition: opacity .18s ease; }
+.webpic-topbar:hover .webpic-topbar_chevron,
+.webpic-topbar:focus-within .webpic-topbar_chevron { opacity: 1; }
+.webpic-topbar_chevron svg { transition: transform .18s ease; }
+.webpic-topbar_reveal.is-expanded .webpic-topbar_chevron svg { transform: rotate(180deg); }
+.webpic-topbar_chevron::after { content: ""; position: absolute; top: 100%; right: 0;
+  width: 100%; height: 12px; }
+.webpic-topbar_actions { position: absolute; top: 100%; right: 0; margin-top: 9px;
+  display: grid; grid-template-columns: repeat(2, var(--webpic-unit)); gap: 4px; padding: 6px;
+  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in srgb, var(--webpic-border) 85%, transparent);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+  opacity: 0; visibility: hidden; transform: translateY(-6px); pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s; }
+.webpic-topbar_reveal:hover .webpic-topbar_actions,
+.webpic-topbar_reveal:focus-within .webpic-topbar_actions,
+.webpic-topbar_reveal.is-expanded .webpic-topbar_actions { opacity: 1; visibility: visible;
+  transform: none; pointer-events: auto; transition: opacity .18s ease, transform .18s ease; }
+.webpic-topbar_actions::before, .webpic-topbar_actions::after { content: ""; position: absolute;
+  bottom: 100%; right: 14px; border: 6px solid transparent; }
+.webpic-topbar_actions::before {
+  border-bottom-color: color-mix(in srgb, var(--webpic-border) 85%, transparent); }
+.webpic-topbar_actions::after { margin-bottom: -1px;
+  border-bottom-color: color-mix(in srgb, var(--webpic-bg) 92%, transparent); }
 /* Anchored single-select popover (ui/controls/popover) — the dataset + content pickers share it.
    Body-appended (escapes the bar's clip); z-index above the help modal so a transient menu is never
    occluded. Declares the control tokens locally (not a .webpic-shell descendant). */
@@ -325,5 +368,10 @@ const UI_CSS = `
   .webpic-gnomon_tip::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
   .webpic-topbar { --webpic-unit: 34px; }
   .webpic-shell { --webpic-unit: 26px; }
+}
+/* No-hover devices can't trigger the bar's dim→bright, so pin it bright + more opaque for legibility.
+   Distinct from (pointer: coarse): a touchscreen laptop is hover:none but pointer:fine. */
+@media (hover: none) {
+  .webpic-topbar { --topbar-fg: 1; background: color-mix(in srgb, var(--webpic-bg) 92%, transparent); }
 }
 `;

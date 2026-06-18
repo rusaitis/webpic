@@ -2,7 +2,8 @@ import { DATASET_CATALOG } from "@schema/datasets.ts";
 import type { FieldName } from "@schema/types.ts";
 import type { SimulationStore, UiStore } from "@store";
 import { makeEl } from "./controls/dom.ts";
-import { createPopover, type Disposer } from "./controls/index.ts";
+import { createPopover, type Disposer, type RangeValue } from "./controls/index.ts";
+import { createRangeControl } from "./controls/rangeControl.ts";
 import {
   datasetLabel,
   fieldButtonLabel,
@@ -12,12 +13,13 @@ import {
   stepReadout,
 } from "./topBarInfo.ts";
 
-// The top menu bar (magviz's topbar, rebuilt to webpic's structure): a brand, a dataset dropdown, a
-// "content" button that opens the available fields + their metadata, a timestep slider flanked by
-// prev/next, and a cluster of disabled placeholder actions. ui → store only — every control reads a
-// slice or dispatches a typed intent; no render import. It owns dataset/field/time now, so those
-// docked panels drop from the default layout (schema/theme defaultPanels). Hides with the global UI
-// toggle like ui/cameraRail, force-closing its popovers so neither floats over a hidden bar.
+// The top menu bar (magviz's glass-pill topbar, rebuilt to webpic's structure): a brand, a dataset
+// dropdown, a "content" button that opens the available fields + their metadata, a timestep scrub
+// (the custom range control, flanked by prev/next), and a hover-revealed cluster of disabled
+// placeholder actions behind a chevron. ui → store only — every control reads a slice or dispatches a
+// typed intent; no render import. It owns dataset/field/time now, so those docked panels drop from the
+// default layout (schema/theme defaultPanels). Hides with the global UI toggle like ui/cameraRail,
+// force-closing its popovers + reveal so neither floats over a hidden bar.
 
 // 16×16 inline SVGs (no icon-font dep); `fill: none; stroke: currentColor` come from the bar CSS.
 const BRAND_SVG = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.6 9.4c2.1-4.8 4.4-4.8 6.4 0"/><path d="M8 6.6c2 4.8 4.3 4.8 6.4 0"/></svg>`;
@@ -125,49 +127,74 @@ export function installTopBar(
     renderRow: (rowDoc, item) => renderFieldRow(rowDoc, item.value),
   });
 
-  // Time control — a scrub slider over the discrete step domain (indices, not raw values), flanked by
-  // single-step prev/next. All three disabled when there's nothing to scrub (≤1 step).
+  // Time control — a scrub over the discrete step domain (indices, not raw values), flanked by single-
+  // step prev/next. The custom range control bakes min/max/step at construction, so a changed domain
+  // rebuilds it (mirrors ui/panels/timePanel); a cursor move reflects via set() without echo. All
+  // three disabled when there's nothing to scrub (≤1 step).
   const timeWrap = makeEl(doc, "div", "webpic-topbar_time");
   const prevBtn = iconButton("step-prev", ICON.prev, "Previous step");
   const nextBtn = iconButton("step-next", ICON.next, "Next step");
-  const slider = makeEl(doc, "input", "webpic-topbar_slider");
-  slider.type = "range";
-  slider.min = "0";
-  slider.step = "1";
-  slider.setAttribute("aria-label", "Time step");
   const stepLabelEl = makeEl(doc, "span", "webpic-topbar_step");
-  timeWrap.append(prevBtn, slider, nextBtn, stepLabelEl);
+  timeWrap.append(prevBtn, nextBtn, stepLabelEl); // the scrub track is inserted between by rebuildRange
+
+  let range: ReturnType<typeof createRangeControl> | null = null;
+  let steps: readonly number[] = []; // the availableSteps snapshot the live control was built against
 
   const dispatchIndex = (index: number): void => {
-    const steps = store.getState().availableSteps;
     const step = stepAt(index, steps);
     if (step !== undefined) store.getState().setStep(step); // self-guards out-of-domain + no-ops
   };
-  const stepBy = (delta: number): void => {
-    const { currentStep, availableSteps } = store.getState();
-    dispatchIndex(stepIndex(currentStep, availableSteps) + delta);
+  // The grip is a focusable <div role="slider">, not an <input>, so bare-key shortcuts (F/C) reach the
+  // document handlers while it's focused — unlike the old native slider. Matches timePanel's scrub.
+  const onScrub = (v: RangeValue): void => {
+    if (typeof v !== "number") return; // single mode emits a number
+    stepLabelEl.textContent = stepReadout(v, steps);
+    dispatchIndex(v);
   };
-  slider.addEventListener("input", () => {
-    stepLabelEl.textContent = stepReadout(Number(slider.value), store.getState().availableSteps);
-    dispatchIndex(Number(slider.value));
-  });
-  prevBtn.addEventListener("click", () => stepBy(-1));
-  nextBtn.addEventListener("click", () => stepBy(1));
-
-  // Reflects the step domain + cursor onto the slider; set-in never echoes (we only dispatch on input).
-  const syncSlider = (): void => {
-    const { availableSteps, currentStep } = store.getState();
-    const disabled = availableSteps.length <= 1;
-    slider.max = String(Math.max(0, availableSteps.length - 1));
-    slider.value = String(stepIndex(currentStep, availableSteps));
-    slider.disabled = disabled;
+  const rebuildRange = (): void => {
+    range?.dispose();
+    steps = store.getState().availableSteps;
+    const index = stepIndex(store.getState().currentStep, steps);
+    range = createRangeControl(doc, {
+      min: 0,
+      max: Math.max(0, steps.length - 1),
+      value: index,
+      step: 1,
+      text: false, // bare track + grip; the readout lives in stepLabelEl, not a coupled field
+      format: (i) => stepReadout(i, steps), // aria-valuetext announces "step 10", not the bare index
+      onInput: onScrub,
+      onChange: onScrub,
+    });
+    range.element.classList.add("webpic-topbar_track");
+    const disabled = steps.length <= 1;
+    range.setDisabled(disabled);
+    timeWrap.insertBefore(range.element, nextBtn); // keep [prev, track, next, label]
     prevBtn.disabled = disabled;
     nextBtn.disabled = disabled;
     timeWrap.classList.toggle("is-disabled", disabled);
-    stepLabelEl.textContent = stepReadout(Number(slider.value), availableSteps);
+    stepLabelEl.textContent = stepReadout(index, steps);
+  };
+  const stepBy = (delta: number): void => {
+    dispatchIndex(stepIndex(store.getState().currentStep, steps) + delta);
+  };
+  prevBtn.addEventListener("click", () => stepBy(-1));
+  nextBtn.addEventListener("click", () => stepBy(1));
+
+  // Reflect an externally-dispatched setStep onto the grip without echoing onChange (set()-in).
+  const syncCursor = (): void => {
+    const index = stepIndex(store.getState().currentStep, steps);
+    range?.set(index);
+    stepLabelEl.textContent = stepReadout(index, steps);
   };
 
-  // Placeholder actions — visible but inert until their milestones land (no listeners; `disabled`).
+  // Hover-revealed actions — a chevron at the right edge opens a popup of (inert until their milestones
+  // land) action buttons. CSS reveals them on the wrapper's hover/focus; the .is-expanded click-pin is
+  // for touch + a11y (aria-expanded). The actions popup is absolute, so it never widens the bar.
+  const reveal = makeEl(doc, "div", "webpic-topbar_reveal");
+  const chevron = iconButton("more", CARET_SVG, "More actions");
+  chevron.classList.add("webpic-topbar_chevron");
+  chevron.setAttribute("aria-haspopup", "true");
+  chevron.setAttribute("aria-expanded", "false");
   const actions = makeEl(doc, "div", "webpic-topbar_actions");
   const placeholder = (control: string, icon: string, title: string): HTMLButtonElement => {
     const btn = iconButton(control, icon, `${title} (coming soon)`);
@@ -181,20 +208,52 @@ export function installTopBar(
     placeholder("export", ICON.export, "Export view"),
     placeholder("layout", ICON.layout, "Compare / layout"),
   );
+  reveal.append(chevron, actions);
 
-  const spacer = makeEl(doc, "div", "webpic-topbar_spacer");
-  container.append(brand, datasetBtn, fieldBtn, timeWrap, spacer, actions);
+  const isExpanded = (): boolean => reveal.classList.contains("is-expanded");
+  const setExpanded = (on: boolean): void => {
+    reveal.classList.toggle("is-expanded", on);
+    chevron.setAttribute("aria-expanded", String(on));
+  };
+
+  container.append(brand, datasetBtn, fieldBtn, timeWrap, reveal);
   parent.appendChild(container);
+
+  // Document-level listeners (one AbortController, torn down by ac.abort()): click toggles the pin; a
+  // pinned reveal closes on outside-pointerdown or Escape (which returns focus to the chevron).
+  const ac = new AbortController();
+  chevron.addEventListener("click", () => setExpanded(!isExpanded()), { signal: ac.signal });
+  doc.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!isExpanded()) return;
+      const target = e.target;
+      if (target instanceof Node && reveal.contains(target)) return;
+      setExpanded(false);
+    },
+    { signal: ac.signal },
+  );
+  doc.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key === "Escape" && isExpanded()) {
+        setExpanded(false);
+        chevron.focus();
+      }
+    },
+    { signal: ac.signal },
+  );
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
     if (!visible) {
       datasetPopover.close();
       fieldPopover.close();
+      setExpanded(false); // don't restore a pinned reveal when the bar is shown again
     }
   };
 
-  syncSlider();
+  rebuildRange();
   applyVisible(uiStore.getState().isUiVisible);
 
   const unsubs = [
@@ -216,13 +275,15 @@ export function installTopBar(
       (s) => s.availableFields,
       () => fieldPopover.refresh(),
     ),
-    store.subscribe((s) => s.availableSteps, syncSlider),
-    store.subscribe((s) => s.currentStep, syncSlider),
+    store.subscribe((s) => s.availableSteps, rebuildRange),
+    store.subscribe((s) => s.currentStep, syncCursor),
     uiStore.subscribe((s) => s.isUiVisible, applyVisible),
   ];
 
   return () => {
     for (const unsub of unsubs) unsub();
+    ac.abort();
+    range?.dispose();
     datasetPopover.dispose();
     fieldPopover.dispose();
     container.remove();
