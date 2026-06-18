@@ -100,7 +100,7 @@ Goal: persist derived fields + screenshots; lock bundle budgets.
 - [ ] **M8 — HDF5 + LIC + oblique:** `h5wasm`, LIC compute pass, oblique clip planes
 - [ ] WebCodecs video export (`VideoEncoder` + `MediaStreamTrackProcessor`)
 - [ ] **Remote client** — `remote/client.ts` against pypic.server Arrow-IPC WebSocket; mirror `SubscribeRequest`/`*Spec`/`ReductionSpec`
-- [ ] PWA manifest
+- [x] PWA manifest — `public/manifest.webmanifest` + icons (qlmanage-rendered from `public/icon.svg`) + iOS standalone meta in `index.html`; guarded by `tests/manifest.test.ts`. Offline service-worker still deferred (needs a data source anyway).
 - [ ] **M9 (contingent)** — WASM backend (`@rustpic/plasma-wasm`) when rustpic ships it; extend cross-backend parity to TS vs WASM vs WebGPU
 
 ## Post-v1.0

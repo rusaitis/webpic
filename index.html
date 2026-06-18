@@ -7,6 +7,18 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
     />
     <title>webpic</title>
+    <meta name="description" content="WebGPU plasma-physics data visualizer and lightweight analyzer." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#101820" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- iOS standalone: run fullscreen (no Safari chrome), content edge-to-edge under the status bar
+         — the topbar/rail already pad by env(safe-area-inset-*), so nothing hides behind it. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="webpic" />
     <style>
       :root { color-scheme: dark; }
       /* overscroll-behavior: none kills mobile pull-to-refresh + rubber-band glow fighting the canvas. */

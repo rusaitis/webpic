@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- webpic app icon: the topbar brand mark (two plasma-wave strokes) on the UI's dark bg.
+       Full-bleed square, mark kept inside the central ~50% so a maskable crop never clips it. -->
+  <rect width="512" height="512" fill="#101820"/>
+  <g transform="translate(96,96) scale(20)" fill="none" stroke="#5aa9e6"
+     stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1.6 9.4c2.1-4.8 4.4-4.8 6.4 0"/>
+    <path d="M8 6.6c2 4.8 4.3 4.8 6.4 0"/>
+  </g>
+</svg>
