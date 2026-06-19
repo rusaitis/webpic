@@ -3,7 +3,7 @@ import { createSimulationStore, type SimulationStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
 import { fieldArray, makeDataset } from "../../../tests/fixtures.ts";
 import { flushAsync } from "../../../tests/helpers.ts";
-import { installColormapPanel } from "./colormapPanel.ts";
+import { installColormapControls } from "./colormapControls.ts";
 
 // B triple → |B| = 5 (constant) → finite range widened to [5, 6], window {center 5.5, width 1}.
 const bTriple = () =>
@@ -28,28 +28,18 @@ function pick(select: HTMLSelectElement, value: string): void {
   select.value = value;
   select.dispatchEvent(new Event("change"));
 }
-function shadingCheckbox(host: HTMLElement): HTMLInputElement {
-  const input = host.querySelector<HTMLInputElement>(".webpic-checkbox_input");
-  if (input === null) throw new Error("no shading checkbox");
-  return input;
-}
-function shadedFlag(store: SimulationStore): boolean {
-  const { selectedLayerId, layers } = store.getState();
-  const layer = layers.find((l) => l.id === selectedLayerId);
-  return layer?.kind === "volume" ? layer.shaded : false;
-}
 
 afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("colormap panel (binding)", () => {
+describe("colormap controls (binding)", () => {
   it("is disabled until a field's range is known, then rebuilds enabled on setDataset", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
 
-    const dispose = installColormapPanel(host, store); // no dataset yet
+    const dispose = installColormapControls(host, store); // no dataset yet
     expect(host.querySelector(".webpic-range")?.classList.contains("is-disabled")).toBe(true);
     for (const input of rangeInputs(host)) expect(input.disabled).toBe(true);
     for (const select of selects(host)) expect(select.disabled).toBe(true);
@@ -72,7 +62,7 @@ describe("colormap panel (binding)", () => {
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
     await flushAsync();
-    const dispose = installColormapPanel(host, store);
+    const dispose = installColormapControls(host, store);
     const id = activeBinding(store)?.id ?? "";
 
     const [lo, hi] = rangeInputs(host);
@@ -97,7 +87,7 @@ describe("colormap panel (binding)", () => {
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
     await flushAsync();
-    const dispose = installColormapPanel(host, store);
+    const dispose = installColormapControls(host, store);
     const id = activeBinding(store)?.id ?? "";
 
     const [colormap] = selects(host);
@@ -119,7 +109,7 @@ describe("colormap panel (binding)", () => {
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
     await flushAsync();
-    const dispose = installColormapPanel(host, store);
+    const dispose = installColormapControls(host, store);
 
     const scale = selects(host)[1];
     if (!scale) throw new Error("expected a scale select");
@@ -129,42 +119,6 @@ describe("colormap panel (binding)", () => {
     expect(activeBinding(store)?.scale).toBe("log");
     // Window control survived the scale-triggered rebuild (still a two-grip interval).
     expect(rangeInputs(host)).toHaveLength(2);
-
-    dispose();
-  });
-
-  it("shading checkbox is disabled until a volume layer exists", async () => {
-    const host = document.createElement("div");
-    document.body.appendChild(host);
-    const store = createSimulationStore();
-    const dispose = installColormapPanel(host, store); // no dataset → no layer yet
-    expect(shadingCheckbox(host).disabled).toBe(true);
-
-    store.getState().setDataset(bTriple()); // seeds a volume layer
-    await flushAsync();
-    expect(shadingCheckbox(host).disabled).toBe(false);
-
-    dispose();
-  });
-
-  it("shading checkbox toggles the volume layer's Phong flag and reflects external changes", async () => {
-    const host = document.createElement("div");
-    document.body.appendChild(host);
-    const store = createSimulationStore();
-    store.getState().setDataset(bTriple());
-    await flushAsync();
-    const dispose = installColormapPanel(host, store);
-
-    const box = shadingCheckbox(host);
-    expect(box.checked).toBe(false); // Phong off by default for quantitative work
-    expect(shadedFlag(store)).toBe(false);
-
-    box.checked = true;
-    box.dispatchEvent(new Event("change"));
-    expect(shadedFlag(store)).toBe(true);
-
-    store.getState().setLayerShading(store.getState().selectedLayerId ?? "", false);
-    expect(box.checked).toBe(false); // external reflect, no feedback loop
 
     dispose();
   });

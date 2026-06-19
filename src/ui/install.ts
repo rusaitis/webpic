@@ -3,6 +3,7 @@ import type { SimulationStore, UiStore } from "@store";
 import { installBootReveal } from "./bootReveal.ts";
 import { installCameraChrome } from "./cameraChrome.ts";
 import { installCameraRail } from "./cameraRail.ts";
+import { installColorbar } from "./colorbar/colorbar.ts";
 import type { Disposer } from "./controls/index.ts";
 import { installHelpOverlay } from "./helpOverlay.ts";
 import { isTypingTarget } from "./keyboard.ts";
@@ -64,6 +65,11 @@ export function installUi(opts: InstallUiOptions): () => void {
   // rail's first occupants on the operations axis. Outside the shell on the left edge, UI-toggle-
   // hidden; layer add-buttons + more tools land here in M4. The gnomon stays on the bottom rail.
   disposers.push(installSideRail(opts.parent, opts.simulationStore, opts.uiStore));
+
+  // The floating colorbar — the selected layer's color mapping as a draggable, edge-snapping
+  // gradient strip; its gear opens the colormap/scale/window controls. Replaces the old docked
+  // colormap panel. Outside the shell on a free-floating layer, UI-toggle-hidden.
+  disposers.push(installColorbar(opts.parent, opts.simulationStore, opts.uiStore));
 
   // Loading/error feedback; unlike the chrome it ignores the global UI toggle — status, not chrome.
   disposers.push(installStatusPill(opts.parent, opts.uiStore));

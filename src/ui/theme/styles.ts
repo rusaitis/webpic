@@ -65,7 +65,7 @@ const UI_CSS = `
    fading in when the class drops. visibility (not pointer-events) so the gnomon tips' own
    pointer-events: auto can't reach through. The status pill is deliberately not matched. */
 .webpic-booting .webpic-shell, .webpic-booting .webpic-chrome, .webpic-booting .webpic-rail,
-.webpic-booting .webpic-siderail, .webpic-booting .webpic-topbar {
+.webpic-booting .webpic-siderail, .webpic-booting .webpic-topbar, .webpic-booting .webpic-cbar {
   opacity: 0; visibility: hidden; }
 .webpic-shell[data-side="left"] { left: 12px; }
 .webpic-shell[data-side="right"] { right: 12px; }
@@ -485,6 +485,126 @@ const UI_CSS = `
 .webpic-popover_text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .webpic-popover_meta { color: var(--webpic-muted); font-size: 11px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
+/* Floating colorbar (ui/colorbar): a draggable, collapsible gradient strip for the selected layer's
+   color mapping. Glass like the rails; transform: translate(--drag-x/y) is written by ui/floating's
+   drag, then snapped to inline left/right/top/bottom anchors with data-edge driving orientation
+   (left/right → vertical, top/bottom → horizontal). Declares the shell-local control tokens itself
+   (it lives outside .webpic-shell). z over the coords card (12), under the help modal (20). */
+.webpic-cbar { position: fixed; z-index: 13; box-sizing: border-box; display: flex;
+  align-items: center; gap: 8px; padding: 7px 9px; cursor: grab; touch-action: none;
+  color: var(--webpic-fg);
+  background: color-mix(in srgb, var(--webpic-bg) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--webpic-border) 45%, transparent);
+  border-radius: 12px; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
+  transition: opacity 240ms ease, background .18s ease, border-color .18s ease, box-shadow .18s ease,
+    width .28s cubic-bezier(0.25, 1, 0.5, 1), height .28s cubic-bezier(0.25, 1, 0.5, 1);
+  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
+.webpic-cbar[hidden] { display: none; }
+.webpic-cbar:hover, .webpic-cbar:focus-within {
+  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
+  border-color: color-mix(in srgb, var(--webpic-border) 85%, transparent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34); }
+/* No transform transition during a drag (latency); restore the grab affordance on release. */
+.webpic-cbar.is-dragging { transition: none; cursor: grabbing; }
+/* Vertical when docked to a side edge; horizontal (the default row) on top/bottom. */
+.webpic-cbar[data-edge="left"], .webpic-cbar[data-edge="right"] { flex-direction: column; }
+/* Collapsed: recede at rest, brighten on hover (magviz). */
+.webpic-cbar.collapsed { opacity: 0.62; }
+.webpic-cbar.collapsed:hover, .webpic-cbar.collapsed:focus-within { opacity: 1; }
+.webpic-cbar.collapsed .webpic-cbar_ticks, .webpic-cbar.collapsed .webpic-cbar_caption {
+  display: none; }
+.webpic-cbar_main { display: flex; flex: 1 1 auto; gap: 4px; min-width: 0; min-height: 0; }
+.webpic-cbar[data-edge="top"] .webpic-cbar_main, .webpic-cbar[data-edge="bottom"] .webpic-cbar_main {
+  flex-direction: column; align-items: stretch; }
+.webpic-cbar[data-edge="left"] .webpic-cbar_main, .webpic-cbar[data-edge="right"] .webpic-cbar_main {
+  flex-direction: row; align-items: stretch; }
+.webpic-cbar_strip { position: relative; flex: 0 0 auto; border-radius: 4px; overflow: hidden;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--webpic-border) 60%, transparent); }
+.webpic-cbar[data-edge="top"] .webpic-cbar_strip, .webpic-cbar[data-edge="bottom"] .webpic-cbar_strip {
+  width: 320px; height: 16px; }
+.webpic-cbar[data-edge="left"] .webpic-cbar_strip, .webpic-cbar[data-edge="right"] .webpic-cbar_strip {
+  width: 16px; height: 200px; }
+.webpic-cbar.collapsed[data-edge="top"] .webpic-cbar_strip,
+.webpic-cbar.collapsed[data-edge="bottom"] .webpic-cbar_strip { width: 96px; }
+.webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_strip,
+.webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_strip { height: 96px; }
+.webpic-cbar_canvas { display: block; width: 100%; height: 100%; }
+/* Tick labels: an overlay sized to a thin gutter beside the gradient; each label is placed by its
+   normalized --t (0 = min, 1 = max). Horizontal → along the width; vertical → up the height. */
+.webpic-cbar_ticks { position: relative; flex: 0 0 auto; color: var(--webpic-muted);
+  font-size: 10px; font-variant-numeric: tabular-nums; }
+.webpic-cbar[data-edge="top"] .webpic-cbar_ticks, .webpic-cbar[data-edge="bottom"] .webpic-cbar_ticks {
+  height: 12px; }
+.webpic-cbar[data-edge="left"] .webpic-cbar_ticks, .webpic-cbar[data-edge="right"] .webpic-cbar_ticks {
+  width: 36px; }
+.webpic-cbar_tick { position: absolute; white-space: nowrap; }
+.webpic-cbar[data-edge="top"] .webpic-cbar_tick, .webpic-cbar[data-edge="bottom"] .webpic-cbar_tick {
+  top: 0; left: calc(var(--t) * 100%); transform: translateX(-50%); }
+.webpic-cbar[data-edge="top"] .webpic-cbar_tick:first-child,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_tick:first-child { transform: none; }
+.webpic-cbar[data-edge="top"] .webpic-cbar_tick:last-child,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_tick:last-child { transform: translateX(-100%); }
+.webpic-cbar[data-edge="left"] .webpic-cbar_tick, .webpic-cbar[data-edge="right"] .webpic-cbar_tick {
+  left: 0; top: calc((1 - var(--t)) * 100%); transform: translateY(-50%); }
+.webpic-cbar[data-edge="left"] .webpic-cbar_tick:first-child,
+.webpic-cbar[data-edge="right"] .webpic-cbar_tick:first-child { transform: translateY(-100%); }
+.webpic-cbar[data-edge="left"] .webpic-cbar_tick:last-child,
+.webpic-cbar[data-edge="right"] .webpic-cbar_tick:last-child { transform: none; }
+.webpic-cbar_caption { flex: 0 0 auto; color: var(--webpic-fg); font-weight: 700; letter-spacing: 0.04em;
+  max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.webpic-cbar[data-edge="left"] .webpic-cbar_caption, .webpic-cbar[data-edge="right"] .webpic-cbar_caption {
+  writing-mode: vertical-rl; text-orientation: mixed; max-width: none; max-height: 14ch; }
+.webpic-cbar_actions { flex: 0 0 auto; display: flex; gap: 2px; }
+.webpic-cbar[data-edge="left"] .webpic-cbar_actions, .webpic-cbar[data-edge="right"] .webpic-cbar_actions {
+  flex-direction: column; }
+.webpic-cbar_btn { box-sizing: border-box; width: 22px; height: 22px; padding: 0; display: grid;
+  place-items: center; cursor: pointer; opacity: 0.6; background: transparent; color: var(--webpic-muted);
+  border: none; border-radius: 5px; transition: opacity .12s ease, background .12s ease, color .12s ease; }
+.webpic-cbar_btn:hover, .webpic-cbar_btn:focus-visible { opacity: 1; outline: none; color: var(--webpic-fg);
+  background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
+.webpic-cbar_settings[aria-expanded="true"] { opacity: 1; color: var(--webpic-fg);
+  background: color-mix(in srgb, var(--webpic-accent) 28%, transparent); }
+.webpic-cbar_btn svg { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor;
+  stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.webpic-cbar_collapse svg { transition: transform .18s ease; }
+.webpic-cbar[data-edge="top"] .webpic-cbar_collapse svg { transform: rotate(180deg); }
+.webpic-cbar[data-edge="left"] .webpic-cbar_collapse svg { transform: rotate(90deg); }
+.webpic-cbar[data-edge="right"] .webpic-cbar_collapse svg { transform: rotate(-90deg); }
+.webpic-cbar.collapsed[data-edge="bottom"] .webpic-cbar_collapse svg { transform: rotate(180deg); }
+.webpic-cbar.collapsed[data-edge="top"] .webpic-cbar_collapse svg { transform: rotate(0deg); }
+.webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_collapse svg { transform: rotate(-90deg); }
+.webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_collapse svg { transform: rotate(90deg); }
+/* Colorbar settings popover (ui/colorbar/colorbarSettings): a glass dialog hosting the colormap
+   controls, body-appended so it escapes the bar's clip; positioned beside the gear toward the
+   viewport center. The mounted pane sheds its own title/folder bar — the header names it. */
+.webpic-cbar-pop { position: fixed; z-index: 14; box-sizing: border-box; width: 240px;
+  max-height: calc(100vh - 16px); display: flex; flex-direction: column; overflow: hidden;
+  color: var(--webpic-fg);
+  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--webpic-border) 85%, transparent);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
+.webpic-cbar-pop[hidden] { display: none; }
+.webpic-cbar-pop_header { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; height: 30px;
+  padding: 0 4px 0 11px;
+  border-bottom: 1px solid color-mix(in srgb, var(--webpic-border) 55%, transparent); }
+.webpic-cbar-pop_title { flex: 1; font-size: 10px; line-height: 1; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--webpic-muted); }
+.webpic-cbar-pop_close { appearance: none; display: grid; place-items: center; width: 20px; height: 20px;
+  padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--webpic-muted);
+  cursor: pointer; opacity: 0.6; transition: opacity .12s ease, background .12s ease, color .12s ease; }
+.webpic-cbar-pop_close:hover, .webpic-cbar-pop_close:focus-visible { opacity: 1; outline: none;
+  color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
+.webpic-cbar-pop_close svg { display: block; width: 11px; height: 11px; fill: none; stroke: currentColor;
+  stroke-width: 1.6; stroke-linecap: round; }
+.webpic-cbar-pop_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 9px 9px; }
+.webpic-cbar-pop_body .webpic-pane_title, .webpic-cbar-pop_body .webpic-folder_bar { display: none; }
+.webpic-cbar-pop_body .webpic-folder { border-top: none; }
 /* Coarse pointers (touch): grow the chrome hit targets a notch — desktop layout is untouched. The
    gnomon tips keep their small visual disc but gain a finger-sized invisible hit area, the same
    ::before-inset trick the range grip uses. Matches viewportTracking's (pointer: coarse) probe. */
@@ -495,6 +615,8 @@ const UI_CSS = `
   .webpic-rail_coords { font-size: 12px; line-height: 38px; padding: 0 12px; }
   .webpic-siderail_btn { width: 40px; height: 40px; }
   .webpic-siderail_btn svg { width: 20px; height: 20px; }
+  .webpic-cbar_btn { width: 30px; height: 30px; }
+  .webpic-cbar_btn svg { width: 16px; height: 16px; }
   .webpic-gnomon_tip::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
   .webpic-topbar { --webpic-unit: 34px; }
   .webpic-topbar_step-btn { width: 30px; height: 30px; }

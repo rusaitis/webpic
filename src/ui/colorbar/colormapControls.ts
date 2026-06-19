@@ -16,30 +16,23 @@ import {
   type SelectHandle,
   windowToInterval,
 } from "../controls/index.ts";
+import { formatValue } from "./colorbarGradient.ts";
 
-// The Colormap panel drives the *selected layer's* ColormapBinding: colormap, value→color scale
-// (linear/log/symlog), and the window/level interval. Each control dispatches a setBinding* intent;
-// the app's layerSync resolves the changed binding to the layers that reference it. Window is an
-// [lo, hi] interval; the binding stores the canonical {center, width} (intervalToWindow at the seam).
-// Multi-layer selection + per-layer settings land with the Layers UI.
+// The colormap controls — colormap / value→color scale / window-level — for the *selected layer's*
+// ColormapBinding. Lifted from the old docked colormap panel; now mounted into the floating
+// colorbar's settings popover. Each control dispatches a setBinding* intent and mirrors external
+// edits in place; the app's layerSync resolves the changed binding to the layers that reference it.
+// Window is an [lo, hi] interval; the binding stores the canonical {center, width}.
 
-// Narrowest window as a fraction of the track — the UI-side floor that keeps the in-shader width > 0
-// (parallels render's MIN_WIDTH in normalization.ts).
+// Narrowest window as a fraction of the track — keeps the in-shader width > 0 (parallels render's
+// MIN_WIDTH in normalization.ts).
 const MIN_WINDOW_FRACTION = 1 / 1000;
 
 const colormapOptions = COLORMAP_IDS.map((id) => ({ value: id, label: id }));
 const scaleOptions = COLOR_SCALES.map((scale) => ({ value: scale, label: scale }));
 
-// Compact readout: exponential for very small/large magnitudes, ~4 sig figs otherwise.
-function formatValue(v: number): string {
-  if (!Number.isFinite(v)) return String(v);
-  const a = Math.abs(v);
-  if (a !== 0 && (a < 1e-3 || a >= 1e4)) return v.toExponential(2);
-  return Number(v.toPrecision(4)).toString();
-}
-
-// log needs a positive track minimum (makeScale throws on min ≤ 0). Use the data minimum when it's
-// positive, else a small fraction of the maximum — a v0.1 stand-in for magviz's logFloor.
+// log needs a positive track minimum (makeScale throws on min ≤ 0): the data minimum when positive,
+// else a small fraction of the maximum — a v0.1 stand-in for magviz's logFloor.
 function logTrackMin(bounds: DataRange): number {
   return Math.max(bounds.min, bounds.max > 0 ? bounds.max * 1e-6 : 1);
 }
@@ -50,13 +43,9 @@ interface ActiveBinding {
   readonly bounds: DataRange | null;
 }
 
-export function installColormapPanel(host: HTMLElement, store: SimulationStore): Disposer {
+export function installColormapControls(host: HTMLElement, store: SimulationStore): Disposer {
   const pane = createPane({ parent: host, title: "Colormap" });
   const folder = pane.addFolder({ title: "Display range" });
-  // Shading is a per-layer (not per-binding) property — a render toggle, not a color choice — so it
-  // lives in its own folder. The only per-layer control for now; it migrates to a per-layer settings
-  // component when the Layers UI lands.
-  const shadingFolder = pane.addFolder({ title: "Shading" });
 
   let colormapControl: SelectHandle<ColormapId> | null = null;
   let scaleControl: SelectHandle<ColorScale> | null = null;
@@ -64,14 +53,12 @@ export function installColormapPanel(host: HTMLElement, store: SimulationStore):
   let currentBindingId: string | null = null;
   let currentScale: ColorScale | null = null;
 
-  // The selected layer, or null before one exists.
   const activeLayer = (): Layer | null => {
     const { selectedLayerId, layers } = store.getState();
     if (selectedLayerId === null) return null;
     return layers.find((layer) => layer.id === selectedLayerId) ?? null;
   };
 
-  // The selected layer's binding (+ id and the active field's bounds), or null before a layer exists.
   const active = (): ActiveBinding | null => {
     const { colormapBindings, dataRange } = store.getState();
     const bindingId = activeLayer()?.colormapBindingId ?? null;
@@ -79,22 +66,6 @@ export function installColormapPanel(host: HTMLElement, store: SimulationStore):
     const binding = colormapBindings[bindingId];
     if (binding === undefined) return null;
     return { id: bindingId, binding, bounds: dataRange };
-  };
-
-  // Phong is volume-only (a slice has no depth gradient to light); the checkbox disables otherwise.
-  const shadingControl = shadingFolder.addCheckbox({
-    label: "Phong",
-    value: false,
-    onChange: (on) => {
-      const layer = activeLayer();
-      if (layer?.kind === "volume") store.getState().setLayerShading(layer.id, on);
-    },
-  });
-  const syncShading = (): void => {
-    const layer = activeLayer();
-    const isVolume = layer?.kind === "volume";
-    shadingControl.set(isVolume ? layer.shaded : false);
-    shadingControl.setDisabled(!isVolume);
   };
 
   const dispatchColormap = (colormap: ColormapId): void => {
@@ -184,36 +155,20 @@ export function installColormapPanel(host: HTMLElement, store: SimulationStore):
   };
 
   rebuild();
-  syncShading();
 
-  const unsubSelected = store.subscribe(
-    (s) => s.selectedLayerId,
-    () => {
-      rebuild();
-      syncShading();
-    },
-  );
+  const unsubSelected = store.subscribe((s) => s.selectedLayerId, rebuild);
   const unsubRange = store.subscribe((s) => s.dataRange, rebuild); // new extent → re-bake the track
-  // Track only the *selected* layer's slices: edits to other layers' bindings, or opacity/visibility/
-  // order churn on any layer, no longer re-mirror this panel. (Layer switches ride unsubSelected.)
   const unsubBindings = store.subscribe((s) => {
     const layer =
       s.selectedLayerId === null ? undefined : s.layers.find((l) => l.id === s.selectedLayerId);
     const bindingId = layer?.colormapBindingId ?? null;
     return bindingId === null ? null : (s.colormapBindings[bindingId] ?? null);
   }, sync);
-  const unsubLayers = store.subscribe((s) => {
-    const layer =
-      s.selectedLayerId === null ? undefined : s.layers.find((l) => l.id === s.selectedLayerId);
-    return layer?.kind === "volume" ? layer.shaded : null; // reflect an external shaded flip
-  }, syncShading);
 
   return () => {
-    unsubLayers();
     unsubBindings();
     unsubRange();
     unsubSelected();
-    shadingControl.dispose();
     windowControl?.dispose();
     scaleControl?.dispose();
     colormapControl?.dispose();
