@@ -230,6 +230,50 @@ const UI_CSS = `
   transition: opacity 140ms ease, transform 140ms ease; }
 .webpic-siderail_btn:hover::after, .webpic-siderail_btn:focus-visible::after {
   opacity: 1; transform: translate(0, -50%); transition-delay: 200ms; }
+/* Suppress the slide-out label while the tab's flyout is open — the flyout header already names it. */
+.webpic-siderail_btn[aria-expanded="true"]::after { display: none; }
+/* Rail flyout (ui/sideRail): a magviz-style panel that opens beside a rail tab, a speech-bubble tail
+   pointing back at the button. Glass like the topbar; ui/sideRail writes top/left + --arrow-pos on
+   open, and overflow stays visible so the tail can sit outside the left edge. */
+.webpic-flyout { position: fixed; z-index: 11; box-sizing: border-box; width: 280px;
+  max-height: calc(100vh - 24px); display: flex; flex-direction: column; overflow: visible;
+  color: var(--webpic-fg);
+  background: color-mix(in srgb, var(--webpic-bg) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--webpic-border) 70%, transparent);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  /* Control-sizing vars are scoped to .webpic-shell / .webpic-topbar; redeclare them so the mounted
+     pane's checkboxes/slider size correctly outside the shell (otherwise var() falls back to auto). */
+  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
+.webpic-flyout[hidden] { display: none; }
+.webpic-flyout_header { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; height: 30px;
+  padding: 0 4px 0 11px;
+  border-bottom: 1px solid color-mix(in srgb, var(--webpic-border) 55%, transparent); }
+.webpic-flyout_title { flex: 1; font-size: 10px; line-height: 1; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--webpic-muted); }
+.webpic-flyout_close { appearance: none; display: grid; place-items: center; width: 20px; height: 20px;
+  padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--webpic-muted);
+  cursor: pointer; opacity: 0.6; transition: opacity .12s ease, background .12s ease, color .12s ease; }
+.webpic-flyout_close:hover, .webpic-flyout_close:focus-visible { opacity: 1; outline: none;
+  color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
+.webpic-flyout_close svg { display: block; width: 11px; height: 11px; fill: none; stroke: currentColor;
+  stroke-width: 1.6; stroke-linecap: round; }
+.webpic-flyout_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 9px 9px; }
+/* The mounted Scene pane keeps its control rows but sheds its own title + folder bar — the flyout
+   header names it (mirrors magviz stripping the inner pane chrome). */
+.webpic-flyout_body .webpic-pane_title, .webpic-flyout_body .webpic-folder_bar { display: none; }
+.webpic-flyout_body .webpic-folder { border-top: none; }
+/* Speech-bubble tail on the left edge, pointing back at the rail (--arrow-pos from sideRail): a
+   border-layer triangle under a fill-layer triangle 1px inward, so the seam disappears. */
+.webpic-flyout_arrow { position: absolute; left: 0; top: var(--arrow-pos, 50%); width: 0; height: 0;
+  pointer-events: none; }
+.webpic-flyout_arrow::before, .webpic-flyout_arrow::after { content: ""; position: absolute;
+  width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+.webpic-flyout_arrow::before { top: -9px; right: 0;
+  border-right: 9px solid color-mix(in srgb, var(--webpic-border) 70%, transparent); }
+.webpic-flyout_arrow::after { top: -8px; right: -1px;
+  border-right: 8px solid color-mix(in srgb, var(--webpic-bg) 80%, transparent); }
 /* Grid-info card: a parent-level floating dialog above the rail (ui/cameraRail). pointer-events: auto
    so its copy button works; z-index over the transient status pill (11), under the help modal (20). */
 .webpic-coords-card { position: fixed; left: 50%; bottom: calc(54px + env(safe-area-inset-bottom));

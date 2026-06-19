@@ -1,29 +1,30 @@
 import type { SimulationStore, UiStore } from "@store";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
+import { installScenePanel } from "./panels/scenePanel.ts";
 
-// The left tool rail (the instance-first rail's first occupants): vertical icon toggles for the
-// operations/instruments axis, deliberately kept distinct from the data layers — a layer is born from
-// an add-button; these are tools acting on the view. ui → store only: each button dispatches a typed
-// intent or reads a slice, never imports render. Hides with the global UI toggle, like ui/cameraRail.
+// The left tool rail (the instance-first rail's first occupants): a magviz-style glass card of icon
+// tabs on the operations/instruments axis, kept distinct from the data layers — a layer is born from an
+// add-button; these are tools acting on the view. ui → store only. Hides with the global UI toggle.
 //
-// Today it carries the two tools peeled out of the Scene panel's old grab-bag:
-//   • View  — toggles the docked Scene panel (the in-scene axes/grid reference-frame config).
+//   • Axes & grid — opens a flyout beside the tab (speech-bubble tail) hosting the reference-frame
+//     controls: the Scene panel mounts into the flyout body, its own title + folder bar stripped by the
+//     .webpic-flyout_body CSS so the flyout header alone names it.
 //   • Probe — toggles the draggable point marker (a value probe, not reference-frame chrome).
-// The M4 layer add-buttons (+Volume/+Slice/…) and the rest of the tools (Selections/Reductions/
-// Diagnostics/Theme/Layers) slot in here as further entries. The orientation gnomon stays on the
-// bottom rail (camera chrome), so it is intentionally absent here.
-
-// The Scene panel's registry key (ui/panels/registry.ts) — the View toggle drives its visibility.
-const SCENE_PANEL = "scene";
+//
+// The M4 layer add-buttons (+Volume/+Slice/…) and more tools (Selections/Reductions/Diagnostics/Theme/
+// Layers) slot in here. The orientation gnomon stays on the bottom rail (camera chrome), absent here.
 
 // 16×16 inline SVGs (no icon-font dep); fill/stroke come from the rail CSS, like ui/cameraRail.
 const ICON = {
-  // Axes + grid — the Scene panel's subject: a corner frame (left/bottom axes) crossed by grid lines.
+  // Axes + grid — the flyout's subject: a corner frame (left/bottom axes) crossed by grid lines.
   view: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5h11M2.5 13.5V2.5"/><path d="M2.5 9.8h11M2.5 6.1h11"/><path d="M6.2 13.5V2.5M9.9 13.5V2.5"/></svg>`,
   // A target around a point — the value-probe marker: outer ring, filled centre, four crosshair ticks.
   probe: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><path d="M8 1.5v2.5M8 12v2.5M1.5 8h2.5M12 8h2.5"/></svg>`,
+  close: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>`,
 } as const;
+
+const FLYOUT_GAP = 10; // px between the rail's right edge and the flyout
 
 export function installSideRail(
   parent: HTMLElement,
@@ -45,26 +46,92 @@ export function installSideRail(
   };
 
   const viewBtn = makeButton("view", ICON.view);
+  viewBtn.setAttribute("aria-label", "Axes & grid");
+  viewBtn.setAttribute("aria-haspopup", "dialog");
+  viewBtn.setAttribute("aria-expanded", "false");
   const probeBtn = makeButton("probe", ICON.probe);
 
-  // Panels default shown (?? true), so a fresh store reads the View toggle as pressed (panel open).
-  const isPanelOpen = (): boolean => uiStore.getState().panels[SCENE_PANEL] ?? true;
-  viewBtn.addEventListener("click", () => uiStore.getState().togglePanel(SCENE_PANEL));
+  container.append(viewBtn, probeBtn);
+  parent.appendChild(container);
+
+  // The flyout: a magviz-style panel opening to the right of the rail, its tail pointing back at the
+  // View tab. The Scene panel mounts into the body; the flyout header carries the title (the pane's own
+  // title + folder bar are CSS-stripped), so the section is never configured in two places.
+  const flyout = makeEl(doc, "div", "webpic-flyout");
+  flyout.setAttribute("role", "dialog");
+  flyout.setAttribute("aria-label", "Axes & grid");
+  flyout.hidden = true;
+  const arrow = makeEl(doc, "div", "webpic-flyout_arrow");
+  const header = makeEl(doc, "div", "webpic-flyout_header");
+  const title = makeEl(doc, "span", "webpic-flyout_title");
+  title.textContent = "Axes & grid";
+  const closeBtn = makeEl(doc, "button", "webpic-flyout_close");
+  closeBtn.type = "button";
+  closeBtn.setAttribute("aria-label", "Close");
+  closeBtn.innerHTML = ICON.close;
+  header.append(title, closeBtn);
+  const body = makeEl(doc, "div", "webpic-flyout_body");
+  flyout.append(arrow, header, body);
+  parent.appendChild(flyout);
+
+  const sceneDispose = installScenePanel(body, store);
+
+  // Open state is local (a transient reveal, like the top bar's), not a docked-panel flag. Position is
+  // recomputed on each open against the live rail rect so the tail lands on the View tab's center.
+  let isOpen = false;
+  const position = (): void => {
+    const rail = container.getBoundingClientRect();
+    const btn = viewBtn.getBoundingClientRect();
+    flyout.style.left = `${Math.round(rail.right + FLYOUT_GAP)}px`;
+    const arrowY = btn.top + btn.height / 2;
+    const height = flyout.offsetHeight; // valid only while shown — hidden is cleared before this runs
+    const viewportH = doc.documentElement.clientHeight;
+    const top = Math.max(8, Math.min(arrowY - height / 2, viewportH - height - 8));
+    flyout.style.top = `${Math.round(top)}px`;
+    flyout.style.setProperty("--arrow-pos", `${Math.round(arrowY - top)}px`);
+  };
+  const setOpen = (next: boolean): void => {
+    isOpen = next;
+    flyout.hidden = !next;
+    viewBtn.setAttribute("aria-pressed", String(next));
+    viewBtn.setAttribute("aria-expanded", String(next));
+    if (next) position();
+  };
+
+  viewBtn.addEventListener("click", () => setOpen(!isOpen));
+  closeBtn.addEventListener("click", () => {
+    setOpen(false);
+    viewBtn.focus();
+  });
   probeBtn.addEventListener("click", () => {
     const state = store.getState();
     state.setOverlayShowPicker(!state.overlay.showPicker);
   });
 
-  container.append(viewBtn, probeBtn);
-  parent.appendChild(container);
-
-  // Reflect store state onto the toggles: aria-pressed drives the accent-tint + assistive state;
-  // aria-label is both the accessible name and the slide-out hover label (the CSS ::after reads it),
-  // so there's no native `title` to double up with the pill.
-  const applyView = (open: boolean): void => {
-    viewBtn.setAttribute("aria-pressed", String(open));
-    viewBtn.setAttribute("aria-label", open ? "Hide scene (axes & grid)" : "Scene — axes & grid");
+  // Escape closes (focus returns to the tab); an outside pointer-down dismisses — same shape as the
+  // bottom rail's coords card.
+  const onDocKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === "Escape" && isOpen) {
+      setOpen(false);
+      viewBtn.focus();
+    }
   };
+  const onDocPointerDown = (event: MouseEvent): void => {
+    if (!isOpen) return;
+    const target = event.target;
+    if (target instanceof Node && (flyout.contains(target) || viewBtn.contains(target))) return;
+    setOpen(false);
+  };
+  doc.addEventListener("keydown", onDocKeyDown);
+  doc.addEventListener("mousedown", onDocPointerDown);
+
+  const onResize = (): void => {
+    if (isOpen) position();
+  };
+  doc.defaultView?.addEventListener("resize", onResize);
+
+  // Reflect store state: probe aria-pressed + label (also its slide-out hover label). The View tab's
+  // open state is local, so it carries no store subscription.
   const applyProbe = (show: boolean): void => {
     probeBtn.setAttribute("aria-pressed", String(show));
     probeBtn.setAttribute(
@@ -74,22 +141,25 @@ export function installSideRail(
   };
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
+    if (!visible) setOpen(false); // don't strand the flyout over hidden UI; F re-reveals the rail only
   };
 
-  applyView(isPanelOpen());
+  setOpen(false);
   applyProbe(store.getState().overlay.showPicker);
   applyVisible(uiStore.getState().isUiVisible);
 
-  // Per-leaf selectors: the panel boolean (resolved with the default) and the picker flag fire only on
-  // a real change; isUiVisible mirrors the global toggle the same way as the bottom rail.
   const unsubs = [
-    uiStore.subscribe((s) => s.panels[SCENE_PANEL] ?? true, applyView),
     store.subscribe((s) => s.overlay.showPicker, applyProbe),
     uiStore.subscribe((s) => s.isUiVisible, applyVisible),
   ];
 
   return () => {
     for (const unsub of unsubs) unsub();
+    doc.removeEventListener("keydown", onDocKeyDown);
+    doc.removeEventListener("mousedown", onDocPointerDown);
+    doc.defaultView?.removeEventListener("resize", onResize);
+    sceneDispose();
+    flyout.remove();
     container.remove();
   };
 }

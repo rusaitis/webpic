@@ -73,8 +73,9 @@ export interface Theme {
 export const DEFAULT_WEBPIC_CONFIG: WebpicThemeConfig = {
   version: 1,
   layout: {
-    // dataset/field/time live in the top menu bar (ui/topBar) now; the docked shell keeps the rest.
-    defaultPanels: ["colormap", "scene"],
+    // dataset/field/time live in the top menu bar (ui/topBar); axes & grid in the left rail flyout
+    // (ui/sideRail) — the docked shell keeps the colormap panel.
+    defaultPanels: ["colormap"],
     dockedSide: "right",
     panelCollapsedDefault: false,
   },
