@@ -1,5 +1,5 @@
-import { type ColormapBinding, DEFAULT_COLORMAP } from "@schema/colormap.ts";
-import type { Layer, SimulationStore, UiStore } from "@store";
+import { type ColormapBinding, type ColormapId, DEFAULT_COLORMAP } from "@schema/colormap.ts";
+import { type SimulationStore, selectActiveBinding, type UiStore } from "@store";
 import { makeEl } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { installDragSnap, type PaneEdge } from "../floating/dragSnap.ts";
@@ -72,17 +72,11 @@ export function installColorbar(
   container.style.bottom = `${INITIAL_GAP_PX}px`;
   parent.appendChild(container);
 
-  const activeLayer = (): Layer | null => {
-    const { selectedLayerId, layers } = store.getState();
-    if (selectedLayerId === null) return null;
-    return layers.find((l) => l.id === selectedLayerId) ?? null;
-  };
-  const activeBinding = (): ColormapBinding | null => {
-    const { colormapBindings } = store.getState();
-    const id = activeLayer()?.colormapBindingId ?? null;
-    if (id === null) return null;
-    return colormapBindings[id] ?? null;
-  };
+  // Last-painted gradient inputs: resizing the canvas clears its bitmap and re-baking the 64-stop
+  // gradient is wasted on a window/scale/field edit (only the ticks move), so both are gated on a
+  // real change of orientation/colormap.
+  let paintedHorizontal: boolean | null = null;
+  let paintedColormap: ColormapId | null = null;
 
   const renderTicks = (binding: ColormapBinding | null): void => {
     ticks.replaceChildren();
@@ -98,12 +92,21 @@ export function installColorbar(
   const repaint = (): void => {
     const edge = (container.dataset.edge as PaneEdge) ?? "bottom";
     const horizontal = edge === "top" || edge === "bottom";
-    // Always render at the orientation's expanded pixel size; CSS scales the displayed strip
-    // (incl. the collapse transition), so the canvas never snaps.
-    canvas.width = horizontal ? 360 : 24;
-    canvas.height = horizontal ? 24 : 220;
-    const binding = activeBinding();
-    paintGradient(canvas, binding?.colormap ?? DEFAULT_COLORMAP, horizontal);
+    const binding = selectActiveBinding(store.getState());
+    const colormap = binding?.colormap ?? DEFAULT_COLORMAP;
+    // Render at the orientation's expanded pixel size; CSS scales the displayed strip (incl. the
+    // collapse transition), so the canvas never snaps. A resize clears the bitmap, so any resize
+    // forces a gradient repaint; a colormap change repaints in place.
+    const orientationChanged = paintedHorizontal !== horizontal;
+    if (orientationChanged) {
+      canvas.width = horizontal ? 360 : 24;
+      canvas.height = horizontal ? 24 : 220;
+    }
+    if (orientationChanged || paintedColormap !== colormap) {
+      paintGradient(canvas, colormap, horizontal);
+    }
+    paintedHorizontal = horizontal;
+    paintedColormap = colormap;
     caption.textContent = binding?.field ?? "—";
     renderTicks(binding);
   };
@@ -145,21 +148,15 @@ export function installColorbar(
   // Settle clear of the chrome once layout (and thus rects) are valid.
   doc.defaultView?.requestAnimationFrame(() => drag.reflow());
 
-  const unsubSelected = store.subscribe((s) => s.selectedLayerId, repaint);
-  const unsubRange = store.subscribe((s) => s.dataRange, repaint);
-  const unsubBinding = store.subscribe((s) => {
-    const layer =
-      s.selectedLayerId === null ? undefined : s.layers.find((l) => l.id === s.selectedLayerId);
-    const id = layer?.colormapBindingId ?? null;
-    return id === null ? null : (s.colormapBindings[id] ?? null);
-  }, repaint);
+  // One subscription drives the strip: the active binding's reference changes on layer-select,
+  // colormap, scale, or window edits — every input the strip reads. (dataRange feeds the settings
+  // slider's track, not the strip, so it needs no repaint here.)
+  const unsubBinding = store.subscribe(selectActiveBinding, repaint);
   const unsubVisible = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
 
   return () => {
     unsubVisible();
     unsubBinding();
-    unsubRange();
-    unsubSelected();
     drag.dispose();
     settings.dispose();
     container.remove();

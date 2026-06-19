@@ -197,6 +197,23 @@ export interface SimulationState {
   setMeasuringContinuous(on: boolean): void;
 }
 
+/** The selected layer, or null when nothing is selected (or the id no longer resolves). The single
+ *  reader of the selected-layer chain — UI panels select through this rather than re-deriving it. */
+export function selectActiveLayer(
+  state: Pick<SimulationState, "layers" | "selectedLayerId">,
+): Layer | null {
+  if (state.selectedLayerId === null) return null;
+  return state.layers.find((layer) => layer.id === state.selectedLayerId) ?? null;
+}
+
+/** The ColormapBinding bound to the selected layer, or null when none is selected/bound. */
+export function selectActiveBinding(
+  state: Pick<SimulationState, "layers" | "selectedLayerId" | "colormapBindings">,
+): ColormapBinding | null {
+  const bindingId = selectActiveLayer(state)?.colormapBindingId ?? null;
+  return bindingId === null ? null : (state.colormapBindings[bindingId] ?? null);
+}
+
 // Finite-only min/max in one pass (mirrors volumeTexture.ts; the store can't import `render`,
 // and `reductions` isn't in store's allowed imports). A constant field is widened by 1 so the
 // default window has a finite width; no finite samples → null.

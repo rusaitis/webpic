@@ -1,4 +1,4 @@
-import type { Layer, SimulationStore } from "@store";
+import { type SimulationStore, selectActiveLayer } from "@store";
 import { createPane, type Disposer } from "../controls/index.ts";
 
 // The Developer panel — the docked right-shell home for features under development that aren't yet
@@ -11,23 +11,17 @@ export function installDevPanel(host: HTMLElement, store: SimulationStore): Disp
   const pane = createPane({ parent: host, title: "Developer" });
   const folder = pane.addFolder({ title: "Shading" });
 
-  const activeLayer = (): Layer | null => {
-    const { selectedLayerId, layers } = store.getState();
-    if (selectedLayerId === null) return null;
-    return layers.find((layer) => layer.id === selectedLayerId) ?? null;
-  };
-
   // Phong is volume-only (a slice has no depth gradient to light); the checkbox disables otherwise.
   const shadingControl = folder.addCheckbox({
     label: "Phong",
     value: false,
     onChange: (on) => {
-      const layer = activeLayer();
+      const layer = selectActiveLayer(store.getState());
       if (layer?.kind === "volume") store.getState().setLayerShading(layer.id, on);
     },
   });
   const syncShading = (): void => {
-    const layer = activeLayer();
+    const layer = selectActiveLayer(store.getState());
     const isVolume = layer?.kind === "volume";
     shadingControl.set(isVolume ? layer.shaded : false);
     shadingControl.setDisabled(!isVolume);
@@ -37,8 +31,7 @@ export function installDevPanel(host: HTMLElement, store: SimulationStore): Disp
 
   const unsubSelected = store.subscribe((s) => s.selectedLayerId, syncShading);
   const unsubLayers = store.subscribe((s) => {
-    const layer =
-      s.selectedLayerId === null ? undefined : s.layers.find((l) => l.id === s.selectedLayerId);
+    const layer = selectActiveLayer(s);
     return layer?.kind === "volume" ? layer.shaded : null; // reflect an external shaded flip
   }, syncShading);
 

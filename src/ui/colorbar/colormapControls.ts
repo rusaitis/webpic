@@ -6,7 +6,12 @@ import {
   type ColorScale,
   DEFAULT_COLORMAP,
 } from "@schema/colormap.ts";
-import type { DataRange, Layer, SimulationStore } from "@store";
+import {
+  type DataRange,
+  type SimulationStore,
+  selectActiveBinding,
+  selectActiveLayer,
+} from "@store";
 import {
   type ControlHandle,
   createPane,
@@ -53,19 +58,13 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
   let currentBindingId: string | null = null;
   let currentScale: ColorScale | null = null;
 
-  const activeLayer = (): Layer | null => {
-    const { selectedLayerId, layers } = store.getState();
-    if (selectedLayerId === null) return null;
-    return layers.find((layer) => layer.id === selectedLayerId) ?? null;
-  };
-
   const active = (): ActiveBinding | null => {
-    const { colormapBindings, dataRange } = store.getState();
-    const bindingId = activeLayer()?.colormapBindingId ?? null;
+    const state = store.getState();
+    const bindingId = selectActiveLayer(state)?.colormapBindingId ?? null;
     if (bindingId === null) return null;
-    const binding = colormapBindings[bindingId];
+    const binding = state.colormapBindings[bindingId];
     if (binding === undefined) return null;
-    return { id: bindingId, binding, bounds: dataRange };
+    return { id: bindingId, binding, bounds: state.dataRange };
   };
 
   const dispatchColormap = (colormap: ColormapId): void => {
@@ -158,12 +157,7 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
 
   const unsubSelected = store.subscribe((s) => s.selectedLayerId, rebuild);
   const unsubRange = store.subscribe((s) => s.dataRange, rebuild); // new extent → re-bake the track
-  const unsubBindings = store.subscribe((s) => {
-    const layer =
-      s.selectedLayerId === null ? undefined : s.layers.find((l) => l.id === s.selectedLayerId);
-    const bindingId = layer?.colormapBindingId ?? null;
-    return bindingId === null ? null : (s.colormapBindings[bindingId] ?? null);
-  }, sync);
+  const unsubBindings = store.subscribe(selectActiveBinding, sync);
 
   return () => {
     unsubBindings();
