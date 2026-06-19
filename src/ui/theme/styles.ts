@@ -288,6 +288,13 @@ const UI_CSS = `
   background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
 .webpic-topbar_btn:disabled { opacity: 0.4; cursor: default; }
 .webpic-topbar_btn:disabled:hover { background: var(--webpic-input-bg); }
+/* Dataset/field pickers recede at rest (their solid fill otherwise competes with the scene); the
+   bar's hover/focus brings them back in step with --topbar-fg, as does opening one (aria-expanded). */
+.webpic-topbar_dataset, .webpic-topbar_field { opacity: 0.7; }
+.webpic-topbar:hover .webpic-topbar_dataset, .webpic-topbar:focus-within .webpic-topbar_dataset,
+.webpic-topbar:hover .webpic-topbar_field, .webpic-topbar:focus-within .webpic-topbar_field,
+.webpic-topbar_dataset[aria-expanded="true"], .webpic-topbar_field[aria-expanded="true"] {
+  opacity: 1; }
 .webpic-topbar_icon { width: var(--webpic-unit); padding: 0; justify-content: center; }
 .webpic-topbar_btn svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
@@ -410,5 +417,6 @@ const UI_CSS = `
    Distinct from (pointer: coarse): a touchscreen laptop is hover:none but pointer:fine. */
 @media (hover: none) {
   .webpic-topbar { --topbar-fg: 1; background: color-mix(in srgb, var(--webpic-bg) 92%, transparent); }
+  .webpic-topbar_dataset, .webpic-topbar_field { opacity: 1; } /* no hover to bring them back */
 }
 `;
