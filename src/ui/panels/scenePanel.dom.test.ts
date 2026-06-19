@@ -50,15 +50,6 @@ describe("scene panel", () => {
     dispose();
   });
 
-  it("the gnomon checkbox drives showGnomon", () => {
-    const { host, store, dispose } = mount();
-    const input = checkbox(host, "Corner gnomon");
-    input.checked = false;
-    input.dispatchEvent(new Event("change"));
-    expect(store.getState().overlay.showGnomon).toBe(false);
-    dispose();
-  });
-
   it("the Density slider dispatches setGridDivisions", () => {
     const { host, store, dispose } = mount();
     // The slider is the shared RangeControl primitive — drive it through its text field.

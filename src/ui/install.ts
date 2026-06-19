@@ -8,6 +8,7 @@ import { installHelpOverlay } from "./helpOverlay.ts";
 import { isTypingTarget } from "./keyboard.ts";
 import { mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
+import { installSideRail } from "./sideRail.ts";
 import { installStatusPill } from "./statusPill.ts";
 import { applyControlStyles } from "./theme/styles.ts";
 import { installTopBar } from "./topBar.ts";
@@ -58,6 +59,11 @@ export function installUi(opts: InstallUiOptions): () => void {
   // The centered bottom button rail (gnomon/fly/projection/coord/help) — also outside the shell, also
   // UI-toggle-hidden. It reserves the gnomon's footprint so the two never collide.
   disposers.push(installCameraRail(opts.parent, opts.simulationStore, opts.uiStore));
+
+  // The left tool rail — View (toggles the Scene panel) + Probe (the point marker), the instance-first
+  // rail's first occupants on the operations axis. Outside the shell on the left edge, UI-toggle-
+  // hidden; layer add-buttons + more tools land here in M4. The gnomon stays on the bottom rail.
+  disposers.push(installSideRail(opts.parent, opts.simulationStore, opts.uiStore));
 
   // Loading/error feedback; unlike the chrome it ignores the global UI toggle — status, not chrome.
   disposers.push(installStatusPill(opts.parent, opts.uiStore));

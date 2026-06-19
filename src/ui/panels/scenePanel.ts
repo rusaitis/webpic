@@ -6,10 +6,11 @@ import {
 } from "@store";
 import { type ControlHandle, createPane, type Disposer } from "../controls/index.ts";
 
-// The Scene panel: toggles for the in-scene axes + grid overlay (per-plane), tick labels, the corner
-// gnomon, the point marker, and the grid density. Dispatches store intents only (ui → store; never
-// render) — the app's sceneSync forwards the render-bound flags to the worker, cameraChrome consumes
-// showGnomon. Camera controls (fit, projection) live in the bottom rail + keyboard, not here.
+// The Scene panel: toggles for the in-scene axes + grid overlay (per-plane), tick labels, and the
+// grid density — the reference-frame chrome. Dispatches store intents only (ui → store; never render)
+// — the app's sceneSync forwards these flags to the worker. The corner gnomon (bottom rail, camera
+// orientation) and the point marker (left tool rail, a value probe) own their own surfaces, not this
+// panel. Camera controls (fit, projection) live in the bottom rail + keyboard, not here.
 
 const PLANE_LABELS: Readonly<Record<GridPlane, string>> = {
   xy: "XY plane (equator)",
@@ -50,18 +51,6 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
     onChange: (on) => store.getState().setOverlayShowLabels(on),
   });
 
-  const gnomon: ControlHandle<boolean> = folder.addCheckbox({
-    label: "Corner gnomon",
-    value: initial.showGnomon,
-    onChange: (on) => store.getState().setOverlayShowGnomon(on),
-  });
-
-  const picker: ControlHandle<boolean> = folder.addCheckbox({
-    label: "Point marker",
-    value: initial.showPicker,
-    onChange: (on) => store.getState().setOverlayShowPicker(on),
-  });
-
   const density: ControlHandle<number> = folder.addSlider({
     label: "Density",
     value: initial.gridDivisions,
@@ -88,14 +77,6 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
       (on) => labels.set(on),
     ),
     store.subscribe(
-      (s) => s.overlay.showGnomon,
-      (on) => gnomon.set(on),
-    ),
-    store.subscribe(
-      (s) => s.overlay.showPicker,
-      (on) => picker.set(on),
-    ),
-    store.subscribe(
       (s) => s.overlay.gridDivisions,
       (n) => density.set(n),
     ),
@@ -110,8 +91,6 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
   return () => {
     for (const unsub of overlayUnsubs) unsub();
     density.dispose();
-    picker.dispose();
-    gnomon.dispose();
     labels.dispose();
     axes.dispose();
     for (const { handle } of planes) handle.dispose();

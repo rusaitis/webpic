@@ -65,7 +65,7 @@ const UI_CSS = `
    fading in when the class drops. visibility (not pointer-events) so the gnomon tips' own
    pointer-events: auto can't reach through. The status pill is deliberately not matched. */
 .webpic-booting .webpic-shell, .webpic-booting .webpic-chrome, .webpic-booting .webpic-rail,
-.webpic-booting .webpic-topbar {
+.webpic-booting .webpic-siderail, .webpic-booting .webpic-topbar {
   opacity: 0; visibility: hidden; }
 .webpic-shell[data-side="left"] { left: 12px; }
 .webpic-shell[data-side="right"] { right: 12px; }
@@ -188,6 +188,48 @@ const UI_CSS = `
 .webpic-rail_coords[aria-expanded="true"] { opacity: 1;
   border-color: color-mix(in srgb, var(--webpic-accent) 55%, transparent);
   background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
+/* Left tool rail (ui/sideRail): a magviz-style glass card of flush, borderless icon tabs on the left
+   edge, vertically centered — the instance-first rail's first occupants (View/Scene, Probe), kept
+   distinct from the data layers. Shares the topbar's glass treatment (blur + bg lift on hover) so the
+   chrome reads as one family; each tab's slide-out label is its aria-label (the ::after pill). */
+.webpic-siderail { position: fixed; left: calc(8px + env(safe-area-inset-left)); top: 50%;
+  transform: translateY(-50%); z-index: 10; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 2px; padding: 3px;
+  background: color-mix(in srgb, var(--webpic-bg) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--webpic-border) 45%, transparent);
+  border-radius: 12px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
+  transition: opacity 240ms ease, background .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.webpic-siderail[hidden] { display: none; }
+.webpic-siderail:hover, .webpic-siderail:focus-within {
+  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
+  border-color: color-mix(in srgb, var(--webpic-border) 85%, transparent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34); }
+.webpic-siderail_btn { position: relative; box-sizing: border-box; width: 36px; height: 36px; padding: 0;
+  display: grid; place-items: center; cursor: pointer; opacity: 0.65;
+  background: transparent; color: var(--webpic-muted); border: none; border-radius: 7px;
+  transition: opacity .12s ease, background .12s ease, color .12s ease; }
+.webpic-siderail_btn:hover, .webpic-siderail_btn:focus-visible { opacity: 1; outline: none;
+  color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
+.webpic-siderail_btn[aria-pressed="true"] { opacity: 1; color: var(--webpic-fg);
+  background: color-mix(in srgb, var(--webpic-accent) 28%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.webpic-siderail_btn svg { display: block; width: 18px; height: 18px; fill: none;
+  stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* Slide-out label on hover/focus (magviz's rail tooltip): the tab's aria-label as a glass pill to the
+   right, after a short delay so a quick mouseover doesn't flash it. */
+.webpic-siderail_btn::after { content: attr(aria-label); position: absolute; left: calc(100% + 12px);
+  top: 50%; transform: translate(-6px, -50%); padding: 5px 10px; white-space: nowrap;
+  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in srgb, var(--webpic-border) 85%, transparent); border-radius: 7px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28); color: var(--webpic-fg);
+  font: 500 11px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.03em;
+  opacity: 0; pointer-events: none; z-index: 30;
+  transition: opacity 140ms ease, transform 140ms ease; }
+.webpic-siderail_btn:hover::after, .webpic-siderail_btn:focus-visible::after {
+  opacity: 1; transform: translate(0, -50%); transition-delay: 200ms; }
 /* Grid-info card: a parent-level floating dialog above the rail (ui/cameraRail). pointer-events: auto
    so its copy button works; z-index over the transient status pill (11), under the help modal (20). */
 .webpic-coords-card { position: fixed; left: 50%; bottom: calc(54px + env(safe-area-inset-bottom));
@@ -407,6 +449,8 @@ const UI_CSS = `
   .webpic-rail_btn { width: 38px; height: 38px; border-radius: 8px; }
   .webpic-rail_btn svg { width: 18px; height: 18px; }
   .webpic-rail_coords { font-size: 12px; line-height: 38px; padding: 0 12px; }
+  .webpic-siderail_btn { width: 40px; height: 40px; }
+  .webpic-siderail_btn svg { width: 20px; height: 20px; }
   .webpic-gnomon_tip::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
   .webpic-topbar { --webpic-unit: 34px; }
   .webpic-topbar_step-btn { width: 30px; height: 30px; }

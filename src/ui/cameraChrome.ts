@@ -10,8 +10,8 @@ import type { Disposer } from "./controls/index.ts";
 
 // Always-on camera gnomon pinned bottom-left: a CSS-3D axis triad driven straight from the store
 // pose. The pose is angle-parameterized, so the gnomon is a CSS transform — no second renderer or
-// worker round-trip. Hides with the rest of the UI on the toggle, and independently via the Scene
-// panel / rail gnomon control. The ±axis tips are clickable (magviz's ViewHelper discs): a click
+// worker round-trip. Hides with the rest of the UI on the toggle, and independently via the bottom
+// rail's gnomon control. The ±axis tips are clickable (magviz's ViewHelper discs): a click
 // dispatches a cameraFlyRequest intent that ui/pointerCamera eases to — chrome never animates the
 // pose itself. The pose readout + view permalink now live in the bottom rail (ui/cameraRail).
 
@@ -117,7 +117,7 @@ export function installCameraChrome(
   applyVisible(uiStore.getState().isUiVisible);
   const unsubUi = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
 
-  // The gnomon is independently toggleable (the Scene panel + rail "Gnomon" controls) so it can be
+  // The gnomon is independently toggleable (the bottom rail's "Gnomon" control) so it can be
   // hidden once the in-scene 3D axes suffice. Driven by the store overlay slice.
   const applyGnomon = (show: boolean): void => {
     gnomon.hidden = !show;
