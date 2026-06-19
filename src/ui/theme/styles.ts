@@ -295,44 +295,79 @@ const UI_CSS = `
 .webpic-topbar_caret { display: grid; place-items: center; color: var(--webpic-muted); }
 .webpic-topbar_caret svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-/* The bar runs --webpic-radius: 999px so the pickers turn into pills; scope it back to 4px on the
-   time cluster so the custom scrub track/fill/grip keep their designed (square-ish) look. */
-.webpic-topbar_time { display: flex; align-items: center; gap: 6px; --webpic-radius: 4px; }
+/* Time control: a compact "step N ▾" chip that reveals a scrub popover (track + prev/next) on the
+   wrapper's hover/focus/pin (see the shared .webpic-topbar_pop reveal below). --webpic-radius scoped
+   to 4px so the chip + the popover's track/grip stay crisp against the bar's 999px pills. */
+.webpic-topbar_time { position: relative; display: flex; align-items: center; --webpic-radius: 4px; }
 .webpic-topbar_time.is-disabled { opacity: 0.5; }
-/* The custom range control (ui/controls/rangeControl) wants width:100% for a panel row; pin it to a
-   fixed inline track here. The inner track keeps its half-grip side margins (load-bearing — they keep
-   the grip inside the track at index 0/max). */
-.webpic-topbar_track.webpic-range { width: 132px; flex: 0 0 auto; }
-.webpic-topbar_step { color: var(--webpic-muted); white-space: nowrap; min-width: 6ch; }
-/* Hover-revealed action cluster behind a chevron at the bar's right edge. The reveal is pure CSS on
-   the wrapper's :hover/:focus-within (+ a JS .is-expanded click-pin for touch); the chevron's ::after
-   bridges the gap so the cursor can cross to the popup, and a two-triangle arrow points up at it. */
+.webpic-topbar_chip { position: relative; box-sizing: border-box; height: var(--webpic-unit);
+  padding: 0 8px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font: inherit;
+  background: transparent; color: var(--webpic-muted); border: 0; border-radius: var(--webpic-radius);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+  transition: background .15s ease, color .15s ease; }
+.webpic-topbar_chip:hover, .webpic-topbar_chip:focus-visible { outline: none; color: var(--webpic-fg);
+  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+.webpic-topbar_chip[aria-expanded="true"] { color: var(--webpic-fg); }
+.webpic-topbar_chip:disabled { cursor: default; }
+.webpic-topbar_chip:disabled:hover { background: transparent; color: var(--webpic-muted); }
+.webpic-topbar_chip .webpic-topbar_caret svg { transition: transform .18s ease; }
+.webpic-topbar_reveal.is-expanded .webpic-topbar_chip .webpic-topbar_caret svg {
+  transform: rotate(180deg); }
+.webpic-topbar_step { white-space: nowrap; }
+/* Compact, borderless step buttons (magviz's subtle scrubber) — live inside the scrub popover. */
+.webpic-topbar_step-btn { box-sizing: border-box; width: 26px; height: 26px; padding: 0; border: 0;
+  display: grid; place-items: center; background: transparent; color: inherit; opacity: 0.75;
+  border-radius: var(--webpic-radius); cursor: pointer;
+  transition: opacity .15s ease, background .15s ease; }
+.webpic-topbar_step-btn:hover, .webpic-topbar_step-btn:focus-visible { opacity: 1; outline: none;
+  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+.webpic-topbar_step-btn:disabled { opacity: 0.3; cursor: default; }
+.webpic-topbar_step-btn:disabled:hover { background: transparent; }
+.webpic-topbar_step-btn svg { display: block; width: 14px; height: 14px; fill: none;
+  stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+/* The custom range control wants width:100% for a panel row; pin it to a fixed track in the popover.
+   The inner track keeps its half-grip side margins (load-bearing — grip stays inside at index 0/max). */
+.webpic-topbar_track.webpic-range { width: 160px; flex: 0 0 auto; }
+
+/* Shared hover/focus/pin reveal — the time chip and the actions chevron both use it: a glass popover
+   under the trigger, hidden until the wrapper is hovered/focused or pinned (.is-expanded), gated off
+   while disabled. The trigger's ::after bridges the gap so the cursor can cross to the popover; a
+   two-triangle arrow points up at the trigger. */
 .webpic-topbar_reveal { position: relative; display: flex; align-items: center; }
 .webpic-topbar_chevron { position: relative; opacity: 0.7; transition: opacity .18s ease; }
 .webpic-topbar:hover .webpic-topbar_chevron,
 .webpic-topbar:focus-within .webpic-topbar_chevron { opacity: 1; }
 .webpic-topbar_chevron svg { transition: transform .18s ease; }
 .webpic-topbar_reveal.is-expanded .webpic-topbar_chevron svg { transform: rotate(180deg); }
-.webpic-topbar_chevron::after { content: ""; position: absolute; top: 100%; right: 0;
-  width: 100%; height: 12px; }
-.webpic-topbar_actions { position: absolute; top: 100%; right: 0; margin-top: 9px;
-  display: grid; grid-template-columns: repeat(2, var(--webpic-unit)); gap: 4px; padding: 6px;
+.webpic-topbar_chevron::after, .webpic-topbar_chip::after { content: ""; position: absolute;
+  top: 100%; left: 0; width: 100%; height: 12px; }
+.webpic-topbar_pop { position: absolute; top: 100%; margin-top: 9px; z-index: 1;
   background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border: 1px solid color-mix(in srgb, var(--webpic-border) 85%, transparent);
   border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
-  opacity: 0; visibility: hidden; transform: translateY(-6px); pointer-events: none;
+  opacity: 0; visibility: hidden; transform: translate(var(--pop-x, 0px), -6px); pointer-events: none;
   transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s; }
-.webpic-topbar_reveal:hover .webpic-topbar_actions,
-.webpic-topbar_reveal:focus-within .webpic-topbar_actions,
-.webpic-topbar_reveal.is-expanded .webpic-topbar_actions { opacity: 1; visibility: visible;
-  transform: none; pointer-events: auto; transition: opacity .18s ease, transform .18s ease; }
-.webpic-topbar_actions::before, .webpic-topbar_actions::after { content: ""; position: absolute;
-  bottom: 100%; right: 14px; border: 6px solid transparent; }
-.webpic-topbar_actions::before {
+.webpic-topbar_reveal:not(.is-disabled):hover > .webpic-topbar_pop,
+.webpic-topbar_reveal:not(.is-disabled):focus-within > .webpic-topbar_pop,
+.webpic-topbar_reveal.is-expanded > .webpic-topbar_pop { opacity: 1; visibility: visible;
+  transform: translate(var(--pop-x, 0px), 0); pointer-events: auto;
+  transition: opacity .18s ease, transform .18s ease; }
+.webpic-topbar_pop::before, .webpic-topbar_pop::after { content: ""; position: absolute;
+  bottom: 100%; border: 6px solid transparent; }
+.webpic-topbar_pop::before {
   border-bottom-color: color-mix(in srgb, var(--webpic-border) 85%, transparent); }
-.webpic-topbar_actions::after { margin-bottom: -1px;
+.webpic-topbar_pop::after { margin-bottom: -1px;
   border-bottom-color: color-mix(in srgb, var(--webpic-bg) 92%, transparent); }
+/* Actions popover: right-anchored 2-col icon grid, arrow near the right. */
+.webpic-topbar_actions { right: 0; display: grid; grid-template-columns: repeat(2, var(--webpic-unit));
+  gap: 4px; padding: 6px; }
+.webpic-topbar_actions::before, .webpic-topbar_actions::after { right: 14px; }
+/* Time scrub popover: centered under the chip (--pop-x: -50% pairs with left: 50%), single row
+   [prev | track | next], arrow centered. */
+.webpic-topbar_time-pop { left: 50%; --pop-x: -50%; display: flex; align-items: center; gap: 4px;
+  padding: 5px 7px; }
+.webpic-topbar_time-pop::before, .webpic-topbar_time-pop::after { left: 50%; margin-left: -6px; }
 /* Anchored single-select popover (ui/controls/popover) — the dataset + content pickers share it.
    Body-appended (escapes the bar's clip); z-index above the help modal so a transient menu is never
    occluded. Declares the control tokens locally (not a .webpic-shell descendant). */
@@ -367,6 +402,8 @@ const UI_CSS = `
   .webpic-rail_coords { font-size: 12px; line-height: 38px; padding: 0 12px; }
   .webpic-gnomon_tip::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
   .webpic-topbar { --webpic-unit: 34px; }
+  .webpic-topbar_step-btn { width: 30px; height: 30px; }
+  .webpic-topbar_step-btn svg { width: 16px; height: 16px; }
   .webpic-shell { --webpic-unit: 26px; }
 }
 /* No-hover devices can't trigger the bar's dim→bright, so pin it bright + more opaque for legibility.

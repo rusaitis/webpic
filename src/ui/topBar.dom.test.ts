@@ -5,6 +5,8 @@ import { installTopBar } from "./topBar.ts";
 
 // happy-dom: the time scrub is driven via keyboard (no geometry for pointer drags), so assertions hit
 // the ui → store seam (setStep) plus the rendered readout — mirroring ui/panels/timePanel's tests.
+// The scrub track + prev/next live in a CSS-hidden reveal popover, but happy-dom queries + event
+// dispatch reach hidden nodes, so the behavioral assertions don't depend on the popover being open.
 
 const disposers: Array<() => void> = [];
 afterEach(() => {
@@ -30,7 +32,11 @@ function setup() {
   const valueGrip = (): HTMLElement | null =>
     bar.querySelector<HTMLElement>('.webpic-range_grip[data-end="value"]');
   const stepText = (): string => bar.querySelector(".webpic-topbar_step")?.textContent ?? "";
-  const reveal = (): HTMLElement | null => bar.querySelector<HTMLElement>(".webpic-topbar_reveal");
+  // Two reveals share the .webpic-topbar_reveal class, so reach each via its trigger.
+  const timeReveal = (): HTMLElement | null =>
+    control("time").closest<HTMLElement>(".webpic-topbar_reveal");
+  const actionsReveal = (): HTMLElement | null =>
+    control("more").closest<HTMLElement>(".webpic-topbar_reveal");
   const popover = (): HTMLElement | null =>
     [...document.body.querySelectorAll<HTMLElement>(".webpic-popover")].find((p) => !p.hidden) ??
     null;
@@ -43,21 +49,22 @@ function setup() {
     range,
     valueGrip,
     stepText,
-    reveal,
+    timeReveal,
+    actionsReveal,
     popover,
     dispose,
   };
 }
 
 describe("installTopBar", () => {
-  it("mounts the brand, pickers, scrub track, and four placeholders behind the reveal chevron", () => {
+  it("mounts the brand, pickers, time chip + scrub track, and four placeholders behind the chevron", () => {
     const { bar, control, range, valueGrip } = setup();
     expect(bar.querySelector(".webpic-topbar_brand")?.textContent).toContain("webpic");
     expect(control("dataset")).toBeInstanceOf(window.HTMLButtonElement);
     expect(control("field")).toBeInstanceOf(window.HTMLButtonElement);
     expect(range()).not.toBeNull();
     expect(valueGrip()).not.toBeNull();
-    for (const c of ["step-prev", "step-next", "more"]) {
+    for (const c of ["time", "step-prev", "step-next", "more"]) {
       expect(control(c)).toBeInstanceOf(window.HTMLButtonElement);
     }
     for (const c of ["upload", "layers", "export", "layout"]) {
@@ -111,10 +118,12 @@ describe("installTopBar", () => {
   it("disables the time control with ≤1 step and scrubs once a domain loads", () => {
     const { store, control, range, valueGrip } = setup();
     expect(range()?.classList.contains("is-disabled")).toBe(true);
+    expect(control("time").disabled).toBe(true);
     expect(control("step-prev").disabled).toBe(true);
 
     store.getState().setAvailableSteps([0, 5, 10]); // domain → rebuild a fresh, enabled control
     expect(range()?.classList.contains("is-disabled")).toBe(false);
+    expect(control("time").disabled).toBe(false);
     expect(control("step-prev").disabled).toBe(false);
 
     const grip = valueGrip();
@@ -133,27 +142,61 @@ describe("installTopBar", () => {
     expect(store.getState().currentStep).toBe(5);
   });
 
-  it("reflects an external setStep onto the step readout without echo", () => {
+  it("reflects an external setStep onto the step chip readout without echo", () => {
     const { store, stepText } = setup();
     store.getState().setAvailableSteps([0, 5, 10]);
     store.getState().setStep(10);
-    expect(stepText()).toBe("step 10"); // text:false → the readout is the step label, not an input
+    expect(stepText()).toBe("step 10"); // text:false → the readout is the chip label, not an input
     expect(store.getState().currentStep).toBe(10); // no echo / runaway
   });
 
+  it("pins the time scrub reveal on chip click and closes it on Escape", () => {
+    const { store, control, timeReveal } = setup();
+    store.getState().setAvailableSteps([0, 5, 10]); // enable the chip (≥2 steps)
+    const chip = control("time");
+    expect(chip.disabled).toBe(false);
+    expect(timeReveal()?.classList.contains("is-expanded")).toBe(false);
+
+    chip.dispatchEvent(new MouseEvent("click"));
+    expect(timeReveal()?.classList.contains("is-expanded")).toBe(true);
+    expect(chip.getAttribute("aria-expanded")).toBe("true");
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(timeReveal()?.classList.contains("is-expanded")).toBe(false);
+    expect(chip.getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("pins the action reveal on chevron click and closes it on Escape", () => {
-    const { control, reveal } = setup();
+    const { control, actionsReveal } = setup();
     const chevron = control("more");
-    expect(reveal()?.classList.contains("is-expanded")).toBe(false);
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(false);
     expect(chevron.getAttribute("aria-expanded")).toBe("false");
 
     chevron.dispatchEvent(new MouseEvent("click"));
-    expect(reveal()?.classList.contains("is-expanded")).toBe(true);
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(true);
     expect(chevron.getAttribute("aria-expanded")).toBe("true");
 
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    expect(reveal()?.classList.contains("is-expanded")).toBe(false);
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(false);
     expect(chevron.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("keeps the pinned time reveal open on outside pointerdown (sticky scrub)", () => {
+    const { store, control, timeReveal } = setup();
+    store.getState().setAvailableSteps([0, 5, 10]);
+    control("time").dispatchEvent(new MouseEvent("click")); // pin
+    expect(timeReveal()?.classList.contains("is-expanded")).toBe(true);
+    // interacting with the scene (outside the bar) must NOT dismiss a pinned scrubber
+    document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    expect(timeReveal()?.classList.contains("is-expanded")).toBe(true);
+  });
+
+  it("closes the pinned action reveal on outside pointerdown (menu)", () => {
+    const { control, actionsReveal } = setup();
+    control("more").dispatchEvent(new MouseEvent("click")); // pin
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(true);
+    document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(false);
   });
 
   it("hides the bar and closes popovers on the global UI toggle", () => {
@@ -165,12 +208,17 @@ describe("installTopBar", () => {
     expect(popover()).toBeNull(); // force-closed with the UI
   });
 
-  it("clears a pinned reveal when the bar is hidden", () => {
-    const { uiStore, control, reveal } = setup();
+  it("clears both pinned reveals when the bar is hidden", () => {
+    const { store, uiStore, control, timeReveal, actionsReveal } = setup();
+    store.getState().setAvailableSteps([0, 5, 10]); // enable the time chip
+    control("time").dispatchEvent(new MouseEvent("click"));
     control("more").dispatchEvent(new MouseEvent("click"));
-    expect(reveal()?.classList.contains("is-expanded")).toBe(true);
+    expect(timeReveal()?.classList.contains("is-expanded")).toBe(true);
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(true);
+
     uiStore.getState().toggleUi();
-    expect(reveal()?.classList.contains("is-expanded")).toBe(false); // pin not restored on re-show
+    expect(timeReveal()?.classList.contains("is-expanded")).toBe(false); // not restored on re-show
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(false);
   });
 
   it("removes the bar, its popovers, and the scrub control on dispose", () => {
