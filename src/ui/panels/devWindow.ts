@@ -6,14 +6,15 @@ import { installDevPanel } from "./devPanel.ts";
 // The Developer tool as a small, free-floating window (grip-dragged, corner-resized) rather than a
 // full-height docked panel. Reuses the createFloatingWindow template for the chrome and installDevPanel
 // for the contents; hides with the global UI toggle, like the colorbar. Opens compact in the top-right
-// (the window's defaults), where the docked panel used to sit.
+// (the window's defaults), where the docked panel used to sit. The header × dismisses it; toggling the
+// UI off and back on (F) brings it back — ephemeral, no persisted closed state.
 
 export function installDevWindow(
   parent: HTMLElement,
   store: SimulationStore,
   uiStore: UiStore,
 ): Disposer {
-  const win = createFloatingWindow({ parent, title: "Developer" });
+  const win = createFloatingWindow({ parent, title: "Developer", onClose: () => win.hide() });
   const disposePanel = installDevPanel(win.body, store);
 
   const applyVisible = (visible: boolean): void => {

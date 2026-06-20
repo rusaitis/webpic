@@ -24,6 +24,26 @@ describe("createFloatingWindow", () => {
     expect(document.body.querySelector(".webpic-window")).toBeNull();
   });
 
+  it("omits the close button unless onClose is given", () => {
+    const win = createFloatingWindow({ parent: document.body, title: "Developer" });
+    expect(document.body.querySelector(".webpic-window_close")).toBeNull();
+    win.dispose();
+  });
+
+  it("renders a close button that fires onClose", () => {
+    let closed = 0;
+    const win = createFloatingWindow({
+      parent: document.body,
+      title: "Developer",
+      onClose: () => {
+        closed++;
+      },
+    });
+    el<HTMLButtonElement>(document.body, ".webpic-window_close").click();
+    expect(closed).toBe(1);
+    win.dispose();
+  });
+
   it("retitles via setTitle (text + aria-label)", () => {
     const win = createFloatingWindow({ parent: document.body, title: "Developer" });
     win.setTitle("Diagnostics");

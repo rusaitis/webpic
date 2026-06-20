@@ -641,6 +641,13 @@ const UI_CSS = `
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--webpic-muted); overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .webpic-window_actions { flex: 0 0 auto; display: flex; gap: 2px; }
+.webpic-window_close { appearance: none; display: grid; place-items: center; width: 20px; height: 20px;
+  padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--webpic-muted);
+  cursor: pointer; opacity: 0.6; transition: opacity .12s ease, background .12s ease, color .12s ease; }
+.webpic-window_close:hover, .webpic-window_close:focus-visible { opacity: 1; outline: none;
+  color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
+.webpic-window_close svg { display: block; width: 11px; height: 11px; fill: none; stroke: currentColor;
+  stroke-width: 1.6; stroke-linecap: round; }
 .webpic-window_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 10px 10px; }
 /* Corner resize grip (magviz): a 3-dot triangle in the SE corner; brighten on hover/resize. */
 .webpic-window_resize { position: absolute; right: 0; bottom: 0; width: 22px; height: 22px;
@@ -673,6 +680,7 @@ const UI_CSS = `
   .webpic-topbar_step-btn svg { width: 16px; height: 16px; }
   .webpic-shell { --webpic-unit: 26px; }
   .webpic-window_bar { height: 34px; }
+  .webpic-window_close { width: 28px; height: 28px; }
   .webpic-window_resize { width: 30px; height: 30px; }
 }
 /* No-hover devices can't trigger the bar's dim→bright, so pin it bright + more opaque for legibility.

@@ -21,6 +21,9 @@ const DEFAULT_RIGHT_PX = 16;
 const Z_BASE = 15;
 let zTop = Z_BASE;
 
+// Matches the colorbar settings popover's × so the close affordance reads the same across chrome.
+const CLOSE_ICON = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>`;
+
 export interface FloatingWindowInitial {
   readonly top?: number;
   readonly right?: number;
@@ -37,6 +40,9 @@ export interface FloatingWindowOptions {
   readonly minHeight?: number;
   /** First-paint inset; defaults to top-right (top 64, right 16). Reflow then anchors top-left. */
   readonly initial?: FloatingWindowInitial;
+  /** When set, a close (×) button is rendered in the header and calls this on click. The consumer
+   *  owns the effect — hide (`handle.hide()`), dispose, or a store intent. */
+  readonly onClose?: () => void;
 }
 
 export interface FloatingWindowHandle {
@@ -59,8 +65,8 @@ export function createFloatingWindow(opts: FloatingWindowOptions): FloatingWindo
   container.style.width = `${opts.width ?? DEFAULT_WIDTH_PX}px`;
   container.style.height = `${opts.height ?? DEFAULT_HEIGHT_PX}px`;
 
-  // Header: grip dots (the drag affordance) + title + an actions slot for future buttons (a close
-  // button, etc.); the whole bar is the drag handle, so the slot is marked no-drag.
+  // Header: grip dots (the drag affordance) + title + an actions slot (e.g. the close button); the
+  // whole bar is the drag handle, so the slot is marked no-drag.
   const bar = makeEl(doc, "div", "webpic-window_bar");
   const grip = makeEl(doc, "span", "webpic-window_grip");
   grip.setAttribute("aria-hidden", "true");
@@ -68,6 +74,14 @@ export function createFloatingWindow(opts: FloatingWindowOptions): FloatingWindo
   title.textContent = opts.title;
   const actions = makeEl(doc, "div", "webpic-window_actions");
   actions.dataset.noDrag = "";
+  if (opts.onClose !== undefined) {
+    const closeBtn = makeEl(doc, "button", "webpic-window_close");
+    closeBtn.type = "button";
+    closeBtn.setAttribute("aria-label", "Close");
+    closeBtn.innerHTML = CLOSE_ICON;
+    closeBtn.addEventListener("click", () => opts.onClose?.(), { signal: ac.signal });
+    actions.append(closeBtn);
+  }
   bar.append(grip, title, actions);
 
   const body = makeEl(doc, "div", "webpic-window_body");

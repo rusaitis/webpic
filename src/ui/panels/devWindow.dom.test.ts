@@ -37,6 +37,18 @@ describe("developer window", () => {
     expect(document.body.querySelector(".webpic-window")).toBeNull();
   });
 
+  it("dismisses via the header close button", () => {
+    const store = createSimulationStore();
+    const dispose = installDevWindow(document.body, store, createUiStore());
+    const win = el(document.body, ".webpic-window");
+    expect(win.hidden).toBe(false);
+
+    el<HTMLButtonElement>(win, ".webpic-window_close").click();
+    expect(win.hidden).toBe(true);
+
+    dispose();
+  });
+
   it("hides with the global UI toggle", () => {
     const store = createSimulationStore();
     const uiStore = createUiStore();
