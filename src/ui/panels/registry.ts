@@ -1,7 +1,6 @@
 import type { SimulationStore } from "@store";
 import type { Disposer } from "../controls/index.ts";
 import { installDatasetPanel } from "./datasetPanel.ts";
-import { installDevPanel } from "./devPanel.ts";
 import { installDiagnosticsPanel } from "./diagnosticsPanel.ts";
 import { installFieldPanel } from "./fieldPanel.ts";
 import { installPlaceholderPanel } from "./placeholderPanel.ts";
@@ -17,7 +16,6 @@ export const PANEL_REGISTRY: Readonly<Record<string, PanelInstaller>> = {
   dataset: installDatasetPanel,
   field: installFieldPanel,
   time: installTimePanel,
-  dev: installDevPanel,
   scene: installScenePanel,
   diagnostics: installDiagnosticsPanel,
 };

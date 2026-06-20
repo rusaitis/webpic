@@ -134,6 +134,23 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
   };
 }
 
+/** Free-drag placement: clamp the rect's top-left into the viewport (keeping VIEWPORT_MARGIN_PX of
+ *  the element on screen), no edge dock. Pure — unit-tested. */
+export function freePlacement(rect: Box, vp: Viewport): { left: number; top: number } {
+  return {
+    left: clamp(
+      rect.left,
+      VIEWPORT_MARGIN_PX,
+      Math.max(VIEWPORT_MARGIN_PX, vp.width - rect.width - VIEWPORT_MARGIN_PX),
+    ),
+    top: clamp(
+      rect.top,
+      VIEWPORT_MARGIN_PX,
+      Math.max(VIEWPORT_MARGIN_PX, vp.height - rect.height - VIEWPORT_MARGIN_PX),
+    ),
+  };
+}
+
 function overlaps(a: Box, b: Box): boolean {
   return (
     a.left + OVERLAP_EPSILON_PX < b.right &&
@@ -219,6 +236,9 @@ export function pushOutOf(
 }
 
 export interface DragSnapOptions {
+  /** "snap" (default) magnetically docks to the nearest edge on release; "free" just clamps the
+   *  drop position into the viewport and anchors top-left (a movable window, no docking). */
+  readonly mode?: "snap" | "free";
   /** Element receiving pointerdown to start a drag. Defaults to the dragged element. */
   readonly handle?: HTMLElement;
   /** CSS selector for static chrome the element must not cover when dropped. Zero-area
@@ -314,6 +334,12 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
   const snap = (): void => {
     const vp = viewport();
     const r = el.getBoundingClientRect(); // visual drop position (includes the drag transform)
+    if (opts.mode === "free") {
+      const { left, top } = freePlacement(box(r.left, r.top, r.width, r.height), vp);
+      writeOffset(0, 0);
+      setAnchors("left", "top", left, top, r.width, r.height, vp);
+      return;
+    }
     const prevEdge = el.dataset.edge as PaneEdge | undefined;
     const placement = chooseEdge(box(r.left, r.top, r.width, r.height), vp, prevEdge);
     writeOffset(0, 0);
@@ -334,6 +360,11 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     if (!hasInline) return;
     const vp = viewport();
     const r = el.getBoundingClientRect();
+    if (opts.mode === "free") {
+      const { left, top } = freePlacement(box(r.left, r.top, r.width, r.height), vp);
+      setAnchors("left", "top", left, top, r.width, r.height, vp);
+      return;
+    }
     const edge = (el.dataset.edge as PaneEdge | undefined) ?? "bottom";
     let left = r.left;
     let top = r.top;

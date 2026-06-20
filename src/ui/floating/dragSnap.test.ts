@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Box, chooseEdge, pushOutOf, type Viewport } from "./dragSnap.ts";
+import { type Box, chooseEdge, freePlacement, pushOutOf, type Viewport } from "./dragSnap.ts";
 
 const VP: Viewport = { width: 1000, height: 800 };
 const EDGE_GAP = 12;
@@ -82,5 +82,20 @@ describe("pushOutOf", () => {
     const rect = box(800, 764, 180, 24);
     const rail = box(440, 760, 120, 40);
     expect(pushOutOf(rect, [rail], "bottom", VP)).toEqual({ left: 800, top: 764 });
+  });
+});
+
+describe("freePlacement", () => {
+  it("leaves a rect already inside the viewport untouched", () => {
+    expect(freePlacement(box(500, 400, 240, 180), VP)).toEqual({ left: 500, top: 400 });
+  });
+
+  it("clamps a rect past the top-left into the margin", () => {
+    expect(freePlacement(box(-50, -50, 240, 180), VP)).toEqual({ left: 8, top: 8 });
+  });
+
+  it("clamps a rect past the bottom-right so it stays on screen", () => {
+    // max left = 1000 - 240 - 8 = 752; max top = 800 - 180 - 8 = 612
+    expect(freePlacement(box(900, 700, 240, 180), VP)).toEqual({ left: 752, top: 612 });
   });
 });

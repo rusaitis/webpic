@@ -65,7 +65,8 @@ const UI_CSS = `
    fading in when the class drops. visibility (not pointer-events) so the gnomon tips' own
    pointer-events: auto can't reach through. The status pill is deliberately not matched. */
 .webpic-booting .webpic-shell, .webpic-booting .webpic-chrome, .webpic-booting .webpic-rail,
-.webpic-booting .webpic-siderail, .webpic-booting .webpic-topbar, .webpic-booting .webpic-cbar {
+.webpic-booting .webpic-siderail, .webpic-booting .webpic-topbar, .webpic-booting .webpic-cbar,
+.webpic-booting .webpic-window {
   opacity: 0; visibility: hidden; }
 .webpic-shell[data-side="left"] { left: 12px; }
 .webpic-shell[data-side="right"] { right: 12px; }
@@ -605,6 +606,55 @@ const UI_CSS = `
 .webpic-cbar-pop_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 9px 9px; }
 .webpic-cbar-pop_body .webpic-pane_title, .webpic-cbar-pop_body .webpic-folder_bar { display: none; }
 .webpic-cbar-pop_body .webpic-folder { border-top: none; }
+/* Floating window (ui/floating/floatingWindow): a reusable draggable + resizable glass panel that
+   features mount content into. Grip dots in the header free-drag it (clamp to viewport, no docking);
+   the SE-corner grip resizes it; pointerdown raises it. Declares the shell-local control tokens
+   itself (it lives outside .webpic-shell). z over the colorbar (13)/its popover (14), under the help
+   modal (20) and global control popovers (30). */
+.webpic-window { position: fixed; z-index: 15; box-sizing: border-box; display: flex;
+  flex-direction: column; overflow: hidden; color: var(--webpic-fg);
+  background: color-mix(in srgb, var(--webpic-bg) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--webpic-border) 60%, transparent);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
+  transition: opacity 240ms ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
+.webpic-window[hidden] { display: none; }
+.webpic-window:hover, .webpic-window:focus-within {
+  border-color: color-mix(in srgb, var(--webpic-border) 85%, transparent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4); }
+/* Immediate tracking during a gesture — no position/size lag. */
+.webpic-window.is-dragging, .webpic-window.is-resizing { transition: none; }
+.webpic-window_bar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; height: 28px;
+  padding: 0 8px 0 10px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--webpic-border) 45%, transparent);
+  background: color-mix(in srgb, var(--webpic-fg) 4%, transparent); }
+.webpic-window.is-dragging .webpic-window_bar { cursor: grabbing; }
+/* Grip dots (magviz): a 2×3 radial-gradient grid; brighten on header hover. Visual only. */
+.webpic-window_grip { flex: 0 0 auto; width: 8px; height: 14px; opacity: 0.3; pointer-events: none;
+  background-image: radial-gradient(circle, var(--webpic-muted) 1.1px, transparent 1.6px);
+  background-size: 4px 5px; transition: opacity .2s ease; }
+.webpic-window_bar:hover .webpic-window_grip { opacity: 0.55; }
+.webpic-window_title { flex: 1 1 auto; min-width: 0; font-size: 10px; line-height: 1;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--webpic-muted); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.webpic-window_actions { flex: 0 0 auto; display: flex; gap: 2px; }
+.webpic-window_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 10px 10px; }
+/* Corner resize grip (magviz): a 3-dot triangle in the SE corner; brighten on hover/resize. */
+.webpic-window_resize { position: absolute; right: 0; bottom: 0; width: 22px; height: 22px;
+  cursor: nwse-resize; touch-action: none; opacity: 0.35; transition: opacity .2s ease;
+  border-bottom-right-radius: 12px;
+  background-image:
+    radial-gradient(circle, var(--webpic-muted) 1.1px, transparent 1.6px),
+    radial-gradient(circle, var(--webpic-muted) 1.1px, transparent 1.6px),
+    radial-gradient(circle, var(--webpic-muted) 1.1px, transparent 1.6px);
+  background-repeat: no-repeat;
+  background-position: right 5px bottom 10px, right 10px bottom 5px, right 5px bottom 5px;
+  background-size: 4px 4px; }
+.webpic-window:hover .webpic-window_resize { opacity: 0.55; }
+.webpic-window_resize:hover, .webpic-window.is-resizing .webpic-window_resize { opacity: 0.85; }
 /* Coarse pointers (touch): grow the chrome hit targets a notch — desktop layout is untouched. The
    gnomon tips keep their small visual disc but gain a finger-sized invisible hit area, the same
    ::before-inset trick the range grip uses. Matches viewportTracking's (pointer: coarse) probe. */
@@ -622,6 +672,8 @@ const UI_CSS = `
   .webpic-topbar_step-btn { width: 30px; height: 30px; }
   .webpic-topbar_step-btn svg { width: 16px; height: 16px; }
   .webpic-shell { --webpic-unit: 26px; }
+  .webpic-window_bar { height: 34px; }
+  .webpic-window_resize { width: 30px; height: 30px; }
 }
 /* No-hover devices can't trigger the bar's dim→bright, so pin it bright + more opaque for legibility.
    Distinct from (pointer: coarse): a touchscreen laptop is hover:none but pointer:fine. */

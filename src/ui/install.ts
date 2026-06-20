@@ -7,6 +7,7 @@ import { installColorbar } from "./colorbar/colorbar.ts";
 import type { Disposer } from "./controls/index.ts";
 import { installHelpOverlay } from "./helpOverlay.ts";
 import { isTypingTarget } from "./keyboard.ts";
+import { installDevWindow } from "./panels/devWindow.ts";
 import { mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
 import { installSideRail } from "./sideRail.ts";
@@ -36,16 +37,19 @@ export function installUi(opts: InstallUiOptions): () => void {
   // Class on before the chrome mounts, so it never flashes over the blank boot canvas.
   disposers.push(installBootReveal(opts.parent, opts.uiStore));
 
-  const shell = createShell({
-    parent: opts.parent,
-    dockedSide: layout.dockedSide,
-    panels,
-    uiStore: opts.uiStore,
-  });
-  disposers.push(() => shell.dispose());
-
-  for (const name of panels) {
-    disposers.push(mountPanel(name, shell.panelHost(name), opts.simulationStore));
+  // The docked shell renders only when something is docked — an empty shell would show as a bare
+  // glass box. Floating chrome (colorbar, Developer window) lives outside it.
+  if (panels.length > 0) {
+    const shell = createShell({
+      parent: opts.parent,
+      dockedSide: layout.dockedSide,
+      panels,
+      uiStore: opts.uiStore,
+    });
+    disposers.push(() => shell.dispose());
+    for (const name of panels) {
+      disposers.push(mountPanel(name, shell.panelHost(name), opts.simulationStore));
+    }
   }
 
   // Fixed top menu bar — dataset/field pickers + time scrub + placeholder actions. Outside the shell
@@ -70,6 +74,10 @@ export function installUi(opts: InstallUiOptions): () => void {
   // gradient strip; its gear opens the colormap/scale/window controls. Replaces the old docked
   // colormap panel. Outside the shell on a free-floating layer, UI-toggle-hidden.
   disposers.push(installColorbar(opts.parent, opts.simulationStore, opts.uiStore));
+
+  // The Developer tool — a small, free-floating, resizable window (replaces the old docked panel).
+  // Outside the shell on a free-floating layer, UI-toggle-hidden, like the colorbar.
+  disposers.push(installDevWindow(opts.parent, opts.simulationStore, opts.uiStore));
 
   // Loading/error feedback; unlike the chrome it ignores the global UI toggle — status, not chrome.
   disposers.push(installStatusPill(opts.parent, opts.uiStore));

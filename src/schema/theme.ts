@@ -74,9 +74,10 @@ export const DEFAULT_WEBPIC_CONFIG: WebpicThemeConfig = {
   version: 1,
   layout: {
     // dataset/field/time live in the top menu bar (ui/topBar); axes & grid in the left rail flyout
-    // (ui/sideRail); the color mapping moved to the floating colorbar (ui/colorbar). The docked
-    // shell now hosts the Developer panel — features under development, not yet in the main UI.
-    defaultPanels: ["dev"],
+    // (ui/sideRail); color mapping in the floating colorbar (ui/colorbar); the Developer tool in a
+    // floating window (ui/panels/devWindow). The docked shell is empty by default — reserved for
+    // future docked panels (the shell isn't rendered when this is empty).
+    defaultPanels: [],
     dockedSide: "right",
     panelCollapsedDefault: false,
   },

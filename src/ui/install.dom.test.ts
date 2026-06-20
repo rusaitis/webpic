@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe("installUi", () => {
-  it("mounts the shell, wires the toggle shortcut, and tears everything down on dispose", () => {
+  it("mounts chrome, wires the toggle shortcut, and tears everything down on dispose", () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);
     const simulationStore = createSimulationStore();
@@ -16,18 +16,21 @@ describe("installUi", () => {
     const uiStore = createUiStore();
 
     const dispose = installUi({ parent, simulationStore, uiStore });
-    const shell = parent.querySelector<HTMLElement>(".webpic-shell");
-    if (shell === null) throw new Error("shell not mounted");
+    // The default config docks no panels, so the shell stays unrendered; the Developer tool is a
+    // floating window instead — use it as the UI-toggle-hidden chrome probe.
+    expect(parent.querySelector(".webpic-shell")).toBeNull();
+    const win = parent.querySelector<HTMLElement>(".webpic-window");
+    if (win === null) throw new Error("developer window not mounted");
     expect(document.getElementById("webpic-ui-styles")).not.toBeNull();
     expect(parent.style.getPropertyValue("--webpic-bg")).not.toBe("");
 
     // Default toggle shortcut is "F".
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "f" }));
     expect(uiStore.getState().isUiVisible).toBe(false);
-    expect(shell.hidden).toBe(true);
+    expect(win.hidden).toBe(true);
 
     dispose();
-    expect(parent.querySelector(".webpic-shell")).toBeNull();
+    expect(parent.querySelector(".webpic-window")).toBeNull();
     expect(document.getElementById("webpic-ui-styles")).toBeNull();
     expect(parent.style.getPropertyValue("--webpic-bg")).toBe("");
 

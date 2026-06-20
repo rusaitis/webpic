@@ -1,14 +1,13 @@
 import { type SimulationStore, selectActiveLayer } from "@store";
 import { createPane, type Disposer } from "../controls/index.ts";
 
-// The Developer panel — the docked right-shell home for features under development that aren't yet
-// in the main UI. Today it carries the volume-only Phong shading toggle (peeled off the colormap
-// panel when the color mapping moved to the floating colorbar). More in-development controls slot in
-// here until they earn a permanent surface — Phong itself migrates to a per-layer settings component
-// when the Layers UI lands.
+// The Developer tool's contents — the volume-only Phong shading toggle (peeled off the colormap panel
+// when color mapping moved to the floating colorbar). Built into a host (the floating Developer
+// window's body, which owns the title) as a catch-all for in-development controls until they earn a
+// permanent surface — Phong migrates to a per-layer settings component when the Layers UI lands.
 
 export function installDevPanel(host: HTMLElement, store: SimulationStore): Disposer {
-  const pane = createPane({ parent: host, title: "Developer" });
+  const pane = createPane({ parent: host });
   const folder = pane.addFolder({ title: "Shading" });
 
   // Phong is volume-only (a slice has no depth gradient to light); the checkbox disables otherwise.
