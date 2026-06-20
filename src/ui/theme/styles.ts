@@ -165,7 +165,10 @@ const UI_CSS = `
 .webpic-rail { position: fixed; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 9; pointer-events: none;
   display: flex; justify-content: center; align-items: center; gap: 6px;
-  transition: opacity 240ms ease; }
+  /* The colorbar slides the centered cluster aside (via --webpic-rail-shift) when it docks beside the
+     rail, so the two read as one centered group; 0 = the rail owns the center alone. */
+  transform: translateX(var(--webpic-rail-shift, 0px));
+  transition: opacity 240ms ease, transform .3s cubic-bezier(0.25, 1, 0.5, 1); }
 .webpic-rail[hidden] { display: none; }
 .webpic-rail.has-gnomon { padding: 0 80px; }
 .webpic-rail_btn { box-sizing: border-box; width: 32px; height: 32px; padding: 0;
@@ -512,6 +515,17 @@ const UI_CSS = `
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34); }
 /* No transform transition during a drag (latency); restore the grab affordance on release. */
 .webpic-cbar.is-dragging { transition: none; cursor: grabbing; }
+/* Resize pivot for collapse/expand: translate the FREE axis by -50% so the strip grows/shrinks
+   symmetrically around its center (dragSnap anchors that axis by its center px), while the docked
+   axis stays pinned by its edge anchor. A free drop in the middle (data-docked=false) centers both. */
+.webpic-cbar[data-edge="top"]:not([data-docked="false"]),
+.webpic-cbar[data-edge="bottom"]:not([data-docked="false"]) {
+  transform: translateX(-50%) translate(var(--drag-x, 0px), var(--drag-y, 0px)); }
+.webpic-cbar[data-edge="left"]:not([data-docked="false"]),
+.webpic-cbar[data-edge="right"]:not([data-docked="false"]) {
+  transform: translateY(-50%) translate(var(--drag-x, 0px), var(--drag-y, 0px)); }
+.webpic-cbar[data-docked="false"] {
+  transform: translate(-50%, -50%) translate(var(--drag-x, 0px), var(--drag-y, 0px)); }
 /* Vertical when docked to a side edge; horizontal (the default row) on top/bottom. */
 .webpic-cbar[data-edge="left"], .webpic-cbar[data-edge="right"] { flex-direction: column; }
 /* Collapsed: recede at rest, brighten on hover; a thinner, flatter frame that reads like a bottom
@@ -575,13 +589,20 @@ const UI_CSS = `
 .webpic-cbar[data-edge="right"] .webpic-cbar_tick:first-child { transform: translateY(-100%); }
 .webpic-cbar[data-edge="left"] .webpic-cbar_tick:last-child,
 .webpic-cbar[data-edge="right"] .webpic-cbar_tick:last-child { transform: none; }
-/* Field key, sized into the gradient stack: above it (column) on top/bottom, left of it (row,
+/* Field key, sized into the gradient stack: above it (column) on top/bottom, right of it (row,
    rotated) on the side edges. Collapsed hides it for the over-gradient mini-label. */
 .webpic-cbar_caption { flex: 0 0 auto; align-self: center; text-align: center; color: var(--webpic-fg);
   font-size: 12px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.2;
   max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A touch more air between the title and the gradient + its tick labels. */
+.webpic-cbar[data-edge="top"] .webpic-cbar_caption, .webpic-cbar[data-edge="bottom"] .webpic-cbar_caption {
+  margin-bottom: 4px; }
+/* Vertical docks: the field key reads up the right side of the gradient (order:2 trails the strip +
+   ticks), mirroring magviz's side colorbar — not the left. Rotate 180° so it reads bottom-to-top
+   (matching the collapsed mini-label), with a wider gap from the tick labels. */
 .webpic-cbar[data-edge="left"] .webpic-cbar_caption, .webpic-cbar[data-edge="right"] .webpic-cbar_caption {
-  writing-mode: vertical-rl; text-orientation: mixed; max-width: none; max-height: 14ch; }
+  writing-mode: vertical-rl; text-orientation: mixed; max-width: none; max-height: 14ch; order: 2;
+  transform: rotate(180deg); margin-left: 6px; }
 .webpic-cbar_actions { flex: 0 0 auto; display: flex; gap: 2px; }
 .webpic-cbar[data-edge="left"] .webpic-cbar_actions, .webpic-cbar[data-edge="right"] .webpic-cbar_actions {
   flex-direction: column; }

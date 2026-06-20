@@ -2,7 +2,8 @@ import { type ColormapBinding, type ColormapId, DEFAULT_COLORMAP } from "@schema
 import { type SimulationStore, selectActiveBinding, type UiStore } from "@store";
 import { makeEl } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
-import { installDragSnap, type PaneEdge } from "../floating/dragSnap.ts";
+import { type Box, installDragSnap, type PaneEdge, type Viewport } from "../floating/dragSnap.ts";
+import { bottomDockLayout } from "./bottomDock.ts";
 import { paintGradient, tickLabels } from "./colorbarGradient.ts";
 import { installColorbarSettings } from "./colorbarSettings.ts";
 
@@ -67,8 +68,7 @@ export function installColorbar(
   actions.append(settingsBtn);
 
   container.append(main, actions);
-  container.style.right = `${INITIAL_GAP_PX}px`;
-  container.style.bottom = `${INITIAL_GAP_PX}px`;
+  container.style.bottom = `${INITIAL_GAP_PX}px`; // first-paint dock; left set after repaint sizes it
   parent.appendChild(container);
 
   // Last-painted gradient inputs: resizing the canvas clears its bitmap and re-baking the 64-stop
@@ -120,21 +120,74 @@ export function installColorbar(
   });
   settingsBtn.addEventListener("click", () => settings.toggle());
 
+  // Bottom-rail co-centering (magviz parity): when the strip docks to the bottom edge near the
+  // centered button rail, slide the rail's cluster aside so the two read as one centered group; drop
+  // it elsewhere (or another edge) and the rail re-centers alone. The rail consumes --webpic-rail-shift
+  // as a translateX; the colorbar owns the value since it knows its own docked geometry — the same
+  // direct-DOM coupling it already uses to read the rail buttons as drag obstacles.
+  const railClusterWidth = (): number => {
+    let lo = Number.POSITIVE_INFINITY;
+    let hi = Number.NEGATIVE_INFINITY;
+    for (const btn of doc.querySelectorAll(".webpic-rail_btn")) {
+      const r = btn.getBoundingClientRect();
+      if (r.width <= 0) continue;
+      lo = Math.min(lo, r.left);
+      hi = Math.max(hi, r.right);
+    }
+    return hi > lo ? hi - lo : 0; // translate-invariant: a shifted rail reports the same width
+  };
+  const cornerWidgetRight = (): number => {
+    const gnomon = doc.querySelector(".webpic-gnomon");
+    if (gnomon === null) return 0;
+    const r = gnomon.getBoundingClientRect();
+    return r.width > 0 ? r.right : 0;
+  };
+  const setRailShift = (px: number): void => {
+    doc
+      .querySelector<HTMLElement>(".webpic-rail")
+      ?.style.setProperty("--webpic-rail-shift", `${Math.round(px)}px`);
+  };
+  const recenterRail = (edge: PaneEdge, settled: Box, vp: Viewport): void => {
+    // Only a strip actually docked flush to the bottom edge joins the rail's group; a free drop in
+    // the middle keeps edge="bottom" only as an orientation hint, so it must leave the rail centered.
+    if (edge !== "bottom" || container.dataset.docked === "false" || container.hidden) {
+      setRailShift(0);
+      return;
+    }
+    const dock = bottomDockLayout({
+      colorbar: settled,
+      clusterWidth: railClusterWidth(),
+      viewportWidth: vp.width,
+      cornerClearRight: cornerWidgetRight(),
+    });
+    setRailShift(dock.railShift);
+    if (dock.grouped && dock.colorbarLeft !== null) {
+      // Override the dock's horizontal placement with the grouped slot. The strip is center-anchored
+      // on the bottom edge (CSS translateX(-50%)), so the inline left is the slot's center; the
+      // bottom (flush) anchor stays untouched.
+      container.style.left = `${Math.round(dock.colorbarLeft + settled.width / 2)}px`;
+      container.style.right = "auto";
+    }
+  };
+
   const drag = installDragSnap(container, {
     chromeSelector: CHROME_SELECTOR,
+    centerFreeAxis: true, // collapse/expand pivots on the strip's center, not an edge
     onEdgeChange: () => {
       repaint();
       settings.reposition();
     },
+    onSettled: recenterRail,
   });
 
   let settleTimer: number | undefined;
   const setCollapsed = (next: boolean): void => {
     container.classList.toggle("collapsed", next);
-    drag.reflow(); // immediate: clears now for the reduced-motion / instant path
+    // The strip resizes around its center via CSS (translate -50% on the free axis), so the position
+    // needs no anchor change. Reflow only re-clamps into the viewport and (when docked beside the
+    // rail) re-groups for the new width — once now, once after the ~0.28s size transition settles.
+    drag.reflow();
     settings.reposition();
-    // The gradient strip animates its size ~0.28s, so re-clear once it settles at the final size —
-    // the immediate reflow ran against the still-animating rect (magviz's post-transition pattern).
     if (settleTimer !== undefined) view?.clearTimeout(settleTimer);
     settleTimer = view?.setTimeout(() => {
       drag.reflow();
@@ -152,22 +205,39 @@ export function installColorbar(
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
-    if (!visible) settings.close();
+    if (visible) {
+      // Re-settle once layout (and thus rects) are valid, recomputing the rail co-centering.
+      view?.requestAnimationFrame(() => drag.reflow());
+    } else {
+      settings.close();
+      setRailShift(0); // a hidden colorbar must not hold the rail off-center
+    }
   };
 
   repaint();
+  // Initial bottom-right dock in center-anchor form (the bottom edge is center-anchored on x via CSS
+  // translateX(-50%)): place the strip's center so its right edge sits INITIAL_GAP from the viewport.
+  const initialWidth = container.getBoundingClientRect().width;
+  container.style.left = `${Math.round(doc.documentElement.clientWidth - INITIAL_GAP_PX - initialWidth / 2)}px`;
+  container.style.right = "auto";
   applyVisible(uiStore.getState().isUiVisible);
-  // Settle clear of the chrome once layout (and thus rects) are valid.
-  view?.requestAnimationFrame(() => drag.reflow());
 
   // One subscription drives the strip: the active binding's reference changes on layer-select,
   // colormap, scale, or window edits — every input the strip reads. (dataRange feeds the settings
   // slider's track, not the strip, so it needs no repaint here.)
   const unsubBinding = store.subscribe(selectActiveBinding, repaint);
   const unsubVisible = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
+  // The gnomon toggle resizes the rail's footprint (its reserved corner + cluster shift), so re-settle
+  // the co-centering after the rail's own subscriber has repainted (next frame).
+  const unsubGnomon = store.subscribe(
+    (s) => s.overlay.showGnomon,
+    () => view?.requestAnimationFrame(() => drag.reflow()),
+  );
 
   return () => {
     if (settleTimer !== undefined) view?.clearTimeout(settleTimer);
+    setRailShift(0);
+    unsubGnomon();
     unsubVisible();
     unsubBinding();
     drag.dispose();

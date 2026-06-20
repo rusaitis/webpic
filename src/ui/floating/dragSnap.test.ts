@@ -15,6 +15,7 @@ describe("chooseEdge", () => {
     expect(p.h).toBe("left");
     expect(p.left).toBe(EDGE_GAP);
     expect(p.top).toBe(300); // free axis preserved
+    expect(p.docked).toBe(true);
   });
 
   it("docks to the right edge with the right anchor", () => {
@@ -58,6 +59,11 @@ describe("chooseEdge", () => {
     // Past center toward the left, but no edge is near → naturally "left".
     const p = chooseEdge(box(468, 300, 24, 220), VP, undefined);
     expect(p.edge).toBe("left");
+    // A middle drop is *not* docked: the edge is an orientation hint, the drop point is preserved so
+    // a later collapse/expand resizes in place instead of migrating to the edge.
+    expect(p.docked).toBe(false);
+    expect(p.left).toBe(468);
+    expect(p.top).toBe(300);
   });
 
   it("hysteresis holds the current edge against a small cross-midline drag", () => {
