@@ -501,7 +501,9 @@ const UI_CSS = `
   font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
   transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
   transition: opacity 240ms ease, background .18s ease, border-color .18s ease, box-shadow .18s ease,
-    width .28s cubic-bezier(0.25, 1, 0.5, 1), height .28s cubic-bezier(0.25, 1, 0.5, 1);
+    left .3s cubic-bezier(0.25, 1, 0.5, 1), right .3s cubic-bezier(0.25, 1, 0.5, 1),
+    top .3s cubic-bezier(0.25, 1, 0.5, 1), bottom .3s cubic-bezier(0.25, 1, 0.5, 1),
+    transform .3s cubic-bezier(0.25, 1, 0.5, 1);
   --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
 .webpic-cbar[hidden] { display: none; }
 .webpic-cbar:hover, .webpic-cbar:focus-within {
@@ -514,8 +516,8 @@ const UI_CSS = `
 .webpic-cbar[data-edge="left"], .webpic-cbar[data-edge="right"] { flex-direction: column; }
 /* Collapsed: recede at rest, brighten on hover; a thinner, flatter frame that reads like a bottom
    rail button rather than a chunky glass pill (magviz). */
-.webpic-cbar.collapsed { opacity: 0.62; border-radius: 8px; padding: 4px 8px;
-  border-color: color-mix(in srgb, var(--webpic-border) 30%, transparent);
+.webpic-cbar.collapsed { opacity: 0.62; border-radius: 6px; padding: 3px;
+  border-color: color-mix(in srgb, var(--webpic-border) 20%, transparent);
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16); }
 .webpic-cbar.collapsed:hover, .webpic-cbar.collapsed:focus-within { opacity: 1; }
 .webpic-cbar.collapsed .webpic-cbar_ticks, .webpic-cbar.collapsed .webpic-cbar_caption {
@@ -526,15 +528,17 @@ const UI_CSS = `
 .webpic-cbar[data-edge="left"] .webpic-cbar_main, .webpic-cbar[data-edge="right"] .webpic-cbar_main {
   flex-direction: row; align-items: stretch; }
 .webpic-cbar_strip { position: relative; flex: 0 0 auto; border-radius: 4px; overflow: hidden;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--webpic-border) 60%, transparent); }
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--webpic-border) 60%, transparent);
+  transition: width .28s cubic-bezier(0.25, 1, 0.5, 1), height .28s cubic-bezier(0.25, 1, 0.5, 1); }
 .webpic-cbar[data-edge="top"] .webpic-cbar_strip, .webpic-cbar[data-edge="bottom"] .webpic-cbar_strip {
-  width: 320px; height: 16px; }
+  width: 320px; height: 20px; }
 .webpic-cbar[data-edge="left"] .webpic-cbar_strip, .webpic-cbar[data-edge="right"] .webpic-cbar_strip {
-  width: 16px; height: 200px; }
+  width: 20px; height: 200px; }
+/* Collapsed: a chunkier, shorter gradient that fills the rail-height row (magviz 110×24). */
 .webpic-cbar.collapsed[data-edge="top"] .webpic-cbar_strip,
-.webpic-cbar.collapsed[data-edge="bottom"] .webpic-cbar_strip { width: 96px; }
+.webpic-cbar.collapsed[data-edge="bottom"] .webpic-cbar_strip { width: 110px; height: 24px; }
 .webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_strip,
-.webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_strip { height: 96px; }
+.webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_strip { width: 24px; height: 110px; }
 .webpic-cbar_canvas { display: block; width: 100%; height: 100%; }
 /* Collapsed-only field key, painted faintly over the gradient (magviz mini-label); empty → hidden,
    brightens on hover, rotates with the strip on the side edges. */
@@ -542,10 +546,11 @@ const UI_CSS = `
 .webpic-cbar.collapsed .webpic-cbar_minilabel:not(:empty) {
   display: flex; align-items: center; justify-content: center;
   position: absolute; inset: 0; z-index: 2; pointer-events: none; user-select: none;
-  color: var(--webpic-fg); opacity: 0.5;
-  font: 600 10px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.02em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); transition: opacity .18s ease; }
-.webpic-cbar.collapsed:hover .webpic-cbar_minilabel { opacity: 0.9; }
+  color: var(--webpic-fg); opacity: 0.45;
+  font: 500 13px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45); transition: opacity .2s ease, text-shadow .2s ease; }
+.webpic-cbar.collapsed:hover .webpic-cbar_minilabel {
+  opacity: 1; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); }
 .webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_minilabel,
 .webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_minilabel {
   writing-mode: vertical-rl; transform: rotate(180deg); }
@@ -570,7 +575,10 @@ const UI_CSS = `
 .webpic-cbar[data-edge="right"] .webpic-cbar_tick:first-child { transform: translateY(-100%); }
 .webpic-cbar[data-edge="left"] .webpic-cbar_tick:last-child,
 .webpic-cbar[data-edge="right"] .webpic-cbar_tick:last-child { transform: none; }
-.webpic-cbar_caption { flex: 0 0 auto; color: var(--webpic-fg); font-weight: 700; letter-spacing: 0.04em;
+/* Field key, sized into the gradient stack: above it (column) on top/bottom, left of it (row,
+   rotated) on the side edges. Collapsed hides it for the over-gradient mini-label. */
+.webpic-cbar_caption { flex: 0 0 auto; align-self: center; text-align: center; color: var(--webpic-fg);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.2;
   max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .webpic-cbar[data-edge="left"] .webpic-cbar_caption, .webpic-cbar[data-edge="right"] .webpic-cbar_caption {
   writing-mode: vertical-rl; text-orientation: mixed; max-width: none; max-height: 14ch; }

@@ -33,6 +33,7 @@ export function installColorbar(
   uiStore: UiStore,
 ): Disposer {
   const doc = parent.ownerDocument;
+  const view = doc.defaultView;
 
   const container = makeEl(doc, "div", "webpic-cbar");
   container.setAttribute("role", "group");
@@ -41,8 +42,8 @@ export function installColorbar(
 
   const caption = makeEl(doc, "span", "webpic-cbar_caption");
 
-  // The gradient strip and its tick labels stack (column for horizontal, row for vertical) inside
-  // a "main" box so the labels sit beside the gradient rather than over it.
+  // The caption, gradient strip, and tick labels stack inside "main": column for horizontal docks
+  // (caption above the gradient, ticks below) and row for vertical (caption to the left) — magviz.
   const main = makeEl(doc, "div", "webpic-cbar_main");
   const strip = makeEl(doc, "div", "webpic-cbar_strip");
   const canvas = doc.createElement("canvas");
@@ -53,7 +54,7 @@ export function installColorbar(
   miniLabel.setAttribute("aria-hidden", "true");
   strip.append(canvas, miniLabel);
   const ticks = makeEl(doc, "div", "webpic-cbar_ticks");
-  main.append(strip, ticks);
+  main.append(caption, strip, ticks);
 
   const actions = makeEl(doc, "div", "webpic-cbar_actions");
   actions.dataset.noDrag = ""; // never start a drag from the controls cluster
@@ -65,7 +66,7 @@ export function installColorbar(
   settingsBtn.innerHTML = ICON.settings;
   actions.append(settingsBtn);
 
-  container.append(caption, main, actions);
+  container.append(main, actions);
   container.style.right = `${INITIAL_GAP_PX}px`;
   container.style.bottom = `${INITIAL_GAP_PX}px`;
   parent.appendChild(container);
@@ -127,10 +128,18 @@ export function installColorbar(
     },
   });
 
+  let settleTimer: number | undefined;
   const setCollapsed = (next: boolean): void => {
     container.classList.toggle("collapsed", next);
-    drag.reflow(); // size changed → re-dock flush + re-clear chrome
+    drag.reflow(); // immediate: clears now for the reduced-motion / instant path
     settings.reposition();
+    // The gradient strip animates its size ~0.28s, so re-clear once it settles at the final size —
+    // the immediate reflow ran against the still-animating rect (magviz's post-transition pattern).
+    if (settleTimer !== undefined) view?.clearTimeout(settleTimer);
+    settleTimer = view?.setTimeout(() => {
+      drag.reflow();
+      settings.reposition();
+    }, 320);
   };
   // Click anywhere on the bar toggles collapse (magviz), except the gear or a just-ended drag's
   // trailing click. The settings popover is body-appended, so its clicks never reach here.
@@ -139,14 +148,6 @@ export function installColorbar(
     const target = e.target as Element | null;
     if (target?.closest("button, a, input, select, [data-no-drag]")) return;
     setCollapsed(!container.classList.contains("collapsed"));
-  });
-  // The immediate reflow above runs mid-animation; re-clear once the size transition settles so an
-  // expanding bar never lands overlapping the rail. Gated to the container's own width/height.
-  container.addEventListener("transitionend", (e) => {
-    if (e.target !== container) return;
-    if (e.propertyName !== "width" && e.propertyName !== "height") return;
-    drag.reflow();
-    settings.reposition();
   });
 
   const applyVisible = (visible: boolean): void => {
@@ -157,7 +158,7 @@ export function installColorbar(
   repaint();
   applyVisible(uiStore.getState().isUiVisible);
   // Settle clear of the chrome once layout (and thus rects) are valid.
-  doc.defaultView?.requestAnimationFrame(() => drag.reflow());
+  view?.requestAnimationFrame(() => drag.reflow());
 
   // One subscription drives the strip: the active binding's reference changes on layer-select,
   // colormap, scale, or window edits — every input the strip reads. (dataRange feeds the settings
@@ -166,6 +167,7 @@ export function installColorbar(
   const unsubVisible = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
 
   return () => {
+    if (settleTimer !== undefined) view?.clearTimeout(settleTimer);
     unsubVisible();
     unsubBinding();
     drag.dispose();

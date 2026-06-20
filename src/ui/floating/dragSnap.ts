@@ -39,7 +39,8 @@ const DRAG_THRESHOLD_PX = 4;
 const VIEWPORT_MARGIN_PX = 8; // keep this much of the element inside the viewport
 const EDGE_SNAP_PX = 72; // dock to an edge when this close
 const CORNER_SNAP_PX = 80; // pin both axes when this close to a corner
-const EDGE_GAP_PX = 12; // breathing room from the edge / chrome when docked (matches the shell inset)
+const EDGE_GAP_PX = 12; // breathing room from the edge when docked (matches the rail's bottom inset)
+const CHROME_GAP_PX = 16; // clearance sprung between the strip and chrome (roomier than the edge inset)
 const STICKY_HYSTERESIS_PX = 120; // bias toward the current edge so tall/wide strips don't oscillate
 const OVERLAP_EPSILON_PX = 0.5; // sub-pixel snap residue is not a collision
 
@@ -165,7 +166,7 @@ function overlaps(a: Box, b: Box): boolean {
   );
 }
 
-/** Single-axis pushes that clear `r` from `o` with EDGE_GAP_PX of room. When docked to an edge,
+/** Single-axis pushes that clear `r` from `o` with CHROME_GAP_PX of room. When docked to an edge,
  *  only the axis *along* the dock is offered — a bottom-docked strip springs sideways, never off
  *  the screen. Free elements get all four and the smallest wins. */
 function pushVectors(
@@ -174,12 +175,12 @@ function pushVectors(
   edge: PaneEdge | undefined,
 ): ReadonlyArray<{ dx: number; dy: number }> {
   const horiz = [
-    { dx: o.right - r.left + EDGE_GAP_PX, dy: 0 },
-    { dx: o.left - r.right - EDGE_GAP_PX, dy: 0 },
+    { dx: o.right - r.left + CHROME_GAP_PX, dy: 0 },
+    { dx: o.left - r.right - CHROME_GAP_PX, dy: 0 },
   ];
   const vert = [
-    { dx: 0, dy: o.bottom - r.top + EDGE_GAP_PX },
-    { dx: 0, dy: o.top - r.bottom - EDGE_GAP_PX },
+    { dx: 0, dy: o.bottom - r.top + CHROME_GAP_PX },
+    { dx: 0, dy: o.top - r.bottom - CHROME_GAP_PX },
   ];
   if (edge === "top" || edge === "bottom") return horiz;
   if (edge === "left" || edge === "right") return vert;
@@ -187,10 +188,11 @@ function pushVectors(
 }
 
 /** Spring `rect`'s top-left out of every obstacle by the minimum-translation axis, staying inside
- *  the viewport, and return the *least-overlapping reachable* position. Greedy push, but it keeps the
- *  best position seen (fewest overlaps, then least displacement) and stops on a revisited position —
- *  so a cramped edge where no fully-clear slot fits the element (e.g. a wide strip wedged between the
- *  centered rail and a full-height side panel) settles deterministically instead of oscillating. Pure.*/
+ *  the viewport, and return the *least-overlapping reachable* position. Greedy push that keeps the
+ *  best position seen (fewest overlaps, then least displacement) and stops on a revisited position;
+ *  if the greedy still overlaps (it stalls on a wide obstacle flanked by narrow ones), a fallback
+ *  jumps past the union of the dock-band obstacles to the nearer clear side. A genuinely cramped
+ *  edge with no clear slot settles deterministically instead of oscillating. Pure — unit-tested. */
 export function pushOutOf(
   rect: Box,
   obstacles: readonly Box[],
@@ -237,6 +239,50 @@ export function pushOutOf(
       bestDist = dist;
     }
   }
+
+  // The greedy stalls on a wide obstacle flanked by narrow ones: small pushes past the neighbours
+  // oscillate instead of committing to the larger push that clears the wide one (e.g. the coords
+  // chip between the rail's icon buttons). If still overlapping, jump just past the union of the
+  // obstacles sharing the dock band to the nearer side that lands fully clear.
+  if (bestOverlaps > 0) {
+    const tryPlace = (left: number, top: number): void => {
+      const cand = box(
+        clamp(left, VIEWPORT_MARGIN_PX, maxLeft),
+        clamp(top, VIEWPORT_MARGIN_PX, maxTop),
+        rect.width,
+        rect.height,
+      );
+      const oc = overlapCount(cand);
+      if (oc < bestOverlaps) {
+        best = cand;
+        bestOverlaps = oc;
+      }
+    };
+    if (edge !== "left" && edge !== "right") {
+      const band = obstacles.filter((o) => o.top < rect.bottom && o.bottom > rect.top);
+      if (band.length > 0) {
+        const lo = Math.min(...band.map((o) => o.left));
+        const hi = Math.max(...band.map((o) => o.right));
+        const rightFirst = rect.left + rect.width / 2 >= (lo + hi) / 2;
+        tryPlace(rightFirst ? hi + CHROME_GAP_PX : lo - rect.width - CHROME_GAP_PX, rect.top);
+        if (bestOverlaps > 0) {
+          tryPlace(rightFirst ? lo - rect.width - CHROME_GAP_PX : hi + CHROME_GAP_PX, rect.top);
+        }
+      }
+    }
+    if (bestOverlaps > 0 && edge !== "top" && edge !== "bottom") {
+      const band = obstacles.filter((o) => o.left < rect.right && o.right > rect.left);
+      if (band.length > 0) {
+        const lo = Math.min(...band.map((o) => o.top));
+        const hi = Math.max(...band.map((o) => o.bottom));
+        const downFirst = rect.top + rect.height / 2 >= (lo + hi) / 2;
+        tryPlace(rect.left, downFirst ? hi + CHROME_GAP_PX : lo - rect.height - CHROME_GAP_PX);
+        if (bestOverlaps > 0) {
+          tryPlace(rect.left, downFirst ? lo - rect.height - CHROME_GAP_PX : hi + CHROME_GAP_PX);
+        }
+      }
+    }
+  }
   return { left: best.left, top: best.top };
 }
 
@@ -277,6 +323,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
   let active = false;
   let pointerId: number | null = null;
   let recentlyDragged = false;
+  let chromeObserver: ResizeObserver | null = null;
 
   const viewport = (): Viewport => ({
     width: doc.documentElement.clientWidth,
@@ -318,6 +365,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     const out: Box[] = [];
     for (const node of doc.querySelectorAll<HTMLElement>(opts.chromeSelector)) {
       if (node === el || el.contains(node)) continue;
+      chromeObserver?.observe(node); // re-clear if this chrome later resizes (re-observe is a no-op)
       const r = node.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) continue;
       out.push(box(r.left, r.top, r.width, r.height));
@@ -455,24 +503,28 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
   handle.addEventListener("pointercancel", onUp, { signal });
   el.addEventListener("click", onClick, { capture: true, signal });
 
-  let resizeScheduled = false;
-  view?.addEventListener(
-    "resize",
-    () => {
-      if (resizeScheduled) return;
-      resizeScheduled = true;
-      view.requestAnimationFrame(() => {
-        resizeScheduled = false;
-        reflow();
-      });
-    },
-    { signal },
-  );
+  // Coalesce reflow triggers (window resize, chrome resize) to one per frame.
+  let reflowScheduled = false;
+  const scheduleReflow = (): void => {
+    if (reflowScheduled || !view) return;
+    reflowScheduled = true;
+    view.requestAnimationFrame(() => {
+      reflowScheduled = false;
+      reflow();
+    });
+  };
+  view?.addEventListener("resize", scheduleReflow, { signal });
+  // Re-clear when a chrome obstacle changes size — e.g. the coords chip widens once a dataset loads,
+  // after the strip already docked against its old (empty) width. obstacles() registers each node;
+  // moving the strip never resizes chrome, so this can't loop. (No ResizeObserver under jsdom.)
+  const RO = view?.ResizeObserver;
+  if (RO && opts.chromeSelector) chromeObserver = new RO(scheduleReflow);
 
   return {
     reflow,
     wasDragging: () => recentlyDragged,
     dispose() {
+      chromeObserver?.disconnect();
       ac.abort();
     },
   };

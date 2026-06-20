@@ -91,6 +91,20 @@ describe("pushOutOf", () => {
     const rail = box(440, 760, 120, 40);
     expect(pushOutOf(rect, [rail], "bottom", VP)).toEqual({ left: 800, top: 764 });
   });
+
+  it("clears a wide obstacle flanked by narrow ones (greedy alone would stall)", () => {
+    // The collapsed strip dropped over a wide chip between two icon buttons: the min-push greedy
+    // oscillates past the narrow neighbours, so the union fallback must spring it fully clear.
+    const fit = box(400, 760, 32, 32);
+    const coords = box(440, 760, 120, 32); // the wide chip
+    const help = box(568, 760, 32, 32);
+    const rect = box(460, 760, 148, 32); // overlaps coords + help
+    const { left, top } = pushOutOf(rect, [fit, coords, help], "bottom", VP);
+    expect(top).toBe(760); // stayed on the dock row
+    for (const o of [fit, coords, help]) {
+      expect(left >= o.right || left + 148 <= o.left).toBe(true); // fully clear of each
+    }
+  });
 });
 
 describe("freePlacement", () => {

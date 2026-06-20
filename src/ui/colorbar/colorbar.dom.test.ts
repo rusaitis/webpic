@@ -37,6 +37,8 @@ describe("floating colorbar", () => {
     const { selectedLayerId, layers, colormapBindings } = store.getState();
     const bindingId = layers.find((l) => l.id === selectedLayerId)?.colormapBindingId ?? "";
     expect(el(bar, ".webpic-cbar_caption").textContent).toBe(colormapBindings[bindingId]?.field);
+    // The caption stacks inside main (above the gradient on a horizontal dock), not beside it.
+    expect(bar.querySelector(".webpic-cbar_main > .webpic-cbar_caption")).not.toBeNull();
     // Five tick labels span the window.
     expect(bar.querySelectorAll(".webpic-cbar_tick")).toHaveLength(5);
 
