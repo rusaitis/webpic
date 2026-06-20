@@ -25,8 +25,6 @@ const TICK_COUNT = 5;
 const ICON = {
   // Sliders — "adjust the colormap": two tracks with knobs.
   settings: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5h6M11 5h3M2 11h3M8 11h6"/><circle cx="9.5" cy="5" r="1.6"/><circle cx="6.5" cy="11" r="1.6"/></svg>`,
-  // Chevron — collapse/expand; CSS rotates it per edge + collapsed state.
-  chevron: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>`,
 } as const;
 
 export function installColorbar(
@@ -49,7 +47,11 @@ export function installColorbar(
   const strip = makeEl(doc, "div", "webpic-cbar_strip");
   const canvas = doc.createElement("canvas");
   canvas.className = "webpic-cbar_canvas";
-  strip.append(canvas);
+  // Collapsed-only overlay: the field key painted faintly over the gradient (magviz), so a docked
+  // strip still names its field without the expanded side caption. Empty → hidden by CSS.
+  const miniLabel = makeEl(doc, "span", "webpic-cbar_minilabel");
+  miniLabel.setAttribute("aria-hidden", "true");
+  strip.append(canvas, miniLabel);
   const ticks = makeEl(doc, "div", "webpic-cbar_ticks");
   main.append(strip, ticks);
 
@@ -61,11 +63,7 @@ export function installColorbar(
   settingsBtn.setAttribute("aria-haspopup", "dialog");
   settingsBtn.setAttribute("aria-expanded", "false");
   settingsBtn.innerHTML = ICON.settings;
-  const collapseBtn = makeEl(doc, "button", "webpic-cbar_btn webpic-cbar_collapse");
-  collapseBtn.type = "button";
-  collapseBtn.setAttribute("aria-label", "Collapse colorbar");
-  collapseBtn.innerHTML = ICON.chevron;
-  actions.append(settingsBtn, collapseBtn);
+  actions.append(settingsBtn);
 
   container.append(caption, main, actions);
   container.style.right = `${INITIAL_GAP_PX}px`;
@@ -108,6 +106,8 @@ export function installColorbar(
     paintedHorizontal = horizontal;
     paintedColormap = colormap;
     caption.textContent = binding?.field ?? "—";
+    // No placeholder over the gradient — empty hides the collapsed overlay (CSS `:not(:empty)`).
+    miniLabel.textContent = binding?.field ?? "";
     renderTicks(binding);
   };
 
@@ -129,14 +129,25 @@ export function installColorbar(
 
   const setCollapsed = (next: boolean): void => {
     container.classList.toggle("collapsed", next);
-    collapseBtn.setAttribute("aria-label", next ? "Expand colorbar" : "Collapse colorbar");
-    collapseBtn.setAttribute("aria-pressed", String(next));
     drag.reflow(); // size changed → re-dock flush + re-clear chrome
     settings.reposition();
   };
-  collapseBtn.addEventListener("click", () =>
-    setCollapsed(!container.classList.contains("collapsed")),
-  );
+  // Click anywhere on the bar toggles collapse (magviz), except the gear or a just-ended drag's
+  // trailing click. The settings popover is body-appended, so its clicks never reach here.
+  container.addEventListener("click", (e) => {
+    if (drag.wasDragging()) return;
+    const target = e.target as Element | null;
+    if (target?.closest("button, a, input, select, [data-no-drag]")) return;
+    setCollapsed(!container.classList.contains("collapsed"));
+  });
+  // The immediate reflow above runs mid-animation; re-clear once the size transition settles so an
+  // expanding bar never lands overlapping the rail. Gated to the container's own width/height.
+  container.addEventListener("transitionend", (e) => {
+    if (e.target !== container) return;
+    if (e.propertyName !== "width" && e.propertyName !== "height") return;
+    drag.reflow();
+    settings.reposition();
+  });
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;

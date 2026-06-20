@@ -168,7 +168,7 @@ const UI_CSS = `
   transition: opacity 240ms ease; }
 .webpic-rail[hidden] { display: none; }
 .webpic-rail.has-gnomon { padding: 0 80px; }
-.webpic-rail_btn { box-sizing: border-box; width: 30px; height: 30px; padding: 0;
+.webpic-rail_btn { box-sizing: border-box; width: 32px; height: 32px; padding: 0;
   display: grid; place-items: center; pointer-events: auto; cursor: pointer; opacity: 0.4;
   background: transparent; color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 6px;
@@ -183,8 +183,8 @@ const UI_CSS = `
 /* Coordinate chip: a text button (geometry · field units) that opens the grid-info card — auto width
    instead of the 30px icon square, single-line with ellipsis. aria-expanded reuses the pressed
    accent-tint while the card is open. */
-.webpic-rail_coords { display: block; width: auto; min-width: 30px; max-width: 40vw; padding: 0 9px;
-  font: 500 11px/28px ui-monospace, "SF Mono", Menlo, monospace;
+.webpic-rail_coords { display: block; width: auto; min-width: 32px; max-width: 40vw; padding: 0 9px;
+  font: 500 11px/30px ui-monospace, "SF Mono", Menlo, monospace;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .webpic-rail_coords[aria-expanded="true"] { opacity: 1;
   border-color: color-mix(in srgb, var(--webpic-accent) 55%, transparent);
@@ -512,8 +512,11 @@ const UI_CSS = `
 .webpic-cbar.is-dragging { transition: none; cursor: grabbing; }
 /* Vertical when docked to a side edge; horizontal (the default row) on top/bottom. */
 .webpic-cbar[data-edge="left"], .webpic-cbar[data-edge="right"] { flex-direction: column; }
-/* Collapsed: recede at rest, brighten on hover (magviz). */
-.webpic-cbar.collapsed { opacity: 0.62; }
+/* Collapsed: recede at rest, brighten on hover; a thinner, flatter frame that reads like a bottom
+   rail button rather than a chunky glass pill (magviz). */
+.webpic-cbar.collapsed { opacity: 0.62; border-radius: 8px; padding: 4px 8px;
+  border-color: color-mix(in srgb, var(--webpic-border) 30%, transparent);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16); }
 .webpic-cbar.collapsed:hover, .webpic-cbar.collapsed:focus-within { opacity: 1; }
 .webpic-cbar.collapsed .webpic-cbar_ticks, .webpic-cbar.collapsed .webpic-cbar_caption {
   display: none; }
@@ -533,6 +536,19 @@ const UI_CSS = `
 .webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_strip,
 .webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_strip { height: 96px; }
 .webpic-cbar_canvas { display: block; width: 100%; height: 100%; }
+/* Collapsed-only field key, painted faintly over the gradient (magviz mini-label); empty → hidden,
+   brightens on hover, rotates with the strip on the side edges. */
+.webpic-cbar_minilabel { display: none; }
+.webpic-cbar.collapsed .webpic-cbar_minilabel:not(:empty) {
+  display: flex; align-items: center; justify-content: center;
+  position: absolute; inset: 0; z-index: 2; pointer-events: none; user-select: none;
+  color: var(--webpic-fg); opacity: 0.5;
+  font: 600 10px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); transition: opacity .18s ease; }
+.webpic-cbar.collapsed:hover .webpic-cbar_minilabel { opacity: 0.9; }
+.webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_minilabel,
+.webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_minilabel {
+  writing-mode: vertical-rl; transform: rotate(180deg); }
 /* Tick labels: an overlay sized to a thin gutter beside the gradient; each label is placed by its
    normalized --t (0 = min, 1 = max). Horizontal → along the width; vertical → up the height. */
 .webpic-cbar_ticks { position: relative; flex: 0 0 auto; color: var(--webpic-muted);
@@ -570,14 +586,6 @@ const UI_CSS = `
   background: color-mix(in srgb, var(--webpic-accent) 28%, transparent); }
 .webpic-cbar_btn svg { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.webpic-cbar_collapse svg { transition: transform .18s ease; }
-.webpic-cbar[data-edge="top"] .webpic-cbar_collapse svg { transform: rotate(180deg); }
-.webpic-cbar[data-edge="left"] .webpic-cbar_collapse svg { transform: rotate(90deg); }
-.webpic-cbar[data-edge="right"] .webpic-cbar_collapse svg { transform: rotate(-90deg); }
-.webpic-cbar.collapsed[data-edge="bottom"] .webpic-cbar_collapse svg { transform: rotate(180deg); }
-.webpic-cbar.collapsed[data-edge="top"] .webpic-cbar_collapse svg { transform: rotate(0deg); }
-.webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_collapse svg { transform: rotate(-90deg); }
-.webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_collapse svg { transform: rotate(90deg); }
 /* Colorbar settings popover (ui/colorbar/colorbarSettings): a glass dialog hosting the colormap
    controls, body-appended so it escapes the bar's clip; positioned beside the gear toward the
    viewport center. The mounted pane sheds its own title/folder bar — the header names it. */

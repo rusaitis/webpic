@@ -67,21 +67,29 @@ describe("floating colorbar", () => {
     expect(document.body.querySelector(".webpic-cbar-pop")).toBeNull();
   });
 
-  it("collapses and expands via the chevron", async () => {
+  it("collapses and expands when the bar is clicked, ignoring the gear", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
     await flushAsync();
     const dispose = installColorbar(document.body, store, createUiStore());
 
-    const bar = el(document.body, ".webpic-cbar");
-    const collapse = el<HTMLButtonElement>(bar, ".webpic-cbar_collapse");
+    const bar = el<HTMLElement>(document.body, ".webpic-cbar");
+    const gear = el<HTMLButtonElement>(bar, ".webpic-cbar_settings");
+    const { selectedLayerId, layers, colormapBindings } = store.getState();
+    const bindingId = layers.find((l) => l.id === selectedLayerId)?.colormapBindingId ?? "";
     expect(bar.classList.contains("collapsed")).toBe(false);
 
-    collapse.click();
+    // A click anywhere on the bar toggles collapse (no chevron)...
+    bar.click();
     expect(bar.classList.contains("collapsed")).toBe(true);
-    expect(collapse.getAttribute("aria-pressed")).toBe("true");
+    // ...and the field key is mirrored onto the over-gradient mini-label.
+    expect(el(bar, ".webpic-cbar_minilabel").textContent).toBe(colormapBindings[bindingId]?.field);
 
-    collapse.click();
+    bar.click();
+    expect(bar.classList.contains("collapsed")).toBe(false);
+
+    // The gear opens the popover without collapsing the bar.
+    gear.click();
     expect(bar.classList.contains("collapsed")).toBe(false);
 
     dispose();

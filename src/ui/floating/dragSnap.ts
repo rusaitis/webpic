@@ -37,7 +37,7 @@ export interface SnapPlacement {
 
 const DRAG_THRESHOLD_PX = 4;
 const VIEWPORT_MARGIN_PX = 8; // keep this much of the element inside the viewport
-const EDGE_SNAP_PX = 60; // dock to an edge when this close
+const EDGE_SNAP_PX = 72; // dock to an edge when this close
 const CORNER_SNAP_PX = 80; // pin both axes when this close to a corner
 const EDGE_GAP_PX = 12; // breathing room from the edge / chrome when docked (matches the shell inset)
 const STICKY_HYSTERESIS_PX = 120; // bias toward the current edge so tall/wide strips don't oscillate
@@ -93,21 +93,26 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
       top: topSide ? EDGE_GAP_PX : dockTop,
     };
   }
+  // Anchor the free axis to whichever side the strip leans toward, so it tracks that edge on the
+  // next resize (a bottom-right strip stays glued to the right corner instead of drifting left as
+  // the centered rail re-centers) rather than always pinning the low edge.
   if (nearH) {
     const leftSide = stickyLess(distL, distR, prevEdge, "left", "right");
+    const topSide = stickyLess(distT, distB, prevEdge, "top", "bottom");
     return {
       edge: leftSide ? "left" : "right",
       h: leftSide ? "left" : "right",
-      v: "top",
+      v: topSide ? "top" : "bottom",
       left: leftSide ? EDGE_GAP_PX : dockLeft,
       top: clamp(rect.top, VIEWPORT_MARGIN_PX, H - rect.height - VIEWPORT_MARGIN_PX),
     };
   }
   if (nearV) {
+    const leftSide = stickyLess(distL, distR, prevEdge, "left", "right");
     const topSide = stickyLess(distT, distB, prevEdge, "top", "bottom");
     return {
       edge: topSide ? "top" : "bottom",
-      h: "left",
+      h: leftSide ? "left" : "right",
       v: topSide ? "top" : "bottom",
       left: clamp(rect.left, VIEWPORT_MARGIN_PX, W - rect.width - VIEWPORT_MARGIN_PX),
       top: topSide ? EDGE_GAP_PX : dockTop,
@@ -252,6 +257,9 @@ export interface DragSnapController {
   /** Re-settle against the current edge + chrome — call after a size change (collapse/expand) or
    *  once after mount so the initial placement clears the chrome. */
   reflow(): void;
+  /** True for one tick after a drag release — so a click-to-toggle handler on the element can skip
+   *  the trailing click a drag generates. */
+  wasDragging(): boolean;
   dispose(): void;
 }
 
@@ -382,18 +390,18 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
       VIEWPORT_MARGIN_PX,
       Math.max(VIEWPORT_MARGIN_PX, vp.height - r.height - VIEWPORT_MARGIN_PX),
     );
-    apply(
-      {
-        edge,
-        h: edge === "right" ? "right" : "left",
-        v: edge === "bottom" ? "bottom" : "top",
-        left,
-        top,
-      },
-      r.width,
-      r.height,
-      vp,
-    );
+    // Anchor the free axis to the nearer side (by the re-docked center) so the strip tracks that
+    // edge on the next resize instead of drifting from a stale fixed offset.
+    let h: "left" | "right";
+    let v: "top" | "bottom";
+    if (edge === "left" || edge === "right") {
+      h = edge;
+      v = top + r.height / 2 > vp.height / 2 ? "bottom" : "top";
+    } else {
+      h = left + r.width / 2 > vp.width / 2 ? "right" : "left";
+      v = edge;
+    }
+    apply({ edge, h, v, left, top }, r.width, r.height, vp);
   };
 
   const onDown = (e: PointerEvent): void => {
@@ -463,6 +471,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
 
   return {
     reflow,
+    wasDragging: () => recentlyDragged,
     dispose() {
       ac.abort();
     },

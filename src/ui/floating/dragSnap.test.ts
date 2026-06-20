@@ -27,9 +27,17 @@ describe("chooseEdge", () => {
   it("docks a wide strip to the bottom edge (horizontal orientation)", () => {
     const p = chooseEdge(box(300, 770, 360, 24), VP, undefined);
     expect(p.edge).toBe("bottom");
+    expect(p.h).toBe("left"); // left-leaning (center past midline toward the left)
     expect(p.v).toBe("bottom");
     expect(p.top).toBe(VP.height - 24 - EDGE_GAP);
     expect(p.left).toBe(300);
+  });
+
+  it("anchors a right-leaning bottom drop to the right edge so it tracks on resize", () => {
+    const p = chooseEdge(box(500, 770, 360, 24), VP, undefined);
+    expect(p.edge).toBe("bottom");
+    expect(p.h).toBe("right"); // glued to the right corner, not a stale fixed-left offset
+    expect(p.left).toBe(500); // top-left x preserved; setAnchors converts to a right anchor
   });
 
   it("corner-snaps a wide strip to bottom-right, oriented along the long axis", () => {
