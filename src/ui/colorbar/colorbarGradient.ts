@@ -1,7 +1,10 @@
 import { type ColormapId, colormapColor } from "@schema/colormap.ts";
 import {
   makeScale,
+  niceLinearTicks,
   type ScaleKind,
+  stepDecimals,
+  tickValues,
   type WindowLevel,
   windowToInterval,
 } from "../controls/rangeMath.ts";
@@ -53,18 +56,87 @@ export function formatValue(v: number): string {
   return Number(v.toPrecision(4)).toString();
 }
 
-/** `count` tick values across the window under `scale`, evenly spaced in track position. The
- *  caller places them (top→bottom for vertical, left→right for horizontal). log falls back to a
- *  linear read if the window reaches ≤ 0 (the slider's positive track floor normally prevents it).*/
-export function tickLabels(window: WindowLevel, scale: ScaleKind, count = 5): ColorbarTick[] {
+/** Format a whole tick set coherently: one decimal count derived from `step`, so {0, 0.2, 0.4} reads
+ *  as "0.0 0.2 0.4" — not "0 0.2 0.4000001". Falls back to uniform exponential (matching
+ *  {@link formatValue}'s thresholds) when the step or the largest magnitude is extreme; in that
+ *  branch zero renders a bare "0" rather than "0.00e+0". `-0` is normalized to `0`. */
+export function formatTicks(values: readonly number[], step: number): string[] {
+  if (values.length === 0) return [];
+  let maxAbs = 0;
+  for (const v of values) maxAbs = Math.max(maxAbs, Math.abs(v));
+  const extreme =
+    step > 0 ? step < 1e-3 || maxAbs >= 1e4 : maxAbs !== 0 && (maxAbs < 1e-3 || maxAbs >= 1e4);
+  const decimals = Math.min(stepDecimals(step), 12);
+  return values.map((v) => {
+    const z = Object.is(v, -0) ? 0 : v;
+    if (extreme) return z === 0 ? "0" : z.toExponential(2);
+    return z.toFixed(decimals);
+  });
+}
+
+/** Thin a decade list toward `maxCount` for the colorbar, keeping every stride-th decade plus the
+ *  extremes and zero (symlog's center) for context. Wider than the slider's hard MAX_TICKS cap,
+ *  which would otherwise blank a many-decade ruler entirely. Expects ascending input. */
+function thinDecades(values: readonly number[], maxCount: number): number[] {
+  if (values.length <= maxCount) return values.slice();
+  const stride = Math.ceil(values.length / maxCount);
+  const kept = new Set<number>();
+  let i = 0;
+  for (const v of values) {
+    if (i % stride === 0 || v === 0) kept.add(v);
+    i++;
+  }
+  const first = values.at(0);
+  const last = values.at(-1);
+  if (first !== undefined) kept.add(first);
+  if (last !== undefined) kept.add(last);
+  return [...kept].sort((a, b) => a - b);
+}
+
+/** Nice-number tick set across the window under `scale`, sized to ≈ `targetCount` ticks. Linear →
+ *  round {1,2,5}×10ᵏ values (a signed window always gets an exact 0); log/symlog → a decade ruler
+ *  (0, ±10ᵏ), thinned when the range spans many decades. Positions come from the slider's own scale
+ *  math, so the strip and the window slider agree; symlog uses the renderer's default linthresh
+ *  (max|extent|/100), so ticks line up with the painted gradient. log falls back to a linear read
+ *  if the window reaches ≤ 0. */
+export function tickLabels(
+  window: WindowLevel,
+  scale: ScaleKind,
+  targetCount: number,
+): ColorbarTick[] {
   const [lo, hi] = windowToInterval(window);
   const safeScale: ScaleKind = scale === "log" && lo <= 0 ? "linear" : scale;
   const s = makeScale(safeScale, lo, hi);
-  const ticks: ColorbarTick[] = [];
-  const last = Math.max(1, count - 1);
-  for (let i = 0; i < count; i++) {
-    const t = i / last;
-    ticks.push({ t, label: formatValue(s.toValue(t)) });
+
+  if (safeScale === "linear") {
+    const { values, step } = niceLinearTicks(lo, hi, targetCount);
+    if (values.length === 0) {
+      return [
+        { t: 0, label: formatValue(lo) },
+        { t: 1, label: formatValue(hi) },
+      ];
+    }
+    if (values.length === 1) {
+      const [only = lo] = values; // constant window: one centered readout
+      return [{ t: 0.5, label: formatValue(only) }];
+    }
+    const labels = formatTicks(values, step);
+    return values
+      .map((v, i) => ({ t: s.toT(v), label: labels[i] ?? formatValue(v) }))
+      .sort((a, b) => a.t - b.t);
   }
-  return ticks;
+
+  // log / symlog → a decade ruler (majors only). Decades are compact and evenly spread on screen, so
+  // the colorbar tolerates more of them than linear ticks — only a truly many-decade range thins.
+  const values = thinDecades(
+    tickValues(s).sort((a, b) => a - b),
+    Math.max(targetCount, 7),
+  );
+  if (values.length === 0) {
+    return [
+      { t: 0, label: formatValue(lo) },
+      { t: 1, label: formatValue(hi) },
+    ];
+  }
+  return values.map((v) => ({ t: s.toT(v), label: formatValue(v) })).sort((a, b) => a.t - b.t);
 }

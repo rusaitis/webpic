@@ -138,12 +138,11 @@ export function makeScale(
   };
 }
 
-/** Tick positions in normalized [0, 1]. Linear → evenly by `step` (or `count`); log/symlog →
- *  decade lines. Empty when the count would exceed MAX_TICKS (renders as a solid bar). */
-export function tickPositions(
-  scale: Scale,
-  opts: { step?: number; count?: number } = {},
-): number[] {
+/** Tick *values* (not positions) for a scale: linear → multiples of `step` (or `count` divisions)
+ *  spanning [min, max]; log → 10ᵏ decades; symlog → 0 plus every ±10ᵏ decade within range, from the
+ *  linthresh decade up. Ungated and unsorted-by-position — {@link tickPositions} maps + gates these,
+ *  while the colorbar labels them directly (and thins its own decades). */
+export function tickValues(scale: Scale, opts: { step?: number; count?: number } = {}): number[] {
   const { kind, min, max, linthresh: L } = scale;
   const values: number[] = [];
 
@@ -154,9 +153,8 @@ export function tickPositions(
         : opts.count && opts.count > 0
           ? span(min, max) / opts.count
           : 0;
-    if (!(step > 0)) return [];
+    if (!(step > 0)) return values;
     const n = Math.round(span(min, max) / step);
-    if (n < 2 || n > MAX_TICKS) return [];
     for (let i = 0; i <= n; i++) values.push(min + i * step);
   } else if (kind === "log") {
     for (let k = Math.ceil(Math.log10(min)); k <= Math.floor(Math.log10(max)); k++) {
@@ -174,8 +172,21 @@ export function tickPositions(
       if (v >= min && v <= max) values.push(v);
     }
   }
+  return values;
+}
 
-  if (values.length === 0 || values.length > MAX_TICKS) return [];
+/** Tick positions in normalized [0, 1]. Linear → evenly by `step` (or `count`); log/symlog →
+ *  decade lines. Empty when the count would exceed MAX_TICKS (renders as a solid bar). */
+export function tickPositions(
+  scale: Scale,
+  opts: { step?: number; count?: number } = {},
+): number[] {
+  const values = tickValues(scale, opts);
+  if (values.length === 0) return [];
+  // < 2 intervals (linear) or > MAX_TICKS marks reads as a solid bar — leave it to the gradient.
+  if (scale.kind === "linear" && values.length < 3) return [];
+  if (values.length > MAX_TICKS) return [];
+
   const seen = new Set<number>();
   const ts: number[] = [];
   for (const v of values) {
@@ -226,6 +237,53 @@ export function minorTickPositions(scale: Scale): number[] {
     }
   }
   return ts.sort((a, b) => a - b);
+}
+
+/** Decimal places to render a {1,2,5}×10ᵏ `step` exactly: the negative decade of the step (0 for
+ *  step ≥ 1). The +ε absorbs log10's just-under-integer powers. */
+export function stepDecimals(step: number): number {
+  if (!(step > 0)) return 0;
+  return Math.max(0, -Math.floor(Math.log10(step) + 1e-12));
+}
+
+/** Round a raw step UP to the nearest {1,2,5}×10ᵏ (sub-decade included: 0.1, 0.2, 0.5) — the
+ *  Heckbert "nice numbers" step for ~`targetCount` intervals across `rawSpan`. 0 for a
+ *  non-positive / non-finite span. */
+export function niceStep(rawSpan: number, targetCount: number): number {
+  if (!(rawSpan > 0) || !Number.isFinite(rawSpan)) return 0;
+  const raw = rawSpan / Math.max(1, targetCount);
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const norm = raw / mag; // [1, 10)
+  const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return nice * mag;
+}
+
+export interface NiceTicks {
+  /** Tick values on the nice grid (integer multiples of `step`) within [lo, hi], ascending. */
+  readonly values: readonly number[];
+  /** The chosen nice step; 0 when degenerate (single value / empty). Drives label decimals. */
+  readonly step: number;
+}
+
+/** Nice-number linear ticks: multiples of a {1,2,5}×10ᵏ step within [lo, hi] (matplotlib
+ *  MaxNLocator style — round interior values, endpoints NOT forced). A range crossing 0 always
+ *  includes exactly 0 (0 is a multiple of every step). A constant window (lo == hi) yields the lone
+ *  value; a non-finite / empty range yields []. */
+export function niceLinearTicks(lo: number, hi: number, targetCount: number): NiceTicks {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { values: [], step: 0 };
+  if (lo === hi) return { values: [lo], step: 0 };
+  const min = Math.min(lo, hi);
+  const max = Math.max(lo, hi);
+  const step = niceStep(max - min, targetCount);
+  if (!(step > 0)) return { values: [], step: 0 };
+  const decimals = Math.min(stepDecimals(step), 20);
+  const kStart = Math.ceil(min / step - 1e-9); // ε includes an endpoint sitting exactly on the grid
+  const kEnd = Math.floor(max / step + 1e-9);
+  const values: number[] = [];
+  for (let k = kStart; k <= kEnd; k++) {
+    values.push(Number((k * step).toFixed(decimals))); // snap to the grid, killing FP drift
+  }
+  return { values, step };
 }
 
 function span(min: number, max: number): number {

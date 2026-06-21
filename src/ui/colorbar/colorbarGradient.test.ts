@@ -1,38 +1,67 @@
 import { describe, expect, it } from "vitest";
 import { makeScale } from "../controls/rangeMath.ts";
-import { type ColorbarTick, formatValue, tickLabels } from "./colorbarGradient.ts";
+import { type ColorbarTick, formatTicks, formatValue, tickLabels } from "./colorbarGradient.ts";
 
 const values = (ticks: ColorbarTick[]): number[] => ticks.map((tk) => Number(tk.label));
 
 describe("tickLabels", () => {
-  it("spans a linear window from min (t=0) to max (t=1)", () => {
-    const ticks = tickLabels({ center: 5.5, width: 1 }, "linear", 5);
-    expect(ticks.map((t) => t.t)).toEqual([0, 0.25, 0.5, 0.75, 1]);
-    expect(values(ticks)).toEqual([5, 5.25, 5.5, 5.75, 6]);
+  it("places nice round ticks across a linear window", () => {
+    const ticks = tickLabels({ center: 5.5, width: 1 }, "linear", 5); // [5, 6]
+    expect(ticks.map((t) => t.label)).toEqual(["5.0", "5.2", "5.4", "5.6", "5.8", "6.0"]);
+    expect(ticks[0]?.t).toBeCloseTo(0, 9);
+    expect(ticks.at(-1)?.t).toBeCloseTo(1, 9);
   });
 
-  it("matches the slider's log scale", () => {
-    const window = { center: 55, width: 90 }; // [10, 100]
-    const ticks = tickLabels(window, "log", 5);
-    const scale = makeScale("log", 10, 100);
-    for (const tk of ticks) {
-      expect(Number(tk.label)).toBeCloseTo(Number(formatValue(scale.toValue(tk.t))), 6);
-    }
-    expect(Number(ticks[0]?.label)).toBeCloseTo(10, 6);
-    expect(Number(ticks.at(-1)?.label)).toBeCloseTo(100, 6);
+  it("guarantees an exact 0 tick for a signed window", () => {
+    const ticks = tickLabels({ center: 2, width: 10 }, "linear", 5); // [-3, 7]
+    const zero = ticks.find((t) => Number(t.label) === 0);
+    expect(zero).toBeDefined();
+    expect(zero?.t).toBeCloseTo(makeScale("linear", -3, 7).toT(0), 9); // 0.3
   });
 
-  it("is symmetric about zero for a symlog window", () => {
+  it("labels decade values on a log window", () => {
+    const ticks = tickLabels({ center: 55, width: 90 }, "log", 5); // [10, 100]
+    expect(ticks.map((t) => t.label)).toEqual(["10", "100"]);
+    expect(ticks[0]?.t).toBeCloseTo(0, 9);
+    expect(ticks.at(-1)?.t).toBeCloseTo(1, 9);
+  });
+
+  it("centers 0 and places decades symmetrically on a symlog window", () => {
     const ticks = tickLabels({ center: 0, width: 200 }, "symlog", 5); // [-100, 100]
-    expect(Number(ticks[0]?.label)).toBeCloseTo(-100, 6);
-    expect(Number(ticks[2]?.label)).toBeCloseTo(0, 6);
-    expect(Number(ticks.at(-1)?.label)).toBeCloseTo(100, 6);
+    expect(ticks.some((t) => t.label === "0")).toBe(true);
+    expect(ticks.find((t) => t.label === "0")?.t).toBeCloseTo(0.5, 9);
+    const pos = ticks.find((t) => Number(t.label) === 1);
+    const neg = ticks.find((t) => Number(t.label) === -1);
+    expect(pos).toBeDefined();
+    expect(neg).toBeDefined();
+    expect((pos?.t ?? 0) + (neg?.t ?? 0)).toBeCloseTo(1, 6); // symmetric about the center
+  });
+
+  it("thins a many-decade symlog ruler instead of blanking it", () => {
+    const ticks = tickLabels({ center: 0, width: 2e6 }, "symlog", 5); // [-1e6, 1e6]
+    expect(ticks.length).toBeGreaterThan(2);
+    expect(ticks.length).toBeLessThanOrEqual(8);
+    expect(ticks.some((t) => t.label === "0")).toBe(true);
   });
 
   it("falls back to a linear read when a log window reaches ≤ 0", () => {
     // makeScale('log', …) throws on min ≤ 0; tickLabels must not.
     expect(() => tickLabels({ center: 0, width: 2 }, "log", 3)).not.toThrow();
     expect(values(tickLabels({ center: 0, width: 2 }, "log", 3))).toEqual([-1, 0, 1]);
+  });
+});
+
+describe("formatTicks", () => {
+  it("uses one decimal count across the set (clean, no FP tails)", () => {
+    expect(formatTicks([0, 0.2, 0.4, 0.6], 0.2)).toEqual(["0.0", "0.2", "0.4", "0.6"]);
+  });
+
+  it("falls back to uniform exponential for extreme magnitudes; 0 stays bare", () => {
+    expect(formatTicks([0, 1e8, 2e8], 1e8)).toEqual(["0", "1.00e+8", "2.00e+8"]);
+  });
+
+  it("normalizes -0 to 0", () => {
+    expect(formatTicks([-0, 0.5], 0.5)).toEqual(["0.0", "0.5"]);
   });
 });
 

@@ -536,7 +536,9 @@ const UI_CSS = `
 .webpic-cbar.collapsed:hover, .webpic-cbar.collapsed:focus-within { opacity: 1; }
 .webpic-cbar.collapsed .webpic-cbar_ticks, .webpic-cbar.collapsed .webpic-cbar_caption {
   display: none; }
-.webpic-cbar_main { display: flex; flex: 1 1 auto; gap: 4px; min-width: 0; min-height: 0; }
+/* gap:0 so the tick rail sits flush under the strip (marks touch the bar); the caption keeps its own
+   breathing room via its margin (margin-bottom on top/bottom, margin-left on the rotated side dock). */
+.webpic-cbar_main { display: flex; flex: 1 1 auto; gap: 0; min-width: 0; min-height: 0; }
 .webpic-cbar[data-edge="top"] .webpic-cbar_main, .webpic-cbar[data-edge="bottom"] .webpic-cbar_main {
   flex-direction: column; align-items: stretch; }
 .webpic-cbar[data-edge="left"] .webpic-cbar_main, .webpic-cbar[data-edge="right"] .webpic-cbar_main {
@@ -568,27 +570,32 @@ const UI_CSS = `
 .webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_minilabel,
 .webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_minilabel {
   writing-mode: vertical-rl; transform: rotate(180deg); }
-/* Tick labels: an overlay sized to a thin gutter beside the gradient; each label is placed by its
-   normalized --t (0 = min, 1 = max). Horizontal → along the width; vertical → up the height. */
-.webpic-cbar_ticks { position: relative; flex: 0 0 auto; color: var(--webpic-muted);
-  font-size: 10px; font-variant-numeric: tabular-nums; }
+/* Tick rail: a thin gutter flush against the gradient (no gap), spanning the strip's long axis so a
+   tick's --t (0 = min, 1 = max) lands on the painted extent. Every tick is a centered label with a
+   flush mark (::before); overflow stays visible so an edge label can half-overhang the rail. */
+.webpic-cbar_ticks { position: relative; flex: 0 0 auto; overflow: visible;
+  color: var(--webpic-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .webpic-cbar[data-edge="top"] .webpic-cbar_ticks, .webpic-cbar[data-edge="bottom"] .webpic-cbar_ticks {
-  height: 12px; }
+  height: 18px; }
 .webpic-cbar[data-edge="left"] .webpic-cbar_ticks, .webpic-cbar[data-edge="right"] .webpic-cbar_ticks {
-  width: 36px; }
+  width: 40px; }
 .webpic-cbar_tick { position: absolute; white-space: nowrap; }
+.webpic-cbar_tick::before { content: ""; position: absolute;
+  background: color-mix(in srgb, var(--webpic-muted) 80%, transparent); }
+/* Horizontal: marks hang down from the bar's bottom edge (top:-1px sits over the strip's 1px inner
+   border → flush, no gap), the label centered just below. */
 .webpic-cbar[data-edge="top"] .webpic-cbar_tick, .webpic-cbar[data-edge="bottom"] .webpic-cbar_tick {
-  top: 0; left: calc(var(--t) * 100%); transform: translateX(-50%); }
-.webpic-cbar[data-edge="top"] .webpic-cbar_tick:first-child,
-.webpic-cbar[data-edge="bottom"] .webpic-cbar_tick:first-child { transform: none; }
-.webpic-cbar[data-edge="top"] .webpic-cbar_tick:last-child,
-.webpic-cbar[data-edge="bottom"] .webpic-cbar_tick:last-child { transform: translateX(-100%); }
+  top: 0; left: calc(var(--t) * 100%); transform: translateX(-50%); padding-top: 8px; }
+.webpic-cbar[data-edge="top"] .webpic-cbar_tick::before,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_tick::before {
+  left: 50%; top: -1px; width: 1px; height: 6px; transform: translateX(-50%); }
+/* Vertical: marks point right from the bar's right edge (left:-1px → flush), the label to their
+   right; top = (1 − t) so the maximum reads at the top. */
 .webpic-cbar[data-edge="left"] .webpic-cbar_tick, .webpic-cbar[data-edge="right"] .webpic-cbar_tick {
-  left: 0; top: calc((1 - var(--t)) * 100%); transform: translateY(-50%); }
-.webpic-cbar[data-edge="left"] .webpic-cbar_tick:first-child,
-.webpic-cbar[data-edge="right"] .webpic-cbar_tick:first-child { transform: translateY(-100%); }
-.webpic-cbar[data-edge="left"] .webpic-cbar_tick:last-child,
-.webpic-cbar[data-edge="right"] .webpic-cbar_tick:last-child { transform: none; }
+  left: 0; top: calc((1 - var(--t)) * 100%); transform: translateY(-50%); padding-left: 9px; }
+.webpic-cbar[data-edge="left"] .webpic-cbar_tick::before,
+.webpic-cbar[data-edge="right"] .webpic-cbar_tick::before {
+  top: 50%; left: -1px; width: 6px; height: 1px; transform: translateY(-50%); }
 /* Field key, sized into the gradient stack: above it (column) on top/bottom, right of it (row,
    rotated) on the side edges. Collapsed hides it for the over-gradient mini-label. */
 .webpic-cbar_caption { flex: 0 0 auto; align-self: center; text-align: center; color: var(--webpic-fg);
@@ -603,9 +610,15 @@ const UI_CSS = `
 .webpic-cbar[data-edge="left"] .webpic-cbar_caption, .webpic-cbar[data-edge="right"] .webpic-cbar_caption {
   writing-mode: vertical-rl; text-orientation: mixed; max-width: none; max-height: 14ch; order: 2;
   transform: rotate(180deg); margin-left: 6px; }
-.webpic-cbar_actions { flex: 0 0 auto; display: flex; gap: 2px; }
-.webpic-cbar[data-edge="left"] .webpic-cbar_actions, .webpic-cbar[data-edge="right"] .webpic-cbar_actions {
-  flex-direction: column; }
+/* The gear floats in the panel's top-right corner, hidden until the bar is hovered (or its popover is
+   open) — so an expanded colorbar reads clean for screenshots. Absolute (out of the strip's flow) so
+   the gradient keeps symmetric long-axis margins inside the panel's padding. Hidden when collapsed. */
+.webpic-cbar_actions { position: absolute; top: 5px; right: 6px; display: flex; gap: 2px;
+  opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+.webpic-cbar:hover .webpic-cbar_actions, .webpic-cbar:focus-within .webpic-cbar_actions,
+.webpic-cbar:has(.webpic-cbar_settings[aria-expanded="true"]) .webpic-cbar_actions {
+  opacity: 1; pointer-events: auto; }
+.webpic-cbar.collapsed .webpic-cbar_actions { display: none; }
 .webpic-cbar_btn { box-sizing: border-box; width: 22px; height: 22px; padding: 0; display: grid;
   place-items: center; cursor: pointer; opacity: 0.6; background: transparent; color: var(--webpic-muted);
   border: none; border-radius: 5px; transition: opacity .12s ease, background .12s ease, color .12s ease; }

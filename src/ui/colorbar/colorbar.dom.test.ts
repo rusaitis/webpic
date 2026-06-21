@@ -36,11 +36,20 @@ describe("floating colorbar", () => {
 
     const { selectedLayerId, layers, colormapBindings } = store.getState();
     const bindingId = layers.find((l) => l.id === selectedLayerId)?.colormapBindingId ?? "";
-    expect(el(bar, ".webpic-cbar_caption").textContent).toBe(colormapBindings[bindingId]?.field);
+    const field = colormapBindings[bindingId]?.field ?? "";
+    // The expanded caption shows the field key plus its SI unit in brackets (|B| → tesla).
+    expect(el(bar, ".webpic-cbar_caption").textContent).toBe(`${field} [T]`);
     // The caption stacks inside main (above the gradient on a horizontal dock), not beside it.
     expect(bar.querySelector(".webpic-cbar_main > .webpic-cbar_caption")).not.toBeNull();
-    // Five tick labels span the window.
-    expect(bar.querySelectorAll(".webpic-cbar_tick")).toHaveLength(5);
+    // Nice-number ticks span the window — the count follows the range, not a fixed 5.
+    const tickEls = bar.querySelectorAll<HTMLElement>(".webpic-cbar_tick");
+    expect(tickEls.length).toBeGreaterThanOrEqual(2);
+    for (const tick of tickEls) {
+      const t = Number(tick.style.getPropertyValue("--t"));
+      expect(t).toBeGreaterThanOrEqual(0);
+      expect(t).toBeLessThanOrEqual(1);
+      expect(tick.textContent).not.toBe("");
+    }
 
     dispose();
     expect(document.body.querySelector(".webpic-cbar")).toBeNull();

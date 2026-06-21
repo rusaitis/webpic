@@ -5,11 +5,15 @@ import {
   intervalToWindow,
   makeScale,
   minorTickPositions,
+  niceLinearTicks,
+  niceStep,
   pointerT,
   snapToDecade,
   snapToStep,
   stepDecade,
+  stepDecimals,
   tickPositions,
+  tickValues,
   translateInterval,
   windowToInterval,
 } from "./rangeMath.ts";
@@ -182,6 +186,78 @@ describe("tickPositions", () => {
     expect(ts[ts.length - 1]).toBe(1);
     expect(ts).toContain(0.5);
     expect(ts.map((t) => Math.round(s.toValue(t)))).toEqual([-1000, -100, -10, 0, 10, 100, 1000]);
+  });
+});
+
+describe("tickValues (raw values for the colorbar)", () => {
+  it("linear: `count` divisions spanning [min, max]", () => {
+    expect(tickValues(makeScale("linear", 0, 100), { count: 5 })).toEqual([0, 20, 40, 60, 80, 100]);
+  });
+
+  it("symlog: 0 plus ±decades, ungated (no MAX_TICKS blanking, unlike tickPositions)", () => {
+    const vals = tickValues(makeScale("symlog", -1000, 1000, { linthresh: 20 }));
+    expect(vals).toContain(0);
+    expect(vals).toContain(1000);
+    expect(vals).toContain(-1000);
+    expect(vals.filter((v) => v === 0)).toHaveLength(1);
+  });
+});
+
+describe("stepDecimals", () => {
+  it("gives the negative decade of a {1,2,5}×10ᵏ step (0 for step ≥ 1)", () => {
+    expect(stepDecimals(0.2)).toBe(1);
+    expect(stepDecimals(0.05)).toBe(2);
+    expect(stepDecimals(2)).toBe(0);
+    expect(stepDecimals(0)).toBe(0);
+  });
+});
+
+describe("niceStep", () => {
+  it("rounds a raw step up to {1,2,5}×10ᵏ for ~target intervals", () => {
+    expect(niceStep(1, 5)).toBeCloseTo(0.2, 12);
+    expect(niceStep(10, 5)).toBeCloseTo(2, 12);
+    expect(niceStep(1, 4)).toBeCloseTo(0.5, 12); // raw 0.25 → up to 0.5
+  });
+
+  it("is decade-independent", () => {
+    expect(niceStep(1e-8, 5)).toBeCloseTo(2e-9, 21);
+    expect(niceStep(5e8, 5)).toBeCloseTo(1e8, 0);
+  });
+
+  it("returns 0 for a non-positive / non-finite span", () => {
+    expect(niceStep(0, 5)).toBe(0);
+    expect(niceStep(-3, 5)).toBe(0);
+    expect(niceStep(Number.NaN, 5)).toBe(0);
+  });
+});
+
+describe("niceLinearTicks", () => {
+  it("[0,1] → round tenths spanning the range", () => {
+    const { values, step } = niceLinearTicks(0, 1, 5);
+    expect(step).toBeCloseTo(0.2, 12);
+    expect(values).toEqual([0, 0.2, 0.4, 0.6, 0.8, 1]);
+  });
+
+  it("always includes an exact 0 when the range crosses zero", () => {
+    for (const target of [4, 5, 6]) expect(niceLinearTicks(-3, 7, target).values).toContain(0);
+  });
+
+  it("places nice interior values, not the exact endpoints", () => {
+    expect(niceLinearTicks(0.03, 0.97, 5).values).toEqual([0.2, 0.4, 0.6, 0.8]);
+  });
+
+  it("handles a fully negative range", () => {
+    expect(niceLinearTicks(-10, -1, 5).values).toEqual([-10, -8, -6, -4, -2]);
+  });
+
+  it("works at tiny and huge magnitudes (grid-snapped, no FP drift)", () => {
+    expect(niceLinearTicks(1e-9, 5e-9, 5).values).toEqual([1e-9, 2e-9, 3e-9, 4e-9, 5e-9]);
+    expect(niceLinearTicks(0, 5e8, 5).values).toEqual([0, 1e8, 2e8, 3e8, 4e8, 5e8]);
+  });
+
+  it("degenerates safely: constant window → the lone value, non-finite → []", () => {
+    expect(niceLinearTicks(5, 5, 5)).toEqual({ values: [5], step: 0 });
+    expect(niceLinearTicks(Number.NaN, 1, 5)).toEqual({ values: [], step: 0 });
   });
 });
 

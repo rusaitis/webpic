@@ -1,4 +1,5 @@
 import { type ColormapBinding, type ColormapId, DEFAULT_COLORMAP } from "@schema/colormap.ts";
+import { FIELD_REGISTRY } from "@schema/registry.ts";
 import { type SimulationStore, selectActiveBinding, type UiStore } from "@store";
 import { makeEl } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
@@ -21,7 +22,19 @@ import { installColorbarSettings } from "./colorbarSettings.ts";
 const CHROME_SELECTOR =
   ".webpic-rail_btn, .webpic-coords-card, .webpic-topbar, .webpic-siderail, .webpic-shell, .webpic-chrome, .webpic-status";
 const INITIAL_GAP_PX = 12; // first-paint inset (bottom-right); reflow then clears the chrome
-const TICK_COUNT = 5;
+// One nice-number target for BOTH orientations, so the tick values are identical horizontal and
+// vertical (the set depends only on the window + this count — never the strip's pixel length). 5
+// reads well on the 320px-wide horizontal strip without crowding and leaves the 200px vertical one
+// with room to spare (stacked labels are short).
+const TICK_TARGET = 5;
+
+// Expanded caption: the field key plus its SI unit in brackets when the field has one ("|B| [T]").
+// The collapsed mini-label stays bare (just the key) — units only read in the expanded view.
+const captionText = (field: string | undefined): string => {
+  if (field === undefined || field.length === 0) return "—";
+  const unit = FIELD_REGISTRY[field]?.siUnit;
+  return unit !== undefined && unit.length > 0 ? `${field} [${unit}]` : field;
+};
 
 const ICON = {
   // Sliders — "adjust the colormap": two tracks with knobs.
@@ -80,7 +93,7 @@ export function installColorbar(
   const renderTicks = (binding: ColormapBinding | null): void => {
     ticks.replaceChildren();
     if (binding === null) return;
-    for (const tk of tickLabels(binding.window, binding.scale, TICK_COUNT)) {
+    for (const tk of tickLabels(binding.window, binding.scale, TICK_TARGET)) {
       const span = makeEl(doc, "span", "webpic-cbar_tick");
       span.style.setProperty("--t", `${tk.t}`);
       span.textContent = tk.label;
@@ -106,7 +119,7 @@ export function installColorbar(
     }
     paintedHorizontal = horizontal;
     paintedColormap = colormap;
-    caption.textContent = binding?.field ?? "—";
+    caption.textContent = captionText(binding?.field);
     // No placeholder over the gradient — empty hides the collapsed overlay (CSS `:not(:empty)`).
     miniLabel.textContent = binding?.field ?? "";
     renderTicks(binding);
