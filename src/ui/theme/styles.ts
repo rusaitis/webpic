@@ -610,15 +610,29 @@ const UI_CSS = `
 .webpic-cbar[data-edge="left"] .webpic-cbar_caption, .webpic-cbar[data-edge="right"] .webpic-cbar_caption {
   writing-mode: vertical-rl; text-orientation: mixed; max-width: none; max-height: 14ch; order: 2;
   transform: rotate(180deg); margin-left: 6px; }
-/* The gear floats in the panel's top-right corner, hidden until the bar is hovered (or its popover is
-   open) — so an expanded colorbar reads clean for screenshots. Absolute (out of the strip's flow) so
-   the gradient keeps symmetric long-axis margins inside the panel's padding. Hidden when collapsed. */
-.webpic-cbar_actions { position: absolute; top: 5px; right: 6px; display: flex; gap: 2px;
+/* Expanded panels widen their long-axis margins (symmetric) so the end tick labels get breathing room
+   and the hover gear sits in the margin beside the strip; collapsed keeps its compact 3px pill. */
+.webpic-cbar:not(.collapsed)[data-edge="top"], .webpic-cbar:not(.collapsed)[data-edge="bottom"] {
+  padding: 7px 26px; }
+.webpic-cbar:not(.collapsed)[data-edge="left"], .webpic-cbar:not(.collapsed)[data-edge="right"] {
+  padding: 26px 7px; }
+/* Expanded: the gear sits in the long-axis margin aligned to the strip — right of it (horizontal) or
+   below it (vertical), like the collapsed pill — but hidden until the bar is hovered or its popover is
+   open, so an expanded colorbar reads clean for screenshots. Absolute (out of the strip's flow) so the
+   gradient keeps symmetric margins inside the wider padding. */
+.webpic-cbar_actions { position: absolute; display: flex; gap: 2px;
   opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+.webpic-cbar[data-edge="top"] .webpic-cbar_actions, .webpic-cbar[data-edge="bottom"] .webpic-cbar_actions {
+  top: 50%; right: 3px; transform: translateY(-50%); } /* strip is vertically centred in the panel */
+.webpic-cbar[data-edge="left"] .webpic-cbar_actions, .webpic-cbar[data-edge="right"] .webpic-cbar_actions {
+  bottom: 4px; left: 17px; transform: translateX(-50%); } /* 17px = 7px pad + 10px half-strip */
 .webpic-cbar:hover .webpic-cbar_actions, .webpic-cbar:focus-within .webpic-cbar_actions,
 .webpic-cbar:has(.webpic-cbar_settings[aria-expanded="true"]) .webpic-cbar_actions {
   opacity: 1; pointer-events: auto; }
-.webpic-cbar.collapsed .webpic-cbar_actions { display: none; }
+/* Collapsed: the gear returns to the flow beside the mini gradient and stays visible — a docked pill
+   keeps its settings affordance; only the expanded panel hides it until hover. */
+.webpic-cbar.collapsed .webpic-cbar_actions {
+  position: static; opacity: 1; pointer-events: auto; transform: none; }
 .webpic-cbar_btn { box-sizing: border-box; width: 22px; height: 22px; padding: 0; display: grid;
   place-items: center; cursor: pointer; opacity: 0.6; background: transparent; color: var(--webpic-muted);
   border: none; border-radius: 5px; transition: opacity .12s ease, background .12s ease, color .12s ease; }
