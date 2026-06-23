@@ -1,4 +1,11 @@
-import { cssRgba, type Rgba01, type ThemeColors } from "@schema/theme.ts";
+import {
+  cssRgba,
+  FALLBACK_AXIS,
+  type Rgba01,
+  type Theme,
+  type ThemeAxes,
+  type ThemeColors,
+} from "@schema/theme.ts";
 import type { Disposer } from "../controls/index.ts";
 
 // One injected <style> for the whole UI (shell + controls). CSP-safe single tag
@@ -12,20 +19,85 @@ function colorVar(color: Rgba01 | undefined, fallback: string): string {
   return color ? cssRgba(color) : fallback;
 }
 
-// Map the themed palette onto the UI vars; fall back to a neutral dark palette when a
-// theme omits a color.
-export function applyUiVars(root: HTMLElement, colors: ThemeColors | undefined): void {
-  root.style.setProperty("--webpic-bg", colorVar(colors?.background, "rgba(16, 24, 32, 0.94)"));
-  root.style.setProperty("--webpic-fg", colorVar(colors?.text, "#c8d0d8"));
-  root.style.setProperty("--webpic-muted", colorVar(colors?.secondaryText, "#8a94a0"));
-  root.style.setProperty("--webpic-accent", colorVar(colors?.accent, "#5aa9e6"));
-  root.style.setProperty("--webpic-border", colorVar(colors?.grid, "rgba(200, 208, 216, 0.16)"));
+// Theme-derived base palette → the five root custom properties everything else mixes from. Falls
+// back to a neutral dark palette when a theme omits a color.
+function baseVars(colors: ThemeColors | undefined): Record<string, string> {
+  return {
+    "--webpic-bg": colorVar(colors?.background, "rgba(16, 24, 32, 0.94)"),
+    "--webpic-fg": colorVar(colors?.text, "#c8d0d8"),
+    "--webpic-muted": colorVar(colors?.secondaryText, "#8a94a0"),
+    "--webpic-accent": colorVar(colors?.accent, "#5aa9e6"),
+    "--webpic-border": colorVar(colors?.grid, "rgba(200, 208, 216, 0.16)"),
+  };
+}
+
+// Axis triad → the corner gnomon's HUD colors, from theme.axes. The in-scene 3D axes resolve from
+// the same FALLBACK_AXIS (schema/theme), so a recolored theme keeps the gnomon + scene in agreement.
+function axisVars(axes: ThemeAxes | undefined): Record<string, string> {
+  return {
+    "--webpic-axis-x": colorVar(axes?.x, cssRgba(FALLBACK_AXIS.x)),
+    "--webpic-axis-y": colorVar(axes?.y, cssRgba(FALLBACK_AXIS.y)),
+    "--webpic-axis-z": colorVar(axes?.z, cssRgba(FALLBACK_AXIS.z)),
+  };
+}
+
+// Semantic shading ladder: each rung is a color-mix/shadow/z-index expression over the five base
+// vars, so it tracks whatever theme is applied — one named token per surface/edge/lift/affordance
+// instead of the percentages scattered through UI_CSS. Set on the install root (the floating chrome
+// are its siblings, not the shell's descendants) and inherited like the base vars, including the
+// body-appended popover. Theme-independent (the base vars carry the theme), hence one shared record.
+const DERIVED_TOKENS = {
+  "--webpic-surface": "color-mix(in srgb, var(--webpic-bg) 25%, transparent)",
+  "--webpic-panel": "color-mix(in srgb, var(--webpic-bg) 80%, transparent)",
+  "--webpic-pop": "color-mix(in srgb, var(--webpic-bg) 92%, transparent)",
+  "--webpic-edge": "color-mix(in srgb, var(--webpic-border) 45%, transparent)",
+  "--webpic-edge-soft": "color-mix(in srgb, var(--webpic-border) 55%, transparent)",
+  "--webpic-edge-mid": "color-mix(in srgb, var(--webpic-border) 60%, transparent)",
+  "--webpic-edge-70": "color-mix(in srgb, var(--webpic-border) 70%, transparent)",
+  "--webpic-edge-strong": "color-mix(in srgb, var(--webpic-border) 85%, transparent)",
+  "--webpic-lift": "color-mix(in srgb, var(--webpic-fg) 4%, transparent)",
+  "--webpic-lift-6": "color-mix(in srgb, var(--webpic-fg) 6%, transparent)",
+  "--webpic-hover": "color-mix(in srgb, var(--webpic-fg) 10%, transparent)",
+  "--webpic-active": "color-mix(in srgb, var(--webpic-accent) 20%, transparent)",
+  "--webpic-active-strong": "color-mix(in srgb, var(--webpic-accent) 28%, transparent)",
+  "--webpic-active-edge": "color-mix(in srgb, var(--webpic-accent) 55%, transparent)",
+  "--webpic-seg-pill": "color-mix(in srgb, var(--webpic-accent) 30%, transparent)",
+  "--webpic-shadow-1": "0 6px 22px rgba(0, 0, 0, 0.22)",
+  "--webpic-shadow-2": "0 10px 30px rgba(0, 0, 0, 0.34)",
+  "--webpic-shadow-3": "0 12px 32px rgba(0, 0, 0, 0.36)",
+  "--webpic-shadow-4": "0 16px 40px rgba(0, 0, 0, 0.4)",
+  "--webpic-dim": "color-mix(in srgb, var(--webpic-bg) 55%, transparent)",
+  "--webpic-dim-strong": "color-mix(in srgb, var(--webpic-bg) 70%, transparent)",
+  // Status error is a fixed semantic red (the theme schema has no error color); a recolored
+  // axis-X must not drag it along even though the default hex coincides with the X axis.
+  "--webpic-error": "#e06c75",
+  // z-index ladder (chrome stacking), names ascending with the value. Within-component z (range
+  // grip, segmented seg, minilabel, the topbar reveal's local pop) stay literal — they're local
+  // stacking contexts, not part of this global order.
+  "--webpic-z-chrome": "9",
+  "--webpic-z-shell": "10",
+  "--webpic-z-status": "11",
+  "--webpic-z-card": "12",
+  "--webpic-z-cbar": "13",
+  "--webpic-z-cbar-pop": "14",
+  "--webpic-z-window": "15",
+  "--webpic-z-chrome-label": "30",
+  "--webpic-z-glass": "800",
+  "--webpic-z-flyout": "810",
+  "--webpic-z-modal": "1000",
+  "--webpic-z-popover": "1100",
+} as const satisfies Record<string, string>;
+
+// Map the theme onto every UI custom property: base palette + axis triad + the derived ladder.
+export function applyUiVars(root: HTMLElement, theme?: Theme): void {
+  const vars = { ...baseVars(theme?.colors), ...axisVars(theme?.axes), ...DERIVED_TOKENS };
+  for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
 }
 
 // Inject the stylesheet (idempotent by id) and set the palette vars on `root`. Returns a
 // disposer that clears the vars and removes the <style>. Assumes one install per document.
-export function applyControlStyles(root: HTMLElement, colors?: ThemeColors): Disposer {
-  applyUiVars(root, colors);
+export function applyControlStyles(root: HTMLElement, theme?: Theme): Disposer {
+  applyUiVars(root, theme);
   const doc = root.ownerDocument;
   let style = doc.getElementById(STYLE_ID);
   const owned = style === null;
@@ -41,24 +113,35 @@ export function applyControlStyles(root: HTMLElement, colors?: ThemeColors): Dis
   };
 }
 
-const UI_VARS = [
+// Every property name applyUiVars writes, so the disposer clears them all — a set-but-not-cleared
+// token would leak onto document.body across re-installs (embeds/tests).
+const UI_VARS: readonly string[] = [
   "--webpic-bg",
   "--webpic-fg",
   "--webpic-muted",
   "--webpic-accent",
   "--webpic-border",
+  "--webpic-axis-x",
+  "--webpic-axis-y",
+  "--webpic-axis-z",
+  ...Object.keys(DERIVED_TOKENS),
 ];
 
 const UI_CSS = `
+/* Control-sizing scope: hosts outside .webpic-shell that mount shell-style controls must redeclare
+   these tokens, or var() falls back to auto (facade-control-css-vars). One grouped rule states the
+   contract once; the topbar (pill: 999px/30px) and popover (radius-only) keep their own deliberate
+   values, and the (pointer: coarse) block at the end raises --webpic-unit after this. */
+.webpic-shell, .webpic-flyout, .webpic-cbar, .webpic-cbar-pop, .webpic-window {
+  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px;
+}
 .webpic-shell {
-  position: fixed; top: 12px; bottom: 12px; width: 268px; z-index: 10;
+  position: fixed; top: 12px; bottom: 12px; width: 268px; z-index: var(--webpic-z-shell);
   display: flex; flex-direction: column; gap: 8px; overflow-y: auto;
   padding: 10px; box-sizing: border-box;
   background: var(--webpic-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 8px;
   font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
-  --webpic-input-bg: rgba(0, 0, 0, 0.28);
-  --webpic-radius: 4px; --webpic-unit: 22px;
   transition: opacity 240ms ease;
 }
 /* Cold-start reveal (ui/bootReveal.ts): chrome held invisible while the boot phase is live,
@@ -144,7 +227,7 @@ const UI_CSS = `
 .webpic-swatch:hover, .webpic-swatch:focus-visible { outline: none;
   border-color: color-mix(in srgb, var(--webpic-accent) 50%, var(--webpic-border)); }
 .webpic-swatch_canvas { flex: 1 1 auto; min-width: 0; height: 12px; border-radius: 2px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--webpic-border) 60%, transparent); }
+  box-shadow: inset 0 0 0 1px var(--webpic-edge-mid); }
 .webpic-swatch_name { flex: 0 0 auto; color: var(--webpic-muted); }
 .webpic-swatch_caret { flex: 0 0 auto; display: grid; place-items: center; color: var(--webpic-muted);
   transition: transform .15s ease; }
@@ -159,7 +242,7 @@ const UI_CSS = `
   border-radius: var(--webpic-radius); }
 .webpic-segmented_pill { position: absolute; top: 2px; bottom: 2px; left: 2px;
   width: calc((100% - 4px) / var(--seg-count, 1)); border-radius: calc(var(--webpic-radius) - 1px);
-  background: color-mix(in srgb, var(--webpic-accent) 30%, transparent); pointer-events: none;
+  background: var(--webpic-seg-pill); pointer-events: none;
   transform: translateX(calc(var(--seg-index, 0) * 100%));
   transition: transform .18s cubic-bezier(.4, 0, .2, 1); }
 .webpic-segmented_seg { position: relative; z-index: 1; display: grid; place-items: center; padding: 0;
@@ -168,7 +251,7 @@ const UI_CSS = `
 .webpic-segmented_seg[aria-checked="true"] { color: var(--webpic-fg); }
 .webpic-segmented_seg:focus-visible { outline: none; color: var(--webpic-fg); }
 .webpic-segmented.is-disabled { opacity: 0.5; pointer-events: none; }
-.webpic-chrome { position: fixed; left: 12px; bottom: 12px; z-index: 9; pointer-events: none;
+.webpic-chrome { position: fixed; left: 12px; bottom: 12px; z-index: var(--webpic-z-chrome); pointer-events: none;
   transition: opacity 240ms ease; }
 .webpic-chrome[hidden] { display: none; }
 .webpic-gnomon { position: relative; flex: 0 0 auto; width: 56px; height: 56px; perspective: 220px; }
@@ -176,9 +259,9 @@ const UI_CSS = `
   transform-origin: 50% 50%; }
 .webpic-gnomon_axis { position: absolute; top: 50%; left: 50%; width: 24px; height: 2px;
   transform-origin: 0 50%; border-radius: 1px; }
-.webpic-gnomon_axis.is-x { transform: rotateZ(0deg); background: #e06c75; }   /* +x right */
-.webpic-gnomon_axis.is-y { transform: rotateY(90deg); background: #98c379; }  /* +y into screen */
-.webpic-gnomon_axis.is-z { transform: rotateZ(-90deg); background: #61afef; } /* +z up (z-up world) */
+.webpic-gnomon_axis.is-x { transform: rotateZ(0deg); background: var(--webpic-axis-x); }   /* +x right */
+.webpic-gnomon_axis.is-y { transform: rotateY(90deg); background: var(--webpic-axis-y); }  /* +y into screen */
+.webpic-gnomon_axis.is-z { transform: rotateZ(-90deg); background: var(--webpic-axis-z); } /* +z up (z-up world) */
 /* Clickable ±axis tips (snap-to-view): filled = positive, ring = negative. The chrome overlay is
    pointer-events: none, so tips opt back in. Their transforms are JS-owned (position + a counter-
    rotation keeping the discs screen-facing), hence a halo hover affordance rather than a scale. */
@@ -186,17 +269,17 @@ const UI_CSS = `
   margin: -6px 0 0 -6px; border-radius: 50%; box-sizing: border-box;
   border: 2px solid transparent; cursor: pointer; pointer-events: auto; }
 .webpic-gnomon_tip:hover { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35); }
-.webpic-gnomon_tip.is-px { background: #e06c75; }
-.webpic-gnomon_tip.is-nx { border-color: #e06c75; }
-.webpic-gnomon_tip.is-py { background: #98c379; }
-.webpic-gnomon_tip.is-ny { border-color: #98c379; }
-.webpic-gnomon_tip.is-pz { background: #61afef; }
-.webpic-gnomon_tip.is-nz { border-color: #61afef; }
+.webpic-gnomon_tip.is-px { background: var(--webpic-axis-x); }
+.webpic-gnomon_tip.is-nx { border-color: var(--webpic-axis-x); }
+.webpic-gnomon_tip.is-py { background: var(--webpic-axis-y); }
+.webpic-gnomon_tip.is-ny { border-color: var(--webpic-axis-y); }
+.webpic-gnomon_tip.is-pz { background: var(--webpic-axis-z); }
+.webpic-gnomon_tip.is-nz { border-color: var(--webpic-axis-z); }
 /* Centered bottom button rail (ui/cameraRail): subtle magviz-style icon toggles. pointer-events:
    none on the bar so it never blocks the canvas — each button opts back in. has-gnomon reserves the
    bottom-left gnomon's footprint (12 + 56 + 12) symmetrically, keeping the cluster centered + clear. */
 .webpic-rail { position: fixed; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom));
-  z-index: 9; pointer-events: none;
+  z-index: var(--webpic-z-chrome); pointer-events: none;
   display: flex; justify-content: center; align-items: center; gap: 6px;
   /* The colorbar slides the centered cluster aside (via --webpic-rail-shift) when it docks beside the
      rail, so the two read as one centered group; 0 = the rail owns the center alone. */
@@ -210,10 +293,10 @@ const UI_CSS = `
   border: 1px solid var(--webpic-border); border-radius: 6px;
   transition: opacity .15s ease, background .15s ease, border-color .15s ease; }
 .webpic-rail_btn:hover, .webpic-rail_btn:focus-visible { opacity: 1; outline: none;
-  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+  background: var(--webpic-hover); }
 .webpic-rail_btn[aria-pressed="true"], .webpic-rail_btn.is-copied { opacity: 1;
-  border-color: color-mix(in srgb, var(--webpic-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
+  border-color: var(--webpic-active-edge);
+  background: var(--webpic-active); }
 .webpic-rail_btn svg { display: block; width: 16px; height: 16px; fill: none;
   stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 /* Coordinate chip: a text button (geometry · field units) that opens the grid-info card — auto width
@@ -223,34 +306,34 @@ const UI_CSS = `
   font: 500 11px/30px ui-monospace, "SF Mono", Menlo, monospace;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .webpic-rail_coords[aria-expanded="true"] { opacity: 1;
-  border-color: color-mix(in srgb, var(--webpic-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
+  border-color: var(--webpic-active-edge);
+  background: var(--webpic-active); }
 /* Left tool rail (ui/sideRail): a magviz-style glass card of flush, borderless icon tabs on the left
    edge, vertically centered — the instance-first rail's first occupants (View/Scene, Probe), kept
    distinct from the data layers. Shares the topbar's glass treatment (blur + bg lift on hover) so the
    chrome reads as one family; each tab's slide-out label is its aria-label (the ::after pill). */
 .webpic-siderail { position: fixed; left: calc(8px + env(safe-area-inset-left)); top: 50%;
-  transform: translateY(-50%); z-index: 800; box-sizing: border-box;
+  transform: translateY(-50%); z-index: var(--webpic-z-glass); box-sizing: border-box;
   display: flex; flex-direction: column; gap: 2px; padding: 3px;
-  background: color-mix(in srgb, var(--webpic-bg) 25%, transparent);
-  border: 1px solid color-mix(in srgb, var(--webpic-border) 45%, transparent);
+  background: var(--webpic-surface);
+  border: 1px solid var(--webpic-edge);
   border-radius: 12px;
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--webpic-shadow-1);
   transition: opacity 240ms ease, background .18s ease, border-color .18s ease, box-shadow .18s ease; }
 .webpic-siderail[hidden] { display: none; }
 .webpic-siderail:hover, .webpic-siderail:focus-within {
-  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
-  border-color: color-mix(in srgb, var(--webpic-border) 85%, transparent);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34); }
+  background: var(--webpic-pop);
+  border-color: var(--webpic-edge-strong);
+  box-shadow: var(--webpic-shadow-2); }
 .webpic-siderail_btn { position: relative; box-sizing: border-box; width: 36px; height: 36px; padding: 0;
   display: grid; place-items: center; cursor: pointer; opacity: 0.65;
   background: transparent; color: var(--webpic-muted); border: none; border-radius: 7px;
   transition: opacity .12s ease, background .12s ease, color .12s ease; }
 .webpic-siderail_btn:hover, .webpic-siderail_btn:focus-visible { opacity: 1; outline: none;
-  color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
+  color: var(--webpic-fg); background: var(--webpic-hover); }
 .webpic-siderail_btn[aria-pressed="true"] { opacity: 1; color: var(--webpic-fg);
-  background: color-mix(in srgb, var(--webpic-accent) 28%, transparent);
+  background: var(--webpic-active-strong);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
 .webpic-siderail_btn svg { display: block; width: 18px; height: 18px; fill: none;
   stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -258,12 +341,12 @@ const UI_CSS = `
    right, after a short delay so a quick mouseover doesn't flash it. */
 .webpic-siderail_btn::after { content: attr(aria-label); position: absolute; left: calc(100% + 12px);
   top: 50%; transform: translate(-6px, -50%); padding: 5px 10px; white-space: nowrap;
-  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
+  background: var(--webpic-pop);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  border: 1px solid color-mix(in srgb, var(--webpic-border) 85%, transparent); border-radius: 7px;
+  border: 1px solid var(--webpic-edge-strong); border-radius: 7px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28); color: var(--webpic-fg);
   font: 500 11px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.03em;
-  opacity: 0; pointer-events: none; z-index: 30;
+  opacity: 0; pointer-events: none; z-index: var(--webpic-z-chrome-label);
   transition: opacity 140ms ease, transform 140ms ease; }
 .webpic-siderail_btn:hover::after, .webpic-siderail_btn:focus-visible::after {
   opacity: 1; transform: translate(0, -50%); transition-delay: 200ms; }
@@ -272,29 +355,27 @@ const UI_CSS = `
 /* Rail flyout (ui/sideRail): a magviz-style panel that opens beside a rail tab, a speech-bubble tail
    pointing back at the button. Glass like the topbar; ui/sideRail writes top/left + --arrow-pos on
    open, and overflow stays visible so the tail can sit outside the left edge. */
-.webpic-flyout { position: fixed; z-index: 810; box-sizing: border-box; width: 280px;
+.webpic-flyout { position: fixed; z-index: var(--webpic-z-flyout); box-sizing: border-box; width: 280px;
   max-height: calc(100vh - 24px); display: flex; flex-direction: column; overflow: visible;
   color: var(--webpic-fg);
-  background: color-mix(in srgb, var(--webpic-bg) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--webpic-border) 70%, transparent);
-  border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+  background: var(--webpic-panel);
+  border: 1px solid var(--webpic-edge-70);
+  border-radius: 10px; box-shadow: var(--webpic-shadow-3);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
-  /* Control-sizing vars are scoped to .webpic-shell / .webpic-topbar; redeclare them so the mounted
-     pane's checkboxes/slider size correctly outside the shell (otherwise var() falls back to auto). */
-  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
+}
 .webpic-flyout[hidden] { display: none; }
 .webpic-flyout_header { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; height: 30px;
   padding: 0 4px 0 11px; border-radius: 9px 9px 0 0; /* nests inside the 10px/1px border (overflow is visible) */
-  background: color-mix(in srgb, var(--webpic-fg) 4%, transparent); /* lifted header, matching the floating window */
-  border-bottom: 1px solid color-mix(in srgb, var(--webpic-border) 55%, transparent); }
+  background: var(--webpic-lift); /* lifted header, matching the floating window */
+  border-bottom: 1px solid var(--webpic-edge-soft); }
 .webpic-flyout_title { flex: 1; font-size: 10px; line-height: 1; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--webpic-muted); }
 .webpic-flyout_close { appearance: none; display: grid; place-items: center; width: 20px; height: 20px;
   padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--webpic-muted);
   cursor: pointer; opacity: 0.6; transition: opacity .12s ease, background .12s ease, color .12s ease; }
 .webpic-flyout_close:hover, .webpic-flyout_close:focus-visible { opacity: 1; outline: none;
-  color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
+  color: var(--webpic-fg); background: var(--webpic-hover); }
 .webpic-flyout_close svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
   stroke-width: 1.6; stroke-linecap: round; }
 .webpic-flyout_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 9px 9px; }
@@ -309,14 +390,14 @@ const UI_CSS = `
 .webpic-flyout_arrow::before, .webpic-flyout_arrow::after { content: ""; position: absolute;
   width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
 .webpic-flyout_arrow::before { top: -9px; right: 0;
-  border-right: 9px solid color-mix(in srgb, var(--webpic-border) 70%, transparent); }
+  border-right: 9px solid var(--webpic-edge-70); }
 .webpic-flyout_arrow::after { top: -8px; right: -1px;
-  border-right: 8px solid color-mix(in srgb, var(--webpic-bg) 80%, transparent); }
+  border-right: 8px solid var(--webpic-panel); }
 /* Grid-info card: a parent-level floating dialog above the rail (ui/cameraRail). pointer-events: auto
    so its copy button works; z-index over the transient status pill (11), under the help modal (20). */
 .webpic-coords-card { position: fixed; left: 50%; bottom: calc(54px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  z-index: 12; pointer-events: auto; box-sizing: border-box; min-width: 248px; max-width: 92vw;
+  z-index: var(--webpic-z-card); pointer-events: auto; box-sizing: border-box; min-width: 248px; max-width: 92vw;
   padding: 10px 12px; background: var(--webpic-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 8px;
   font: 500 11px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
@@ -333,7 +414,7 @@ const UI_CSS = `
    the rail on devices with a home indicator. The delayed visibility transition on fade-out keeps the
    element readable through the fade, then drops it from the a11y tree; fade-in flips visibility instantly. */
 .webpic-status { position: fixed; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom));
-  z-index: 11; pointer-events: none;
+  z-index: var(--webpic-z-status); pointer-events: none;
   display: flex; align-items: center; gap: 9px; padding: 8px 15px;
   background: var(--webpic-bg); color: var(--webpic-muted);
   border: 1px solid var(--webpic-border); border-radius: 999px;
@@ -346,7 +427,7 @@ const UI_CSS = `
   border: 2px solid var(--webpic-border); border-top-color: var(--webpic-accent);
   animation: webpic-spin 0.9s linear infinite; }
 .webpic-status_text { white-space: nowrap; }
-.webpic-status[data-kind="error"] { color: #e06c75; border-color: rgba(224, 108, 117, 0.4); }
+.webpic-status[data-kind="error"] { color: var(--webpic-error); border-color: color-mix(in srgb, var(--webpic-error) 40%, transparent); }
 .webpic-status[data-kind="error"] .webpic-status_spinner { animation: none;
   border-color: currentColor; opacity: 0.5; }
 @keyframes webpic-spin { to { transform: rotate(360deg); } }
@@ -356,8 +437,8 @@ const UI_CSS = `
 }
 /* Keyboard cheat-sheet modal (ui/helpOverlay.ts): full-viewport dimmer + a centered card. z-index in a
    high band (above the floating-window stack, which rises from 15 without bound — see floating/zStack). */
-.webpic-help { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center;
-  justify-content: center; padding: 24px; box-sizing: border-box; background: rgba(8, 12, 16, 0.55);
+.webpic-help { position: fixed; inset: 0; z-index: var(--webpic-z-modal); display: flex; align-items: center;
+  justify-content: center; padding: 24px; box-sizing: border-box; background: var(--webpic-dim);
   color: var(--webpic-fg); font: 500 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
 .webpic-help[hidden] { display: none; }
 .webpic-help_panel { width: 100%; max-width: 680px; max-height: 100%; overflow-y: auto;
@@ -371,7 +452,7 @@ const UI_CSS = `
 .webpic-help_keys { color: var(--webpic-fg); white-space: nowrap; font: inherit; }
 .webpic-help_action { color: var(--webpic-muted); text-align: right; }
 @media (prefers-reduced-motion: reduce) {
-  .webpic-help { background: rgba(8, 12, 16, 0.7); }
+  .webpic-help { background: var(--webpic-dim-strong); }
 }
 /* Top menu bar (ui/topBar): brand + dataset/field pickers + time scrub + a hover-revealed action
    cluster. A centered, content-sized translucent glass pill (magviz's topbar): ~25% bg + blur, with
@@ -379,24 +460,24 @@ const UI_CSS = `
    currentColor, so dimming the 'color' prop dims text + icons together; the accent brand mark is exempt.
    Declares the shell-local control tokens itself since it lives outside .webpic-shell. */
 .webpic-topbar { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%;
-  transform: translateX(-50%); z-index: 800; box-sizing: border-box;
+  transform: translateX(-50%); z-index: var(--webpic-z-glass); box-sizing: border-box;
   display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 46px;
   max-width: calc(100vw - 24px);
   color: color-mix(in srgb, var(--webpic-fg) calc(var(--topbar-fg) * 100%), transparent);
-  background: color-mix(in srgb, var(--webpic-bg) 25%, transparent);
-  border: 1px solid color-mix(in srgb, var(--webpic-border) 45%, transparent);
+  background: var(--webpic-surface);
+  border: 1px solid var(--webpic-edge);
   border-radius: 999px;
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--webpic-shadow-1);
   font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
   --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 999px; --webpic-unit: 30px;
   --topbar-fg: 0.78;
   transition: opacity 240ms ease, background .18s ease, border-color .18s ease,
     box-shadow .18s ease, color .18s ease; }
 .webpic-topbar:hover, .webpic-topbar:focus-within { --topbar-fg: 1;
-  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
-  border-color: color-mix(in srgb, var(--webpic-border) 85%, transparent);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34); }
+  background: var(--webpic-pop);
+  border-color: var(--webpic-edge-strong);
+  box-shadow: var(--webpic-shadow-2); }
 .webpic-topbar[hidden] { display: none; }
 .webpic-topbar_brand { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding-right: 4px;
   font-weight: 700; letter-spacing: 0.04em; }
@@ -409,10 +490,10 @@ const UI_CSS = `
   border: 1px solid var(--webpic-border); border-radius: var(--webpic-radius);
   transition: background .15s ease, border-color .15s ease, opacity .15s ease; }
 .webpic-topbar_btn:hover, .webpic-topbar_btn:focus-visible { outline: none;
-  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+  background: var(--webpic-hover); }
 .webpic-topbar_btn[aria-expanded="true"] {
-  border-color: color-mix(in srgb, var(--webpic-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); }
+  border-color: var(--webpic-active-edge);
+  background: var(--webpic-active); }
 .webpic-topbar_btn:disabled { opacity: 0.4; cursor: default; }
 .webpic-topbar_btn:disabled:hover { background: var(--webpic-input-bg); }
 /* Dataset/field pickers recede at rest (their solid fill otherwise competes with the scene); the
@@ -442,9 +523,9 @@ const UI_CSS = `
   white-space: nowrap; font-variant-numeric: tabular-nums;
   transition: background .15s ease, color .15s ease; }
 .webpic-topbar_chip:hover, .webpic-topbar_chip:focus-visible { outline: none; color: var(--webpic-fg);
-  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+  background: var(--webpic-hover); }
 .webpic-topbar_chip[aria-expanded="true"] { color: var(--webpic-fg);
-  background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); } /* accent tint on open, like the buttons */
+  background: var(--webpic-active); } /* accent tint on open, like the buttons */
 .webpic-topbar_chip:disabled { cursor: default; }
 .webpic-topbar_chip:disabled:hover { background: transparent; color: var(--webpic-muted); }
 .webpic-topbar_chip .webpic-topbar_caret svg { transition: transform .18s ease; }
@@ -457,7 +538,7 @@ const UI_CSS = `
   border-radius: var(--webpic-radius); cursor: pointer;
   transition: opacity .15s ease, background .15s ease; }
 .webpic-topbar_step-btn:hover, .webpic-topbar_step-btn:focus-visible { opacity: 1; outline: none;
-  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+  background: var(--webpic-hover); }
 .webpic-topbar_step-btn:disabled { opacity: 0.3; cursor: default; }
 .webpic-topbar_step-btn:disabled:hover { background: transparent; }
 .webpic-topbar_step-btn svg { display: block; width: 14px; height: 14px; fill: none;
@@ -476,10 +557,10 @@ const UI_CSS = `
 .webpic-topbar_chevron svg { transition: transform .18s ease; }
 .webpic-topbar_reveal.is-expanded .webpic-topbar_chevron svg { transform: rotate(180deg); }
 .webpic-topbar_pop { position: absolute; top: 100%; margin-top: 15px; z-index: 1;
-  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
+  background: var(--webpic-pop);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  border: 1px solid color-mix(in srgb, var(--webpic-border) 85%, transparent);
-  border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+  border: 1px solid var(--webpic-edge-strong);
+  border-radius: 12px; box-shadow: var(--webpic-shadow-3);
   opacity: 0; visibility: hidden; transform: translate(var(--pop-x, 0px), -6px); pointer-events: none;
   transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s; }
 .webpic-topbar_reveal.is-expanded > .webpic-topbar_pop { opacity: 1; visibility: visible;
@@ -488,9 +569,9 @@ const UI_CSS = `
 .webpic-topbar_pop::before, .webpic-topbar_pop::after { content: ""; position: absolute;
   bottom: 100%; border: 8px solid transparent; }
 .webpic-topbar_pop::before {
-  border-bottom-color: color-mix(in srgb, var(--webpic-border) 85%, transparent); }
+  border-bottom-color: var(--webpic-edge-strong); }
 .webpic-topbar_pop::after { margin-bottom: -1px;
-  border-bottom-color: color-mix(in srgb, var(--webpic-bg) 92%, transparent); }
+  border-bottom-color: var(--webpic-pop); }
 /* Actions popover: right-anchored 2-col icon grid, arrow near the right. */
 .webpic-topbar_actions { right: 0; padding: 6px; }
 .webpic-topbar_actions-grid { display: grid; grid-template-columns: repeat(2, var(--webpic-unit));
@@ -517,7 +598,7 @@ const UI_CSS = `
    divides them from the action icons above; the readout de-buttons into a plain field. */
 .webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_time { flex-direction: column;
   align-items: stretch; gap: 6px; margin: 0 -8px -8px; padding: 8px; border-radius: 0 0 11px 11px;
-  background: color-mix(in srgb, var(--webpic-fg) 6%, transparent); }
+  background: var(--webpic-lift-6); }
 .webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_chip { width: 100%; height: auto;
   padding: 0; justify-content: center; cursor: default; pointer-events: none;
   color: var(--webpic-muted); }
@@ -533,19 +614,19 @@ const UI_CSS = `
 /* Anchored single-select popover (ui/controls/popover) — the dataset + content pickers share it.
    Body-appended (escapes the bar's clip); z-index above the help modal (1000) so a transient menu is
    never occluded — even over a raised floating panel. Declares the control tokens locally. */
-.webpic-popover { position: fixed; z-index: 1100; box-sizing: border-box; min-width: 200px;
+.webpic-popover { position: fixed; z-index: var(--webpic-z-popover); box-sizing: border-box; min-width: 200px;
   max-height: min(60vh, 420px); overflow-y: auto; padding: 4px;
   background: var(--webpic-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 8px;
   font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
-  --webpic-radius: 4px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36); }
+  --webpic-radius: 4px; box-shadow: var(--webpic-shadow-3); }
 .webpic-popover[hidden] { display: none; }
 .webpic-popover_item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px;
   border-radius: var(--webpic-radius); cursor: pointer; }
 .webpic-popover_item.is-active, .webpic-popover_item:hover {
-  background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
+  background: var(--webpic-hover); }
 .webpic-popover_item[aria-selected="true"] {
-  background: color-mix(in srgb, var(--webpic-accent) 18%, transparent); }
+  background: var(--webpic-active); }
 .webpic-popover_check { flex: 0 0 14px; display: grid; place-items: center; height: 16px; opacity: 0; }
 .webpic-popover_item[aria-selected="true"] .webpic-popover_check { opacity: 1; }
 .webpic-popover_check svg { display: block; width: 12px; height: 12px; fill: none;
@@ -566,12 +647,12 @@ const UI_CSS = `
    drag, then snapped to inline left/right/top/bottom anchors with data-edge driving orientation
    (left/right → vertical, top/bottom → horizontal). Declares the shell-local control tokens itself
    (it lives outside .webpic-shell). z over the coords card (12), under the help modal (20). */
-.webpic-cbar { position: fixed; z-index: 13; box-sizing: border-box; display: flex;
+.webpic-cbar { position: fixed; z-index: var(--webpic-z-cbar); box-sizing: border-box; display: flex;
   align-items: center; gap: 8px; padding: 7px 9px; cursor: grab; touch-action: none;
   color: var(--webpic-fg);
-  background: color-mix(in srgb, var(--webpic-bg) 25%, transparent);
-  border: 1px solid color-mix(in srgb, var(--webpic-border) 45%, transparent);
-  border-radius: 12px; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
+  background: var(--webpic-surface);
+  border: 1px solid var(--webpic-edge);
+  border-radius: 12px; box-shadow: var(--webpic-shadow-1);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
   transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
@@ -579,12 +660,12 @@ const UI_CSS = `
     left .3s cubic-bezier(0.25, 1, 0.5, 1), right .3s cubic-bezier(0.25, 1, 0.5, 1),
     top .3s cubic-bezier(0.25, 1, 0.5, 1), bottom .3s cubic-bezier(0.25, 1, 0.5, 1),
     transform .3s cubic-bezier(0.25, 1, 0.5, 1);
-  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
+}
 .webpic-cbar[hidden] { display: none; }
 .webpic-cbar:hover, .webpic-cbar:focus-within {
-  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
-  border-color: color-mix(in srgb, var(--webpic-border) 85%, transparent);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34); }
+  background: var(--webpic-pop);
+  border-color: var(--webpic-edge-strong);
+  box-shadow: var(--webpic-shadow-2); }
 /* No transform transition during a drag (latency); restore the grab affordance on release. */
 .webpic-cbar.is-dragging { transition: none; cursor: grabbing; }
 /* Resize pivot for collapse/expand: translate the FREE axis by -50% so the strip grows/shrinks
@@ -616,7 +697,7 @@ const UI_CSS = `
 .webpic-cbar[data-edge="left"] .webpic-cbar_main, .webpic-cbar[data-edge="right"] .webpic-cbar_main {
   flex-direction: row; align-items: stretch; }
 .webpic-cbar_strip { position: relative; flex: 0 0 auto; border-radius: 4px; overflow: hidden;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--webpic-border) 60%, transparent);
+  box-shadow: inset 0 0 0 1px var(--webpic-edge-mid);
   transition: width .28s cubic-bezier(0.25, 1, 0.5, 1), height .28s cubic-bezier(0.25, 1, 0.5, 1); }
 .webpic-cbar[data-edge="top"] .webpic-cbar_strip, .webpic-cbar[data-edge="bottom"] .webpic-cbar_strip {
   width: 320px; height: 20px; }
@@ -709,24 +790,24 @@ const UI_CSS = `
   place-items: center; cursor: pointer; opacity: 0.6; background: transparent; color: var(--webpic-muted);
   border: none; border-radius: 5px; transition: opacity .12s ease, background .12s ease, color .12s ease; }
 .webpic-cbar_btn:hover, .webpic-cbar_btn:focus-visible { opacity: 1; outline: none; color: var(--webpic-fg);
-  background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
+  background: var(--webpic-hover); }
 .webpic-cbar_settings[aria-expanded="true"] { opacity: 1; color: var(--webpic-fg);
-  background: color-mix(in srgb, var(--webpic-accent) 28%, transparent); }
+  background: var(--webpic-active-strong); }
 .webpic-cbar_btn svg { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 /* Colorbar settings popover (ui/colorbar/colorbarSettings): a small glass dialog hosting the colormap
    controls, body-appended so it escapes the bar's clip; positioned beside the gear toward the
    viewport center. Headerless (Esc + outside-click dismiss) — too small for a title bar; each control
    stacks full-width with its own uppercase mini-label above it. */
-.webpic-cbar-pop { position: fixed; z-index: 14; box-sizing: border-box; width: 240px;
+.webpic-cbar-pop { position: fixed; z-index: var(--webpic-z-cbar-pop); box-sizing: border-box; width: 240px;
   max-height: calc(100vh - 16px); display: flex; flex-direction: column; overflow: hidden;
   color: var(--webpic-fg);
-  background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
-  border: 1px solid color-mix(in srgb, var(--webpic-border) 85%, transparent);
-  border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+  background: var(--webpic-pop);
+  border: 1px solid var(--webpic-edge-strong);
+  border-radius: 10px; box-shadow: var(--webpic-shadow-3);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
-  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
+}
 .webpic-cbar-pop[hidden] { display: none; }
 .webpic-cbar-pop_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 11px 11px 12px; }
 .webpic-cbar-pop_body .webpic-pane_title, .webpic-cbar-pop_body .webpic-folder_bar { display: none; }
@@ -751,26 +832,26 @@ const UI_CSS = `
    the SE-corner grip resizes it; pointerdown raises it. Declares the shell-local control tokens
    itself (it lives outside .webpic-shell). z over the colorbar (13)/its popover (14), under the help
    modal (20) and global control popovers (30). */
-.webpic-window { position: fixed; z-index: 15; box-sizing: border-box; display: flex;
+.webpic-window { position: fixed; z-index: var(--webpic-z-window); box-sizing: border-box; display: flex;
   flex-direction: column; overflow: hidden; color: var(--webpic-fg);
-  background: color-mix(in srgb, var(--webpic-bg) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--webpic-border) 60%, transparent);
+  background: var(--webpic-panel);
+  border: 1px solid var(--webpic-edge-mid);
   border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
   transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
   transition: opacity 240ms ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
-  --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
+}
 .webpic-window[hidden] { display: none; }
 .webpic-window:hover, .webpic-window:focus-within {
-  border-color: color-mix(in srgb, var(--webpic-border) 85%, transparent);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4); }
+  border-color: var(--webpic-edge-strong);
+  box-shadow: var(--webpic-shadow-4); }
 /* Immediate tracking during a gesture — no position/size lag. */
 .webpic-window.is-dragging, .webpic-window.is-resizing { transition: none; }
 .webpic-window_bar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; height: 28px;
   padding: 0 8px 0 10px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--webpic-border) 45%, transparent);
-  background: color-mix(in srgb, var(--webpic-fg) 4%, transparent); }
+  border-bottom: 1px solid var(--webpic-edge);
+  background: var(--webpic-lift); }
 .webpic-window.is-dragging .webpic-window_bar { cursor: grabbing; }
 /* Grip dots (magviz): a 2×3 radial-gradient grid; brighten on header hover. Visual only. */
 .webpic-window_grip { flex: 0 0 auto; width: 8px; height: 14px; opacity: 0.3; pointer-events: none;
@@ -785,7 +866,7 @@ const UI_CSS = `
   padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--webpic-muted);
   cursor: pointer; opacity: 0.6; transition: opacity .12s ease, background .12s ease, color .12s ease; }
 .webpic-window_close:hover, .webpic-window_close:focus-visible { opacity: 1; outline: none;
-  color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
+  color: var(--webpic-fg); background: var(--webpic-hover); }
 .webpic-window_close svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
   stroke-width: 1.6; stroke-linecap: round; }
 .webpic-window_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 10px 10px; }
@@ -826,7 +907,7 @@ const UI_CSS = `
 /* No-hover devices can't trigger the bar's dim→bright, so pin it bright + more opaque for legibility.
    Distinct from (pointer: coarse): a touchscreen laptop is hover:none but pointer:fine. */
 @media (hover: none) {
-  .webpic-topbar { --topbar-fg: 1; background: color-mix(in srgb, var(--webpic-bg) 92%, transparent); }
+  .webpic-topbar { --topbar-fg: 1; background: var(--webpic-pop); }
   .webpic-topbar_dataset, .webpic-topbar_field { opacity: 1; } /* no hover to bring them back */
 }
 `;

@@ -105,6 +105,15 @@ export function cssRgba(color: Rgba01): string {
   return `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${a})`;
 }
 
+// Canonical axis-triad palette (X red, Y green, Z blue): the corner gnomon's HUD colors and the
+// fallback for the in-scene 3D axes when a theme omits axis colors. One source so the HUD gnomon
+// (ui/theme/styles) and the render overlay (app/sceneSync) can't drift apart.
+export const FALLBACK_AXIS: { readonly x: Rgba01; readonly y: Rgba01; readonly z: Rgba01 } = {
+  x: [0.878, 0.424, 0.459, 1], // #e06c75
+  y: [0.596, 0.765, 0.475, 1], // #98c379
+  z: [0.38, 0.686, 0.937, 1], // #61afef
+};
+
 const ColorSchema = z
   .union([
     z.string().regex(HEX_RE, "expected #rgb or #rrggbb hex color"),

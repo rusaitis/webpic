@@ -1,9 +1,10 @@
 import { DATASET_CATALOG } from "@schema/datasets.ts";
 import type { FieldName } from "@schema/types.ts";
 import type { SimulationStore, UiStore } from "@store";
-import { makeEl } from "./controls/dom.ts";
+import { makeEl, makeIconButton } from "./controls/dom.ts";
 import { createPopover, type Disposer, type RangeValue } from "./controls/index.ts";
 import { createRangeControl } from "./controls/rangeControl.ts";
+import { ICON_CARET_FLAT } from "./icons.ts";
 import {
   datasetLabel,
   fieldButtonLabel,
@@ -26,7 +27,6 @@ import {
 
 // 16×16 inline SVGs (no icon-font dep); `fill: none; stroke: currentColor` come from the bar CSS.
 const BRAND_SVG = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.6 9.4c2.1-4.8 4.4-4.8 6.4 0"/><path d="M8 6.6c2 4.8 4.3 4.8 6.4 0"/></svg>`;
-const CARET_SVG = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10l4-3.5"/></svg>`;
 const ICON = {
   prev: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.5 3 6 8l5.5 5"/><path d="M5 3v10"/></svg>`,
   next: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3 10 8l-5.5 5"/><path d="M11 3v10"/></svg>`,
@@ -48,27 +48,15 @@ export function installTopBar(
 
   const caret = (): HTMLSpanElement => {
     const span = makeEl(doc, "span", "webpic-topbar_caret");
-    span.innerHTML = CARET_SVG;
+    span.innerHTML = ICON_CARET_FLAT;
     return span;
   };
-  const iconButton = (control: string, icon: string, title: string): HTMLButtonElement => {
-    const btn = makeEl(doc, "button", "webpic-topbar_btn webpic-topbar_icon");
-    btn.type = "button";
-    btn.dataset.control = control;
-    btn.title = title;
-    btn.innerHTML = icon;
-    return btn;
-  };
+  const iconButton = (control: string, icon: string, title: string): HTMLButtonElement =>
+    makeIconButton(doc, "webpic-topbar_btn webpic-topbar_icon", icon, { control, title });
   // Compact, borderless step buttons (magviz's subtle scrubber) — distinct from the filled picker /
   // icon buttons; styled by .webpic-topbar_step-btn.
-  const stepButton = (control: string, icon: string, title: string): HTMLButtonElement => {
-    const btn = makeEl(doc, "button", "webpic-topbar_step-btn");
-    btn.type = "button";
-    btn.dataset.control = control;
-    btn.title = title;
-    btn.innerHTML = icon;
-    return btn;
-  };
+  const stepButton = (control: string, icon: string, title: string): HTMLButtonElement =>
+    makeIconButton(doc, "webpic-topbar_step-btn", icon, { control, title });
   const pickerButton = (control: string, extra: string, title: string): HTMLButtonElement => {
     const btn = makeEl(doc, "button", `webpic-topbar_btn ${extra}`);
     btn.type = "button";
@@ -260,7 +248,7 @@ export function installTopBar(
   // milestones land) action buttons. Same reveal mechanism + glass-card (.webpic-topbar_pop) as the
   // time chip. The popover is absolute, so it never widens the bar.
   const actionsWrap = makeEl(doc, "div", "webpic-topbar_reveal");
-  const chevron = iconButton("more", CARET_SVG, "More actions");
+  const chevron = iconButton("more", ICON_CARET_FLAT, "More actions");
   chevron.classList.add("webpic-topbar_chevron");
   chevron.setAttribute("aria-haspopup", "true");
   chevron.setAttribute("aria-expanded", "false");

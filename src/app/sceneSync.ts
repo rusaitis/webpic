@@ -6,7 +6,7 @@ import {
   type SceneOverlayConfig,
 } from "@render/messages.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
-import type { Rgba01, Theme } from "@schema/theme.ts";
+import { FALLBACK_AXIS, type Rgba01, type Theme } from "@schema/theme.ts";
 import { type OverlayState, type SimulationStore, worldHalfExtentForGrid } from "@store";
 import { createStoreBridge } from "./storeBridge.ts";
 
@@ -20,11 +20,8 @@ const GRID_MAJOR_OPACITY = 0.4;
 
 const AXIS_NAMES = ["x", "y", "z"] as const;
 
-// Fallback palette = the corner gnomon's CSS colors (ui/theme/styles.ts) so the in-scene axes agree
-// with the HUD when no theme is loaded; grid/label fall back to the muted foreground.
-const FALLBACK_AXIS_X: Rgba01 = [0.878, 0.424, 0.459, 1]; // #e06c75
-const FALLBACK_AXIS_Y: Rgba01 = [0.596, 0.765, 0.475, 1]; // #98c379
-const FALLBACK_AXIS_Z: Rgba01 = [0.38, 0.686, 0.937, 1]; // #61afef
+// Grid/label fall back to the muted foreground when no theme is loaded; the axis triad shares the
+// canonical FALLBACK_AXIS (schema/theme) with the HUD gnomon so the in-scene axes always agree.
 const FALLBACK_GRID: Rgba01 = [0.784, 0.816, 0.847, 0.16]; // ≈ --webpic-border
 const FALLBACK_LABEL: Rgba01 = [0.784, 0.816, 0.847, 1]; // #c8d0d8 foreground
 
@@ -39,9 +36,9 @@ export function resolveOverlayColors(theme?: Theme): ResolvedOverlayColors {
   return {
     grid: theme?.colors.grid ?? FALLBACK_GRID,
     axes: {
-      x: theme?.axes.x ?? FALLBACK_AXIS_X,
-      y: theme?.axes.y ?? FALLBACK_AXIS_Y,
-      z: theme?.axes.z ?? FALLBACK_AXIS_Z,
+      x: theme?.axes.x ?? FALLBACK_AXIS.x,
+      y: theme?.axes.y ?? FALLBACK_AXIS.y,
+      z: theme?.axes.z ?? FALLBACK_AXIS.z,
     },
     label: theme?.colors.text ?? FALLBACK_LABEL,
   };

@@ -69,7 +69,7 @@ export function installCameraChrome(
   const container = makeEl(doc, "div", "webpic-chrome");
 
   const gnomon = makeEl(doc, "div", "webpic-gnomon");
-  gnomon.title = "Camera orientation — X red, Y green, Z blue. Click a tip to snap the view.";
+  gnomon.title = "Camera orientation. Click a tip to snap the view.";
   const scene = makeEl(doc, "div", "webpic-gnomon_scene");
   for (const axis of ["x", "y", "z"] as const) {
     const arm = makeEl(doc, "div", `webpic-gnomon_axis is-${axis}`);

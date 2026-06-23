@@ -32,7 +32,7 @@ export function installUi(opts: InstallUiOptions): () => void {
   const panels = layout.defaultPanels;
 
   const disposers: Disposer[] = [];
-  disposers.push(applyControlStyles(opts.parent, opts.theme?.colors));
+  disposers.push(applyControlStyles(opts.parent, opts.theme));
 
   // Class on before the chrome mounts, so it never flashes over the blank boot canvas.
   disposers.push(installBootReveal(opts.parent, opts.uiStore));

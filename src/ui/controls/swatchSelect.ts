@@ -1,3 +1,4 @@
+import { ICON_CARET } from "../icons.ts";
 import { makeEl } from "./dom.ts";
 import { createPopover } from "./popover.ts";
 import type { SelectOption, SelectWidget } from "./types.ts";
@@ -8,7 +9,6 @@ import type { SelectOption, SelectWidget } from "./types.ts";
 // trigger is a <button> because createPopover anchors to one. Conforms to SelectWidget so the facade
 // wraps it exactly like a native select.
 
-const CARET = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>`;
 const TRIGGER_W = 120;
 const ROW_W = 180;
 const SWATCH_H = 14;
@@ -31,7 +31,7 @@ export function createSwatchSelect<V extends string>(
   canvas.height = SWATCH_H;
   const name = makeEl(doc, "span", "webpic-swatch_name");
   const caret = makeEl(doc, "span", "webpic-swatch_caret");
-  caret.innerHTML = CARET;
+  caret.innerHTML = ICON_CARET;
   button.append(canvas, name, caret);
 
   const reflectTrigger = (): void => {

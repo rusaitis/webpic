@@ -1,7 +1,7 @@
 import { type ColormapBinding, type ColormapId, DEFAULT_COLORMAP } from "@schema/colormap.ts";
 import { FIELD_REGISTRY } from "@schema/registry.ts";
 import { type SimulationStore, selectActiveBinding, type UiStore } from "@store";
-import { makeEl } from "../controls/dom.ts";
+import { makeEl, makeIconButton } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { type Box, installDragSnap, type PaneEdge, type Viewport } from "../floating/dragSnap.ts";
 import { installRaise } from "../floating/zStack.ts";
@@ -77,12 +77,11 @@ export function installColorbar(
 
   const actions = makeEl(doc, "div", "webpic-cbar_actions");
   actions.dataset.noDrag = ""; // never start a drag from the controls cluster
-  const settingsBtn = makeEl(doc, "button", "webpic-cbar_btn webpic-cbar_settings");
-  settingsBtn.type = "button";
-  settingsBtn.setAttribute("aria-label", "Colormap settings");
+  const settingsBtn = makeIconButton(doc, "webpic-cbar_btn webpic-cbar_settings", ICON.settings, {
+    ariaLabel: "Colormap settings",
+  });
   settingsBtn.setAttribute("aria-haspopup", "dialog");
   settingsBtn.setAttribute("aria-expanded", "false");
-  settingsBtn.innerHTML = ICON.settings;
   actions.append(settingsBtn);
 
   container.append(main, actions);
@@ -96,7 +95,15 @@ export function installColorbar(
   let paintedHorizontal: boolean | null = null;
   let paintedColormap: ColormapId | null = null;
 
+  // Tick labels depend only on the window (center/width) + scale; skip the full tick-DOM rebuild
+  // when those are unchanged — a colormap/field/orientation edit, or a window-drag frame that rounds
+  // to the same labels, leaves the ticks identical. Field-agnostic, so a field swap isn't keyed.
+  let paintedTicksSig: string | null = null;
   const renderTicks = (binding: ColormapBinding | null): void => {
+    const sig =
+      binding === null ? "∅" : `${binding.window.center}|${binding.window.width}|${binding.scale}`;
+    if (sig === paintedTicksSig) return;
+    paintedTicksSig = sig;
     ticks.replaceChildren();
     if (binding === null) return;
     for (const tk of tickLabels(binding.window, binding.scale, TICK_TARGET)) {

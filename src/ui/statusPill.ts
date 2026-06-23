@@ -54,7 +54,7 @@ export function installStatusPill(parent: HTMLElement, uiStore: UiStore): Dispos
       cancelShow();
       cancelHide();
       container.dataset.kind = "error";
-      text.textContent = statusError.message;
+      if (text.textContent !== statusError.message) text.textContent = statusError.message;
       if (!isShown) show();
       clearTimeout(errorTimer);
       errorTimer = setTimeout(() => uiStore.getState().clearError(), STATUS_ERROR_VISIBLE_MS);
@@ -67,7 +67,7 @@ export function installStatusPill(parent: HTMLElement, uiStore: UiStore): Dispos
     // open completes first — newest-wins flashed A→B→A there).
     const current = loadingPhases[0];
     if (current !== undefined) {
-      text.textContent = current.message;
+      if (text.textContent !== current.message) text.textContent = current.message;
       cancelHide();
       if (!isShown && showTimer === undefined) {
         showTimer = setTimeout(() => {

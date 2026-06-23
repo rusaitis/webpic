@@ -1,4 +1,5 @@
-import { makeEl } from "../controls/dom.ts";
+import { makeEl, makeIconButton } from "../controls/dom.ts";
+import { ICON_CLOSE } from "../icons.ts";
 import { installCornerResize } from "./cornerResize.ts";
 import { installDragSnap } from "./dragSnap.ts";
 import { bringToFront, installRaise } from "./zStack.ts";
@@ -16,9 +17,6 @@ const DEFAULT_MIN_WIDTH_PX = 200;
 const DEFAULT_MIN_HEIGHT_PX = 140;
 const DEFAULT_TOP_PX = 64; // clear of the top bar
 const DEFAULT_RIGHT_PX = 16;
-
-// Matches the colorbar settings popover's × so the close affordance reads the same across chrome.
-const CLOSE_ICON = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>`;
 
 export interface FloatingWindowInitial {
   readonly top?: number;
@@ -71,10 +69,7 @@ export function createFloatingWindow(opts: FloatingWindowOptions): FloatingWindo
   const actions = makeEl(doc, "div", "webpic-window_actions");
   actions.dataset.noDrag = "";
   if (opts.onClose !== undefined) {
-    const closeBtn = makeEl(doc, "button", "webpic-window_close");
-    closeBtn.type = "button";
-    closeBtn.setAttribute("aria-label", "Close");
-    closeBtn.innerHTML = CLOSE_ICON;
+    const closeBtn = makeIconButton(doc, "webpic-window_close", ICON_CLOSE, { ariaLabel: "Close" });
     closeBtn.addEventListener("click", () => opts.onClose?.(), { signal: ac.signal });
     actions.append(closeBtn);
   }

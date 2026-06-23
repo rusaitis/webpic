@@ -1,6 +1,7 @@
 import type { SimulationStore, UiStore } from "@store";
-import { makeEl } from "./controls/dom.ts";
+import { makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
+import { ICON_CLOSE } from "./icons.ts";
 import { installScenePanel } from "./panels/scenePanel.ts";
 
 // The left tool rail (the instance-first rail's first occupants): a magviz-style glass card of icon
@@ -21,7 +22,6 @@ const ICON = {
   view: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5h11M2.5 13.5V2.5"/><path d="M2.5 9.8h11M2.5 6.1h11"/><path d="M6.2 13.5V2.5M9.9 13.5V2.5"/></svg>`,
   // A target around a point — the value-probe marker: outer ring, filled centre, four crosshair ticks.
   probe: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><path d="M8 1.5v2.5M8 12v2.5M1.5 8h2.5M12 8h2.5"/></svg>`,
-  close: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>`,
 } as const;
 
 const FLYOUT_GAP = 10; // px between the rail's right edge and the flyout
@@ -37,13 +37,8 @@ export function installSideRail(
   container.setAttribute("aria-label", "Tools");
   container.setAttribute("aria-orientation", "vertical");
 
-  const makeButton = (control: string, icon: string): HTMLButtonElement => {
-    const btn = makeEl(doc, "button", "webpic-siderail_btn");
-    btn.type = "button";
-    btn.dataset.control = control;
-    btn.innerHTML = icon;
-    return btn;
-  };
+  const makeButton = (control: string, icon: string): HTMLButtonElement =>
+    makeIconButton(doc, "webpic-siderail_btn", icon, { control });
 
   const viewBtn = makeButton("view", ICON.view);
   viewBtn.setAttribute("aria-label", "Axes & grid");
@@ -65,10 +60,7 @@ export function installSideRail(
   const header = makeEl(doc, "div", "webpic-flyout_header");
   const title = makeEl(doc, "span", "webpic-flyout_title");
   title.textContent = "Axes & grid";
-  const closeBtn = makeEl(doc, "button", "webpic-flyout_close");
-  closeBtn.type = "button";
-  closeBtn.setAttribute("aria-label", "Close");
-  closeBtn.innerHTML = ICON.close;
+  const closeBtn = makeIconButton(doc, "webpic-flyout_close", ICON_CLOSE, { ariaLabel: "Close" });
   header.append(title, closeBtn);
   const body = makeEl(doc, "div", "webpic-flyout_body");
   flyout.append(arrow, header, body);

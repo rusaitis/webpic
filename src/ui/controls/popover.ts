@@ -1,3 +1,4 @@
+import { ICON_CHECK } from "../icons.ts";
 import { makeEl } from "./dom.ts";
 
 // A lightweight anchored single-select popover (the dataset + content pickers in ui/topBar share it).
@@ -31,7 +32,6 @@ export interface PopoverHandle {
   dispose(): void; // close + drop every listener + remove the popover node
 }
 
-const CHECK_SVG = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>`;
 const MIN_WIDTH_PX = 200;
 const GAP_PX = 6;
 
@@ -93,7 +93,7 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
       row.dataset.value = item.value;
       row.setAttribute("aria-selected", String(isSelected));
       const check = makeEl(doc, "span", "webpic-popover_check");
-      check.innerHTML = CHECK_SVG;
+      check.innerHTML = ICON_CHECK;
       row.append(check, opts.renderRow(doc, item, isSelected));
       row.addEventListener("mouseenter", () => setActive(index));
       row.addEventListener("click", (event) => {

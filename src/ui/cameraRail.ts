@@ -1,5 +1,5 @@
 import type { CameraProjection, SimulationStore, UiStore } from "@store";
-import { makeEl } from "./controls/dom.ts";
+import { makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import {
   COORDINATE_UNITS,
@@ -41,13 +41,8 @@ export function installCameraRail(
   container.setAttribute("role", "toolbar");
   container.setAttribute("aria-label", "View controls");
 
-  const makeButton = (control: string, extra: string, icon: string): HTMLButtonElement => {
-    const btn = makeEl(doc, "button", extra ? `webpic-rail_btn ${extra}` : "webpic-rail_btn");
-    btn.type = "button";
-    btn.dataset.control = control;
-    btn.innerHTML = icon;
-    return btn;
-  };
+  const makeButton = (control: string, extra: string, icon: string): HTMLButtonElement =>
+    makeIconButton(doc, extra ? `webpic-rail_btn ${extra}` : "webpic-rail_btn", icon, { control });
 
   const gnomonBtn = makeButton("gnomon", "", ICON.gnomon);
   const flyBtn = makeButton("fly", "", ICON.orbit);
@@ -132,8 +127,12 @@ export function installCameraRail(
 
   const updateViewRow = (): void => {
     const { cameraPose, projection } = store.getState();
-    viewValue.textContent = formatOrientation(cameraPose, projection === "orthographic");
-    centerValue.textContent = formatCenter(cameraPose);
+    // Fires per gesture frame while the card is open; the integer-rounded readouts repeat across
+    // most sub-degree frames, so skip the write when unchanged (textContent is the cache).
+    const view = formatOrientation(cameraPose, projection === "orthographic");
+    if (viewValue.textContent !== view) viewValue.textContent = view;
+    const center = formatCenter(cameraPose);
+    if (centerValue.textContent !== center) centerValue.textContent = center;
   };
 
   // Reflect store state onto the toggles: aria-pressed for assistive tech + styling, a swapped icon
