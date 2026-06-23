@@ -138,10 +138,14 @@ export function installCameraRail(
 
   // Reflect store state onto the toggles: aria-pressed for assistive tech + styling, a swapped icon
   // and tooltip for the two mode toggles, and the has-gnomon inset that keeps the cluster centered.
+  // The button reflects the user's preference; the has-gnomon inset (reserving the corner footprint so
+  // the centered cluster never slides under the gnomon) follows the *effective* visibility — when the
+  // gnomon is responsively suppressed (band too narrow, ui/colorbar's flag) it's gone, so reserve
+  // nothing and let the cluster use the full width.
   const applyGnomon = (show: boolean): void => {
     gnomonBtn.setAttribute("aria-pressed", String(show));
     gnomonBtn.title = show ? "Hide orientation gnomon" : "Show orientation gnomon";
-    container.classList.toggle("has-gnomon", show);
+    container.classList.toggle("has-gnomon", show && !uiStore.getState().isGnomonSuppressed);
   };
   const applyFly = (fly: boolean): void => {
     flyBtn.setAttribute("aria-pressed", String(fly));
@@ -213,6 +217,12 @@ export function installCameraRail(
 
   const unsubs = [
     store.subscribe((s) => s.overlay.showGnomon, applyGnomon),
+    // Re-apply the inset when the responsive suppression flips (gnomon hidden/shown without a
+    // preference change), so the cluster reclaims / yields the corner footprint.
+    uiStore.subscribe(
+      (s) => s.isGnomonSuppressed,
+      () => applyGnomon(store.getState().overlay.showGnomon),
+    ),
     store.subscribe((s) => s.isFlyMode, applyFly),
     store.subscribe(
       (s) => s.projection,

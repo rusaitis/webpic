@@ -117,19 +117,24 @@ export function installCameraChrome(
   applyVisible(uiStore.getState().isUiVisible);
   const unsubUi = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
 
-  // The gnomon is independently toggleable (the bottom rail's "Gnomon" control) so it can be
-  // hidden once the in-scene 3D axes suffice. Driven by the store overlay slice.
-  const applyGnomon = (show: boolean): void => {
+  // The gnomon is independently toggleable (the bottom rail's "Gnomon" control) so it can be hidden
+  // once the in-scene 3D axes suffice. Effective visibility = that preference AND not responsively
+  // suppressed — the bottom band can be too narrow to hold the gnomon beside the rail, a flag
+  // ui/colorbar owns. Either off hides it (and gates the per-pose render churn via render()'s guard).
+  const applyGnomon = (): void => {
+    const show = store.getState().overlay.showGnomon && !uiStore.getState().isGnomonSuppressed;
     gnomon.hidden = !show;
     if (show) render(store.getState().cameraPose); // catch up — the pose moved while hidden
   };
-  applyGnomon(store.getState().overlay.showGnomon);
+  applyGnomon();
   const unsubGnomon = store.subscribe((s) => s.overlay.showGnomon, applyGnomon);
+  const unsubSuppressed = uiStore.subscribe((s) => s.isGnomonSuppressed, applyGnomon);
 
   return () => {
     unsubPose();
     unsubUi();
     unsubGnomon();
+    unsubSuppressed();
     container.remove();
   };
 }

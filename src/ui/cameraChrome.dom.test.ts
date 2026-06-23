@@ -49,6 +49,25 @@ describe("installCameraChrome", () => {
     expect(chrome.hidden).toBe(false);
   });
 
+  it("responsively suppresses the gnomon without clobbering the user's preference", () => {
+    const { store, uiStore, chrome } = setup();
+    const gnomon = chrome.querySelector<HTMLElement>(".webpic-gnomon");
+    expect(gnomon?.hidden).toBe(false); // preference on, not suppressed
+
+    uiStore.getState().setGnomonSuppressed(true); // bottom band too narrow
+    expect(gnomon?.hidden).toBe(true);
+    expect(store.getState().overlay.showGnomon).toBe(true); // preference untouched → reversible
+
+    uiStore.getState().setGnomonSuppressed(false); // room returned
+    expect(gnomon?.hidden).toBe(false);
+
+    // With the preference off, it stays hidden regardless of suppression.
+    store.getState().setOverlayShowGnomon(false);
+    uiStore.getState().setGnomonSuppressed(true);
+    uiStore.getState().setGnomonSuppressed(false);
+    expect(gnomon?.hidden).toBe(true);
+  });
+
   it("removes the container on dispose", () => {
     const { parent, dispose } = setup();
     dispose();

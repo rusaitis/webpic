@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Box } from "../floating/dragSnap.ts";
-import { bottomDockLayout, GROUP_GAP_PX } from "./bottomDock.ts";
+import {
+  bottomDockLayout,
+  colorbarFitMode,
+  GROUP_GAP_PX,
+  railGnomonCramped,
+} from "./bottomDock.ts";
 
 const G = GROUP_GAP_PX;
 
@@ -87,5 +92,67 @@ describe("bottomDockLayout", () => {
     const clusterLeft = (vw - cluster) / 2 + r.railShift;
     expect(clusterLeft).toBeGreaterThanOrEqual(68 + 12 - 1e-6); // cleared the gnomon + corner gap
     expect(r.colorbarLeft).toBeCloseTo(clusterLeft + cluster + G, 6); // still one gap apart
+  });
+});
+
+describe("colorbarFitMode", () => {
+  const widths = { expandedWidth: 372, collapsedWidth: 132 };
+
+  it("stays expanded with ample room beside the rail", () => {
+    expect(
+      colorbarFitMode({ viewportWidth: 1400, clusterWidth: 220, cornerClearRight: 0, ...widths }),
+    ).toBe("expanded");
+  });
+
+  it("collapses when the expanded strip no longer fits but the collapsed one does", () => {
+    // budget = vw - 16; expanded total 240+12+372=624, collapsed 384. vw=620 → budget 604: only collapsed fits.
+    expect(
+      colorbarFitMode({ viewportWidth: 620, clusterWidth: 240, cornerClearRight: 0, ...widths }),
+    ).toBe("collapsed");
+  });
+
+  it("migrates when even the collapsed strip can't sit beside the rail", () => {
+    expect(
+      colorbarFitMode({ viewportWidth: 360, clusterWidth: 240, cornerClearRight: 0, ...widths }),
+    ).toBe("migrate");
+  });
+
+  it("is monotonic in width — once collapsed, widening never skips straight past expanded", () => {
+    const at = (vw: number) =>
+      colorbarFitMode({ viewportWidth: vw, clusterWidth: 220, cornerClearRight: 0, ...widths });
+    const order = { migrate: 0, collapsed: 1, expanded: 2 } as const;
+    for (let vw = 300; vw <= 1200; vw += 20) {
+      expect(order[at(vw)]).toBeGreaterThanOrEqual(order[at(vw - 20)]);
+    }
+  });
+
+  it("never groups (always expanded) when there is no rail", () => {
+    expect(
+      colorbarFitMode({ viewportWidth: 200, clusterWidth: 0, cornerClearRight: 0, ...widths }),
+    ).toBe("expanded");
+  });
+
+  it("a visible gnomon eats into the budget, collapsing sooner", () => {
+    const base = { viewportWidth: 700, clusterWidth: 240, ...widths };
+    expect(colorbarFitMode({ ...base, cornerClearRight: 0 })).toBe("expanded");
+    expect(colorbarFitMode({ ...base, cornerClearRight: 80 })).toBe("collapsed");
+  });
+});
+
+describe("railGnomonCramped", () => {
+  it("is roomy when the viewport clears the cluster plus both 80px gnomon reserves", () => {
+    expect(railGnomonCramped(600, 240, false)).toBe(false); // 600 >= 240 + 160
+    expect(railGnomonCramped(399, 240, false)).toBe(true); // 399 < 400
+  });
+
+  it("applies hysteresis so a just-restored gnomon doesn't flicker at the boundary", () => {
+    // 410 is past the 400 cramp threshold, but within the +24 restore band while suppressed.
+    expect(railGnomonCramped(410, 240, true)).toBe(true);
+    expect(railGnomonCramped(410, 240, false)).toBe(false);
+    expect(railGnomonCramped(430, 240, true)).toBe(false); // clear of the hysteresis band → restore
+  });
+
+  it("never cramps without a rail cluster", () => {
+    expect(railGnomonCramped(100, 0, false)).toBe(false);
   });
 });

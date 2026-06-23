@@ -83,6 +83,19 @@ describe("installCameraRail", () => {
     expect(gnomon.getAttribute("aria-pressed")).toBe("false");
   });
 
+  it("drops the has-gnomon inset while the gnomon is responsively suppressed", () => {
+    const { uiStore, rail, button } = setup();
+    expect(rail.classList.contains("has-gnomon")).toBe(true); // preference on, room available
+
+    uiStore.getState().setGnomonSuppressed(true); // band too narrow → gnomon hidden
+    expect(rail.classList.contains("has-gnomon")).toBe(false); // cluster reclaims the full width
+    // The button still reflects the unchanged user preference (suppression is presentation only).
+    expect(button("gnomon").getAttribute("aria-pressed")).toBe("true");
+
+    uiStore.getState().setGnomonSuppressed(false); // room returned → inset restored
+    expect(rail.classList.contains("has-gnomon")).toBe(true);
+  });
+
   it("the help button toggles the help overlay", () => {
     const { uiStore, button } = setup();
     expect(uiStore.getState().isHelpVisible).toBe(false);

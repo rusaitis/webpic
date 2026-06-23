@@ -16,6 +16,10 @@ export const GROUP_GAP_PX = 12; // gap between the rail cluster and the colorbar
 const DOCK_PROXIMITY_PX = 72; // max gap from the natural cluster band for a bottom drop to group
 const CORNER_GAP_PX = 12; // clearance kept right of the lower-left corner widget (gnomon/perf)
 const VIEWPORT_MARGIN_PX = 8;
+// The bottom-left gnomon's reserved footprint (12px inset + 56px triad + 12px) — mirrors the rail's
+// `has-gnomon` padding. The centered cluster needs this much clear on each side to not slide under it.
+const GNOMON_RESERVE_PX = 80;
+const GNOMON_CRAMP_HYSTERESIS_PX = 24; // extra width required to *restore* the gnomon (anti-flicker)
 
 export interface BottomDockInput {
   /** The colorbar's settled rect: its width drives the group, its center picks the side + proximity. */
@@ -74,4 +78,51 @@ export function bottomDockLayout(input: BottomDockInput): BottomDockResult {
     grouped: true,
     side,
   };
+}
+
+// Responsive fit of the bottom-docked colorbar beside the centered rail. As the viewport narrows the
+// strip first minimizes (collapsed is far shorter), then — when even collapsed can't sit beside the
+// cluster — migrates up a side edge (vertical) to clear the rail entirely. Pure + predictive: the
+// caller supplies both rendered widths (cached at settle time) so the decision never reads a strip
+// mid-collapse-transition and so it's monotonic in viewport width (no expand↔collapse oscillation).
+export type ColorbarFitMode = "expanded" | "collapsed" | "migrate";
+
+export interface ColorbarFitInput {
+  readonly viewportWidth: number;
+  /** Rail button-cluster width; 0 → no rail to group with, so the strip always stays expanded. */
+  readonly clusterWidth: number;
+  /** Right edge (px) of the lower-left corner widget the group must clear; 0 if none/suppressed. */
+  readonly cornerClearRight: number;
+  readonly expandedWidth: number;
+  readonly collapsedWidth: number;
+}
+
+/** Widest mode whose [cluster | gap | strip] group still fits between the corner widget and the
+ *  right margin; "migrate" when not even the collapsed strip does. */
+export function colorbarFitMode(input: ColorbarFitInput): ColorbarFitMode {
+  const {
+    viewportWidth: vw,
+    clusterWidth,
+    cornerClearRight,
+    expandedWidth,
+    collapsedWidth,
+  } = input;
+  if (clusterWidth <= 0) return "expanded"; // nothing to compete with on the bottom row
+  const minLeft = cornerClearRight > 0 ? cornerClearRight + CORNER_GAP_PX : VIEWPORT_MARGIN_PX;
+  const budget = vw - VIEWPORT_MARGIN_PX - minLeft; // max group width that fits flush right
+  if (clusterWidth + GROUP_GAP_PX + expandedWidth <= budget) return "expanded";
+  if (clusterWidth + GROUP_GAP_PX + collapsedWidth <= budget) return "collapsed";
+  return "migrate";
+}
+
+/** True when the centered rail cluster can't keep the gnomon's reserved corner clear on both sides,
+ *  so the gnomon should be hidden. Hysteresis: once hidden, require extra width before restoring. */
+export function railGnomonCramped(
+  viewportWidth: number,
+  clusterWidth: number,
+  currentlySuppressed: boolean,
+): boolean {
+  if (clusterWidth <= 0) return false;
+  const threshold = clusterWidth + 2 * GNOMON_RESERVE_PX;
+  return viewportWidth < threshold + (currentlySuppressed ? GNOMON_CRAMP_HYSTERESIS_PX : 0);
 }

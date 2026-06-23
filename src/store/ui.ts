@@ -22,6 +22,11 @@ export interface UiState {
   readonly isUiVisible: boolean;
   readonly isHelpVisible: boolean;
   readonly isCoordsInfoVisible: boolean;
+  /** Responsive override: the bottom band is too narrow to hold the gnomon beside the centered
+   *  rail, so the gnomon is hidden until there's room again. Distinct from the user's gnomon
+   *  preference (overlay.showGnomon) — it only suppresses, never enables. The colorbar (the
+   *  bottom-band coordinator) writes it; the rail + gnomon consume it. */
+  readonly isGnomonSuppressed: boolean;
   readonly panels: Readonly<Record<string, boolean>>;
   /** Insertion-ordered; the pill shows while nonempty and the oldest entry owns the
    *  message — newest-wins reverts the text when a later phase ends first (A→B→A). */
@@ -33,6 +38,7 @@ export interface UiState {
   setHelpVisible(visible: boolean): void;
   toggleCoordsInfo(): void;
   setCoordsInfoVisible(visible: boolean): void;
+  setGnomonSuppressed(suppressed: boolean): void;
   togglePanel(name: string): void;
   setPanelVisible(name: string, visible: boolean): void;
   beginLoading(key: string, message: string): void;
@@ -51,6 +57,7 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       isUiVisible: true,
       isHelpVisible: false,
       isCoordsInfoVisible: false,
+      isGnomonSuppressed: false,
       panels: initialPanels,
       loadingPhases: [],
       statusError: null,
@@ -71,6 +78,9 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       },
       setCoordsInfoVisible(visible) {
         if (get().isCoordsInfoVisible !== visible) set({ isCoordsInfoVisible: visible });
+      },
+      setGnomonSuppressed(suppressed) {
+        if (get().isGnomonSuppressed !== suppressed) set({ isGnomonSuppressed: suppressed });
       },
       togglePanel(name) {
         const { panels } = get();
