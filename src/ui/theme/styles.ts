@@ -328,10 +328,12 @@ const UI_CSS = `
 .webpic-coords-card_rows { margin-bottom: 6px; padding-bottom: 6px;
   border-bottom: 1px solid var(--webpic-border); }
 /* Status pill: bottom-center loading/error feedback (ui/statusPill.ts). Geometry mirrors the
-   index.html boot splash exactly so the HTML→JS handoff is pixel-stable. The delayed visibility
-   transition on fade-out keeps the element readable through the fade, then drops it from the
-   a11y tree; fade-in flips visibility instantly. */
-.webpic-status { position: fixed; left: 50%; bottom: 24px; z-index: 11; pointer-events: none;
+   index.html boot splash exactly so the HTML→JS handoff is pixel-stable (keep the bottom in sync). Sits
+   just above the bottom rail (12px inset + 32px button), tracking the same safe-area inset so it clears
+   the rail on devices with a home indicator. The delayed visibility transition on fade-out keeps the
+   element readable through the fade, then drops it from the a11y tree; fade-in flips visibility instantly. */
+.webpic-status { position: fixed; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom));
+  z-index: 11; pointer-events: none;
   display: flex; align-items: center; gap: 9px; padding: 8px 15px;
   background: var(--webpic-bg); color: var(--webpic-muted);
   border: 1px solid var(--webpic-border); border-radius: 999px;
@@ -441,7 +443,8 @@ const UI_CSS = `
   transition: background .15s ease, color .15s ease; }
 .webpic-topbar_chip:hover, .webpic-topbar_chip:focus-visible { outline: none; color: var(--webpic-fg);
   background: color-mix(in srgb, var(--webpic-fg) 10%, transparent); }
-.webpic-topbar_chip[aria-expanded="true"] { color: var(--webpic-fg); }
+.webpic-topbar_chip[aria-expanded="true"] { color: var(--webpic-fg);
+  background: color-mix(in srgb, var(--webpic-accent) 20%, transparent); } /* accent tint on open, like the buttons */
 .webpic-topbar_chip:disabled { cursor: default; }
 .webpic-topbar_chip:disabled:hover { background: transparent; color: var(--webpic-muted); }
 .webpic-topbar_chip .webpic-topbar_caret svg { transition: transform .18s ease; }
@@ -463,18 +466,15 @@ const UI_CSS = `
    The inner track keeps its half-grip side margins (load-bearing — grip stays inside at index 0/max). */
 .webpic-topbar_track.webpic-range { width: 160px; flex: 0 0 auto; }
 
-/* Shared hover/focus/pin reveal — the time chip and the actions chevron both use it: a glass popover
-   under the trigger, hidden until the wrapper is hovered/focused or pinned (.is-expanded), gated off
-   while disabled. The trigger's ::after bridges the gap so the cursor can cross to the popover; a
-   two-triangle arrow points up at the trigger. */
+/* Shared click-to-pin reveal — the time chip and the actions chevron both use it: a glass popover
+   under the trigger, hidden until the trigger is clicked (.is-expanded). Click-only (no hover-open),
+   to match the dataset/field pickers; a two-triangle arrow points up at the trigger. */
 .webpic-topbar_reveal { position: relative; flex: 0 0 auto; display: flex; align-items: center; }
 .webpic-topbar_chevron { position: relative; opacity: 0.7; transition: opacity .18s ease; }
 .webpic-topbar:hover .webpic-topbar_chevron,
 .webpic-topbar:focus-within .webpic-topbar_chevron { opacity: 1; }
 .webpic-topbar_chevron svg { transition: transform .18s ease; }
 .webpic-topbar_reveal.is-expanded .webpic-topbar_chevron svg { transform: rotate(180deg); }
-.webpic-topbar_chevron::after, .webpic-topbar_chip::after { content: ""; position: absolute;
-  top: 100%; left: 0; width: 100%; height: 16px; } /* bridges the wider gap so hover can cross */
 .webpic-topbar_pop { position: absolute; top: 100%; margin-top: 15px; z-index: 1;
   background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
@@ -482,8 +482,6 @@ const UI_CSS = `
   border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
   opacity: 0; visibility: hidden; transform: translate(var(--pop-x, 0px), -6px); pointer-events: none;
   transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s; }
-.webpic-topbar_reveal:not(.is-disabled):hover > .webpic-topbar_pop,
-.webpic-topbar_reveal:not(.is-disabled):focus-within > .webpic-topbar_pop,
 .webpic-topbar_reveal.is-expanded > .webpic-topbar_pop { opacity: 1; visibility: visible;
   transform: translate(var(--pop-x, 0px), 0); pointer-events: auto;
   transition: opacity .18s ease, transform .18s ease; }
@@ -523,7 +521,6 @@ const UI_CSS = `
 .webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_chip { width: 100%; height: auto;
   padding: 0; justify-content: center; cursor: default; pointer-events: none;
   color: var(--webpic-muted); }
-.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_chip::after,
 .webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_chip .webpic-topbar_caret {
   display: none; }
 .webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_time .webpic-topbar_time-pop {

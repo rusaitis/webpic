@@ -15,7 +15,7 @@ import {
 
 // The top menu bar (magviz's glass-pill topbar, rebuilt to webpic's structure): a brand, a dataset
 // dropdown, a "content" button that opens the available fields + their metadata, a timestep chip that
-// reveals a scrub popover (the custom range control + prev/next) on hover/tap, and a hover-revealed
+// opens a scrub popover (the custom range control + prev/next) on click/tap, and a click-opened
 // cluster of disabled placeholder actions behind a chevron — both reveals share one installReveal. On
 // a narrow viewport (matchMedia) the bar goes compact: the timestep scrub relocates into the chevron's
 // panel so the row still fits and the chevron never spills off-screen.
@@ -79,11 +79,11 @@ export function installTopBar(
     return btn;
   };
 
-  // A hover/focus/tap reveal: CSS opens the popover on the wrapper's :hover/:focus-within; this adds
-  // the click-to-pin (.is-expanded, for touch + aria) and Escape-to-close (returns focus to the
-  // trigger). A pinned reveal is sticky — an outside scene click never dismisses it; only re-clicking
-  // the trigger, Escape, or opening another overlay (onOpen → closeOverlaysExcept) closes it. Shared
-  // by the time chip + the actions chevron.
+  // A click-to-open reveal: clicking the trigger toggles .is-expanded (CSS shows the popover only then
+  // — no hover-open, matching the pickers), with Escape-to-close (returns focus to the trigger). A
+  // pinned reveal is sticky — an outside scene click never dismisses it; only re-clicking the trigger,
+  // Escape, or opening another overlay (onOpen → closeOverlaysExcept) closes it. Shared by the time
+  // chip + the actions chevron.
   const installReveal = (
     wrapper: HTMLElement,
     trigger: HTMLButtonElement,

@@ -34,7 +34,7 @@
          styles.ts fallback palette as literals) so feedback paints at HTML parse — the FCP
          anchor the M0 perf gate measures, distinct from the WebGPU first frame. It lives
          outside #app to survive the canvas mount; installStatusPill adopts it in place. */
-      #splash { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); margin: 0;
+      #splash { position: fixed; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom)); transform: translateX(-50%); margin: 0;
         display: flex; align-items: center; gap: 9px; padding: 8px 15px;
         background: rgba(16, 24, 32, 0.94); color: #8a94a0;
         border: 1px solid rgba(200, 208, 216, 0.16); border-radius: 999px;
