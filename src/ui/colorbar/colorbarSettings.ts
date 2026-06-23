@@ -3,15 +3,14 @@ import type { SimulationStore } from "@store";
 import { makeEl } from "../controls/dom.ts";
 import { installColormapControls } from "./colormapControls.ts";
 
-// The colorbar's settings popover: a glass dialog hosting the colormap controls, anchored to the
-// colorbar's gear and placed on the side facing the viewport center (so it never opens off-screen).
-// Mirrors the left rail flyout's lifecycle — local open state, reposition on open/resize, Escape +
-// outside-pointerdown to dismiss. Body-appended so it escapes the colorbar's overflow clip.
+// The colorbar's settings popover: a small glass dialog hosting the colormap controls, anchored to
+// the colorbar's gear and placed on the side facing the viewport center (so it never opens
+// off-screen). Mirrors the left rail flyout's lifecycle — local open state, reposition on
+// open/resize, Escape + outside-pointerdown to dismiss. Body-appended so it escapes the colorbar's
+// overflow clip. Headerless: too small for a title bar, so the dialog's aria-label is its only name.
 
 const GAP = 10; // px between the colorbar and the popover
 const MARGIN = 8; // viewport keep-in margin
-
-const CLOSE_ICON = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>`;
 
 export interface ColorbarSettings {
   toggle(): void;
@@ -35,17 +34,8 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
   pop.setAttribute("aria-label", "Colormap settings");
   pop.hidden = true;
 
-  const header = makeEl(doc, "div", "webpic-cbar-pop_header");
-  const title = makeEl(doc, "span", "webpic-cbar-pop_title");
-  title.textContent = "Colormap";
-  const closeBtn = makeEl(doc, "button", "webpic-cbar-pop_close");
-  closeBtn.type = "button";
-  closeBtn.setAttribute("aria-label", "Close");
-  closeBtn.innerHTML = CLOSE_ICON;
-  header.append(title, closeBtn);
-
   const body = makeEl(doc, "div", "webpic-cbar-pop_body");
-  pop.append(header, body);
+  pop.append(body);
   opts.parent.appendChild(pop);
 
   const controlsDispose = installColormapControls(body, opts.store);
@@ -87,11 +77,6 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
     opts.anchor.setAttribute("aria-expanded", String(next));
     if (next) reposition(); // offsetWidth/Height are valid only once shown
   };
-
-  closeBtn.addEventListener("click", () => {
-    setOpen(false);
-    opts.anchor.focus();
-  });
 
   const onDocKeyDown = (e: KeyboardEvent): void => {
     if (e.key === "Escape" && isOpen) {

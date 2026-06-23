@@ -56,6 +56,22 @@ export interface SelectOptions<V extends string = string> {
   readonly onChange: (value: V) => void;
 }
 
+// A select whose options carry a visual preview: the trigger and each row paint a swatch via the
+// injected `paintSwatch` (keeping the generic control free of any colormap dependency). Same
+// callback-out/set-in contract as a plain select.
+export interface SwatchSelectOptions<V extends string = string> extends SelectOptions<V> {
+  readonly paintSwatch: (canvas: HTMLCanvasElement, value: V) => void;
+}
+
+// A segmented (sliding-pill) single-select over a small fixed option set — same shape as a select,
+// rendered as N inline radio buttons with a highlight that slides to the active one.
+export interface SegmentedOptions<V extends string = string> {
+  readonly label: string;
+  readonly value: V;
+  readonly options: ReadonlyArray<SelectOption<V>>;
+  readonly onChange: (value: V) => void;
+}
+
 // A range slider emits a single value or an [lo, hi] interval. The window/level control reads
 // the interval and converts to the store's {center, width} at the boundary (see rangeMath).
 export type RangeValue = number | readonly [number, number];
@@ -123,6 +139,8 @@ export interface Folder {
   addSlider(opts: SliderOptions): ControlHandle<number>;
   addRangeControl(opts: RangeControlOptions): ControlHandle<RangeValue>;
   addSelect<V extends string>(opts: SelectOptions<V>): SelectHandle<V>;
+  addSwatchSelect<V extends string>(opts: SwatchSelectOptions<V>): SelectHandle<V>;
+  addSegmented<V extends string>(opts: SegmentedOptions<V>): ControlHandle<V>;
   addCheckbox(opts: CheckboxOptions): ControlHandle<boolean>;
   addText(opts: TextOptions): ControlHandle<string>;
   addButton(opts: ButtonOptions): ButtonHandle;

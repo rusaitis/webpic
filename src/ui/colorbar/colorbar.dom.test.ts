@@ -68,8 +68,9 @@ describe("floating colorbar", () => {
     gear.click();
     expect(pop.hidden).toBe(false);
     expect(gear.getAttribute("aria-expanded")).toBe("true");
-    // The popover hosts the colormap + scale selects.
-    expect(pop.querySelectorAll(".webpic-select").length).toBeGreaterThanOrEqual(2);
+    // The popover hosts the swatch colormap picker + the segmented scale pill.
+    expect(pop.querySelector(".webpic-swatch")).not.toBeNull();
+    expect(pop.querySelector(".webpic-segmented")).not.toBeNull();
 
     gear.click();
     expect(pop.hidden).toBe(true);

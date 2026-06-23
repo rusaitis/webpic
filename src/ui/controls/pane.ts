@@ -1,8 +1,10 @@
 import { createCheckbox } from "./checkbox.ts";
 import { makeEl } from "./dom.ts";
 import { createRangeControl } from "./rangeControl.ts";
+import { createSegmented } from "./segmented.ts";
 import { createSelect } from "./select.ts";
 import { createSlider } from "./slider.ts";
+import { createSwatchSelect } from "./swatchSelect.ts";
 import { createTextInput } from "./text.ts";
 import type {
   ButtonHandle,
@@ -16,9 +18,11 @@ import type {
   Pane,
   RangeControlOptions,
   RangeValue,
+  SegmentedOptions,
   SelectHandle,
   SelectOptions,
   SliderOptions,
+  SwatchSelectOptions,
   TextOptions,
   Widget,
 } from "./types.ts";
@@ -99,6 +103,15 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
       const { row, valueCell } = makeRow(doc, o.label);
       const widget = createSelect<V>(doc, o.value, o.options, o.onChange);
       return { ...attach(row, valueCell, widget), setOptions: (next) => widget.setOptions(next) };
+    },
+    addSwatchSelect<V extends string>(o: SwatchSelectOptions<V>): SelectHandle<V> {
+      const { row, valueCell } = makeRow(doc, o.label);
+      const widget = createSwatchSelect<V>(doc, o.value, o.options, o.onChange, o.paintSwatch);
+      return { ...attach(row, valueCell, widget), setOptions: (next) => widget.setOptions(next) };
+    },
+    addSegmented<V extends string>(o: SegmentedOptions<V>): ControlHandle<V> {
+      const { row, valueCell } = makeRow(doc, o.label);
+      return attach(row, valueCell, createSegmented<V>(doc, o.value, o.options, o.onChange));
     },
     addCheckbox(o: CheckboxOptions): ControlHandle<boolean> {
       const { row, valueCell } = makeRow(doc, o.label);

@@ -16,17 +16,27 @@ const bTriple = () =>
 function rangeInputs(host: HTMLElement): HTMLInputElement[] {
   return Array.from(host.querySelectorAll<HTMLInputElement>(".webpic-range_input"));
 }
-function selects(host: HTMLElement): HTMLSelectElement[] {
-  return Array.from(host.querySelectorAll<HTMLSelectElement>(".webpic-select"));
+function swatch(host: HTMLElement): HTMLButtonElement {
+  const button = host.querySelector<HTMLButtonElement>(".webpic-swatch");
+  if (button === null) throw new Error("expected a colormap swatch button");
+  return button;
+}
+function segments(host: HTMLElement): HTMLButtonElement[] {
+  return Array.from(host.querySelectorAll<HTMLButtonElement>(".webpic-segmented_seg"));
+}
+function segmentedDisabled(host: HTMLElement): boolean {
+  return host.querySelector(".webpic-segmented")?.classList.contains("is-disabled") ?? false;
 }
 function activeBinding(store: SimulationStore): ColormapBinding | undefined {
   const { selectedLayerId, layers, colormapBindings } = store.getState();
   const id = layers.find((layer) => layer.id === selectedLayerId)?.colormapBindingId;
   return id != null ? colormapBindings[id] : undefined;
 }
-function pick(select: HTMLSelectElement, value: string): void {
-  select.value = value;
-  select.dispatchEvent(new Event("change"));
+// The picker's gradient rows are body-appended by createPopover with a data-value each.
+function pickColormap(value: string): void {
+  const row = document.querySelector<HTMLElement>(`.webpic-popover_item[data-value="${value}"]`);
+  if (row === null) throw new Error(`expected an open picker row for ${value}`);
+  row.click();
 }
 
 afterEach(() => {
@@ -42,7 +52,8 @@ describe("colormap controls (binding)", () => {
     const dispose = installColormapControls(host, store); // no dataset yet
     expect(host.querySelector(".webpic-range")?.classList.contains("is-disabled")).toBe(true);
     for (const input of rangeInputs(host)) expect(input.disabled).toBe(true);
-    for (const select of selects(host)) expect(select.disabled).toBe(true);
+    expect(swatch(host).disabled).toBe(true);
+    expect(segmentedDisabled(host)).toBe(true);
 
     store.getState().setDataset(bTriple());
     await flushAsync();
@@ -50,7 +61,8 @@ describe("colormap controls (binding)", () => {
     const [lo, hi] = rangeInputs(host);
     expect(lo?.value).toBe("5"); // window interval [5, 6] from {center 5.5, width 1}
     expect(hi?.value).toBe("6");
-    expect(selects(host).map((s) => s.disabled)).toEqual([false, false]);
+    expect(swatch(host).disabled).toBe(false);
+    expect(segmentedDisabled(host)).toBe(false);
 
     dispose();
     expect(host.querySelector(".webpic-pane")).toBeNull();
@@ -81,7 +93,7 @@ describe("colormap controls (binding)", () => {
     dispose();
   });
 
-  it("colormap select dispatches setBindingColormap and reflects external changes", async () => {
+  it("colormap picker dispatches setBindingColormap and reflects external changes", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
@@ -90,20 +102,20 @@ describe("colormap controls (binding)", () => {
     const dispose = installColormapControls(host, store);
     const id = activeBinding(store)?.id ?? "";
 
-    const [colormap] = selects(host);
-    if (!colormap) throw new Error("expected a colormap select");
-    expect(colormap.value).toBe("inferno"); // seeded default
+    const colormap = swatch(host);
+    expect(colormap.dataset.value).toBe("inferno"); // seeded default
 
-    pick(colormap, "viridis");
+    colormap.click(); // open the gradient picker, then choose a row
+    pickColormap("viridis");
     expect(activeBinding(store)?.colormap).toBe("viridis");
 
     store.getState().setBindingColormap(id, "plasma");
-    expect(colormap.value).toBe("plasma"); // external reflect, no feedback loop
+    expect(colormap.dataset.value).toBe("plasma"); // external reflect, no feedback loop
 
     dispose();
   });
 
-  it("scale select dispatches setBindingScale and re-bakes the window control", async () => {
+  it("scale pill dispatches setBindingScale and re-bakes the window control", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const store = createSimulationStore();
@@ -111,12 +123,15 @@ describe("colormap controls (binding)", () => {
     await flushAsync();
     const dispose = installColormapControls(host, store);
 
-    const scale = selects(host)[1];
-    if (!scale) throw new Error("expected a scale select");
-    expect(scale.value).toBe("linear");
+    const segs = segments(host);
+    expect(segs.map((s) => s.dataset.value)).toEqual(["linear", "log", "symlog"]);
+    const checked = (): string | undefined =>
+      segs.find((s) => s.getAttribute("aria-checked") === "true")?.dataset.value;
+    expect(checked()).toBe("linear");
 
-    pick(scale, "log");
+    segs.find((s) => s.dataset.value === "log")?.click();
     expect(activeBinding(store)?.scale).toBe("log");
+    expect(checked()).toBe("log"); // pill moved to the active segment
     // Window control survived the scale-triggered rebuild (still a two-grip interval).
     expect(rangeInputs(host)).toHaveLength(2);
 

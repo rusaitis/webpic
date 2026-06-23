@@ -21,7 +21,7 @@ import {
   type SelectHandle,
   windowToInterval,
 } from "../controls/index.ts";
-import { formatValue } from "./colorbarGradient.ts";
+import { formatValue, paintGradient } from "./colorbarGradient.ts";
 
 // The colormap controls — colormap / value→color scale / window-level — for the *selected layer's*
 // ColormapBinding. Lifted from the old docked colormap panel; now mounted into the floating
@@ -53,7 +53,7 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
   const folder = pane.addFolder({ title: "Display range" });
 
   let colormapControl: SelectHandle<ColormapId> | null = null;
-  let scaleControl: SelectHandle<ColorScale> | null = null;
+  let scaleControl: ControlHandle<ColorScale> | null = null;
   let windowControl: ControlHandle<RangeValue> | null = null;
   let currentBindingId: string | null = null;
   let currentScale: ColorScale | null = null;
@@ -118,14 +118,15 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
     const disabled = a === null;
     currentBindingId = a?.id ?? null;
     currentScale = a?.binding.scale ?? "linear";
-    colormapControl = folder.addSelect<ColormapId>({
+    colormapControl = folder.addSwatchSelect<ColormapId>({
       label: "Colormap",
       value: a?.binding.colormap ?? DEFAULT_COLORMAP,
       options: colormapOptions,
       onChange: dispatchColormap,
+      paintSwatch: (canvas, id) => paintGradient(canvas, id, true),
     });
     colormapControl.setDisabled(disabled);
-    scaleControl = folder.addSelect<ColorScale>({
+    scaleControl = folder.addSegmented<ColorScale>({
       label: "Scale",
       value: a?.binding.scale ?? "linear",
       options: scaleOptions,

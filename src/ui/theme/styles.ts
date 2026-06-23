@@ -135,6 +135,39 @@ const UI_CSS = `
   font: inherit; cursor: pointer; }
 .webpic-shell :disabled { opacity: 0.5; cursor: default; }
 .webpic-placeholder { padding: 2px 4px; color: var(--webpic-muted); font-style: italic; }
+/* Swatch select (ui/controls/swatchSelect): a gradient-preview trigger that opens a createPopover
+   list of painted rows. The trigger's canvas grows to fill; name + caret trail on the right. */
+.webpic-swatch { box-sizing: border-box; width: 100%; height: var(--webpic-unit); display: flex;
+  align-items: center; gap: 7px; padding: 0 6px; border: 1px solid var(--webpic-border);
+  border-radius: var(--webpic-radius); background: var(--webpic-input-bg); color: var(--webpic-fg);
+  font: inherit; cursor: pointer; }
+.webpic-swatch:hover, .webpic-swatch:focus-visible { outline: none;
+  border-color: color-mix(in srgb, var(--webpic-accent) 50%, var(--webpic-border)); }
+.webpic-swatch_canvas { flex: 1 1 auto; min-width: 0; height: 12px; border-radius: 2px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--webpic-border) 60%, transparent); }
+.webpic-swatch_name { flex: 0 0 auto; color: var(--webpic-muted); }
+.webpic-swatch_caret { flex: 0 0 auto; display: grid; place-items: center; color: var(--webpic-muted);
+  transition: transform .15s ease; }
+.webpic-swatch_caret svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor;
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.webpic-swatch[aria-expanded="true"] .webpic-swatch_caret { transform: rotate(180deg); }
+/* Segmented sliding pill (ui/controls/segmented): equal-width radios over a highlight that slides via
+   --seg-index (one column width per step); --seg-count sizes both the grid and the pill. */
+.webpic-segmented { position: relative; box-sizing: border-box; width: 100%; height: var(--webpic-unit);
+  display: grid; grid-template-columns: repeat(var(--seg-count, 1), 1fr); padding: 2px;
+  background: var(--webpic-input-bg); border: 1px solid var(--webpic-border);
+  border-radius: var(--webpic-radius); }
+.webpic-segmented_pill { position: absolute; top: 2px; bottom: 2px; left: 2px;
+  width: calc((100% - 4px) / var(--seg-count, 1)); border-radius: calc(var(--webpic-radius) - 1px);
+  background: color-mix(in srgb, var(--webpic-accent) 30%, transparent); pointer-events: none;
+  transform: translateX(calc(var(--seg-index, 0) * 100%));
+  transition: transform .18s cubic-bezier(.4, 0, .2, 1); }
+.webpic-segmented_seg { position: relative; z-index: 1; display: grid; place-items: center; padding: 0;
+  border: 0; background: transparent; color: var(--webpic-muted); font: inherit; cursor: pointer;
+  transition: color .15s ease; }
+.webpic-segmented_seg[aria-checked="true"] { color: var(--webpic-fg); }
+.webpic-segmented_seg:focus-visible { outline: none; color: var(--webpic-fg); }
+.webpic-segmented.is-disabled { opacity: 0.5; pointer-events: none; }
 .webpic-chrome { position: fixed; left: 12px; bottom: 12px; z-index: 9; pointer-events: none;
   transition: opacity 240ms ease; }
 .webpic-chrome[hidden] { display: none; }
@@ -489,6 +522,13 @@ const UI_CSS = `
 .webpic-popover_text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .webpic-popover_meta { color: var(--webpic-muted); font-size: 11px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
+/* Colormap picker rows: a fixed-width gradient swatch (so every row's gradient is identical
+   regardless of label length) + the name filling the rest, right-aligned beside the check cell. */
+.webpic-popover.is-swatches { min-width: 216px; }
+.webpic-popover_swatch { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.webpic-popover_swatch .webpic-swatch_canvas { flex: 0 0 100px; height: 14px; }
+.webpic-popover_swatch .webpic-swatch_name { flex: 1 1 auto; min-width: 0; text-align: right;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--webpic-fg); }
 /* Floating colorbar (ui/colorbar): a draggable, collapsible gradient strip for the selected layer's
    color mapping. Glass like the rails; transform: translate(--drag-x/y) is written by ui/floating's
    drag, then snapped to inline left/right/top/bottom anchors with data-edge driving orientation
@@ -642,9 +682,10 @@ const UI_CSS = `
   background: color-mix(in srgb, var(--webpic-accent) 28%, transparent); }
 .webpic-cbar_btn svg { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-/* Colorbar settings popover (ui/colorbar/colorbarSettings): a glass dialog hosting the colormap
+/* Colorbar settings popover (ui/colorbar/colorbarSettings): a small glass dialog hosting the colormap
    controls, body-appended so it escapes the bar's clip; positioned beside the gear toward the
-   viewport center. The mounted pane sheds its own title/folder bar — the header names it. */
+   viewport center. Headerless (Esc + outside-click dismiss) — too small for a title bar; each control
+   stacks full-width with its own uppercase mini-label above it. */
 .webpic-cbar-pop { position: fixed; z-index: 14; box-sizing: border-box; width: 240px;
   max-height: calc(100vh - 16px); display: flex; flex-direction: column; overflow: hidden;
   color: var(--webpic-fg);
@@ -655,21 +696,24 @@ const UI_CSS = `
   font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
   --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
 .webpic-cbar-pop[hidden] { display: none; }
-.webpic-cbar-pop_header { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; height: 30px;
-  padding: 0 4px 0 11px;
-  border-bottom: 1px solid color-mix(in srgb, var(--webpic-border) 55%, transparent); }
-.webpic-cbar-pop_title { flex: 1; font-size: 10px; line-height: 1; letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--webpic-muted); }
-.webpic-cbar-pop_close { appearance: none; display: grid; place-items: center; width: 20px; height: 20px;
-  padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--webpic-muted);
-  cursor: pointer; opacity: 0.6; transition: opacity .12s ease, background .12s ease, color .12s ease; }
-.webpic-cbar-pop_close:hover, .webpic-cbar-pop_close:focus-visible { opacity: 1; outline: none;
-  color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
-.webpic-cbar-pop_close svg { display: block; width: 11px; height: 11px; fill: none; stroke: currentColor;
-  stroke-width: 1.6; stroke-linecap: round; }
-.webpic-cbar-pop_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 9px 9px; }
+.webpic-cbar-pop_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 11px 11px 12px; }
 .webpic-cbar-pop_body .webpic-pane_title, .webpic-cbar-pop_body .webpic-folder_bar { display: none; }
 .webpic-cbar-pop_body .webpic-folder { border-top: none; }
+.webpic-cbar-pop_body .webpic-folder_body { gap: 12px; padding: 0; }
+/* Stack each control full-width with its label as an uppercase caption above (not a 132px side cell). */
+.webpic-cbar-pop_body .webpic-row { flex-wrap: wrap; padding: 0 1px; }
+.webpic-cbar-pop_body .webpic-row_label { flex: 1 1 100%; padding: 0 1px 5px; color: var(--webpic-muted);
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+.webpic-cbar-pop_body .webpic-row_value { flex: 1 1 100%; }
+/* Window: box-less min/max readouts flanking the dual slider (min hugs left, max hugs right). */
+.webpic-cbar-pop_body .webpic-range_text { justify-content: space-between; align-items: center; gap: 8px;
+  margin-top: 2px; }
+.webpic-cbar-pop_body .webpic-range_text::before { content: "min"; color: var(--webpic-muted); }
+.webpic-cbar-pop_body .webpic-range_text::after { content: "max"; color: var(--webpic-muted); }
+.webpic-cbar-pop_body .webpic-range_input { flex: 1 1 0; min-width: 0; height: auto; padding: 0 2px;
+  border: none; background: transparent; }
+.webpic-cbar-pop_body .webpic-range_input:first-of-type { text-align: left; }
+.webpic-cbar-pop_body .webpic-range_input:last-of-type { text-align: right; }
 /* Floating window (ui/floating/floatingWindow): a reusable draggable + resizable glass panel that
    features mount content into. Grip dots in the header free-drag it (clamp to viewport, no docking);
    the SE-corner grip resizes it; pointerdown raises it. Declares the shell-local control tokens
