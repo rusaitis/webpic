@@ -4,6 +4,7 @@ import { type SimulationStore, selectActiveBinding, type UiStore } from "@store"
 import { makeEl } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { type Box, installDragSnap, type PaneEdge, type Viewport } from "../floating/dragSnap.ts";
+import { installRaise } from "../floating/zStack.ts";
 import { bottomDockLayout, colorbarFitMode, railGnomonCramped } from "./bottomDock.ts";
 import { paintGradient, tickLabels } from "./colorbarGradient.ts";
 import { installColorbarSettings } from "./colorbarSettings.ts";
@@ -87,6 +88,7 @@ export function installColorbar(
   container.append(main, actions);
   container.style.bottom = `${INITIAL_GAP_PX}px`; // first-paint dock; left set after repaint sizes it
   parent.appendChild(container);
+  const disposeRaise = installRaise(container); // clicking the strip lifts it over the floating windows
 
   // Last-painted gradient inputs: resizing the canvas clears its bitmap and re-baking the 64-stop
   // gradient is wasted on a window/scale/field edit (only the ticks move), so both are gated on a
@@ -353,6 +355,7 @@ export function installColorbar(
     unsubGnomon();
     unsubVisible();
     unsubBinding();
+    disposeRaise();
     drag.dispose();
     settings.dispose();
     container.remove();

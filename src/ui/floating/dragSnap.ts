@@ -41,6 +41,7 @@ export interface SnapPlacement {
 
 const DRAG_THRESHOLD_PX = 4;
 const VIEWPORT_MARGIN_PX = 8; // keep this much of the element inside the viewport
+const FREE_DRAG_KEEP_PX = 64; // free panels may overhang an edge, but keep at least this much (a grab strip) on screen
 const EDGE_SNAP_PX = 72; // dock to an edge when this close
 const CORNER_SNAP_PX = 80; // pin both axes when this close to a corner
 const EDGE_GAP_PX = 12; // breathing room from the edge when docked (matches the rail's bottom inset)
@@ -148,20 +149,15 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
   };
 }
 
-/** Free-drag placement: clamp the rect's top-left into the viewport (keeping VIEWPORT_MARGIN_PX of
- *  the element on screen), no edge dock. Pure — unit-tested. */
+/** Free-drag placement: a panel may overhang the left/right/bottom edges so it can be tucked aside,
+ *  but FREE_DRAG_KEEP_PX of it (a grab strip) always stays on screen, and its top never crosses the
+ *  top edge — the header is the only drag handle, so it must stay reachable. Pure — unit-tested. */
 export function freePlacement(rect: Box, vp: Viewport): { left: number; top: number } {
+  const keepX = Math.min(FREE_DRAG_KEEP_PX, rect.width);
+  const keepY = Math.min(FREE_DRAG_KEEP_PX, rect.height);
   return {
-    left: clamp(
-      rect.left,
-      VIEWPORT_MARGIN_PX,
-      Math.max(VIEWPORT_MARGIN_PX, vp.width - rect.width - VIEWPORT_MARGIN_PX),
-    ),
-    top: clamp(
-      rect.top,
-      VIEWPORT_MARGIN_PX,
-      Math.max(VIEWPORT_MARGIN_PX, vp.height - rect.height - VIEWPORT_MARGIN_PX),
-    ),
+    left: clamp(rect.left, keepX - rect.width, Math.max(keepX - rect.width, vp.width - keepX)),
+    top: clamp(rect.top, VIEWPORT_MARGIN_PX, Math.max(VIEWPORT_MARGIN_PX, vp.height - keepY)),
   };
 }
 

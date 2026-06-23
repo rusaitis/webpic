@@ -1,6 +1,7 @@
 import { makeEl } from "../controls/dom.ts";
 import { installCornerResize } from "./cornerResize.ts";
 import { installDragSnap } from "./dragSnap.ts";
+import { bringToFront, installRaise } from "./zStack.ts";
 
 // A reusable floating window: a draggable (grip in the header), resizable (corner handle) glass panel
 // that other webpic features mount content into. Free-drag (clamp to viewport, no edge docking) via
@@ -15,11 +16,6 @@ const DEFAULT_MIN_WIDTH_PX = 200;
 const DEFAULT_MIN_HEIGHT_PX = 140;
 const DEFAULT_TOP_PX = 64; // clear of the top bar
 const DEFAULT_RIGHT_PX = 16;
-
-// Floating windows share one ascending z so the most recently grabbed sits on top — above the colorbar
-// (13) and its popover (14), below the help modal (20) and global control popovers (30).
-const Z_BASE = 15;
-let zTop = Z_BASE;
 
 // Matches the colorbar settings popover's × so the close affordance reads the same across chrome.
 const CLOSE_ICON = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>`;
@@ -102,12 +98,8 @@ export function createFloatingWindow(opts: FloatingWindowOptions): FloatingWindo
 
   opts.parent.appendChild(container);
 
-  const raise = (): void => {
-    zTop += 1;
-    container.style.zIndex = `${zTop}`;
-  };
-  raise(); // newest window opens on top
-  container.addEventListener("pointerdown", raise, { capture: true, signal: ac.signal });
+  bringToFront(container); // newest window opens on top of the shared floating stack
+  installRaise(container, ac.signal); // and re-raises whenever it's grabbed
 
   const drag = installDragSnap(container, { mode: "free", handle: bar });
   const disposeResize = installCornerResize(container, resize, {

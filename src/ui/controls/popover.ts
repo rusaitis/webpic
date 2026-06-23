@@ -2,7 +2,7 @@ import { makeEl } from "./dom.ts";
 
 // A lightweight anchored single-select popover (the dataset + content pickers in ui/topBar share it).
 // Content-agnostic: the caller supplies each row's body via renderRow, so one interaction shell —
-// lazy build on open, reposition on scroll/resize, outside-pointerdown + Esc + arrow-key nav, focus
+// lazy build on open, reposition on scroll/resize, optional outside-pointerdown + Esc + arrow-key nav, focus
 // return to the trigger — serves both a plain dataset list and a rich field-metadata list. Built off
 // the anchor's ownerDocument (never the global document), so it's happy-dom-testable and embed-safe.
 // Single-select only; multi-select can follow when multi-field datasets arrive.
@@ -18,6 +18,8 @@ export interface PopoverOptions<T extends PopoverItem> {
   readonly onSelect: (value: string) => void; // commit (then the popover closes)
   readonly renderRow: (doc: Document, item: T, selected: boolean) => HTMLElement; // the row's content
   readonly className?: string; // extra class on the popover root (e.g. "is-fields")
+  readonly onOpen?: () => void; // fired after the panel opens (lets callers close sibling overlays)
+  readonly dismissOnOutside?: boolean; // outside pointerdown closes it (default true; false → sticky)
 }
 
 export interface PopoverHandle {
@@ -37,6 +39,7 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
   const { anchor } = opts;
   const doc = anchor.ownerDocument;
   const win = doc.defaultView;
+  const dismissOnOutside = opts.dismissOnOutside ?? true;
 
   let panel: HTMLElement | null = null; // the listbox; built lazily on first open
   let rows: HTMLElement[] = []; // option elements, parallel to `items`
@@ -163,10 +166,11 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
     visible = true;
     anchor.setAttribute("aria-expanded", "true");
     reposition();
-    doc.addEventListener("pointerdown", onOutside, true);
+    if (dismissOnOutside) doc.addEventListener("pointerdown", onOutside, true);
     doc.addEventListener("keydown", onKeyDown);
     win?.addEventListener("resize", reposition);
     win?.addEventListener("scroll", reposition, true);
+    opts.onOpen?.();
   }
 
   function close(): void {
@@ -179,7 +183,7 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
     rows = [];
     activeIndex = -1;
     anchor.setAttribute("aria-expanded", "false");
-    doc.removeEventListener("pointerdown", onOutside, true);
+    if (dismissOnOutside) doc.removeEventListener("pointerdown", onOutside, true);
     doc.removeEventListener("keydown", onKeyDown);
     win?.removeEventListener("resize", reposition);
     win?.removeEventListener("scroll", reposition, true);

@@ -118,12 +118,14 @@ describe("freePlacement", () => {
     expect(freePlacement(box(500, 400, 240, 180), VP)).toEqual({ left: 500, top: 400 });
   });
 
-  it("clamps a rect past the top-left into the margin", () => {
-    expect(freePlacement(box(-50, -50, 240, 180), VP)).toEqual({ left: 8, top: 8 });
+  it("allows left/right overhang, keeping a grab strip (64px) on screen", () => {
+    expect(freePlacement(box(-120, 400, 240, 180), VP)).toEqual({ left: -120, top: 400 }); // tucked off the left
+    expect(freePlacement(box(-500, 400, 240, 180), VP)).toEqual({ left: 64 - 240, top: 400 }); // capped: 64px stays
+    expect(freePlacement(box(2000, 400, 240, 180), VP)).toEqual({ left: 1000 - 64, top: 400 }); // capped off the right
   });
 
-  it("clamps a rect past the bottom-right so it stays on screen", () => {
-    // max left = 1000 - 240 - 8 = 752; max top = 800 - 180 - 8 = 612
-    expect(freePlacement(box(900, 700, 240, 180), VP)).toEqual({ left: 752, top: 612 });
+  it("lets the panel hang off the bottom but never above the top (header stays grabbable)", () => {
+    expect(freePlacement(box(500, -50, 240, 180), VP)).toEqual({ left: 500, top: 8 }); // top held at the margin
+    expect(freePlacement(box(500, 2000, 240, 180), VP)).toEqual({ left: 500, top: 800 - 64 }); // 64px stays at top
   });
 });

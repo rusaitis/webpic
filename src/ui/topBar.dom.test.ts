@@ -191,11 +191,36 @@ describe("installTopBar", () => {
     expect(timeReveal()?.classList.contains("is-expanded")).toBe(true);
   });
 
-  it("closes the pinned action reveal on outside pointerdown (menu)", () => {
+  it("keeps the pinned action reveal open on outside pointerdown, toggling shut on re-click", () => {
     const { control, actionsReveal } = setup();
-    control("more").dispatchEvent(new MouseEvent("click")); // pin
+    const chevron = control("more");
+    chevron.dispatchEvent(new MouseEvent("click")); // pin
     expect(actionsReveal()?.classList.contains("is-expanded")).toBe(true);
+    // a scene click no longer dismisses a pinned panel (sticky like the time scrub)
     document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(true);
+    chevron.dispatchEvent(new MouseEvent("click")); // re-click is the way to close it
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(false);
+  });
+
+  it("keeps the dataset popover open on outside pointerdown (sticky select)", () => {
+    const { control, popover } = setup();
+    control("dataset").dispatchEvent(new MouseEvent("click"));
+    expect(popover()).not.toBeNull();
+    document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    expect(popover()).not.toBeNull(); // sticky — scene click leaves it open
+  });
+
+  it("makes overlays mutually exclusive — opening one closes the others", () => {
+    const { control, actionsReveal, popover } = setup();
+    control("dataset").dispatchEvent(new MouseEvent("click")); // open the picker
+    expect(popover()).not.toBeNull();
+    control("more").dispatchEvent(new MouseEvent("click")); // opening the chevron closes the picker
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(true);
+    expect(popover()).toBeNull();
+    expect(control("dataset").getAttribute("aria-expanded")).toBe("false");
+    control("dataset").dispatchEvent(new MouseEvent("click")); // reopening the picker closes the chevron
+    expect(popover()).not.toBeNull();
     expect(actionsReveal()?.classList.contains("is-expanded")).toBe(false);
   });
 
@@ -208,17 +233,13 @@ describe("installTopBar", () => {
     expect(popover()).toBeNull(); // force-closed with the UI
   });
 
-  it("clears both pinned reveals when the bar is hidden", () => {
-    const { store, uiStore, control, timeReveal, actionsReveal } = setup();
-    store.getState().setAvailableSteps([0, 5, 10]); // enable the time chip
-    control("time").dispatchEvent(new MouseEvent("click"));
+  it("clears the pinned reveal when the bar is hidden", () => {
+    const { uiStore, control, actionsReveal } = setup();
     control("more").dispatchEvent(new MouseEvent("click"));
-    expect(timeReveal()?.classList.contains("is-expanded")).toBe(true);
     expect(actionsReveal()?.classList.contains("is-expanded")).toBe(true);
 
     uiStore.getState().toggleUi();
-    expect(timeReveal()?.classList.contains("is-expanded")).toBe(false); // not restored on re-show
-    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(false);
+    expect(actionsReveal()?.classList.contains("is-expanded")).toBe(false); // not restored on re-show
   });
 
   it("removes the bar, its popovers, and the scrub control on dispose", () => {

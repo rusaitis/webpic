@@ -16,7 +16,9 @@ import {
 // The top menu bar (magviz's glass-pill topbar, rebuilt to webpic's structure): a brand, a dataset
 // dropdown, a "content" button that opens the available fields + their metadata, a timestep chip that
 // reveals a scrub popover (the custom range control + prev/next) on hover/tap, and a hover-revealed
-// cluster of disabled placeholder actions behind a chevron — both reveals share one installReveal.
+// cluster of disabled placeholder actions behind a chevron — both reveals share one installReveal. On
+// a narrow viewport (matchMedia) the bar goes compact: the timestep scrub relocates into the chevron's
+// panel so the row still fits and the chevron never spills off-screen.
 // ui → store only — every control reads a slice or dispatches a
 // typed intent; no render import. It owns dataset/field/time now, so those docked panels drop from the
 // default layout (schema/theme defaultPanels). Hides with the global UI toggle like ui/cameraRail,
@@ -79,33 +81,22 @@ export function installTopBar(
 
   // A hover/focus/tap reveal: CSS opens the popover on the wrapper's :hover/:focus-within; this adds
   // the click-to-pin (.is-expanded, for touch + aria) and Escape-to-close (returns focus to the
-  // trigger). `dismissOnOutside` distinguishes a menu (true — any outside pointerdown closes it) from
-  // a pinned tool (false — the time scrub stays put so you can scrub while orbiting the scene; it
-  // closes only on re-click or Escape). Shared by the time chip + the actions chevron.
+  // trigger). A pinned reveal is sticky — an outside scene click never dismisses it; only re-clicking
+  // the trigger, Escape, or opening another overlay (onOpen → closeOverlaysExcept) closes it. Shared
+  // by the time chip + the actions chevron.
   const installReveal = (
     wrapper: HTMLElement,
     trigger: HTMLButtonElement,
     ac: AbortController,
-    dismissOnOutside = true,
+    onOpen?: () => void,
   ): { setExpanded: (on: boolean) => void; isExpanded: () => boolean } => {
     const isExpanded = (): boolean => wrapper.classList.contains("is-expanded");
     const setExpanded = (on: boolean): void => {
       wrapper.classList.toggle("is-expanded", on);
       trigger.setAttribute("aria-expanded", String(on));
+      if (on) onOpen?.();
     };
     trigger.addEventListener("click", () => setExpanded(!isExpanded()), { signal: ac.signal });
-    if (dismissOnOutside) {
-      doc.addEventListener(
-        "pointerdown",
-        (e) => {
-          if (!isExpanded()) return;
-          const target = e.target;
-          if (target instanceof Node && wrapper.contains(target)) return;
-          setExpanded(false);
-        },
-        { signal: ac.signal },
-      );
-    }
     doc.addEventListener(
       "keydown",
       (e) => {
@@ -117,6 +108,14 @@ export function installTopBar(
       { signal: ac.signal },
     );
     return { setExpanded, isExpanded };
+  };
+
+  // Topbar overlays are mutually exclusive: opening one (a picker popover or a pinned reveal) closes
+  // the others, so at most one floats at a time. Each registers a closer once built; with outside-
+  // pointerdown dismissal off, this + the trigger toggle + Escape are the only ways one closes.
+  const overlayClosers = new Map<string, () => void>();
+  const closeOverlaysExcept = (keep: string): void => {
+    for (const [id, close] of overlayClosers) if (id !== keep) close();
   };
 
   // Brand: an inline-SVG field-line mark + wordmark (no logo asset exists; this matches the boot
@@ -137,6 +136,8 @@ export function installTopBar(
   const datasetItems = DATASET_CATALOG.map((d) => ({ value: d.id, label: d.label }));
   const datasetPopover = createPopover<{ value: string; label: string }>({
     anchor: datasetBtn,
+    dismissOnOutside: false,
+    onOpen: () => closeOverlaysExcept("dataset"),
     getItems: () => datasetItems,
     getSelected: () => store.getState().datasetId,
     onSelect: (id) => store.getState().selectDataset(id),
@@ -146,6 +147,7 @@ export function installTopBar(
       return span;
     },
   });
+  overlayClosers.set("dataset", () => datasetPopover.close());
 
   // Content picker — the available fields and their metadata; selecting one sets the active field.
   const fieldBtn = pickerButton("field", "webpic-topbar_field", "Dataset contents");
@@ -174,11 +176,14 @@ export function installTopBar(
   const fieldPopover = createPopover<{ value: FieldName }>({
     anchor: fieldBtn,
     className: "is-fields",
+    dismissOnOutside: false,
+    onOpen: () => closeOverlaysExcept("field"),
     getItems: fieldItems,
     getSelected: () => store.getState().activeField,
     onSelect: (name) => void store.getState().selectField(name),
     renderRow: (rowDoc, item) => renderFieldRow(rowDoc, item.value),
   });
+  overlayClosers.set("field", () => fieldPopover.close());
 
   // Time control — a compact "step N" chip that reveals a scrub popover (track + prev/next) on
   // hover/tap, so the resting bar stays a single centered line. The custom range control bakes
@@ -260,28 +265,49 @@ export function installTopBar(
   chevron.setAttribute("aria-haspopup", "true");
   chevron.setAttribute("aria-expanded", "false");
   const actions = makeEl(doc, "div", "webpic-topbar_pop webpic-topbar_actions");
+  const actionsGrid = makeEl(doc, "div", "webpic-topbar_actions-grid");
   const placeholder = (control: string, icon: string, title: string): HTMLButtonElement => {
     const btn = iconButton(control, icon, `${title} (coming soon)`);
     btn.disabled = true;
     btn.setAttribute("aria-disabled", "true");
     return btn;
   };
-  actions.append(
+  actionsGrid.append(
     placeholder("upload", ICON.upload, "Upload data"),
     placeholder("layers", ICON.layers, "Layers"),
     placeholder("export", ICON.export, "Export view"),
     placeholder("layout", ICON.layout, "Compare / layout"),
   );
+  actions.append(actionsGrid); // the compact bar appends the relocated time scrub below this grid
   actionsWrap.append(chevron, actions);
 
   container.append(brand, datasetBtn, fieldBtn, timeWrap, actionsWrap);
   parent.appendChild(container);
 
   // Both reveals share one AbortController (torn down by ac.abort()); installReveal wires each
-  // trigger's click-to-pin + outside-pointerdown + Escape. CSS handles the hover/focus reveal.
+  // trigger's click-to-pin + Escape. CSS handles the hover/focus reveal. Both are sticky pins now —
+  // opening one closes the other overlays (onOpen), and a scene click leaves a pin untouched.
   const ac = new AbortController();
-  const timeReveal = installReveal(timeWrap, timeChip, ac, false); // sticky pin (scrub while viewing)
-  const actionsReveal = installReveal(actionsWrap, chevron, ac); // menu (outside pointerdown closes)
+  const timeReveal = installReveal(timeWrap, timeChip, ac, () => closeOverlaysExcept("time"));
+  const actionsReveal = installReveal(actionsWrap, chevron, ac, () =>
+    closeOverlaysExcept("actions"),
+  );
+  overlayClosers.set("time", () => timeReveal.setExpanded(false));
+  overlayClosers.set("actions", () => actionsReveal.setExpanded(false));
+
+  // Responsive overflow — below a phone-width threshold the scrub can't share the bar with the
+  // pickers, so it relocates into the chevron's action panel and the bar drops to its compact layout.
+  // matchMedia keeps it declarative; both reveals close on each switch so nothing floats over the move.
+  const compactQuery = doc.defaultView?.matchMedia("(max-width: 560px)") ?? null;
+  const applyCompact = (isCompact: boolean): void => {
+    container.classList.toggle("is-compact", isCompact);
+    timeReveal.setExpanded(false);
+    actionsReveal.setExpanded(false);
+    if (isCompact) actions.appendChild(timeWrap);
+    else container.insertBefore(timeWrap, actionsWrap);
+  };
+  applyCompact(compactQuery?.matches ?? false);
+  compactQuery?.addEventListener("change", (e) => applyCompact(e.matches), { signal: ac.signal });
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;

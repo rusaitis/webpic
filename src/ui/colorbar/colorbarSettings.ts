@@ -1,6 +1,7 @@
 import { clamp } from "@schema/math.ts";
 import type { SimulationStore } from "@store";
 import { makeEl } from "../controls/dom.ts";
+import { bringToFront, installRaise } from "../floating/zStack.ts";
 import { installColormapControls } from "./colormapControls.ts";
 
 // The colorbar's settings popover: a small glass dialog hosting the colormap controls, anchored to
@@ -29,6 +30,7 @@ export interface ColorbarSettingsOptions {
 
 export function installColorbarSettings(opts: ColorbarSettingsOptions): ColorbarSettings {
   const doc = opts.parent.ownerDocument;
+  const ac = new AbortController();
   const pop = makeEl(doc, "div", "webpic-cbar-pop");
   pop.setAttribute("role", "dialog");
   pop.setAttribute("aria-label", "Colormap settings");
@@ -37,6 +39,7 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
   const body = makeEl(doc, "div", "webpic-cbar-pop_body");
   pop.append(body);
   opts.parent.appendChild(pop);
+  installRaise(pop, ac.signal); // clicking the dialog keeps it above the floating windows
 
   const controlsDispose = installColormapControls(body, opts.store);
 
@@ -75,7 +78,10 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
     isOpen = next;
     pop.hidden = !next;
     opts.anchor.setAttribute("aria-expanded", String(next));
-    if (next) reposition(); // offsetWidth/Height are valid only once shown
+    if (next) {
+      bringToFront(pop); // opening lifts it over any floating windows
+      reposition(); // offsetWidth/Height are valid only once shown
+    }
   };
 
   const onDocKeyDown = (e: KeyboardEvent): void => {
@@ -93,9 +99,9 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
   const onResize = (): void => {
     if (isOpen) reposition();
   };
-  doc.addEventListener("keydown", onDocKeyDown);
-  doc.addEventListener("mousedown", onDocPointerDown);
-  doc.defaultView?.addEventListener("resize", onResize);
+  doc.addEventListener("keydown", onDocKeyDown, { signal: ac.signal });
+  doc.addEventListener("mousedown", onDocPointerDown, { signal: ac.signal });
+  doc.defaultView?.addEventListener("resize", onResize, { signal: ac.signal });
 
   return {
     toggle: () => setOpen(!isOpen),
@@ -105,9 +111,7 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
       if (isOpen) reposition();
     },
     dispose() {
-      doc.removeEventListener("keydown", onDocKeyDown);
-      doc.removeEventListener("mousedown", onDocPointerDown);
-      doc.defaultView?.removeEventListener("resize", onResize);
+      ac.abort();
       controlsDispose();
       pop.remove();
     },

@@ -230,7 +230,7 @@ const UI_CSS = `
    distinct from the data layers. Shares the topbar's glass treatment (blur + bg lift on hover) so the
    chrome reads as one family; each tab's slide-out label is its aria-label (the ::after pill). */
 .webpic-siderail { position: fixed; left: calc(8px + env(safe-area-inset-left)); top: 50%;
-  transform: translateY(-50%); z-index: 10; box-sizing: border-box;
+  transform: translateY(-50%); z-index: 800; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 2px; padding: 3px;
   background: color-mix(in srgb, var(--webpic-bg) 25%, transparent);
   border: 1px solid color-mix(in srgb, var(--webpic-border) 45%, transparent);
@@ -272,7 +272,7 @@ const UI_CSS = `
 /* Rail flyout (ui/sideRail): a magviz-style panel that opens beside a rail tab, a speech-bubble tail
    pointing back at the button. Glass like the topbar; ui/sideRail writes top/left + --arrow-pos on
    open, and overflow stays visible so the tail can sit outside the left edge. */
-.webpic-flyout { position: fixed; z-index: 11; box-sizing: border-box; width: 280px;
+.webpic-flyout { position: fixed; z-index: 810; box-sizing: border-box; width: 280px;
   max-height: calc(100vh - 24px); display: flex; flex-direction: column; overflow: visible;
   color: var(--webpic-fg);
   background: color-mix(in srgb, var(--webpic-bg) 80%, transparent);
@@ -285,7 +285,8 @@ const UI_CSS = `
   --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px; }
 .webpic-flyout[hidden] { display: none; }
 .webpic-flyout_header { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; height: 30px;
-  padding: 0 4px 0 11px;
+  padding: 0 4px 0 11px; border-radius: 9px 9px 0 0; /* nests inside the 10px/1px border (overflow is visible) */
+  background: color-mix(in srgb, var(--webpic-fg) 4%, transparent); /* lifted header, matching the floating window */
   border-bottom: 1px solid color-mix(in srgb, var(--webpic-border) 55%, transparent); }
 .webpic-flyout_title { flex: 1; font-size: 10px; line-height: 1; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--webpic-muted); }
@@ -294,7 +295,7 @@ const UI_CSS = `
   cursor: pointer; opacity: 0.6; transition: opacity .12s ease, background .12s ease, color .12s ease; }
 .webpic-flyout_close:hover, .webpic-flyout_close:focus-visible { opacity: 1; outline: none;
   color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
-.webpic-flyout_close svg { display: block; width: 11px; height: 11px; fill: none; stroke: currentColor;
+.webpic-flyout_close svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
   stroke-width: 1.6; stroke-linecap: round; }
 .webpic-flyout_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 9px 9px; }
 /* The mounted Scene pane keeps its control rows but sheds its own title + folder bar — the flyout
@@ -351,8 +352,9 @@ const UI_CSS = `
   .webpic-status, .webpic-status.is-visible { transition: opacity 160ms ease; transform: translateX(-50%); }
   .webpic-status_spinner { animation-duration: 2s; }
 }
-/* Keyboard cheat-sheet modal (ui/helpOverlay.ts): full-viewport dimmer + a centered card. */
-.webpic-help { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
+/* Keyboard cheat-sheet modal (ui/helpOverlay.ts): full-viewport dimmer + a centered card. z-index in a
+   high band (above the floating-window stack, which rises from 15 without bound — see floating/zStack). */
+.webpic-help { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center;
   justify-content: center; padding: 24px; box-sizing: border-box; background: rgba(8, 12, 16, 0.55);
   color: var(--webpic-fg); font: 500 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
 .webpic-help[hidden] { display: none; }
@@ -375,7 +377,7 @@ const UI_CSS = `
    currentColor, so dimming the 'color' prop dims text + icons together; the accent brand mark is exempt.
    Declares the shell-local control tokens itself since it lives outside .webpic-shell. */
 .webpic-topbar { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%;
-  transform: translateX(-50%); z-index: 10; box-sizing: border-box;
+  transform: translateX(-50%); z-index: 800; box-sizing: border-box;
   display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 46px;
   max-width: calc(100vw - 24px);
   color: color-mix(in srgb, var(--webpic-fg) calc(var(--topbar-fg) * 100%), transparent);
@@ -394,12 +396,12 @@ const UI_CSS = `
   border-color: color-mix(in srgb, var(--webpic-border) 85%, transparent);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34); }
 .webpic-topbar[hidden] { display: none; }
-.webpic-topbar_brand { display: flex; align-items: center; gap: 8px; padding-right: 4px;
+.webpic-topbar_brand { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding-right: 4px;
   font-weight: 700; letter-spacing: 0.04em; }
 .webpic-topbar_mark { display: grid; place-items: center; color: var(--webpic-accent); }
 .webpic-topbar_mark svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.webpic-topbar_btn { box-sizing: border-box; height: var(--webpic-unit); padding: 0 10px;
+.webpic-topbar_btn { box-sizing: border-box; min-width: 0; height: var(--webpic-unit); padding: 0 10px;
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font: inherit;
   background: var(--webpic-input-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: var(--webpic-radius);
@@ -421,8 +423,10 @@ const UI_CSS = `
 .webpic-topbar_icon { width: var(--webpic-unit); padding: 0; justify-content: center; }
 .webpic-topbar_btn svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.webpic-topbar_label { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.webpic-topbar_caret { display: grid; place-items: center; color: var(--webpic-muted); }
+.webpic-topbar_label { flex: 0 1 auto; min-width: 0; max-width: 18ch; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.webpic-topbar_field .webpic-topbar_label { max-width: 14ch; } /* the content button stays a touch tighter */
+.webpic-topbar_caret { display: grid; flex: 0 0 auto; place-items: center; color: var(--webpic-muted); }
 .webpic-topbar_caret svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 /* Time control: a compact "step N ▾" chip that reveals a scrub popover (track + prev/next) on the
@@ -463,15 +467,15 @@ const UI_CSS = `
    under the trigger, hidden until the wrapper is hovered/focused or pinned (.is-expanded), gated off
    while disabled. The trigger's ::after bridges the gap so the cursor can cross to the popover; a
    two-triangle arrow points up at the trigger. */
-.webpic-topbar_reveal { position: relative; display: flex; align-items: center; }
+.webpic-topbar_reveal { position: relative; flex: 0 0 auto; display: flex; align-items: center; }
 .webpic-topbar_chevron { position: relative; opacity: 0.7; transition: opacity .18s ease; }
 .webpic-topbar:hover .webpic-topbar_chevron,
 .webpic-topbar:focus-within .webpic-topbar_chevron { opacity: 1; }
 .webpic-topbar_chevron svg { transition: transform .18s ease; }
 .webpic-topbar_reveal.is-expanded .webpic-topbar_chevron svg { transform: rotate(180deg); }
 .webpic-topbar_chevron::after, .webpic-topbar_chip::after { content: ""; position: absolute;
-  top: 100%; left: 0; width: 100%; height: 12px; }
-.webpic-topbar_pop { position: absolute; top: 100%; margin-top: 9px; z-index: 1;
+  top: 100%; left: 0; width: 100%; height: 16px; } /* bridges the wider gap so hover can cross */
+.webpic-topbar_pop { position: absolute; top: 100%; margin-top: 15px; z-index: 1;
   background: color-mix(in srgb, var(--webpic-bg) 92%, transparent);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border: 1px solid color-mix(in srgb, var(--webpic-border) 85%, transparent);
@@ -484,24 +488,55 @@ const UI_CSS = `
   transform: translate(var(--pop-x, 0px), 0); pointer-events: auto;
   transition: opacity .18s ease, transform .18s ease; }
 .webpic-topbar_pop::before, .webpic-topbar_pop::after { content: ""; position: absolute;
-  bottom: 100%; border: 6px solid transparent; }
+  bottom: 100%; border: 8px solid transparent; }
 .webpic-topbar_pop::before {
   border-bottom-color: color-mix(in srgb, var(--webpic-border) 85%, transparent); }
 .webpic-topbar_pop::after { margin-bottom: -1px;
   border-bottom-color: color-mix(in srgb, var(--webpic-bg) 92%, transparent); }
 /* Actions popover: right-anchored 2-col icon grid, arrow near the right. */
-.webpic-topbar_actions { right: 0; display: grid; grid-template-columns: repeat(2, var(--webpic-unit));
-  gap: 4px; padding: 6px; }
+.webpic-topbar_actions { right: 0; padding: 6px; }
+.webpic-topbar_actions-grid { display: grid; grid-template-columns: repeat(2, var(--webpic-unit));
+  gap: 4px; }
 .webpic-topbar_actions::before, .webpic-topbar_actions::after { right: 14px; }
 /* Time scrub popover: centered under the chip (--pop-x: -50% pairs with left: 50%), single row
    [prev | track | next], arrow centered. */
 .webpic-topbar_time-pop { left: 50%; --pop-x: -50%; display: flex; align-items: center; gap: 4px;
   padding: 5px 7px; }
-.webpic-topbar_time-pop::before, .webpic-topbar_time-pop::after { left: 50%; margin-left: -6px; }
+.webpic-topbar_time-pop::before, .webpic-topbar_time-pop::after { left: 50%; margin-left: -8px; }
+/* Compact bar (phones / very narrow windows): JS adds .is-compact below ~560px and relocates the time
+   scrub into the chevron's action panel. The bar tightens — brand wordmark drops, pickers truncate
+   harder — so the chevron never spills past the viewport edge. The relocated scrub de-floats: it sits
+   inline + always-open inside the panel, so there's no nested popover to clip at the screen edge. */
+.webpic-topbar.is-compact { gap: 4px; padding: 0 8px; }
+.webpic-topbar.is-compact .webpic-topbar_word { display: none; }
+.webpic-topbar.is-compact .webpic-topbar_dataset .webpic-topbar_label,
+.webpic-topbar.is-compact .webpic-topbar_field .webpic-topbar_label { max-width: 9ch; }
+.webpic-topbar.is-compact .webpic-topbar_actions { display: flex; flex-direction: column;
+  align-items: stretch; gap: 8px; min-width: 224px; padding: 8px; }
+.webpic-topbar.is-compact .webpic-topbar_actions-grid {
+  grid-template-columns: repeat(4, var(--webpic-unit)); justify-content: center; }
+/* The step+slider sit in a subtle full-bleed footer tray (lighter fill, no border) that cleanly
+   divides them from the action icons above; the readout de-buttons into a plain field. */
+.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_time { flex-direction: column;
+  align-items: stretch; gap: 6px; margin: 0 -8px -8px; padding: 8px; border-radius: 0 0 11px 11px;
+  background: color-mix(in srgb, var(--webpic-fg) 6%, transparent); }
+.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_chip { width: 100%; height: auto;
+  padding: 0; justify-content: center; cursor: default; pointer-events: none;
+  color: var(--webpic-muted); }
+.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_chip::after,
+.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_chip .webpic-topbar_caret {
+  display: none; }
+.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_time .webpic-topbar_time-pop {
+  position: static; transform: none; opacity: 1; visibility: visible; pointer-events: auto;
+  margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none; transition: none; }
+.webpic-topbar.is-compact .webpic-topbar_time-pop::before,
+.webpic-topbar.is-compact .webpic-topbar_time-pop::after { display: none; }
+.webpic-topbar.is-compact .webpic-topbar_track.webpic-range { flex: 1 1 auto; width: auto; }
 /* Anchored single-select popover (ui/controls/popover) — the dataset + content pickers share it.
-   Body-appended (escapes the bar's clip); z-index above the help modal so a transient menu is never
-   occluded. Declares the control tokens locally (not a .webpic-shell descendant). */
-.webpic-popover { position: fixed; z-index: 30; box-sizing: border-box; min-width: 200px;
+   Body-appended (escapes the bar's clip); z-index above the help modal (1000) so a transient menu is
+   never occluded — even over a raised floating panel. Declares the control tokens locally. */
+.webpic-popover { position: fixed; z-index: 1100; box-sizing: border-box; min-width: 200px;
   max-height: min(60vh, 420px); overflow-y: auto; padding: 4px;
   background: var(--webpic-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 8px;
@@ -754,7 +789,7 @@ const UI_CSS = `
   cursor: pointer; opacity: 0.6; transition: opacity .12s ease, background .12s ease, color .12s ease; }
 .webpic-window_close:hover, .webpic-window_close:focus-visible { opacity: 1; outline: none;
   color: var(--webpic-fg); background: color-mix(in srgb, var(--webpic-fg) 8%, transparent); }
-.webpic-window_close svg { display: block; width: 11px; height: 11px; fill: none; stroke: currentColor;
+.webpic-window_close svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
   stroke-width: 1.6; stroke-linecap: round; }
 .webpic-window_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 10px 10px; }
 /* Corner resize grip (magviz): a 3-dot triangle in the SE corner; brighten on hover/resize. */
