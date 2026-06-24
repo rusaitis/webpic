@@ -54,6 +54,7 @@ function workerPixels(): Promise<Uint8Array> {
         case "frameTiming":
         case "perfSample":
         case "pickResult":
+        case "layerCompiled":
           return; // telemetry / unrequested replies — the deterministic readback is the `frame` reply
         case "error":
         case "gpuRecoveryFailed":
@@ -140,6 +141,7 @@ function workerSustainsSwapchain(): Promise<{ frames: number; errors: string[] }
         case "frame":
         case "perfSample":
         case "pickResult":
+        case "layerCompiled":
           return;
         case "error":
         case "gpuRecoveryFailed":

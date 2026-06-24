@@ -457,7 +457,14 @@ describe("bootstrap streaming", () => {
     renderWorker.onmessage?.({
       data: { kind: "ready", requestId: 1 },
     } as MessageEvent<RenderWorkerResponse>);
-    expect(phaseKeys()).toEqual(["open"]); // first frame ends boot
+    // Ready ends boot AND flushes the seed upsert, whose async pipeline warm raises the render pill.
+    expect(phaseKeys()).toEqual(["open", "render"]);
+
+    // The render worker acks the warm (layerCompiled) → the render pill drops.
+    renderWorker.onmessage?.({
+      data: { kind: "layerCompiled", requestId: 8, id: store.getState().selectedLayerId ?? "" },
+    } as unknown as MessageEvent<RenderWorkerResponse>);
+    expect(phaseKeys()).toEqual(["open"]);
 
     dataWorker.onmessage?.({
       data: { kind: "opened", steps: [0, 1, 2, 3] },

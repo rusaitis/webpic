@@ -439,7 +439,13 @@ async function upsertLayer(
   if (renderer === undefined) {
     throw new Error("upsertLayer before init");
   }
-  await registry.upsert(request);
+  try {
+    await registry.upsert(request);
+  } finally {
+    // The prospective composite's pipelines are warm (or the warm errored / was superseded) — either
+    // way the first paint won't hitch on a sync compile, so tell main to drop the layer's loading pill.
+    ctx.postMessage({ kind: "layerCompiled", requestId: request.requestId, id: request.id });
+  }
 }
 
 async function removeLayer(

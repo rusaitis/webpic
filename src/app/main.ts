@@ -176,7 +176,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // Store→worker bridges (app-only glue: store and render can't import each other). Each gates its
   // posts on `isReady` and replays the live state via flushAll on the worker `ready`.
   const theme = options.theme !== undefined ? { theme: options.theme } : {};
-  const layerSync = installLayerSync({ store, worker, isReady });
+  const layerSync = installLayerSync({ store, uiStore, worker, isReady });
   const sceneSync = installSceneSync({ store, worker, isReady, ...theme });
   const pickerSync = installPickerSync({ store, worker, isReady, ...theme });
   const renderSync = installRenderWorkerSync({ store, worker, isReady });
@@ -232,6 +232,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       perfBridge?.ingestRenderSample(message);
     } else if (message.kind === "pickResult") {
       renderSync.handlePickResult(message);
+    } else if (message.kind === "layerCompiled") {
+      layerSync.handleCompiled(); // the layer's pipeline is warm → drop the render-loading pill
     } else if (message.kind === "error") {
       console.error("[render worker]", message.message);
     } else if (message.kind === "gpuRecoveryFailed") {

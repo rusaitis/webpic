@@ -1,5 +1,5 @@
 import type { RenderWorkerRequest } from "@render";
-import { createSimulationStore, makeDefaultLayer } from "@store";
+import { createSimulationStore, createUiStore, makeDefaultLayer } from "@store";
 import { describe, expect, it } from "vitest";
 import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
@@ -30,11 +30,13 @@ function harness(ready: boolean) {
   } as unknown as Worker;
   let isReady = ready;
   const store = createSimulationStore();
-  const sync = installLayerSync({ store, worker, isReady: () => isReady });
+  const uiStore = createUiStore();
+  const sync = installLayerSync({ store, uiStore, worker, isReady: () => isReady });
   return {
     store,
     posts,
     sync,
+    uiStore,
     setReady: (v: boolean) => {
       isReady = v;
     },
@@ -163,6 +165,17 @@ describe("installLayerSync", () => {
     store.getState().setDataset(beDataset());
     await flushAsync();
     expect(kinds(posts)).not.toContain("setLayerShading");
+  });
+
+  it("raises the render-loading pill on an upsert and drops it on the layerCompiled ack", async () => {
+    const { store, uiStore, sync, setReady } = harness(false);
+    store.getState().setDataset(beDataset());
+    await flushAsync();
+    setReady(true);
+    sync.flushAll(); // posts the seed upsert → its async warm raises the pill
+    expect(uiStore.getState().loadingPhases.map((p) => p.key)).toContain("render");
+    sync.handleCompiled(); // the worker's layerCompiled ack
+    expect(uiStore.getState().loadingPhases.map((p) => p.key)).not.toContain("render");
   });
 
   it("posts removeLayer when a layer is removed", async () => {

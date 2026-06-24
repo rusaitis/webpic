@@ -290,6 +290,13 @@ export type RenderWorkerResponse =
       readonly purpose: PickPurpose;
       readonly focusDistance?: number;
     }
+  // A layer upsert finished warming its GPU pipelines (renderer.compileAsync over the prospective
+  // composite, DESIGN §Worker message protocol) — its first paint won't hitch on a sync driver compile,
+  // so the app drops the loading pill it raised on the upsert. Echoes the layer `id` (all upserts share
+  // REQUEST_IDS.layer, so the id — not requestId — addresses the layer; v0.1's one-layer app coalesces
+  // them under a single pill). Fires on success, supersede, OR warm failure (the first paint then
+  // sync-compiles), so the pill never strands.
+  | { readonly kind: "layerCompiled"; readonly requestId: number; readonly id: string }
   | { readonly kind: "error"; readonly requestId: number; readonly message: string }
   // Terminal GPU failure: the device was lost and the recovery circuit-breaker stopped re-acquiring
   // (repeated rapid losses) or no adapter is available. The render loop is halted; the app surfaces a

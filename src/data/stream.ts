@@ -8,8 +8,8 @@
 // ±1 scrub displays instantly. Scrubbing back to a consumed/evicted step simply re-reads it.
 //
 // Neighbours are computed in domain-INDEX space over the sorted `steps` array, so a sparse/non-
-// contiguous domain prefetches real adjacent steps. The dumb ±1 policy lives here; a smarter
-// predictor would swap only `wantedSteps`.
+// contiguous domain prefetches real adjacent steps. The dumb ±1 is the default; an injected `plan`
+// (data/prefetch.ts) overrides it with a direction-biased set, swapping only `wantedSteps`.
 
 type Entry<T> =
   | { state: "loading"; controller: AbortController; display: boolean }
@@ -28,6 +28,8 @@ export interface StreamRingOptions<T> {
   readonly capacity?: number;
   /** Prefetch radius in domain-index space (default 1 → the dumb ±1). */
   readonly prefetchRadius?: number;
+  /** Override the symmetric ±radius with a direction-biased wanted set (data/prefetch.ts). */
+  readonly plan?: (center: number) => readonly number[];
 }
 
 export interface StreamRing {
@@ -43,6 +45,7 @@ export interface StreamRing {
 export function createStreamRing<T>(options: StreamRingOptions<T>): StreamRing {
   const capacity = options.capacity ?? 5;
   const radius = options.prefetchRadius ?? 1;
+  const plan = options.plan;
   const steps = options.steps;
   // The domain is fixed for the ring's life (a changed domain builds a new ring), so index lookups
   // memoize to O(1) — otherwise evict()'s sort comparator calls indexOf O(k log k) times per move.
@@ -59,6 +62,9 @@ export function createStreamRing<T>(options: StreamRingOptions<T>): StreamRing {
   function wantedSteps(center: number): number[] {
     const ci = indexOf(center);
     if (ci < 0) return [];
+    // An injected predictor (data/prefetch.ts) biases the window by scrub direction; trust no list it
+    // returns — keep only in-domain steps. Default: the symmetric ±radius.
+    if (plan !== undefined) return plan(center).filter((step) => stepIndex.has(step));
     const out: number[] = [];
     for (let k = -radius; k <= radius; k++) {
       const step = steps[ci + k];
@@ -140,8 +146,10 @@ export function createStreamRing<T>(options: StreamRingOptions<T>): StreamRing {
     for (const neighbour of wanted) {
       if (neighbour !== step && !entries.has(neighbour)) startRead(neighbour, false);
     }
-    // Abort in-flight reads the cursor has scrubbed past (outside the wanted window).
+    // Abort in-flight reads the cursor has scrubbed past (outside the wanted window). The cursor is
+    // always retained — an injected `plan` that omits it must not abort the live display read.
     const wantedSet = new Set(wanted);
+    wantedSet.add(step);
     for (const [s, e] of [...entries]) {
       if (e.state === "loading" && !wantedSet.has(s)) {
         e.controller.abort();

@@ -1,8 +1,14 @@
 import type { FieldArray } from "@containers/field_dataset.ts";
 import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import { type ColormapBinding, DEFAULT_COLORMAP } from "@schema/colormap.ts";
-import type { Layer, SimulationStore } from "@store";
+import type { Layer, SimulationStore, UiStore } from "@store";
 import { createStoreBridge } from "./storeBridge.ts";
+
+// The loading pill raised while a layer upsert warms its GPU pipeline off the render path (the warm is
+// async — compileAsync); the worker's layerCompiled ack drops it. A flat key (v0.1 draws one volume
+// layer): a second upsert retitles the same pill, any layerCompiled drops it — like the streaming
+// bridge's flat "open"/"step" keys.
+const RENDER_PHASE_KEY = "render";
 
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
 // render can't import each other). Two channels: `computed` carries field DATA (heavy, transfers the
@@ -12,6 +18,8 @@ import { createStoreBridge } from "./storeBridge.ts";
 
 export interface LayerSyncOptions {
   readonly store: SimulationStore;
+  /** Raises/drops the render-loading pill across the upsert → layerCompiled round-trip. */
+  readonly uiStore: UiStore;
   readonly worker: Pick<Worker, "postMessage">;
   /** Reads the bootstrap `workerReady` flag — nothing is posted until the worker is live. */
   readonly isReady: () => boolean;
@@ -20,11 +28,14 @@ export interface LayerSyncOptions {
 export interface LayerSync {
   /** Send the full current state (upsert each active-field layer + the composite). Catch-up on ready. */
   readonly flushAll: () => void;
+  /** Drop the render-loading pill when the worker acks a layer's pipeline warm (the layerCompiled
+   *  response). Coalesced (flat key), so any acked layer clears the shared pill. */
+  readonly handleCompiled: () => void;
   readonly dispose: () => void;
 }
 
 export function installLayerSync(opts: LayerSyncOptions): LayerSync {
-  const { store, worker, isReady } = opts;
+  const { store, uiStore, worker, isReady } = opts;
   const bridge = createStoreBridge(store, isReady);
   let lastLayers: readonly Layer[] = store.getState().layers; // snapshot for the removal diff
   let lastBindings = store.getState().colormapBindings; // snapshot for the per-binding change diff
@@ -68,6 +79,8 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       ...kindParams,
     };
     worker.postMessage(request, [buffer]);
+    // The warm (compileAsync) runs off the render path; hold a pill until the worker acks layerCompiled.
+    uiStore.getState().beginLoading(RENDER_PHASE_KEY, "preparing render");
   };
 
   // Live per-layer color update — colormap + window/level + scale, no field transfer.
@@ -202,6 +215,9 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
 
   return {
     flushAll,
+    handleCompiled() {
+      uiStore.getState().endLoading(RENDER_PHASE_KEY);
+    },
     dispose() {
       bridge.dispose();
     },

@@ -112,6 +112,7 @@ function pickPoints(): Promise<{ persp: readonly number[]; ortho: readonly numbe
         case "frame":
         case "frameTiming":
         case "perfSample":
+        case "layerCompiled":
           return;
         case "error":
         case "gpuRecoveryFailed":
