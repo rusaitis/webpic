@@ -186,8 +186,13 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     };
   };
 
+  // Single writer for the canvas cursor (the marker picker no longer sets it directly): a marker grab
+  // or a camera drag reads "grabbing", a marker hover reads "pointer", everything else rests on "grab".
+  // The picker reports its intent through the store (pickerActive/pickerHover), so the two never race.
   const applyCursor = (): void => {
-    target.style.cursor = pointers.size > 0 ? "grabbing" : "grab";
+    const { pickerActive, pickerHover } = store.getState();
+    target.style.cursor =
+      pickerActive || pointers.size > 0 ? "grabbing" : pickerHover !== "none" ? "pointer" : "grab";
   };
 
   // Motion liveness for the worker's quality scaling. Priority: any hand-driven input (held
@@ -637,6 +642,11 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     },
   );
 
+  // The picker reports its cursor intent through the store; re-apply when its hover/grab flips so the
+  // canvas reflects a marker interaction without the picker ever writing style.cursor itself.
+  const unsubPickerActive = store.subscribe((s) => s.pickerActive, applyCursor);
+  const unsubPickerHover = store.subscribe((s) => s.pickerHover, applyCursor);
+
   const priorTouchAction = target.style.touchAction;
   target.style.touchAction = "none"; // touch-drag should orbit, not scroll the page
   const priorCursor = target.style.cursor;
@@ -645,6 +655,8 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
   return () => {
     ac.abort();
     unsubscribeFly();
+    unsubPickerActive();
+    unsubPickerHover();
     for (const id of pointers.keys()) target.releasePointerCapture?.(id);
     pointers.clear();
     heldKeys.clear();

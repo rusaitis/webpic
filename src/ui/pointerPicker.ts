@@ -170,8 +170,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       grab !== null ? [grab[0] - point[0], grab[1] - point[1], grab[2] - point[2]] : [0, 0, 0];
     drag = { pointerId: event.pointerId, mode, grabOffset, part, rect };
     store.getState().setPickerHover(part);
-    store.getState().setPickerActive(true);
-    target.style.cursor = "grabbing";
+    store.getState().setPickerActive(true); // pointerCamera reads this to show the grabbing cursor
   };
 
   const onPointerMove = (event: PointerEvent): void => {
@@ -189,19 +188,18 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       );
       return;
     }
-    if (event.buttons !== 0) return; // a camera drag owns the gesture — don't fight its cursor/hover
+    if (event.buttons !== 0) return; // a camera drag owns the gesture — don't update hover under it
     // No marker to hover (the common picker-hidden case): mirror the "none" outcome without paying
-    // hitTest's forced-layout rect read + projections on every move.
+    // hitTest's forced-layout rect read + projections on every move. Hover drives the cursor
+    // (pointerCamera reads pickerHover) — no style.cursor write here.
     const { overlay, pickerPoint } = state;
     if (!overlay.showPicker || pickerPoint === null) {
       state.setPickerHover("none");
-      target.style.cursor = "grab";
       return;
     }
     const rect = target.getBoundingClientRect();
     const part = hitTest(event.clientX, event.clientY, rect);
     state.setPickerHover(part);
-    target.style.cursor = part === "none" ? "grab" : "pointer";
   };
 
   const onPointerUp = (event: PointerEvent): void => {
@@ -210,7 +208,6 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     target.releasePointerCapture?.(event.pointerId);
     drag = undefined;
     store.getState().setPickerActive(false);
-    target.style.cursor = "grab";
   };
 
   const onPointerCancel = (event: PointerEvent): void => {
@@ -218,7 +215,6 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     target.releasePointerCapture?.(event.pointerId);
     drag = undefined;
     store.getState().setPickerActive(false);
-    target.style.cursor = "grab";
   };
 
   // Held arrows integrate in a rAF loop (dt-scaled, constant speed). pickerActive rides the hold:
