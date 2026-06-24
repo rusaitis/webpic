@@ -164,6 +164,21 @@ const UI_CSS = `
 .webpic-shell, .webpic-flyout, .webpic-cbar, .webpic-cbar-pop, .webpic-window {
   --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 4px; --webpic-unit: 22px;
 }
+/* Chrome is unselectable by default: a press-drag — especially on touch (holding a finger, dragging
+   one element across another) — must never start a text selection or pop the iOS long-press callout.
+   user-select inherits, so one declaration per chrome root covers its whole subtree, including the
+   body-appended popovers (each carries its own root class). Opt back in just below. */
+.webpic-shell, .webpic-topbar, .webpic-chrome, .webpic-rail, .webpic-siderail, .webpic-flyout,
+.webpic-coords-card, .webpic-status, .webpic-cbar, .webpic-cbar-pop, .webpic-window, .webpic-help,
+.webpic-popover {
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+/* Selectable opt-ins: the editable value fields (so the number/text can be selected + edited) and any
+   region a caller tags .webpic-selectable (an info window body, a readout) — text inherits into the
+   tagged subtree. */
+.webpic-text, .webpic-range_input, .webpic-selectable {
+  user-select: text; -webkit-user-select: text; -webkit-touch-callout: default;
+}
 .webpic-shell {
   position: fixed; top: 12px; bottom: 12px; width: 268px; z-index: var(--webpic-z-shell);
   display: flex; flex-direction: column; gap: 8px; overflow-y: auto;
@@ -743,7 +758,7 @@ const UI_CSS = `
 .webpic-cbar_minilabel { display: none; }
 .webpic-cbar.collapsed .webpic-cbar_minilabel:not(:empty) {
   display: flex; align-items: center; justify-content: center;
-  position: absolute; inset: 0; z-index: 2; pointer-events: none; user-select: none;
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
   color: var(--webpic-fg); opacity: 0.45;
   font: 500 13px/1 var(--webpic-mono); letter-spacing: 0.2px;
   text-shadow: var(--webpic-text-shadow); transition: opacity .2s ease, text-shadow .2s ease; }
@@ -878,7 +893,7 @@ const UI_CSS = `
 /* Immediate tracking during a gesture — no position/size lag. */
 .webpic-window.is-dragging, .webpic-window.is-resizing { transition: none; }
 .webpic-window_bar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; height: 28px;
-  padding: 0 8px 0 10px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  padding: 0 8px 0 10px; cursor: grab; touch-action: none;
   border-bottom: 1px solid var(--webpic-edge);
   background: var(--webpic-lift); }
 .webpic-window.is-dragging .webpic-window_bar { cursor: grabbing; }
