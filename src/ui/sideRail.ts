@@ -31,6 +31,8 @@ export function installSideRail(
   uiStore: UiStore,
 ): Disposer {
   const doc = parent.ownerDocument;
+  const ac = new AbortController();
+  const { signal } = ac;
   const container = makeEl(doc, "div", "webpic-siderail");
   container.setAttribute("role", "toolbar");
   container.setAttribute("aria-label", "Tools");
@@ -89,15 +91,23 @@ export function installSideRail(
     if (next) position();
   };
 
-  viewBtn.addEventListener("click", () => setOpen(!isOpen));
-  closeBtn.addEventListener("click", () => {
-    setOpen(false);
-    viewBtn.focus();
-  });
-  probeBtn.addEventListener("click", () => {
-    const state = store.getState();
-    state.setOverlayShowPicker(!state.overlay.showPicker);
-  });
+  viewBtn.addEventListener("click", () => setOpen(!isOpen), { signal });
+  closeBtn.addEventListener(
+    "click",
+    () => {
+      setOpen(false);
+      viewBtn.focus();
+    },
+    { signal },
+  );
+  probeBtn.addEventListener(
+    "click",
+    () => {
+      const state = store.getState();
+      state.setOverlayShowPicker(!state.overlay.showPicker);
+    },
+    { signal },
+  );
 
   // Escape closes (focus returns to the tab); an outside pointer-down dismisses — same shape as the
   // bottom rail's coords card (shared installOutsideClickDismiss).
@@ -107,7 +117,7 @@ export function installSideRail(
       viewBtn.focus();
     }
   };
-  doc.addEventListener("keydown", onDocKeyDown);
+  doc.addEventListener("keydown", onDocKeyDown, { signal });
   const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
     overlay: flyout,
     trigger: viewBtn,
@@ -118,7 +128,7 @@ export function installSideRail(
   const onResize = (): void => {
     if (isOpen) position();
   };
-  doc.defaultView?.addEventListener("resize", onResize);
+  doc.defaultView?.addEventListener("resize", onResize, { signal });
 
   // Reflect store state: probe aria-pressed + label (also its slide-out hover label). The View tab's
   // open state is local, so it carries no store subscription.
@@ -144,10 +154,9 @@ export function installSideRail(
   ];
 
   return () => {
+    ac.abort();
     for (const unsub of unsubs) unsub();
-    doc.removeEventListener("keydown", onDocKeyDown);
     disposeOutsideDismiss();
-    doc.defaultView?.removeEventListener("resize", onResize);
     sceneDispose();
     flyout.remove();
     container.remove();

@@ -1,6 +1,6 @@
 import type { GpuAdapterSummary } from "@gpu";
 import { z } from "zod";
-import type { BackendId } from "./backend.ts";
+import { BACKEND_IDS, type BackendId } from "./backend.ts";
 
 // Background backend microbench + calibration cache. On install: warm-start from cached
 // per-adapter scores, else seed hardcoded heuristics so the dispatcher has scores immediately
@@ -41,7 +41,7 @@ const ScoresSchema = z.object({
   calibrationVersion: z.string(),
   adapterKey: z.string(),
   // Unknown backend ids and non-positive/NaN/Infinity throughputs are rejected.
-  throughput: z.partialRecord(z.enum(["ts", "wasm", "webgpu"]), z.number().positive()),
+  throughput: z.partialRecord(z.enum(BACKEND_IDS), z.number().positive()),
 });
 
 function sanitize(value: string): string {

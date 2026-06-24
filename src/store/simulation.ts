@@ -301,9 +301,14 @@ export function createSimulationStore() {
       // started while it awaited) discards instead of committing a stale field/error — the pull-based
       // invalidation counter (DESIGN §compute) in its v0.1 shape.
       let computeGeneration = 0;
+      // Cancels the superseded compute's in-flight work (an M4 GPU trace, an async backend): the
+      // generation counter only discards the stale *result*, this also stops the work producing it.
+      let computeAbort: AbortController | null = null;
 
       const recompute = async (): Promise<void> => {
         const generation = ++computeGeneration;
+        computeAbort?.abort();
+        computeAbort = null;
         const { dataset, activeField } = get();
         if (dataset === null) {
           // Leave `layers`/`colormapBindings`/`selectedLayerId` untouched — a transient empty/error
@@ -311,8 +316,10 @@ export function createSimulationStore() {
           set({ computed: null, status: "empty", error: null, dataRange: null });
           return;
         }
+        const controller = new AbortController();
+        computeAbort = controller;
         try {
-          const computed = await computeField(activeField, dataset);
+          const computed = await computeField(activeField, dataset, controller.signal);
           if (generation !== computeGeneration) return; // superseded mid-compute — drop the stale result
           // A fresh quantity has a fresh value scale — reset the bound window to its full range.
           const dataRange = finiteRange(computed.data);

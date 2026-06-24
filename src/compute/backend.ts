@@ -9,7 +9,10 @@ import type { RecipeKey } from "./recipes.generated.ts";
 // faking a hop. The dispatcher (computeField) picks the first registered backend that `supports` a
 // recipe; a `ctx.prefer` override + calibration scoring (DESIGN §compute) will refine the choice once
 // more than one backend qualifies.
-export type BackendId = "ts" | "wasm" | "webgpu";
+// The id universe, single-sourced: the `BackendId` type and calibration's runtime Zod enum both
+// derive from this, so adding a backend (WebGPU @ M3, WASM @ M9) is one edit here — no skew.
+export const BACKEND_IDS = ["ts", "wasm", "webgpu"] as const;
+export type BackendId = (typeof BACKEND_IDS)[number];
 
 export interface ComputeBackend {
   readonly id: BackendId;

@@ -37,6 +37,8 @@ export function installCameraRail(
   uiStore: UiStore,
 ): Disposer {
   const doc = parent.ownerDocument;
+  const ac = new AbortController();
+  const { signal } = ac;
   const container = makeEl(doc, "div", "webpic-rail");
   container.setAttribute("role", "toolbar");
   container.setAttribute("aria-label", "View controls");
@@ -57,19 +59,29 @@ export function installCameraRail(
   coordsBtn.setAttribute("aria-expanded", "false");
   coordsBtn.title = "Coordinates & grid info (C)";
 
-  gnomonBtn.addEventListener("click", () => {
-    const state = store.getState();
-    state.setOverlayShowGnomon(!state.overlay.showGnomon);
-  });
-  flyBtn.addEventListener("click", () => store.getState().toggleFlyMode());
-  projBtn.addEventListener("click", () => {
-    const state = store.getState();
-    state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
-  });
+  gnomonBtn.addEventListener(
+    "click",
+    () => {
+      const state = store.getState();
+      state.setOverlayShowGnomon(!state.overlay.showGnomon);
+    },
+    { signal },
+  );
+  flyBtn.addEventListener("click", () => store.getState().toggleFlyMode(), { signal });
+  projBtn.addEventListener(
+    "click",
+    () => {
+      const state = store.getState();
+      state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
+    },
+    { signal },
+  );
   // Momentary, not a toggle: re-frame the data (pointerCamera owns the fit math + glide).
-  fitBtn.addEventListener("click", () => store.getState().requestCameraFly({ kind: "fit" }));
-  coordsBtn.addEventListener("click", () => uiStore.getState().toggleCoordsInfo());
-  helpBtn.addEventListener("click", () => uiStore.getState().toggleHelp());
+  fitBtn.addEventListener("click", () => store.getState().requestCameraFly({ kind: "fit" }), {
+    signal,
+  });
+  coordsBtn.addEventListener("click", () => uiStore.getState().toggleCoordsInfo(), { signal });
+  helpBtn.addEventListener("click", () => uiStore.getState().toggleHelp(), { signal });
 
   container.append(gnomonBtn, flyBtn, projBtn, fitBtn, coordsBtn, helpBtn);
   parent.appendChild(container);
@@ -198,7 +210,7 @@ export function installCameraRail(
       uiStore.getState().toggleCoordsInfo();
     }
   };
-  doc.addEventListener("keydown", onDocKeyDown);
+  doc.addEventListener("keydown", onDocKeyDown, { signal });
   const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
     overlay: card,
     trigger: coordsBtn,
@@ -242,8 +254,8 @@ export function installCameraRail(
   ];
 
   return () => {
+    ac.abort();
     for (const unsub of unsubs) unsub();
-    doc.removeEventListener("keydown", onDocKeyDown);
     disposeOutsideDismiss();
     container.remove();
     card.remove();
