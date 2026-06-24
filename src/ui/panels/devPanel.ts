@@ -37,7 +37,6 @@ export function installDevPanel(host: HTMLElement, store: SimulationStore): Disp
   return () => {
     unsubLayers();
     unsubSelected();
-    shadingControl.dispose();
-    pane.dispose();
+    pane.dispose(); // cascades to the shading checkbox
   };
 }

@@ -1,3 +1,5 @@
+import type { Disposer } from "./types.ts";
+
 // Create elements off an explicit `Document` (the row's `ownerDocument`) rather than
 // a global `document`, so the facade is testable under happy-dom and safe inside an
 // embed iframe with its own document.
@@ -29,4 +31,41 @@ export function makeIconButton(
   if (opts.ariaLabel !== undefined) button.setAttribute("aria-label", opts.ariaLabel);
   button.innerHTML = svg;
   return button;
+}
+
+// The dropdown-affordance caret/chevron: a <span> carrying a constant inline SVG, trailing the
+// topbar pickers/chips and the swatch trigger. Class + icon vary per host; the SVG is a trusted
+// module constant (same innerHTML-of-trusted-markup contract as makeIconButton).
+export function makeCaret(doc: Document, className: string, svg: string): HTMLSpanElement {
+  const span = makeEl(doc, "span", className);
+  span.innerHTML = svg;
+  return span;
+}
+
+// Dismiss a transient overlay when a press lands outside both it and its trigger. The side-rail
+// flyout and the bottom-rail coords card share this exact shape; each keeps its own Escape binding
+// (the key handling differs). `isOpen` is read live so the listener stays installed for the
+// component's lifetime. Returns a disposer.
+export function installOutsideClickDismiss(
+  doc: Document,
+  opts: {
+    overlay: HTMLElement;
+    trigger: HTMLElement;
+    isOpen: () => boolean;
+    onDismiss: () => void;
+  },
+): Disposer {
+  const onDown = (event: MouseEvent): void => {
+    if (!opts.isOpen()) return;
+    const target = event.target;
+    if (
+      target instanceof Node &&
+      (opts.overlay.contains(target) || opts.trigger.contains(target))
+    ) {
+      return;
+    }
+    opts.onDismiss();
+  };
+  doc.addEventListener("mousedown", onDown);
+  return () => doc.removeEventListener("mousedown", onDown);
 }

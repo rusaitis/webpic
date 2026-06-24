@@ -75,8 +75,6 @@ export function installDiagnosticsPanel(host: HTMLElement, store: SimulationStor
     unsubMeasure();
     unsubTiming();
     store.getState().setMeasuringContinuous(false); // never strand continuous mode on teardown
-    measure.dispose();
-    readout.dispose();
-    pane.dispose();
+    pane.dispose(); // cascades to the measure checkbox + readout note
   };
 }

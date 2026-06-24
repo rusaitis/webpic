@@ -202,8 +202,10 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
       open();
     }
   };
-  anchor.addEventListener("click", onAnchorClick);
-  anchor.addEventListener("keydown", onAnchorKeyDown);
+  // Lifetime anchor listeners (the open/close doc listeners above are toggled per-open instead).
+  const anchorAc = new AbortController();
+  anchor.addEventListener("click", onAnchorClick, { signal: anchorAc.signal });
+  anchor.addEventListener("keydown", onAnchorKeyDown, { signal: anchorAc.signal });
 
   return {
     open,
@@ -215,8 +217,7 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
     },
     dispose: () => {
       close();
-      anchor.removeEventListener("click", onAnchorClick);
-      anchor.removeEventListener("keydown", onAnchorKeyDown);
+      anchorAc.abort();
       panel?.remove();
       panel = null;
     },

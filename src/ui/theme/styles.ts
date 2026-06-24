@@ -19,15 +19,24 @@ function colorVar(color: Rgba01 | undefined, fallback: string): string {
   return color ? cssRgba(color) : fallback;
 }
 
+// Neutral dark palette used when a theme omits a color. bg/fg/border are exported because the perf
+// HUD injects its own stylesheet and repeats them as var() fallbacks — sourcing from here keeps the
+// two from drifting (they had: #e8eef4 / 0.86 bg / white-0.12 border).
+export const FALLBACK_BG = "rgba(16, 24, 32, 0.94)";
+export const FALLBACK_FG = "#c8d0d8";
+export const FALLBACK_BORDER = "rgba(200, 208, 216, 0.16)";
+const FALLBACK_MUTED = "#8a94a0";
+const FALLBACK_ACCENT = "#5aa9e6";
+
 // Theme-derived base palette → the five root custom properties everything else mixes from. Falls
-// back to a neutral dark palette when a theme omits a color.
+// back to the neutral dark palette above when a theme omits a color.
 function baseVars(colors: ThemeColors | undefined): Record<string, string> {
   return {
-    "--webpic-bg": colorVar(colors?.background, "rgba(16, 24, 32, 0.94)"),
-    "--webpic-fg": colorVar(colors?.text, "#c8d0d8"),
-    "--webpic-muted": colorVar(colors?.secondaryText, "#8a94a0"),
-    "--webpic-accent": colorVar(colors?.accent, "#5aa9e6"),
-    "--webpic-border": colorVar(colors?.grid, "rgba(200, 208, 216, 0.16)"),
+    "--webpic-bg": colorVar(colors?.background, FALLBACK_BG),
+    "--webpic-fg": colorVar(colors?.text, FALLBACK_FG),
+    "--webpic-muted": colorVar(colors?.secondaryText, FALLBACK_MUTED),
+    "--webpic-accent": colorVar(colors?.accent, FALLBACK_ACCENT),
+    "--webpic-border": colorVar(colors?.grid, FALLBACK_BORDER),
   };
 }
 
@@ -41,10 +50,11 @@ function axisVars(axes: ThemeAxes | undefined): Record<string, string> {
   };
 }
 
-// Semantic shading ladder: each rung is a color-mix/shadow/z-index expression over the five base
-// vars, so it tracks whatever theme is applied — one named token per surface/edge/lift/affordance
-// instead of the percentages scattered through UI_CSS. Set on the install root (the floating chrome
-// are its siblings, not the shell's descendants) and inherited like the base vars, including the
+// Semantic shading ladder: most rungs are a color-mix/shadow/z-index expression over the five base
+// vars, so they track whatever theme is applied — one named token per surface/edge/lift/affordance
+// instead of the percentages scattered through UI_CSS (plus a handful of theme-independent
+// primitives at the tail: the mono stack, blur depth, ease). Set on the install root (the floating
+// chrome are its siblings, not the shell's descendants) and inherited like the base vars, including the
 // body-appended popover. Theme-independent (the base vars carry the theme), hence one shared record.
 const DERIVED_TOKENS = {
   "--webpic-surface": "color-mix(in srgb, var(--webpic-bg) 25%, transparent)",
@@ -62,10 +72,24 @@ const DERIVED_TOKENS = {
   "--webpic-active-strong": "color-mix(in srgb, var(--webpic-accent) 28%, transparent)",
   "--webpic-active-edge": "color-mix(in srgb, var(--webpic-accent) 55%, transparent)",
   "--webpic-seg-pill": "color-mix(in srgb, var(--webpic-accent) 30%, transparent)",
+  "--webpic-glow": "0 0 0 2px color-mix(in srgb, var(--webpic-fg) 35%, transparent)",
   "--webpic-shadow-1": "0 6px 22px rgba(0, 0, 0, 0.22)",
   "--webpic-shadow-2": "0 10px 30px rgba(0, 0, 0, 0.34)",
   "--webpic-shadow-3": "0 12px 32px rgba(0, 0, 0, 0.36)",
   "--webpic-shadow-4": "0 16px 40px rgba(0, 0, 0, 0.4)",
+  // Off-ladder fixed-black shadows: one-off depths used by a single surface each (siderail
+  // pressed/tooltip, collapsed colorbar, floating window), named so the literals don't scatter
+  // through UI_CSS. Same theme-independent contract as shadow-1..4.
+  "--webpic-shadow-subtle": "0 1px 2px rgba(0, 0, 0, 0.15)",
+  "--webpic-shadow-sm": "0 4px 14px rgba(0, 0, 0, 0.28)",
+  "--webpic-shadow-mid": "0 3px 12px rgba(0, 0, 0, 0.16)",
+  "--webpic-shadow-window": "0 12px 32px rgba(0, 0, 0, 0.32)",
+  // Black text outlines for legibility over the gradient (the collapsed colorbar mini-label),
+  // deliberately theme-independent — a light-on-light theme still needs the dark halo.
+  "--webpic-text-shadow": "0 1px 2px rgba(0, 0, 0, 0.45)",
+  "--webpic-text-shadow-strong": "0 1px 3px rgba(0, 0, 0, 0.75)",
+  // 1px inner hairline around painted strips (swatch preview, colorbar gradient).
+  "--webpic-inset-edge": "inset 0 0 0 1px var(--webpic-edge-mid)",
   "--webpic-dim": "color-mix(in srgb, var(--webpic-bg) 55%, transparent)",
   "--webpic-dim-strong": "color-mix(in srgb, var(--webpic-bg) 70%, transparent)",
   // Status error is a fixed semantic red (the theme schema has no error color); a recolored
@@ -86,6 +110,11 @@ const DERIVED_TOKENS = {
   "--webpic-z-flyout": "810",
   "--webpic-z-modal": "1000",
   "--webpic-z-popover": "1100",
+  // Non-color primitives shared across UI_CSS, one source each: the monospace stack, the glass
+  // backdrop-blur depth, and the standard ease — so the literals don't repeat through the sheet.
+  "--webpic-mono": 'ui-monospace, "SF Mono", Menlo, monospace',
+  "--webpic-blur": "10px",
+  "--webpic-ease": "cubic-bezier(0.25, 1, 0.5, 1)",
 } as const satisfies Record<string, string>;
 
 // Map the theme onto every UI custom property: base palette + axis triad + the derived ladder.
@@ -141,7 +170,7 @@ const UI_CSS = `
   padding: 10px; box-sizing: border-box;
   background: var(--webpic-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 8px;
-  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  font: 500 12px/1.4 var(--webpic-mono);
   transition: opacity 240ms ease;
 }
 /* Cold-start reveal (ui/bootReveal.ts): chrome held invisible while the boot phase is live,
@@ -227,7 +256,7 @@ const UI_CSS = `
 .webpic-swatch:hover, .webpic-swatch:focus-visible { outline: none;
   border-color: color-mix(in srgb, var(--webpic-accent) 50%, var(--webpic-border)); }
 .webpic-swatch_canvas { flex: 1 1 auto; min-width: 0; height: 12px; border-radius: 2px;
-  box-shadow: inset 0 0 0 1px var(--webpic-edge-mid); }
+  box-shadow: var(--webpic-inset-edge); }
 .webpic-swatch_name { flex: 0 0 auto; color: var(--webpic-muted); }
 .webpic-swatch_caret { flex: 0 0 auto; display: grid; place-items: center; color: var(--webpic-muted);
   transition: transform .15s ease; }
@@ -268,7 +297,7 @@ const UI_CSS = `
 .webpic-gnomon_tip { position: absolute; top: 50%; left: 50%; width: 12px; height: 12px;
   margin: -6px 0 0 -6px; border-radius: 50%; box-sizing: border-box;
   border: 2px solid transparent; cursor: pointer; pointer-events: auto; }
-.webpic-gnomon_tip:hover { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.webpic-gnomon_tip:hover { box-shadow: var(--webpic-glow); }
 .webpic-gnomon_tip.is-px { background: var(--webpic-axis-x); }
 .webpic-gnomon_tip.is-nx { border-color: var(--webpic-axis-x); }
 .webpic-gnomon_tip.is-py { background: var(--webpic-axis-y); }
@@ -284,7 +313,7 @@ const UI_CSS = `
   /* The colorbar slides the centered cluster aside (via --webpic-rail-shift) when it docks beside the
      rail, so the two read as one centered group; 0 = the rail owns the center alone. */
   transform: translateX(var(--webpic-rail-shift, 0px));
-  transition: opacity 240ms ease, transform .3s cubic-bezier(0.25, 1, 0.5, 1); }
+  transition: opacity 240ms ease, transform .3s var(--webpic-ease); }
 .webpic-rail[hidden] { display: none; }
 .webpic-rail.has-gnomon { padding: 0 80px; }
 .webpic-rail_btn { box-sizing: border-box; width: 32px; height: 32px; padding: 0;
@@ -303,7 +332,7 @@ const UI_CSS = `
    instead of the 30px icon square, single-line with ellipsis. aria-expanded reuses the pressed
    accent-tint while the card is open. */
 .webpic-rail_coords { display: block; width: auto; min-width: 32px; max-width: 40vw; padding: 0 9px;
-  font: 500 11px/30px ui-monospace, "SF Mono", Menlo, monospace;
+  font: 500 11px/30px var(--webpic-mono);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .webpic-rail_coords[aria-expanded="true"] { opacity: 1;
   border-color: var(--webpic-active-edge);
@@ -318,7 +347,7 @@ const UI_CSS = `
   background: var(--webpic-surface);
   border: 1px solid var(--webpic-edge);
   border-radius: 12px;
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
   box-shadow: var(--webpic-shadow-1);
   transition: opacity 240ms ease, background .18s ease, border-color .18s ease, box-shadow .18s ease; }
 .webpic-siderail[hidden] { display: none; }
@@ -334,7 +363,7 @@ const UI_CSS = `
   color: var(--webpic-fg); background: var(--webpic-hover); }
 .webpic-siderail_btn[aria-pressed="true"] { opacity: 1; color: var(--webpic-fg);
   background: var(--webpic-active-strong);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+  box-shadow: var(--webpic-shadow-subtle); }
 .webpic-siderail_btn svg { display: block; width: 18px; height: 18px; fill: none;
   stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 /* Slide-out label on hover/focus (magviz's rail tooltip): the tab's aria-label as a glass pill to the
@@ -342,10 +371,10 @@ const UI_CSS = `
 .webpic-siderail_btn::after { content: attr(aria-label); position: absolute; left: calc(100% + 12px);
   top: 50%; transform: translate(-6px, -50%); padding: 5px 10px; white-space: nowrap;
   background: var(--webpic-pop);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
   border: 1px solid var(--webpic-edge-strong); border-radius: 7px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28); color: var(--webpic-fg);
-  font: 500 11px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.03em;
+  box-shadow: var(--webpic-shadow-sm); color: var(--webpic-fg);
+  font: 500 11px/1 var(--webpic-mono); letter-spacing: 0.03em;
   opacity: 0; pointer-events: none; z-index: var(--webpic-z-chrome-label);
   transition: opacity 140ms ease, transform 140ms ease; }
 .webpic-siderail_btn:hover::after, .webpic-siderail_btn:focus-visible::after {
@@ -361,8 +390,8 @@ const UI_CSS = `
   background: var(--webpic-panel);
   border: 1px solid var(--webpic-edge-70);
   border-radius: 10px; box-shadow: var(--webpic-shadow-3);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
+  font: 500 12px/1.4 var(--webpic-mono);
 }
 .webpic-flyout[hidden] { display: none; }
 .webpic-flyout_header { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; height: 30px;
@@ -400,7 +429,7 @@ const UI_CSS = `
   z-index: var(--webpic-z-card); pointer-events: auto; box-sizing: border-box; min-width: 248px; max-width: 92vw;
   padding: 10px 12px; background: var(--webpic-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 8px;
-  font: 500 11px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
+  font: 500 11px/1.5 var(--webpic-mono); }
 .webpic-coords-card[hidden] { display: none; }
 .webpic-coords-card_row { display: flex; justify-content: space-between; gap: 18px; padding: 1px 0; }
 .webpic-coords-card_label { color: var(--webpic-muted); }
@@ -418,7 +447,7 @@ const UI_CSS = `
   display: flex; align-items: center; gap: 9px; padding: 8px 15px;
   background: var(--webpic-bg); color: var(--webpic-muted);
   border: 1px solid var(--webpic-border); border-radius: 999px;
-  font: 500 13px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  font: 500 13px/1.4 var(--webpic-mono);
   opacity: 0; visibility: hidden; transform: translate(-50%, 6px);
   transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 160ms; }
 .webpic-status.is-visible { opacity: 1; visibility: visible; transform: translate(-50%, 0);
@@ -439,7 +468,7 @@ const UI_CSS = `
    high band (above the floating-window stack, which rises from 15 without bound — see floating/zStack). */
 .webpic-help { position: fixed; inset: 0; z-index: var(--webpic-z-modal); display: flex; align-items: center;
   justify-content: center; padding: 24px; box-sizing: border-box; background: var(--webpic-dim);
-  color: var(--webpic-fg); font: 500 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
+  color: var(--webpic-fg); font: 500 12px/1.5 var(--webpic-mono); }
 .webpic-help[hidden] { display: none; }
 .webpic-help_panel { width: 100%; max-width: 680px; max-height: 100%; overflow-y: auto;
   padding: 18px 20px; box-sizing: border-box; background: var(--webpic-bg);
@@ -467,9 +496,9 @@ const UI_CSS = `
   background: var(--webpic-surface);
   border: 1px solid var(--webpic-edge);
   border-radius: 999px;
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
   box-shadow: var(--webpic-shadow-1);
-  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  font: 500 12px/1.4 var(--webpic-mono);
   --webpic-input-bg: rgba(0, 0, 0, 0.28); --webpic-radius: 999px; --webpic-unit: 30px;
   --topbar-fg: 0.78;
   transition: opacity 240ms ease, background .18s ease, border-color .18s ease,
@@ -558,7 +587,7 @@ const UI_CSS = `
 .webpic-topbar_reveal.is-expanded .webpic-topbar_chevron svg { transform: rotate(180deg); }
 .webpic-topbar_pop { position: absolute; top: 100%; margin-top: 15px; z-index: 1;
   background: var(--webpic-pop);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
   border: 1px solid var(--webpic-edge-strong);
   border-radius: 12px; box-shadow: var(--webpic-shadow-3);
   opacity: 0; visibility: hidden; transform: translate(var(--pop-x, 0px), -6px); pointer-events: none;
@@ -618,7 +647,7 @@ const UI_CSS = `
   max-height: min(60vh, 420px); overflow-y: auto; padding: 4px;
   background: var(--webpic-bg); color: var(--webpic-fg);
   border: 1px solid var(--webpic-border); border-radius: 8px;
-  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  font: 500 12px/1.4 var(--webpic-mono);
   --webpic-radius: 4px; box-shadow: var(--webpic-shadow-3); }
 .webpic-popover[hidden] { display: none; }
 .webpic-popover_item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px;
@@ -653,13 +682,13 @@ const UI_CSS = `
   background: var(--webpic-surface);
   border: 1px solid var(--webpic-edge);
   border-radius: 12px; box-shadow: var(--webpic-shadow-1);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  font: 500 11px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
+  font: 500 11px/1.4 var(--webpic-mono);
   transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
   transition: opacity 240ms ease, background .18s ease, border-color .18s ease, box-shadow .18s ease,
-    left .3s cubic-bezier(0.25, 1, 0.5, 1), right .3s cubic-bezier(0.25, 1, 0.5, 1),
-    top .3s cubic-bezier(0.25, 1, 0.5, 1), bottom .3s cubic-bezier(0.25, 1, 0.5, 1),
-    transform .3s cubic-bezier(0.25, 1, 0.5, 1);
+    left .3s var(--webpic-ease), right .3s var(--webpic-ease),
+    top .3s var(--webpic-ease), bottom .3s var(--webpic-ease),
+    transform .3s var(--webpic-ease);
 }
 .webpic-cbar[hidden] { display: none; }
 .webpic-cbar:hover, .webpic-cbar:focus-within {
@@ -685,7 +714,7 @@ const UI_CSS = `
    rail button rather than a chunky glass pill (magviz). */
 .webpic-cbar.collapsed { opacity: 0.62; border-radius: 6px; padding: 3px;
   border-color: color-mix(in srgb, var(--webpic-border) 20%, transparent);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16); }
+  box-shadow: var(--webpic-shadow-mid); }
 .webpic-cbar.collapsed:hover, .webpic-cbar.collapsed:focus-within { opacity: 1; }
 .webpic-cbar.collapsed .webpic-cbar_ticks, .webpic-cbar.collapsed .webpic-cbar_caption {
   display: none; }
@@ -697,8 +726,8 @@ const UI_CSS = `
 .webpic-cbar[data-edge="left"] .webpic-cbar_main, .webpic-cbar[data-edge="right"] .webpic-cbar_main {
   flex-direction: row; align-items: stretch; }
 .webpic-cbar_strip { position: relative; flex: 0 0 auto; border-radius: 4px; overflow: hidden;
-  box-shadow: inset 0 0 0 1px var(--webpic-edge-mid);
-  transition: width .28s cubic-bezier(0.25, 1, 0.5, 1), height .28s cubic-bezier(0.25, 1, 0.5, 1); }
+  box-shadow: var(--webpic-inset-edge);
+  transition: width .28s var(--webpic-ease), height .28s var(--webpic-ease); }
 .webpic-cbar[data-edge="top"] .webpic-cbar_strip, .webpic-cbar[data-edge="bottom"] .webpic-cbar_strip {
   width: 320px; height: 20px; }
 .webpic-cbar[data-edge="left"] .webpic-cbar_strip, .webpic-cbar[data-edge="right"] .webpic-cbar_strip {
@@ -716,10 +745,10 @@ const UI_CSS = `
   display: flex; align-items: center; justify-content: center;
   position: absolute; inset: 0; z-index: 2; pointer-events: none; user-select: none;
   color: var(--webpic-fg); opacity: 0.45;
-  font: 500 13px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.2px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45); transition: opacity .2s ease, text-shadow .2s ease; }
+  font: 500 13px/1 var(--webpic-mono); letter-spacing: 0.2px;
+  text-shadow: var(--webpic-text-shadow); transition: opacity .2s ease, text-shadow .2s ease; }
 .webpic-cbar.collapsed:hover .webpic-cbar_minilabel {
-  opacity: 1; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); }
+  opacity: 1; text-shadow: var(--webpic-text-shadow-strong); }
 .webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_minilabel,
 .webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_minilabel {
   writing-mode: vertical-rl; transform: rotate(180deg); }
@@ -805,8 +834,8 @@ const UI_CSS = `
   background: var(--webpic-pop);
   border: 1px solid var(--webpic-edge-strong);
   border-radius: 10px; box-shadow: var(--webpic-shadow-3);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
+  font: 500 12px/1.4 var(--webpic-mono);
 }
 .webpic-cbar-pop[hidden] { display: none; }
 .webpic-cbar-pop_body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 11px 11px 12px; }
@@ -836,9 +865,9 @@ const UI_CSS = `
   flex-direction: column; overflow: hidden; color: var(--webpic-fg);
   background: var(--webpic-panel);
   border: 1px solid var(--webpic-edge-mid);
-  border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  border-radius: 12px; box-shadow: var(--webpic-shadow-window);
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
+  font: 500 12px/1.4 var(--webpic-mono);
   transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
   transition: opacity 240ms ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
 }

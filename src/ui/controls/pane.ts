@@ -21,6 +21,7 @@ import type {
   SegmentedOptions,
   SelectHandle,
   SelectOptions,
+  SelectWidget,
   SliderOptions,
   SwatchSelectOptions,
   TextOptions,
@@ -84,6 +85,16 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
     };
   }
 
+  // A SelectWidget is a Widget plus setOptions; attach() handles the Widget half, this forwards
+  // setOptions — so both select variants hand back the same SelectHandle shape from one place.
+  function attachSelectable<V extends string>(
+    row: HTMLElement,
+    valueCell: HTMLElement,
+    widget: SelectWidget<V>,
+  ): SelectHandle<V> {
+    return { ...attach(row, valueCell, widget), setOptions: (next) => widget.setOptions(next) };
+  }
+
   return {
     element,
     addSlider(o: SliderOptions): ControlHandle<number> {
@@ -101,13 +112,15 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
     },
     addSelect<V extends string>(o: SelectOptions<V>): SelectHandle<V> {
       const { row, valueCell } = makeRow(doc, o.label);
-      const widget = createSelect<V>(doc, o.value, o.options, o.onChange);
-      return { ...attach(row, valueCell, widget), setOptions: (next) => widget.setOptions(next) };
+      return attachSelectable(row, valueCell, createSelect<V>(doc, o.value, o.options, o.onChange));
     },
     addSwatchSelect<V extends string>(o: SwatchSelectOptions<V>): SelectHandle<V> {
       const { row, valueCell } = makeRow(doc, o.label);
-      const widget = createSwatchSelect<V>(doc, o.value, o.options, o.onChange, o.paintSwatch);
-      return { ...attach(row, valueCell, widget), setOptions: (next) => widget.setOptions(next) };
+      return attachSelectable(
+        row,
+        valueCell,
+        createSwatchSelect<V>(doc, o.value, o.options, o.onChange, o.paintSwatch),
+      );
     },
     addSegmented<V extends string>(o: SegmentedOptions<V>): ControlHandle<V> {
       const { row, valueCell } = makeRow(doc, o.label);

@@ -2,6 +2,7 @@ import type { PerfSample, PerfStore, PerfWorker, UiStore } from "@store";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
+import { FALLBACK_BG, FALLBACK_BORDER, FALLBACK_FG } from "./theme/styles.ts";
 
 // Dev-mode performance HUD: a magviz-style corner meter (top-left, Shift+P) showing FPS + a CPU/frame
 // sparkline + VRAM/heap, with an expandable detail panel (memory breakdown, worker topology, main-
@@ -31,8 +32,8 @@ const HUD_CSS = `
 .webpic-perf {
   position: fixed; top: 12px; left: 12px; z-index: 30; width: 220px; padding: 8px 10px;
   font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--webpic-fg, #e8eef4); background: var(--webpic-bg, rgba(16, 24, 32, 0.86));
-  border: 1px solid var(--webpic-border, rgba(255, 255, 255, 0.12)); border-radius: 8px;
+  color: var(--webpic-fg, ${FALLBACK_FG}); background: var(--webpic-bg, ${FALLBACK_BG});
+  border: 1px solid var(--webpic-border, ${FALLBACK_BORDER}); border-radius: 8px;
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); user-select: none;
 }
 .webpic-perf[hidden] { display: none; }
@@ -52,7 +53,7 @@ const HUD_CSS = `
 .webpic-perf_row { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
 .webpic-perf_row > span:first-child { opacity: 0.55; }
 .webpic-perf_detail {
-  margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--webpic-border, rgba(255, 255, 255, 0.12));
+  margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--webpic-border, ${FALLBACK_BORDER});
 }
 .webpic-perf_detail[hidden] { display: none; }
 .webpic-perf_sub {

@@ -1,3 +1,4 @@
+import { makeEl } from "./dom.ts";
 import type { Widget } from "./types.ts";
 
 export function createTextInput(
@@ -5,9 +6,8 @@ export function createTextInput(
   value: string,
   onChange: (value: string) => void,
 ): Widget<string> {
-  const input = doc.createElement("input");
+  const input = makeEl(doc, "input", "webpic-text");
   input.type = "text";
-  input.className = "webpic-text";
   input.spellcheck = false;
   input.value = value;
 

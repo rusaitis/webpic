@@ -90,11 +90,6 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
 
   return () => {
     for (const unsub of overlayUnsubs) unsub();
-    density.dispose();
-    labels.dispose();
-    axes.dispose();
-    for (const { handle } of planes) handle.dispose();
-    grid.dispose();
-    pane.dispose();
+    pane.dispose(); // disposes every control the folder tracked — no per-handle teardown needed
   };
 }

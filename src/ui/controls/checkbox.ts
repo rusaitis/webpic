@@ -1,3 +1,4 @@
+import { makeEl } from "./dom.ts";
 import type { Widget } from "./types.ts";
 
 // Sibling order matters: the `.webpic-checkbox_input:checked + .webpic-checkbox_box svg`
@@ -11,17 +12,14 @@ export function createCheckbox(
   ariaLabel: string,
   onChange: (value: boolean) => void,
 ): Widget<boolean> {
-  const label = doc.createElement("label");
-  label.className = "webpic-checkbox";
+  const label = makeEl(doc, "label", "webpic-checkbox");
   label.setAttribute("aria-label", ariaLabel);
 
-  const input = doc.createElement("input");
+  const input = makeEl(doc, "input", "webpic-checkbox_input");
   input.type = "checkbox";
-  input.className = "webpic-checkbox_input";
   input.checked = value;
 
-  const box = doc.createElement("div");
-  box.className = "webpic-checkbox_box";
+  const box = makeEl(doc, "div", "webpic-checkbox_box");
   const svg = doc.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", "0 0 16 16");
   const path = doc.createElementNS(SVG_NS, "path");

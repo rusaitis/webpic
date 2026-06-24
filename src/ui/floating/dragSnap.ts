@@ -1,4 +1,5 @@
 import { clamp } from "@schema/math.ts";
+import { GESTURE_THRESHOLD_PX, VIEWPORT_MARGIN_PX } from "../layout.ts";
 
 // Pointer-driven drag + magnetic edge/corner snap for a single floating element (the colorbar).
 // Movement during a drag rides CSS custom properties --drag-x / --drag-y consumed by a
@@ -39,8 +40,6 @@ export interface SnapPlacement {
   readonly docked: boolean;
 }
 
-const DRAG_THRESHOLD_PX = 4;
-const VIEWPORT_MARGIN_PX = 8; // keep this much of the element inside the viewport
 const FREE_DRAG_KEEP_PX = 64; // free panels may overhang an edge, but keep at least this much (a grab strip) on screen
 const EDGE_SNAP_PX = 72; // dock to an edge when this close
 const CORNER_SNAP_PX = 80; // pin both axes when this close to a corner
@@ -555,7 +554,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     if (pointerId !== e.pointerId) return;
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
-    if (!active && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+    if (!active && Math.hypot(dx, dy) < GESTURE_THRESHOLD_PX) return;
     if (!active) {
       active = true;
       el.classList.add("is-dragging");

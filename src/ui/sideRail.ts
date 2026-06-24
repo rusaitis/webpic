@@ -1,7 +1,8 @@
 import type { SimulationStore, UiStore } from "@store";
-import { makeEl, makeIconButton } from "./controls/dom.ts";
+import { installOutsideClickDismiss, makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import { ICON_CLOSE } from "./icons.ts";
+import { POPOVER_GAP_PX } from "./layout.ts";
 import { installScenePanel } from "./panels/scenePanel.ts";
 
 // The left tool rail (the instance-first rail's first occupants): a magviz-style glass card of icon
@@ -23,8 +24,6 @@ const ICON = {
   // A target around a point — the value-probe marker: outer ring, filled centre, four crosshair ticks.
   probe: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><path d="M8 1.5v2.5M8 12v2.5M1.5 8h2.5M12 8h2.5"/></svg>`,
 } as const;
-
-const FLYOUT_GAP = 10; // px between the rail's right edge and the flyout
 
 export function installSideRail(
   parent: HTMLElement,
@@ -74,7 +73,7 @@ export function installSideRail(
   const position = (): void => {
     const rail = container.getBoundingClientRect();
     const btn = viewBtn.getBoundingClientRect();
-    flyout.style.left = `${Math.round(rail.right + FLYOUT_GAP)}px`;
+    flyout.style.left = `${Math.round(rail.right + POPOVER_GAP_PX)}px`;
     const arrowY = btn.top + btn.height / 2;
     const height = flyout.offsetHeight; // valid only while shown — hidden is cleared before this runs
     const viewportH = doc.documentElement.clientHeight;
@@ -101,21 +100,20 @@ export function installSideRail(
   });
 
   // Escape closes (focus returns to the tab); an outside pointer-down dismisses — same shape as the
-  // bottom rail's coords card.
+  // bottom rail's coords card (shared installOutsideClickDismiss).
   const onDocKeyDown = (event: KeyboardEvent): void => {
     if (event.key === "Escape" && isOpen) {
       setOpen(false);
       viewBtn.focus();
     }
   };
-  const onDocPointerDown = (event: MouseEvent): void => {
-    if (!isOpen) return;
-    const target = event.target;
-    if (target instanceof Node && (flyout.contains(target) || viewBtn.contains(target))) return;
-    setOpen(false);
-  };
   doc.addEventListener("keydown", onDocKeyDown);
-  doc.addEventListener("mousedown", onDocPointerDown);
+  const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
+    overlay: flyout,
+    trigger: viewBtn,
+    isOpen: () => isOpen,
+    onDismiss: () => setOpen(false),
+  });
 
   const onResize = (): void => {
     if (isOpen) position();
@@ -148,7 +146,7 @@ export function installSideRail(
   return () => {
     for (const unsub of unsubs) unsub();
     doc.removeEventListener("keydown", onDocKeyDown);
-    doc.removeEventListener("mousedown", onDocPointerDown);
+    disposeOutsideDismiss();
     doc.defaultView?.removeEventListener("resize", onResize);
     sceneDispose();
     flyout.remove();

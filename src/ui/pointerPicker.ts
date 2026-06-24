@@ -11,6 +11,7 @@ import {
 } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
+import { clientToNdc } from "./pointerMath.ts";
 
 // Point-picker pointer input on the main-thread canvas. Capture-phase, so it runs before
 // pointerCamera's bubble-phase handlers on the same element: a pointerdown that grabs the marker (or a
@@ -71,10 +72,6 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   const { signal } = ac;
   let drag: ActiveDrag | undefined;
 
-  const ndcOf = (clientX: number, clientY: number, rect: DOMRect): { x: number; y: number } => ({
-    x: ((clientX - rect.left) / rect.width) * 2 - 1,
-    y: 1 - ((clientY - rect.top) / rect.height) * 2,
-  });
   const clientOf = (ndcX: number, ndcY: number, rect: DOMRect): ClientPoint => ({
     x: rect.left + ((ndcX + 1) / 2) * rect.width,
     y: rect.top + ((1 - ndcY) / 2) * rect.height,
@@ -167,7 +164,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     const point = store.getState().pickerPoint;
     if (point === null) return;
     const mode = buildMode(part, point, event.shiftKey);
-    const ndc = ndcOf(event.clientX, event.clientY, rect);
+    const ndc = clientToNdc(event.clientX, event.clientY, rect);
     const grab = solve(mode, ndc.x, ndc.y, rect);
     const grabOffset: Vec3 =
       grab !== null ? [grab[0] - point[0], grab[1] - point[1], grab[2] - point[2]] : [0, 0, 0];
@@ -178,33 +175,32 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   };
 
   const onPointerMove = (event: PointerEvent): void => {
+    const state = store.getState(); // one snapshot per move (drag-apply + hover both read it)
     if (drag !== undefined && event.pointerId === drag.pointerId) {
       event.stopImmediatePropagation();
-      const ndc = ndcOf(event.clientX, event.clientY, drag.rect);
+      const ndc = clientToNdc(event.clientX, event.clientY, drag.rect);
       const hit = solve(drag.mode, ndc.x, ndc.y, drag.rect);
       if (hit === null) return; // grazing plane — keep the marker put
-      store
-        .getState()
-        .setPickerPoint(
-          clampToBox(
-            [hit[0] - drag.grabOffset[0], hit[1] - drag.grabOffset[1], hit[2] - drag.grabOffset[2]],
-            store.getState().worldHalfExtent,
-          ),
-        );
+      state.setPickerPoint(
+        clampToBox(
+          [hit[0] - drag.grabOffset[0], hit[1] - drag.grabOffset[1], hit[2] - drag.grabOffset[2]],
+          state.worldHalfExtent,
+        ),
+      );
       return;
     }
     if (event.buttons !== 0) return; // a camera drag owns the gesture — don't fight its cursor/hover
     // No marker to hover (the common picker-hidden case): mirror the "none" outcome without paying
     // hitTest's forced-layout rect read + projections on every move.
-    const { overlay, pickerPoint } = store.getState();
+    const { overlay, pickerPoint } = state;
     if (!overlay.showPicker || pickerPoint === null) {
-      store.getState().setPickerHover("none");
+      state.setPickerHover("none");
       target.style.cursor = "grab";
       return;
     }
     const rect = target.getBoundingClientRect();
     const part = hitTest(event.clientX, event.clientY, rect);
-    store.getState().setPickerHover(part);
+    state.setPickerHover(part);
     target.style.cursor = part === "none" ? "grab" : "pointer";
   };
 
@@ -272,7 +268,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
         ),
       );
       // Re-assert after a concurrent pointer-drag release cleared it mid-hold (store dedupes).
-      if (drag === undefined && !state.pickerActive) state.setPickerActive(true);
+      if (drag === undefined) state.setPickerActive(true);
     }
     if (heldArrows.size > 0) arrowRafId = requestAnimationFrame(arrowStep);
   };

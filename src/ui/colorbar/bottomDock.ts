@@ -1,4 +1,5 @@
 import type { Box } from "../floating/dragSnap.ts";
+import { VIEWPORT_MARGIN_PX } from "../layout.ts";
 
 // Co-centering of the bottom button rail and a bottom-docked colorbar (magviz's installColorbarDock,
 // distilled to pure geometry). When the colorbar docks at the bottom edge *near* the centered rail
@@ -15,7 +16,6 @@ import type { Box } from "../floating/dragSnap.ts";
 export const GROUP_GAP_PX = 12; // gap between the rail cluster and the colorbar when grouped
 const DOCK_PROXIMITY_PX = 72; // max gap from the natural cluster band for a bottom drop to group
 const CORNER_GAP_PX = 12; // clearance kept right of the lower-left corner widget (gnomon/perf)
-const VIEWPORT_MARGIN_PX = 8;
 // The bottom-left gnomon's reserved footprint (12px inset + 56px triad + 12px) — mirrors the rail's
 // `has-gnomon` padding. The centered cluster needs this much clear on each side to not slide under it.
 const GNOMON_RESERVE_PX = 80;

@@ -69,7 +69,6 @@ export function installTimePanel(host: HTMLElement, store: SimulationStore): Dis
   return () => {
     unsubStep();
     unsubSteps();
-    control?.dispose();
-    pane.dispose();
+    pane.dispose(); // disposes the live control too (rebuild() owns swap-time disposal)
   };
 }

@@ -1,5 +1,5 @@
 import { ICON_CARET } from "../icons.ts";
-import { makeEl } from "./dom.ts";
+import { makeCaret, makeEl } from "./dom.ts";
 import { createPopover } from "./popover.ts";
 import type { SelectOption, SelectWidget } from "./types.ts";
 
@@ -30,8 +30,7 @@ export function createSwatchSelect<V extends string>(
   canvas.width = TRIGGER_W;
   canvas.height = SWATCH_H;
   const name = makeEl(doc, "span", "webpic-swatch_name");
-  const caret = makeEl(doc, "span", "webpic-swatch_caret");
-  caret.innerHTML = ICON_CARET;
+  const caret = makeCaret(doc, "webpic-swatch_caret", ICON_CARET);
   button.append(canvas, name, caret);
 
   const reflectTrigger = (): void => {

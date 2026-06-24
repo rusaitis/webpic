@@ -1,14 +1,12 @@
 import { clamp } from "@schema/math.ts";
 import type { Disposer } from "../controls/index.ts";
+import { GESTURE_THRESHOLD_PX, VIEWPORT_MARGIN_PX } from "../layout.ts";
 
 // Pointer-driven resize from a corner handle for a floating element. Dragging the handle (the
 // element's bottom-right grip) grows/shrinks width + height while the top-left stays put (the element
 // is anchored top-left), so resizing never moves the window. AbortController-scoped listeners; the
 // dimension math is a pure helper for tests. Same gesture conventions as dragSnap (4px threshold,
 // pointer capture, no-op on sub-threshold taps).
-
-const RESIZE_THRESHOLD_PX = 4;
-const VIEWPORT_MARGIN_PX = 8; // keep the element's far edge this far inside the viewport
 
 export interface ResizeBounds {
   readonly minWidth: number;
@@ -79,7 +77,7 @@ export function installCornerResize(
     if (pointerId !== e.pointerId) return;
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
-    if (!active && Math.hypot(dx, dy) < RESIZE_THRESHOLD_PX) return;
+    if (!active && Math.hypot(dx, dy) < GESTURE_THRESHOLD_PX) return;
     if (!active) {
       active = true;
       el.classList.add("is-resizing");

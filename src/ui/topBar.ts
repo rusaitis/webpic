@@ -1,7 +1,7 @@
 import { DATASET_CATALOG } from "@schema/datasets.ts";
 import type { FieldName } from "@schema/types.ts";
 import type { SimulationStore, UiStore } from "@store";
-import { makeEl, makeIconButton } from "./controls/dom.ts";
+import { makeCaret, makeEl, makeIconButton } from "./controls/dom.ts";
 import { createPopover, type Disposer, type RangeValue } from "./controls/index.ts";
 import { createRangeControl } from "./controls/rangeControl.ts";
 import { ICON_CARET_FLAT } from "./icons.ts";
@@ -46,11 +46,7 @@ export function installTopBar(
   container.setAttribute("role", "toolbar");
   container.setAttribute("aria-label", "Application");
 
-  const caret = (): HTMLSpanElement => {
-    const span = makeEl(doc, "span", "webpic-topbar_caret");
-    span.innerHTML = ICON_CARET_FLAT;
-    return span;
-  };
+  const caret = (): HTMLSpanElement => makeCaret(doc, "webpic-topbar_caret", ICON_CARET_FLAT);
   const iconButton = (control: string, icon: string, title: string): HTMLButtonElement =>
     makeIconButton(doc, "webpic-topbar_btn webpic-topbar_icon", icon, { control, title });
   // Compact, borderless step buttons (magviz's subtle scrubber) — distinct from the filled picker /

@@ -31,6 +31,7 @@ import {
 } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
+import { clientToNdc } from "./pointerMath.ts";
 
 // Pointer/wheel/keyboard input on the main-thread canvas → camera-pose intents. The OffscreenCanvas
 // is transferred to the worker, but the <canvas> still receives DOM events here; we read the live
@@ -361,8 +362,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       const delta = dollyDeltaForScale(prevSpread / spread);
       const rect = gestureRect ?? target.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
-        const ndcX = ((cx - rect.left) / rect.width) * 2 - 1;
-        const ndcY = 1 - ((cy - rect.top) / rect.height) * 2;
+        const { x: ndcX, y: ndcY } = clientToNdc(cx, cy, rect);
         setCameraPose(dollyPoseToCursor(cameraPose, delta, ndcX, ndcY, rect.width / rect.height));
       } else {
         setCameraPose(dollyPose(cameraPose, delta));
@@ -452,8 +452,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     }
     const rect = wheelRect;
     if (rect.width > 0 && rect.height > 0) {
-      const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
-      const ndcY = 1 - ((clientY - rect.top) / rect.height) * 2; // screen up = +ndcY
+      const { x: ndcX, y: ndcY } = clientToNdc(clientX, clientY, rect); // screen up = +ndcY
       const aspect = rect.width / rect.height;
       setCameraPose(dollyPoseToCursor(cameraPose, deltaY, ndcX, ndcY, aspect));
     } else {
@@ -509,8 +508,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
       flyTo(DEFAULT_POSE); // unlaid-out target — no cursor to pick with
       return;
     }
-    const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = 1 - ((clientY - rect.top) / rect.height) * 2; // screen up = +ndcY
+    const { x: ndcX, y: ndcY } = clientToNdc(clientX, clientY, rect); // screen up = +ndcY
     const aspect = rect.width / rect.height;
     const state = store.getState();
     const ray = cursorRay(

@@ -1,3 +1,4 @@
+import { makeEl } from "./dom.ts";
 import type { SelectOption, SelectWidget } from "./types.ts";
 
 // Native `<select>` — accessible, zero custom-popover surface.
@@ -8,8 +9,7 @@ export function createSelect<V extends string>(
   options: ReadonlyArray<SelectOption<V>>,
   onChange: (value: V) => void,
 ): SelectWidget<V> {
-  const select = doc.createElement("select");
-  select.className = "webpic-select";
+  const select = makeEl(doc, "select", "webpic-select");
 
   const renderOptions = (next: ReadonlyArray<SelectOption<V>>): void => {
     select.replaceChildren();

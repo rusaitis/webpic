@@ -2,6 +2,7 @@ import { clamp } from "@schema/math.ts";
 import type { SimulationStore } from "@store";
 import { makeEl } from "../controls/dom.ts";
 import { bringToFront, installRaise } from "../floating/zStack.ts";
+import { POPOVER_GAP_PX, VIEWPORT_MARGIN_PX } from "../layout.ts";
 import { installColormapControls } from "./colormapControls.ts";
 
 // The colorbar's settings popover: a small glass dialog hosting the colormap controls, anchored to
@@ -9,9 +10,6 @@ import { installColormapControls } from "./colormapControls.ts";
 // off-screen). Mirrors the left rail flyout's lifecycle — local open state, reposition on
 // open/resize, Escape + outside-pointerdown to dismiss. Body-appended so it escapes the colorbar's
 // overflow clip. Headerless: too small for a title bar, so the dialog's aria-label is its only name.
-
-const GAP = 10; // px between the colorbar and the popover
-const MARGIN = 8; // viewport keep-in margin
 
 export interface ColorbarSettings {
   toggle(): void;
@@ -56,20 +54,24 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
     let left: number;
     let top: number;
     if (edge === "left") {
-      left = cb.right + GAP;
+      left = cb.right + POPOVER_GAP_PX;
       top = a.top + a.height / 2 - h / 2;
     } else if (edge === "right") {
-      left = cb.left - GAP - w;
+      left = cb.left - POPOVER_GAP_PX - w;
       top = a.top + a.height / 2 - h / 2;
     } else if (edge === "top") {
-      top = cb.bottom + GAP;
+      top = cb.bottom + POPOVER_GAP_PX;
       left = a.left + a.width / 2 - w / 2;
     } else {
-      top = cb.top - GAP - h; // bottom edge → open upward
+      top = cb.top - POPOVER_GAP_PX - h; // bottom edge → open upward
       left = a.left + a.width / 2 - w / 2;
     }
-    left = clamp(left, MARGIN, Math.max(MARGIN, vw - w - MARGIN));
-    top = clamp(top, MARGIN, Math.max(MARGIN, vh - h - MARGIN));
+    left = clamp(
+      left,
+      VIEWPORT_MARGIN_PX,
+      Math.max(VIEWPORT_MARGIN_PX, vw - w - VIEWPORT_MARGIN_PX),
+    );
+    top = clamp(top, VIEWPORT_MARGIN_PX, Math.max(VIEWPORT_MARGIN_PX, vh - h - VIEWPORT_MARGIN_PX));
     pop.style.left = `${Math.round(left)}px`;
     pop.style.top = `${Math.round(top)}px`;
   };

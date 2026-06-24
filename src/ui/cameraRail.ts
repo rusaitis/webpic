@@ -1,5 +1,5 @@
 import type { CameraProjection, SimulationStore, UiStore } from "@store";
-import { makeEl, makeIconButton } from "./controls/dom.ts";
+import { installOutsideClickDismiss, makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import {
   COORDINATE_UNITS,
@@ -185,7 +185,7 @@ export function installCameraRail(
   applyVisible(uiStore.getState().isUiVisible);
 
   // Escape closes; bare `C` toggles (skipped while typing / under a modifier — Cmd+C stays copy);
-  // a pointer-down outside the card + chip dismisses. Same shape as ui/helpOverlay's own listeners.
+  // an outside pointer-down dismisses (shared installOutsideClickDismiss, like the side-rail flyout).
   const onDocKeyDown = (event: KeyboardEvent): void => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
     if (isTypingTarget(event.target)) return;
@@ -198,14 +198,13 @@ export function installCameraRail(
       uiStore.getState().toggleCoordsInfo();
     }
   };
-  const onDocPointerDown = (event: MouseEvent): void => {
-    if (!isOpen()) return;
-    const target = event.target;
-    if (target instanceof Node && (card.contains(target) || coordsBtn.contains(target))) return;
-    uiStore.getState().setCoordsInfoVisible(false);
-  };
   doc.addEventListener("keydown", onDocKeyDown);
-  doc.addEventListener("mousedown", onDocPointerDown);
+  const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
+    overlay: card,
+    trigger: coordsBtn,
+    isOpen,
+    onDismiss: () => uiStore.getState().setCoordsInfoVisible(false),
+  });
 
   const renderRowsIfOpen = (): void => {
     if (isOpen()) renderGridRows();
@@ -245,7 +244,7 @@ export function installCameraRail(
   return () => {
     for (const unsub of unsubs) unsub();
     doc.removeEventListener("keydown", onDocKeyDown);
-    doc.removeEventListener("mousedown", onDocPointerDown);
+    disposeOutsideDismiss();
     container.remove();
     card.remove();
   };
