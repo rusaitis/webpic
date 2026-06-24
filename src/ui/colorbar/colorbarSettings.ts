@@ -1,6 +1,6 @@
 import { clamp } from "@schema/math.ts";
 import type { SimulationStore } from "@store";
-import { makeEl } from "../controls/dom.ts";
+import { installOutsideClickDismiss, makeEl } from "../controls/dom.ts";
 import { bringToFront, installRaise } from "../floating/zStack.ts";
 import { POPOVER_GAP_PX, VIEWPORT_MARGIN_PX } from "../layout.ts";
 import { installColormapControls } from "./colormapControls.ts";
@@ -92,17 +92,17 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
       opts.anchor.focus();
     }
   };
-  const onDocPointerDown = (e: MouseEvent): void => {
-    if (!isOpen) return;
-    const target = e.target;
-    if (target instanceof Node && (pop.contains(target) || opts.anchor.contains(target))) return;
-    setOpen(false);
-  };
   const onResize = (): void => {
     if (isOpen) reposition();
   };
   doc.addEventListener("keydown", onDocKeyDown, { signal: ac.signal });
-  doc.addEventListener("mousedown", onDocPointerDown, { signal: ac.signal });
+  // Shared mousedown-outside dismiss (not ac.signal-bound — its disposer runs in dispose()).
+  const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
+    overlay: pop,
+    trigger: opts.anchor,
+    isOpen: () => isOpen,
+    onDismiss: () => setOpen(false),
+  });
   doc.defaultView?.addEventListener("resize", onResize, { signal: ac.signal });
 
   return {
@@ -114,6 +114,7 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
     },
     dispose() {
       ac.abort();
+      disposeOutsideDismiss();
       controlsDispose();
       pop.remove();
     },

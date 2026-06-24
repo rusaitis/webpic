@@ -36,7 +36,6 @@ const h = vi.hoisted(() => {
         renderComposite: vi.fn(),
         compileComposite: vi.fn(async () => {}),
         readCompositePixels: vi.fn(),
-        renderOnce: vi.fn(),
         readPixels: vi.fn(),
         setSize: vi.fn(),
         setRenderScale: vi.fn(),

@@ -25,6 +25,16 @@ export function fieldButtonLabel(name: FieldName): string {
   }
 }
 
+// Field-select option order: available fields as-is, but with the active field guaranteed present
+// (prepended when not yet in the computed set) so the control always has a row matching its value.
+// Single-sourced here so the top bar's picker and the docked field panel can't diverge.
+export function orderedFieldNames(
+  available: readonly FieldName[],
+  active: FieldName,
+): readonly FieldName[] {
+  return available.includes(active) ? available : [active, ...available];
+}
+
 export interface FieldMetaRow {
   readonly label: string;
   readonly value: string;
@@ -48,7 +58,7 @@ export function fieldMetaRows(name: FieldName): readonly FieldMetaRow[] {
 
 // Timestep slider math: the control walks INDICES into availableSteps (a contiguous [0, len-1]
 // domain), never the raw step values — robust to sparse/non-contiguous steps ([0,5,10,25]) and free
-// of snapping. Mirrors ui/panels/timePanel's strategy; shared here so the bar and panel agree.
+// of snapping. These index↔step helpers live here as the bar's single source of timestep math.
 
 // Slider value (index) for a step; clamps to 0 when the step isn't in the domain.
 export function stepIndex(step: number, steps: readonly number[]): number {

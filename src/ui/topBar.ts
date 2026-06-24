@@ -9,6 +9,7 @@ import {
   datasetLabel,
   fieldButtonLabel,
   fieldMetaRows,
+  orderedFieldNames,
   stepAt,
   stepIndex,
   stepReadout,
@@ -139,14 +140,10 @@ export function installTopBar(
   fieldLabelEl.textContent = fieldButtonLabel(store.getState().activeField);
   fieldBtn.append(fieldLabelEl, caret());
 
-  // The active field always appears, even if it isn't in the computed set yet (mirrors fieldPanel).
-  const fieldItems = (): { value: FieldName }[] => {
-    const { availableFields, activeField } = store.getState();
-    const names = availableFields.includes(activeField)
-      ? availableFields
-      : [activeField, ...availableFields];
-    return names.map((name) => ({ value: name }));
-  };
+  const fieldItems = (): { value: FieldName }[] =>
+    orderedFieldNames(store.getState().availableFields, store.getState().activeField).map(
+      (name) => ({ value: name }),
+    );
   const renderFieldRow = (rowDoc: Document, name: FieldName): HTMLElement => {
     const wrap = makeEl(rowDoc, "div", "webpic-popover_field");
     const title = makeEl(rowDoc, "span", "webpic-popover_text");
@@ -171,8 +168,8 @@ export function installTopBar(
 
   // Time control — a compact "step N" chip that reveals a scrub popover (track + prev/next) on
   // hover/tap, so the resting bar stays a single centered line. The custom range control bakes
-  // min/max/step at construction, so a changed domain rebuilds it (mirrors ui/panels/timePanel); a
-  // cursor move reflects via set() without echo. Disabled (≤1 step) dims the chip + gates it shut.
+  // min/max/step at construction, so a changed domain rebuilds it; a cursor move reflects via set()
+  // without echo. Disabled (≤1 step) dims the chip + gates it shut.
   const timeWrap = makeEl(doc, "div", "webpic-topbar_time webpic-topbar_reveal");
   const timeChip = makeEl(doc, "button", "webpic-topbar_chip");
   timeChip.type = "button";
@@ -197,7 +194,7 @@ export function installTopBar(
     if (step !== undefined) store.getState().setStep(step); // self-guards out-of-domain + no-ops
   };
   // The grip is a focusable <div role="slider">, not an <input>, so bare-key shortcuts (F/C) reach the
-  // document handlers while it's focused — unlike the old native slider. Matches timePanel's scrub.
+  // document handlers while it's focused — unlike a native <input> slider.
   const onScrub = (v: RangeValue): void => {
     if (typeof v !== "number") return; // single mode emits a number
     stepLabelEl.textContent = stepReadout(v, steps); // live readout in the resting chip

@@ -70,6 +70,19 @@ export function finiteRange(data: FloatArray): { readonly min: number; readonly 
   return { min, max };
 }
 
+// Finite-only minimum in one pass — the setField fill value (NaN→this step's floor; see packInto).
+// Matches finiteRange's no-finite-samples case (0) so the streamed fill stays identical to the
+// construction-time fill, without scanning for the max setField never reads (a per-scrub-step path).
+function finiteMin(data: FloatArray): number {
+  let min = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i];
+    if (v === undefined || !Number.isFinite(v)) continue;
+    if (v < min) min = v;
+  }
+  return min === Number.POSITIVE_INFINITY ? 0 : min; // no finite samples → 0, as finiteRange returns
+}
+
 // Pack a field into `out` (R32F float | R16F half), replacing non-finite samples with `fill` so a
 // stray NaN/inf can't poison a trilinear-filtered neighborhood. Array-type branch hoisted out of the
 // per-voxel loop (16.7M voxels at 256³).
@@ -144,7 +157,7 @@ export function createVolumeTexture(
       const [d, h, w] = next.shape as readonly [number, number, number]; // length checked above
       if (w !== width || h !== height || d !== depth) return false; // shape change → caller rebuilds
       // NaN→this step's own floor (a local pack detail); the window/level normalization is unchanged.
-      const fill = finiteRange(next.data).min;
+      const fill = finiteMin(next.data);
       const slot = active ^ 1; // the inactive buffer
       let target = buffers[slot];
       if (target === undefined) {

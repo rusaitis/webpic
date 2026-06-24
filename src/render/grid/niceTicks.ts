@@ -65,18 +65,3 @@ export function ticksForStep(min: number, max: number, step: number): Omit<NiceT
   const decimals = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
   return { ticks, decimals };
 }
-
-/**
- * Major ticks over [min, max] targeting ~`targetCount` divisions, snapped to a 1/2/5 lattice.
- * Inverted ranges are normalized; a zero-width or non-finite range returns a single degenerate tick
- * (`step: 0`) so callers draw nothing rather than dividing by zero.
- */
-export function niceTicks(min: number, max: number, targetCount: number): NiceTicks {
-  const lo = Math.min(min, max);
-  const hi = Math.max(min, max);
-  if (!(hi > lo)) return { step: 0, ticks: [lo], decimals: 0 };
-
-  const step = niceStep(hi - lo, targetCount);
-  if (!(step > 0)) return { step: 0, ticks: [lo], decimals: 0 };
-  return { step, ...ticksForStep(lo, hi, step) };
-}

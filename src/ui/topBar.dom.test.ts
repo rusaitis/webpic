@@ -4,7 +4,7 @@ import { vectorTriple } from "../../tests/fixtures.ts";
 import { installTopBar } from "./topBar.ts";
 
 // happy-dom: the time scrub is driven via keyboard (no geometry for pointer drags), so assertions hit
-// the ui → store seam (setStep) plus the rendered readout — mirroring ui/panels/timePanel's tests.
+// the ui → store seam (setStep) plus the rendered readout.
 // The scrub track + prev/next live in a CSS-hidden reveal popover, but happy-dom queries + event
 // dispatch reach hidden nodes, so the behavioral assertions don't depend on the popover being open.
 

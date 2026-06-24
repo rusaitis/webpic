@@ -110,18 +110,6 @@ export interface TextOptions {
   readonly onChange: (value: string) => void;
 }
 
-export interface ButtonOptions {
-  readonly label: string;
-  readonly onClick: () => void;
-  readonly disabled?: boolean;
-}
-
-export interface ButtonHandle {
-  readonly element: HTMLElement;
-  setDisabled(disabled: boolean): void;
-  dispose(): void;
-}
-
 // A static, value-less text row (caption / placeholder). No `set`/`setDisabled` — it only
 // renders and tears down.
 export interface NoteHandle {
@@ -143,7 +131,6 @@ export interface Folder {
   addSegmented<V extends string>(opts: SegmentedOptions<V>): ControlHandle<V>;
   addCheckbox(opts: CheckboxOptions): ControlHandle<boolean>;
   addText(opts: TextOptions): ControlHandle<string>;
-  addButton(opts: ButtonOptions): ButtonHandle;
   addFolder(opts: FolderOptions): Folder;
   addNote(text: string): NoteHandle;
   dispose(): void;

@@ -64,7 +64,6 @@ interface GpuSingleton {
   readonly adapter: GPUAdapter;
   readonly device: GPUDevice;
   readonly capabilities: GpuCapabilities;
-  isDisposing: boolean;
   settled: boolean; // loss or dispose already processed for this device
 }
 
@@ -190,7 +189,6 @@ function adopt(adapter: GPUAdapter, device: GPUDevice, options?: GpuRequestOptio
     adapter,
     device,
     capabilities: probeCapabilities(adapter, device),
-    isDisposing: false,
     settled: false,
   };
   current = singleton;
@@ -231,7 +229,6 @@ function dispose(): void {
   const singleton = current;
   current = undefined;
   if (singleton !== undefined) {
-    singleton.isDisposing = true;
     if (!singleton.settled) {
       singleton.settled = true; // suppress the pending watchForLoss for this device
       // Intentional teardown — not a GPU failure; nothing to recover or banner.

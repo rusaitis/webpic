@@ -1,3 +1,4 @@
+import { readHeapBytes } from "@containers/perf_probe.ts";
 import type { StreamStepMessage } from "@data";
 import { getCapabilities, getDevice, installGpu, resetLedger, vramSnapshot } from "@gpu";
 import { type OrthographicCamera, type PerspectiveCamera, Vector3 } from "three";
@@ -31,7 +32,6 @@ const ctx = self as unknown as {
   postMessage(message: RenderWorkerResponse, transfer?: Transferable[]): void;
 };
 
-let gpu: { dispose: () => void } | undefined;
 let renderer: InstalledRenderer | undefined;
 // The RGB test triangle as the empty-layers frame is opt-in (init.debugScene — `?debugScene`, the
 // parity test): handy "renderer alive, data missing" diagnostic, but as the default boot frame it
@@ -280,7 +280,7 @@ function volumeCamera(): PerspectiveCamera | OrthographicCamera | undefined {
 async function init(request: Extract<RenderWorkerRequest, { kind: "init" }>): Promise<void> {
   // high-performance picks the discrete GPU on hybrid machines (no-op on a single-GPU phone/tablet);
   // a volume raymarcher wants the fast adapter. installGpu retains the option for device recovery too.
-  gpu = await installGpu({ powerPreference: "high-performance" });
+  await installGpu({ powerPreference: "high-performance" });
   canvas = request.canvas;
   devicePixelRatio = request.devicePixelRatio;
   renderer = await installRenderer({
@@ -367,13 +367,6 @@ async function sampleAndPostTiming(): Promise<void> {
   // HUD open alongside continuous measurement: it reads the same wall-clock. CPU-encode + interval
   // aren't measured on the continuous path, so they ride as NaN (the HUD renders them blank).
   if (perfActive) postPerfSample(Number.NaN, gpuTimeMs, Number.NaN, true);
-}
-
-// performance.memory is Chrome-only and absent from the worker lib types; read it defensively (a
-// cheap synchronous property access) and report null where it's missing.
-function readHeapBytes(): number | null {
-  const memory = (performance as { memory?: { readonly usedJSHeapSize: number } }).memory;
-  return memory !== undefined ? memory.usedJSHeapSize : null;
 }
 
 // Post one perf-HUD sample. vram + heap are read here (both cheap); timing fields are supplied by the
@@ -699,14 +692,3 @@ ctx.onmessage = (event) => {
     ctx.postMessage({ kind: "error", requestId: request.requestId, message });
   });
 };
-
-export function dispose(): void {
-  recovery.stop();
-  streamPort?.close();
-  streamPort = undefined;
-  loop.stop();
-  for (const renderModule of modules) renderModule.dispose();
-  testScene?.dispose();
-  renderer?.dispose();
-  gpu?.dispose();
-}

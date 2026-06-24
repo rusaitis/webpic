@@ -7,8 +7,6 @@ import { createSlider } from "./slider.ts";
 import { createSwatchSelect } from "./swatchSelect.ts";
 import { createTextInput } from "./text.ts";
 import type {
-  ButtonHandle,
-  ButtonOptions,
   CheckboxOptions,
   ControlHandle,
   Disposer,
@@ -133,30 +131,6 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
     addText(o: TextOptions): ControlHandle<string> {
       const { row, valueCell } = makeRow(doc, o.label);
       return attach(row, valueCell, createTextInput(doc, o.value, o.onChange));
-    },
-    addButton(o: ButtonOptions): ButtonHandle {
-      const wrap = makeEl(doc, "div", "webpic-button");
-      const button = makeEl(doc, "button", "webpic-button_btn");
-      button.type = "button";
-      button.textContent = o.label;
-      button.disabled = o.disabled ?? false;
-      wrap.appendChild(button);
-      body.appendChild(wrap);
-      // A native disabled <button> doesn't dispatch click, so no guard is needed.
-      const buttonAc = new AbortController();
-      button.addEventListener("click", o.onClick, { signal: buttonAc.signal });
-      const dispose = track(() => {
-        buttonAc.abort();
-        wrap.remove();
-        disposers.delete(dispose);
-      });
-      return {
-        element: wrap,
-        setDisabled: (disabled) => {
-          button.disabled = disabled;
-        },
-        dispose,
-      };
     },
     addFolder(o: FolderOptions): Folder {
       const sub = makeFolder(doc, o);

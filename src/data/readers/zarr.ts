@@ -55,10 +55,6 @@ function handleKey(handle: DataHandle): string {
   return handle.kind === "url" ? `url:${handle.url}` : `opfs:${handle.path}`;
 }
 
-function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new DOMException("aborted", "AbortError");
-}
-
 function getOpts(signal: AbortSignal | undefined): { signal?: AbortSignal } {
   return signal === undefined ? {} : { signal };
 }
@@ -168,7 +164,7 @@ async function openPypicStore(
 ): Promise<OpenedStore> {
   const source = `Zarr store at ${sourceLabel(handle)}`;
   const store = await openStore(handle);
-  throwIfAborted(signal);
+  signal?.throwIfAborted();
 
   const root = await zarr.open(
     store,
@@ -345,9 +341,9 @@ export function createZarrReader(
 
     async readTimestep(handle, step, readOptions?: ReadTimestepOptions) {
       const signal = readOptions?.signal;
-      throwIfAborted(signal);
+      signal?.throwIfAborted();
       const store = await getOpened(handle, signal);
-      throwIfAborted(signal);
+      signal?.throwIfAborted();
 
       const steps = store.timeSteps;
       const isMultiStep = steps !== null;
@@ -382,7 +378,7 @@ export function createZarrReader(
 
       const fields = new Map<FieldName, FieldArray>();
       for (const name of names) {
-        throwIfAborted(signal);
+        signal?.throwIfAborted();
         fields.set(name, await readField(store, name, step, isMultiStep, signal));
       }
 
@@ -430,5 +426,3 @@ export function createZarrConfidence(openStore: StoreOpener = defaultOpenStore):
     }
   };
 }
-
-export const zarrConfidence: ConfidenceFn = createZarrConfidence();

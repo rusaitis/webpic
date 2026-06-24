@@ -8,6 +8,11 @@ import {
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 
+// Format a column-major 4×4 (16-element) matrix as a CSS matrix3d() string.
+function matrix3d(m: readonly number[]): string {
+  return `matrix3d(${m.map((v) => v.toFixed(5)).join(", ")})`;
+}
+
 // Always-on camera gnomon pinned bottom-left: a CSS-3D axis triad driven straight from the store
 // pose. The pose is angle-parameterized, so the gnomon is a CSS transform — no second renderer or
 // worker round-trip. Hides with the rest of the UI on the toggle, and independently via the bottom
@@ -29,7 +34,7 @@ export function gnomonTransform(pose: CameraPose): string {
   // Column-major (det +1, a proper rotation): col1 = world-x dir, −col3 = world-y dir, −col2 = world-z
   // dir, all in CSS coords. screenRight=(−sa,ca,0), screenUp=(−se·ca,−se·sa,ce), screenBack toward viewer.
   const m = [-sa, se * ca, ce * ca, 0, 0, ce, -se, 0, -ca, -se * sa, -ce * sa, 0, 0, 0, 0, 1];
-  return `matrix3d(${m.map((v) => v.toFixed(5)).join(", ")})`;
+  return matrix3d(m);
 }
 
 // The inverse (= transpose, pure rotation) of gnomonTransform. A tip's transform is
@@ -41,7 +46,7 @@ export function gnomonCounterTransform(pose: CameraPose): string {
   const se = Math.sin(pose.elevation);
   const ce = Math.cos(pose.elevation);
   const m = [-sa, 0, -ca, 0, se * ca, ce, -se * sa, 0, ce * ca, -se, -ce * sa, 0, 0, 0, 0, 1];
-  return `matrix3d(${m.map((v) => v.toFixed(5)).join(", ")})`;
+  return matrix3d(m);
 }
 
 // The arms' scene-space frame (see gnomonTransform): world +x → CSS +x, world +y → CSS −z (into

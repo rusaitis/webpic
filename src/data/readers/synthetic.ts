@@ -79,10 +79,6 @@ function parseHandle(handle: DataHandle): SyntheticHandle | null {
   };
 }
 
-function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new DOMException("aborted", "AbortError");
-}
-
 function wrapComponent(name: FieldName, data: Float32Array, shape: readonly number[]): FieldArray {
   const meta = fieldInfo(name);
   return { data, shape: [...shape], meta, units: meta.siUnit, latex: meta.latex, reduction: null };
@@ -256,9 +252,9 @@ export function createSyntheticReader(): SimulationReader & FieldListingReader {
       // Async boundary so an abort racing a queued read is honored before any work (the loop aborts
       // reads the user scrubbed past); the generation itself is synchronous + cheap.
       await Promise.resolve();
-      throwIfAborted(options?.signal);
+      options?.signal?.throwIfAborted();
       const dataset = datasetForStep(parsed, step);
-      throwIfAborted(options?.signal);
+      options?.signal?.throwIfAborted();
       if (options?.fields === undefined) return dataset;
       // Restrict to requested fields, rejecting unknown names loudly (mirrors the zarr reader).
       const fields = new Map<FieldName, FieldArray>();

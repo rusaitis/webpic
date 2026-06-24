@@ -1,3 +1,4 @@
+import { readHeapBytes } from "@containers/perf_probe.ts";
 import {
   REQUEST_IDS,
   type RenderWorkerRequest,
@@ -73,12 +74,6 @@ export function installPerf(opts: PerfBridgeOptions): PerfBridge {
       });
     }
     perfStore.getState().setTopology(topology);
-  };
-
-  // performance.memory is Chrome-only and absent from the lib types; read defensively (cheap).
-  const readHeapBytes = (): number | null => {
-    const memory = (performance as { memory?: { readonly usedJSHeapSize: number } }).memory;
-    return memory !== undefined ? memory.usedJSHeapSize : null;
   };
 
   // Whole-page breakdown — the modern, standardized API. Async + costly (can pause JS tens of ms) and

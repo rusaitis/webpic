@@ -1,6 +1,7 @@
 import {
   GRID_DIVISIONS_MAX,
   GRID_DIVISIONS_MIN,
+  GRID_PLANES,
   type GridPlane,
   type SimulationStore,
 } from "@store";
@@ -17,7 +18,6 @@ const PLANE_LABELS: Readonly<Record<GridPlane, string>> = {
   yz: "YZ plane",
   xz: "XZ plane",
 };
-const PLANE_ORDER: readonly GridPlane[] = ["xy", "yz", "xz"];
 
 export function installScenePanel(host: HTMLElement, store: SimulationStore): Disposer {
   const pane = createPane({ parent: host, title: "Scene" });
@@ -30,7 +30,7 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
     onChange: (on) => store.getState().setOverlayShowGrid(on),
   });
 
-  const planes = PLANE_ORDER.map((plane) => ({
+  const planes = GRID_PLANES.map((plane) => ({
     plane,
     handle: folder.addCheckbox({
       label: PLANE_LABELS[plane],

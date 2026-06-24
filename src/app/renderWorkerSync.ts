@@ -3,7 +3,14 @@ import {
   type RenderWorkerRequest,
   type RenderWorkerResponse,
 } from "@render/messages.ts";
-import { cursorRay, focusPoseOnPoint, type SimulationStore, unitBoxChordMidpoint } from "@store";
+import {
+  type CameraPose,
+  type CameraProjection,
+  cursorRay,
+  focusPoseOnPoint,
+  type SimulationStore,
+  unitBoxChordMidpoint,
+} from "@store";
 import { createStoreBridge } from "./storeBridge.ts";
 
 // The cheap store→render-worker control channel (app-only glue: store and render can't import each
@@ -33,30 +40,27 @@ export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWo
   const { store, worker, isReady } = opts;
   const bridge = createStoreBridge(store, isReady);
 
+  const postPose = (pose: CameraPose): void => {
+    worker.postMessage({
+      kind: "setCameraPose",
+      requestId: REQUEST_IDS.pose,
+      pose,
+    } satisfies RenderWorkerRequest);
+  };
+  const postProjection = (projection: CameraProjection): void => {
+    worker.postMessage({
+      kind: "setProjection",
+      requestId: REQUEST_IDS.projection,
+      projection,
+    } satisfies RenderWorkerRequest);
+  };
+
   // Pose is always present (DEFAULT_POSE) and the worker applied it at init, so this fires only on
   // user-driven changes; the ready catch-up (flushAll) covers a drag during worker init.
-  bridge.subscribeWhenReady(
-    (state) => state.cameraPose,
-    (pose) => {
-      worker.postMessage({
-        kind: "setCameraPose",
-        requestId: REQUEST_IDS.pose,
-        pose,
-      } satisfies RenderWorkerRequest);
-    },
-  );
+  bridge.subscribeWhenReady((state) => state.cameraPose, postPose);
 
   // Volume-view projection (persp ↔ ortho). Default perspective on both sides, so only user flips post.
-  bridge.subscribeWhenReady(
-    (state) => state.projection,
-    (projection) => {
-      worker.postMessage({
-        kind: "setProjection",
-        requestId: REQUEST_IDS.projection,
-        projection,
-      } satisfies RenderWorkerRequest);
-    },
-  );
+  bridge.subscribeWhenReady((state) => state.projection, postProjection);
 
   // Camera-motion liveness → worker quality tier (gesture = coarse march, fly = crisp animating tier).
   bridge.subscribeWhenReady(
@@ -128,18 +132,9 @@ export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWo
   return {
     flushAll() {
       const state = store.getState();
-      worker.postMessage({
-        kind: "setCameraPose",
-        requestId: REQUEST_IDS.pose,
-        pose: state.cameraPose,
-      } satisfies RenderWorkerRequest);
-      if (state.projection !== "perspective") {
-        worker.postMessage({
-          kind: "setProjection",
-          requestId: REQUEST_IDS.projection,
-          projection: state.projection,
-        } satisfies RenderWorkerRequest);
-      }
+      postPose(state.cameraPose);
+      // Catch-up posts a non-default projection only — perspective is the worker's init default.
+      if (state.projection !== "perspective") postProjection(state.projection);
     },
     handlePickResult(message) {
       // null = the ray missed the box; ui already handled background double-clicks synchronously.

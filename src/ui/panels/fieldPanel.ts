@@ -2,6 +2,7 @@ import type { FieldName } from "@schema/types.ts";
 import type { SimulationStore } from "@store";
 import { bindControl, fieldLabel } from "../binding/index.ts";
 import { createPane, type Disposer, type SelectOption } from "../controls/index.ts";
+import { orderedFieldNames } from "../topBarInfo.ts";
 
 // The wired field selector: reads the store's computed `availableFields`, dispatches
 // `selectField` on change, and reflects external selections (and dataset switches) back
@@ -11,8 +12,10 @@ function buildOptions(
   available: readonly FieldName[],
   active: FieldName,
 ): SelectOption<FieldName>[] {
-  const names = available.includes(active) ? available : [active, ...available];
-  return names.map((name) => ({ value: name, label: fieldLabel(name) }));
+  return orderedFieldNames(available, active).map((name) => ({
+    value: name,
+    label: fieldLabel(name),
+  }));
 }
 
 export function installFieldPanel(host: HTMLElement, store: SimulationStore): Disposer {

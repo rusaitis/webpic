@@ -161,10 +161,6 @@ function median(values: readonly number[]): number {
   return ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
 }
 
-function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new DOMException("calibration aborted", "AbortError");
-}
-
 const defaultYield = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 export async function runMicrobench(
@@ -182,11 +178,11 @@ export async function runMicrobench(
   for (const probe of probes) {
     const perSize: number[] = []; // Melem/s
     for (const elements of sizes) {
-      throwIfAborted(signal);
+      signal?.throwIfAborted();
       for (let w = 0; w < warmup; w++) await probe.run(elements); // discarded: primes alloc + JIT
       const samples: number[] = [];
       for (let r = 0; r < reps; r++) {
-        throwIfAborted(signal);
+        signal?.throwIfAborted();
         const start = now();
         await probe.run(elements);
         const elapsedMs = now() - start;
@@ -263,13 +259,11 @@ export async function installCalibration(
   const runInBackground = options.runInBackground ?? true;
   const reportError = options.onError ?? ((error: unknown) => console.warn("[calibration]", error));
 
-  if (options.signal?.aborted) throw new DOMException("calibration aborted", "AbortError");
+  options.signal?.throwIfAborted();
 
-  // Internal controller chained to the caller's signal so dispose() can cancel an
-  // in-flight background bench while a caller abort still propagates.
-  const controller = new AbortController();
-  const onParentAbort = (): void => controller.abort();
-  options.signal?.addEventListener("abort", onParentAbort, { once: true });
+  // Internal controller so dispose() can cancel an in-flight background bench; composed with the
+  // caller's signal via AbortSignal.any so a caller abort still propagates to the bench.
+  const disposeController = new AbortController();
 
   const key = calibrationKey(adapter);
   const cached = decodeScores(await cache.get(key), adapter);
@@ -280,7 +274,9 @@ export async function installCalibration(
     ready = Promise.resolve(cached); // warm start: cached scores valid → skip the bench
   } else {
     const benchOptions: MicrobenchOptions = {
-      signal: controller.signal,
+      signal: options.signal
+        ? AbortSignal.any([options.signal, disposeController.signal])
+        : disposeController.signal,
       ...(options.sizes !== undefined ? { sizes: options.sizes } : {}),
       ...(options.reps !== undefined ? { reps: options.reps } : {}),
       ...(options.warmup !== undefined ? { warmup: options.warmup } : {}),
@@ -305,8 +301,7 @@ export async function installCalibration(
     scores: () => current,
     ready,
     dispose() {
-      controller.abort();
-      options.signal?.removeEventListener("abort", onParentAbort);
+      disposeController.abort();
     },
   };
 }

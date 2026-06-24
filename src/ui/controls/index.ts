@@ -10,8 +10,6 @@ export {
 export { createSegmented } from "./segmented.ts";
 export { createSwatchSelect } from "./swatchSelect.ts";
 export type {
-  ButtonHandle,
-  ButtonOptions,
   CheckboxOptions,
   ControlHandle,
   Disposer,

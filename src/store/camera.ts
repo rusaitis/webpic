@@ -1,4 +1,10 @@
-import { CAMERA_FOV_DEG, type CameraPose } from "@schema/camera.ts";
+import {
+  CAMERA_FOV_DEG,
+  CAMERA_HALF_FOV_TAN,
+  type CameraPose,
+  cameraPosition,
+  viewForward,
+} from "@schema/camera.ts";
 import { clamp } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 
@@ -8,7 +14,7 @@ import type { Vec3 } from "@schema/types.ts";
 // share one definition.
 
 export type { CameraMotion, CameraPose, CameraProjection } from "@schema/camera.ts";
-export { CAMERA_FOV_DEG, DEFAULT_POSE } from "@schema/camera.ts";
+export { CAMERA_FOV_DEG, cameraPosition, DEFAULT_POSE, viewForward } from "@schema/camera.ts";
 
 // One tick shy of the ±z pole, where azimuth degenerates and the up-axis flips. Orbit clamps to this.
 export const ELEVATION_LIMIT = Math.PI / 2 - 1e-3;
@@ -27,7 +33,7 @@ const ORBIT_SENS = 2 * Math.PI; // rad per viewport-height of drag (OrbitControl
 const DOLLY_SENS = Math.log(1 / 0.95) / 100;
 // World units per (distance × viewport-height fraction): 2·tan(fov/2) makes a panned world point
 // track the cursor exactly — OrbitControls' screen-space pan.
-const PAN_WORLD_PER_VIEWPORT = 2 * Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
+const PAN_WORLD_PER_VIEWPORT = 2 * CAMERA_HALF_FOV_TAN;
 
 // Inertial damping (magviz parity): OrbitControls applies the fraction f of the pending drag per
 // update() *call* — and magviz updates per pointermove AND per rAF (~3 calls/frame), so its
@@ -72,25 +78,6 @@ export function rollPose(pose: CameraPose, deltaRoll: number): CameraPose {
     distance: pose.distance,
     roll: wrapAngle(pose.roll + deltaRoll),
   };
-}
-
-// Unit view-forward (camera → target) in the z-up orbit basis — the axis a dolly travels and roll
-// banks about. The same trig the pick rays and the gnomon use.
-export function viewForward(pose: CameraPose): Vec3 {
-  const ce = Math.cos(pose.elevation);
-  return [-ce * Math.cos(pose.azimuth), -ce * Math.sin(pose.azimuth), -Math.sin(pose.elevation)];
-}
-
-// Camera world position — the eye on the orbit sphere: target − distance·viewForward. The inverse of
-// the target placement eyeLook does (it holds this point fixed while swinging the look-at around it).
-export function cameraPosition(pose: CameraPose): Vec3 {
-  const forward = viewForward(pose);
-  const [tx, ty, tz] = pose.target;
-  return [
-    tx - pose.distance * forward[0],
-    ty - pose.distance * forward[1],
-    tz - pose.distance * forward[2],
-  ];
 }
 
 // Geometric dolly distance plus the pivot walk that lets a zoom-in fly THROUGH the near limit
@@ -173,7 +160,7 @@ export function dollyPoseToCursor(
 ): CameraPose {
   const next = dollyPose(pose, wheelDeltaY); // includes the fly-through pivot walk in next.target
   const k = next.distance / pose.distance;
-  const reach = (1 - k) * pose.distance * Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
+  const reach = (1 - k) * pose.distance * CAMERA_HALF_FOV_TAN;
   if (reach === 0 || (ndcX === 0 && ndcY === 0)) return next; // clamped or centered → plain dolly
   const o = viewPlaneOffset(pose, reach * ndcX * aspect, reach * ndcY);
   // Anchor offset (distance change down to the clamp) rides on top of the walked pivot, so the

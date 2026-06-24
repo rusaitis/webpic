@@ -31,7 +31,6 @@ export interface CompositeItem {
 
 export interface InstalledRenderer {
   readonly renderer: WebGPURenderer;
-  renderOnce(scene: Object3D, camera: Camera): void;
   readPixels(scene: Object3D, camera: Camera): Promise<Uint8Array>;
   /** Composite the visible layers (draw order + per-layer material opacity) onto the swapchain. */
   renderComposite(items: readonly CompositeItem[]): void;
@@ -157,10 +156,6 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
 
   return {
     renderer,
-    renderOnce(scene, camera) {
-      renderer.setRenderTarget(null);
-      renderer.render(scene, camera);
-    },
     async readPixels(scene, camera) {
       renderer.setRenderTarget(readTarget);
       renderer.render(scene, camera);
@@ -176,7 +171,7 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
       return toTransferablePixels(compactPaddedRows(data, readTarget.width, readTarget.height));
     },
     renderComposite(items) {
-      // ≤1 layer: the direct swapchain path (identical to renderOnce, byte-for-byte with today).
+      // ≤1 layer: the direct swapchain path (the common single-layer case).
       if (items.length <= 1) {
         renderer.setRenderTarget(null);
         const item = items[0];

@@ -1,4 +1,4 @@
-import { CAMERA_FOV_DEG, type CameraPose } from "@schema/camera.ts";
+import { CAMERA_HALF_FOV_TAN, type CameraPose } from "@schema/camera.ts";
 import {
   type HandleAxis,
   horizontalDragAllowed,
@@ -8,7 +8,7 @@ import {
   markerHandleOffset,
   verticalDragAllowed,
 } from "@schema/marker.ts";
-import { UNIT_BOX_HALF_EXTENT, vec3 } from "@schema/math.ts";
+import { clamp, UNIT_BOX_HALF_EXTENT, vec3 } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { cursorRay } from "./pick.ts";
 
@@ -22,8 +22,6 @@ export interface ScreenPoint {
   readonly ndcY: number;
   readonly behind: boolean; // the point is on/behind the camera plane — ndc is meaningless
 }
-
-const HALF_FOV = Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
 
 // Project a world point to NDC (x right, y up) — the inverse of cursorRay, reusing its orthonormal
 // orbit basis (forward, screenRight = (−sa, ca, 0), screenUp = (−ca·se, −sa·se, ce)). Perspective
@@ -51,7 +49,11 @@ export function worldToScreen(
   const yu = vx * -ca * se + vy * -sa * se + vz * ce; // along screenUp
   const denom = orthographic ? d : zc;
   if (denom <= 1e-9) return { ndcX: 0, ndcY: 0, behind: true };
-  return { ndcX: xr / (denom * HALF_FOV * aspect), ndcY: yu / (denom * HALF_FOV), behind: zc <= 0 };
+  return {
+    ndcX: xr / (denom * CAMERA_HALF_FOV_TAN * aspect),
+    ndcY: yu / (denom * CAMERA_HALF_FOV_TAN),
+    behind: zc <= 0,
+  };
 }
 
 // World positions of the ↕ (z) and ↔ (x|y) handle knobs at the current pose — null when that handle
@@ -156,8 +158,8 @@ export function dragAlongAxis(
 // box [-0.5, 0.5]³ for a cubic dataset, anisotropic for a non-cubic one (store `worldHalfExtent`).
 export function clampToBox(point: Vec3, halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT): Vec3 {
   return [
-    Math.min(Math.max(point[0], -halfExtent[0]), halfExtent[0]),
-    Math.min(Math.max(point[1], -halfExtent[1]), halfExtent[1]),
-    Math.min(Math.max(point[2], -halfExtent[2]), halfExtent[2]),
+    clamp(point[0], -halfExtent[0], halfExtent[0]),
+    clamp(point[1], -halfExtent[1], halfExtent[1]),
+    clamp(point[2], -halfExtent[2], halfExtent[2]),
   ];
 }

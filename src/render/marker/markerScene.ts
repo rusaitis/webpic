@@ -12,12 +12,10 @@ import {
 } from "@schema/marker.ts";
 import {
   BufferGeometry,
-  CanvasTexture,
   Color,
   Float32BufferAttribute,
   Group,
   Line,
-  LinearFilter,
   LineBasicMaterial,
   LineSegments,
   Mesh,
@@ -28,6 +26,7 @@ import {
   SpriteMaterial,
   type Texture,
 } from "three";
+import { finishCanvasTexture } from "../canvasTexture.ts";
 import type { MarkerConfig } from "../messages.ts";
 
 // The draggable point-picker marker scene (worker-owned, composited last with the volume camera, like
@@ -100,7 +99,7 @@ function paintRingTexture(): Texture | null {
   ctx.beginPath();
   ctx.arc(cx, cx, 86, 0, Math.PI * 2);
   ctx.stroke();
-  return finishTexture(canvas);
+  return finishCanvasTexture(canvas);
 }
 
 // Paint a drag-handle knob: a light disc carrying a bold dark double-chevron (↕ when vertical, ↔ when
@@ -137,15 +136,7 @@ function paintKnobTexture(vertical: boolean): Texture | null {
     ctx.lineTo(76, c + 24); // right chevron
   }
   ctx.stroke();
-  return finishTexture(canvas);
-}
-
-function finishTexture(canvas: OffscreenCanvas): Texture {
-  const tex = new CanvasTexture(canvas);
-  tex.minFilter = LinearFilter;
-  tex.magFilter = LinearFilter;
-  tex.generateMipmaps = false;
-  return tex;
+  return finishCanvasTexture(canvas);
 }
 
 function spriteMaterial(map: Texture | null, opacity: number): SpriteMaterial {

@@ -1,7 +1,14 @@
-import { CAMERA_FOV_DEG, type CameraPose } from "@schema/camera.ts";
+import { CAMERA_HALF_FOV_TAN, type CameraPose } from "@schema/camera.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { DISTANCE_MAX, DISTANCE_MIN, ELEVATION_LIMIT, viewPlaneOffset } from "./camera.ts";
+import {
+  cameraPosition,
+  DISTANCE_MAX,
+  DISTANCE_MIN,
+  ELEVATION_LIMIT,
+  viewForward,
+  viewPlaneOffset,
+} from "./camera.ts";
 
 // Pick-to-focus math: the cursor ray through a pose, its chord through the unit render box, and
 // the focus pose that re-pivots the orbit there. Pure — ui/pointerCamera uses it as the synchronous
@@ -23,16 +30,10 @@ export function cursorRay(
   aspect: number,
   orthographic: boolean,
 ): CursorRay {
-  const ce = Math.cos(pose.elevation);
-  const se = Math.sin(pose.elevation);
-  const [tx, ty, tz] = pose.target;
   const d = pose.distance;
-  const ca = Math.cos(pose.azimuth);
-  const sa = Math.sin(pose.azimuth);
-  const camera: Vec3 = [tx + d * ce * ca, ty + d * ce * sa, tz + d * se];
-  const forward: Vec3 = [-ce * ca, -ce * sa, -se];
-  const halfH = Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
-  const o = viewPlaneOffset(pose, halfH * ndcX * aspect, halfH * ndcY);
+  const camera = cameraPosition(pose);
+  const forward = viewForward(pose);
+  const o = viewPlaneOffset(pose, CAMERA_HALF_FOV_TAN * ndcX * aspect, CAMERA_HALF_FOV_TAN * ndcY);
   if (orthographic) {
     return {
       origin: [camera[0] + d * o[0], camera[1] + d * o[1], camera[2] + d * o[2]],

@@ -4,6 +4,7 @@ import {
   type FieldMetaRow,
   fieldButtonLabel,
   fieldMetaRows,
+  orderedFieldNames,
   stepAt,
   stepIndex,
   stepReadout,
@@ -20,6 +21,16 @@ describe("datasetLabel", () => {
 
   it("falls back to the id for an unknown dataset", () => {
     expect(datasetLabel("mystery")).toBe("mystery");
+  });
+});
+
+describe("orderedFieldNames", () => {
+  it("returns the available list unchanged when the active field is present", () => {
+    expect(orderedFieldNames(["B_1", "B_2", "|B|"], "B_2")).toEqual(["B_1", "B_2", "|B|"]);
+  });
+
+  it("prepends the active field when it isn't in the computed set yet", () => {
+    expect(orderedFieldNames(["B_1", "B_2"], "|B|")).toEqual(["|B|", "B_1", "B_2"]);
   });
 });
 

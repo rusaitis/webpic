@@ -1,4 +1,5 @@
 import { SCHEMA_VERSION } from "@schema/version.ts";
+import { isNotFound, resolveDir } from "./opfs.ts";
 
 // OPFS-backed key→bytes cache. Reads run async on the main thread; writes dispatch to data.worker.ts,
 // which holds the worker-only createSyncAccessHandle() fast path under an exclusive web-lock for
@@ -107,25 +108,6 @@ export class MemoryCacheStore implements CacheStore {
   dispose(): void {
     this.#entries.clear();
   }
-}
-
-function isNotFound(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "NotFoundError";
-}
-
-async function resolveDir(
-  segments: readonly string[],
-): Promise<FileSystemDirectoryHandle | undefined> {
-  let dir = await navigator.storage.getDirectory();
-  for (const segment of segments) {
-    try {
-      dir = await dir.getDirectoryHandle(segment);
-    } catch (error) {
-      if (isNotFound(error)) return undefined;
-      throw error;
-    }
-  }
-  return dir;
 }
 
 async function collectFiles(

@@ -1,4 +1,4 @@
-import { type CameraPose, DEFAULT_POSE } from "./camera.ts";
+import { type CameraPose, cameraPosition, DEFAULT_POSE } from "./camera.ts";
 import { clamp } from "./math.ts";
 import type { Vec3 } from "./types.ts";
 
@@ -43,15 +43,6 @@ export const HORIZONTAL_MIN_ELEV_DEG = 15; // below this, the free xy-plane give
 export const AZIMUTH_ALIGN_MAX_DEG = 40;
 
 const DEG_PER_RAD = 180 / Math.PI;
-
-// Camera position implied by the orbit pose (same basis as store/pick.cursorRay and render/camera).
-function cameraPosition(pose: CameraPose): Vec3 {
-  const ce = Math.cos(pose.elevation);
-  const se = Math.sin(pose.elevation);
-  const [tx, ty, tz] = pose.target;
-  const d = pose.distance;
-  return [tx + d * ce * Math.cos(pose.azimuth), ty + d * ce * Math.sin(pose.azimuth), tz + d * se];
-}
 
 // Zoom-tracking world scale for the core (and its ring/handle children). Perspective keys off the
 // true camera→point distance; orthographic keys off the orbit distance alone — its matched frustum

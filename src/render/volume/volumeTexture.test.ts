@@ -69,6 +69,16 @@ describe("createVolumeTexture", () => {
     volume.dispose();
   });
 
+  it("setField fills non-finite samples with the new field's finite min (matching construction)", () => {
+    const volume = createVolumeTexture(field([1, 1, 1, 1, 1, 1, 1, 1]), true);
+    expect(volume.setField(field([Number.NaN, 2, 3, 4, 5, 6, 7, 8]))).toBe(true);
+    expect(Array.from(activeArray(volume))).toEqual([2, 2, 3, 4, 5, 6, 7, 8]); // NaN → finite min
+    // All-non-finite fills with 0 — the same fallback createVolumeTexture's finiteRange uses.
+    expect(volume.setField(field(Array(8).fill(Number.NaN)))).toBe(true);
+    expect(Array.from(activeArray(volume))).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+    volume.dispose();
+  });
+
   it("reuses exactly two textures across repeated swaps (true ping-pong)", () => {
     const volume = createVolumeTexture(field([1, 1, 1, 1, 1, 1, 1, 1]), true);
     const slot0 = volume.node.value;

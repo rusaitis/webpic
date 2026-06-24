@@ -31,7 +31,7 @@ import {
 } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
-import { clientToNdc } from "./pointerMath.ts";
+import { clientToNdc, frameDt } from "./pointerMath.ts";
 
 // Pointer/wheel/keyboard input on the main-thread canvas → camera-pose intents. The OffscreenCanvas
 // is transferred to the worker, but the <canvas> still receives DOM events here; we read the live
@@ -48,9 +48,6 @@ import { clientToNdc } from "./pointerMath.ts";
 // instead of canceling it. Motion liveness rides setCameraMotion — "gesture" while the hand is on the
 // camera (coarse march), "fly" while only a tween runs (gentler tier, since it's short and predictable).
 
-// A background-tab resume hands rAF a huge dt; clamp so the glide resumes instead of teleporting.
-const GLIDE_MAX_DT_MS = 100;
-const NOMINAL_FRAME_MS = 1000 / 60;
 // Drag normalization fallback when the canvas has no layout yet (happy-dom tests, hidden mounts).
 const NOMINAL_VIEWPORT_PX = 800;
 // Eased fly-to duration (reset / axis snap / pick-to-focus) — magviz's 0.45 s focus glide.
@@ -209,8 +206,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
 
   const glide = (nowMs: number): void => {
     glideId = undefined;
-    const dt =
-      lastFrameMs === undefined ? NOMINAL_FRAME_MS : Math.min(nowMs - lastFrameMs, GLIDE_MAX_DT_MS);
+    const dt = frameDt(lastFrameMs, nowMs);
     lastFrameMs = nowMs;
     const { cameraPose, setCameraPose } = store.getState();
     if (!isMomentumSettled(momentum)) {

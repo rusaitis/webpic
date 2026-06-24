@@ -1,5 +1,5 @@
 import type { ColorScale } from "@schema/colormap.ts";
-import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import { clamp, UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { BackSide, BoxGeometry, Mesh, Scene } from "three";
 import {
@@ -376,7 +376,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       uLayerOpacity.value = opacity;
     },
     setStepScale(scale) {
-      const clamped = Math.min(Math.max(scale, 0.05), 1);
+      const clamped = clamp(scale, 0.05, 1);
       uStepScale.value = clamped;
       uJitter.value = clamped < 1 ? 1 : 0; // jitter only the coarse march (see uJitter)
     },

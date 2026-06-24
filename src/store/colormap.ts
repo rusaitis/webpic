@@ -27,14 +27,25 @@ export function upsertBinding(rec: BindingRecord, binding: ColormapBinding): Bin
   return { ...rec, [binding.id]: binding };
 }
 
+// The shared setter skeleton: missing id, or a `patch` returning null (no-op), yields the same record;
+// otherwise a fresh record with a fresh binding. Keeps every setter identity-preserving by one rule.
+function patchBinding(
+  rec: BindingRecord,
+  id: string,
+  patch: (binding: ColormapBinding) => ColormapBinding | null,
+): BindingRecord {
+  const binding = rec[id];
+  if (binding === undefined) return rec;
+  const next = patch(binding);
+  return next === null ? rec : { ...rec, [id]: next };
+}
+
 export function setBindingColormap(
   rec: BindingRecord,
   id: string,
   colormap: ColormapId,
 ): BindingRecord {
-  const binding = rec[id];
-  if (binding === undefined || binding.colormap === colormap) return rec;
-  return { ...rec, [id]: { ...binding, colormap } };
+  return patchBinding(rec, id, (b) => (b.colormap === colormap ? null : { ...b, colormap }));
 }
 
 export function setBindingWindow(
@@ -43,16 +54,15 @@ export function setBindingWindow(
   center: number,
   width: number,
 ): BindingRecord {
-  const binding = rec[id];
-  if (binding === undefined || (binding.window.center === center && binding.window.width === width))
-    return rec;
-  return { ...rec, [id]: { ...binding, window: { center, width } } };
+  return patchBinding(rec, id, (b) =>
+    b.window.center === center && b.window.width === width
+      ? null
+      : { ...b, window: { center, width } },
+  );
 }
 
 export function setBindingScale(rec: BindingRecord, id: string, scale: ColorScale): BindingRecord {
-  const binding = rec[id];
-  if (binding === undefined || binding.scale === scale) return rec;
-  return { ...rec, [id]: { ...binding, scale } };
+  return patchBinding(rec, id, (b) => (b.scale === scale ? null : { ...b, scale }));
 }
 
 /** Repoint a binding at a new field + window (a field switch reuses the binding instance so the
@@ -63,7 +73,5 @@ export function retargetBinding(
   field: FieldName,
   window: WindowLevel,
 ): BindingRecord {
-  const binding = rec[id];
-  if (binding === undefined) return rec;
-  return { ...rec, [id]: { ...binding, field, window } };
+  return patchBinding(rec, id, (b) => ({ ...b, field, window }));
 }

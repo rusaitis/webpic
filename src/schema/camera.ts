@@ -24,6 +24,30 @@ export type CameraMotion = "idle" | "gesture" | "fly";
 // camera must agree on this, or the world point under the cursor drifts during a dolly.
 export const CAMERA_FOV_DEG = 45;
 
+// Half-FOV tangent — tan(fov/2). The store's pan/zoom-to-cursor ray math and the render-side
+// perspective + volume-ortho cameras all scale by this; they must share one value or the world
+// point under the cursor drifts.
+export const CAMERA_HALF_FOV_TAN = Math.tan((CAMERA_FOV_DEG * Math.PI) / 360);
+
+// Unit view-forward (camera → target) in the z-up orbit basis — the axis a dolly travels and roll
+// banks about. The same trig the pick rays and the gnomon use.
+export function viewForward(pose: CameraPose): Vec3 {
+  const ce = Math.cos(pose.elevation);
+  return [-ce * Math.cos(pose.azimuth), -ce * Math.sin(pose.azimuth), -Math.sin(pose.elevation)];
+}
+
+// Camera world position — the eye on the orbit sphere: target − distance·viewForward. The inverse of
+// the target placement eyeLook does (it holds this point fixed while swinging the look-at around it).
+export function cameraPosition(pose: CameraPose): Vec3 {
+  const forward = viewForward(pose);
+  const [tx, ty, tz] = pose.target;
+  return [
+    tx - pose.distance * forward[0],
+    ty - pose.distance * forward[1],
+    tz - pose.distance * forward[2],
+  ];
+}
+
 // z-up 3/4 view aimed at the box center; boots with the volume near-filling the frame, axes readable.
 export const DEFAULT_POSE: CameraPose = {
   target: [0, 0, 0],

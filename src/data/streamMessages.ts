@@ -48,8 +48,7 @@ export type DataStreamRequest =
   | { readonly kind: "setActiveField"; readonly requestId: number; readonly field: string }
   | { readonly kind: "setCursor"; readonly requestId: number; readonly step: number }
   // Dev-mode perf HUD: while active the worker self-reports its heap + last read time (~1 Hz).
-  | { readonly kind: "setPerfActive"; readonly requestId: number; readonly active: boolean }
-  | { readonly kind: "streamDispose"; readonly requestId: number };
+  | { readonly kind: "setPerfActive"; readonly requestId: number; readonly active: boolean };
 
 // data worker → main. `opened` reports the timestep domain (→ store.setAvailableSteps); `stepLoaded`
 // acks a decoded+streamed step (a future loading indicator); `streamError` surfaces a read failure.

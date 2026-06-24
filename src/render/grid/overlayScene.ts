@@ -1,11 +1,9 @@
-import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import { clamp, UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import { cssRgba, type Rgba01 } from "@schema/theme.ts";
 import {
   BufferAttribute,
   BufferGeometry,
-  CanvasTexture,
   Color,
-  LinearFilter,
   LineSegments,
   type Material,
   Scene,
@@ -14,6 +12,7 @@ import {
 } from "three";
 import { cameraPosition, positionWorld, texture, uv, vec3 } from "three/tsl";
 import { LineBasicNodeMaterial, type Node, SpriteNodeMaterial } from "three/webgpu";
+import { finishCanvasTexture } from "../canvasTexture.ts";
 import type { SceneOverlayConfig } from "../messages.ts";
 import { niceStep, ticksForStep } from "./niceTicks.ts";
 import {
@@ -111,13 +110,7 @@ function makeLabelTexture(
   ctx.fillStyle = cssRgba([color[0], color[1], color[2], color[3] * style.alpha]);
   ctx.fillText(text, width / 2, height / 2);
 
-  const tex = new CanvasTexture(canvas);
-  // Default flipY upload: it compensated the present-quad's vertical flip while that bug lived
-  // (renderer.ts); with the present path upright, the GL-convention default reads correctly.
-  tex.minFilter = LinearFilter;
-  tex.magFilter = LinearFilter;
-  tex.generateMipmaps = false;
-  return { texture: tex, aspect: width / height };
+  return { texture: finishCanvasTexture(canvas), aspect: width / height };
 }
 
 export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
@@ -268,7 +261,7 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
     const originAt = (a: number): number => {
       const [min, max] = config.axes[fieldAxisToThree(a as 0 | 1 | 2)].bounds;
       const h = halfAt(a);
-      return Math.min(Math.max(physicalToObject(0, min, max, h), -h), h);
+      return clamp(physicalToObject(0, min, max, h), -h, h);
     };
     const cross: [number, number, number] = [originAt(0), originAt(1), originAt(2)];
     for (let axis = 0; axis < 3; axis++) {

@@ -1,6 +1,8 @@
 import { computeField } from "@compute";
 import type { FieldArray } from "@containers/field_dataset.ts";
+import { readHeapBytes } from "@containers/perf_probe.ts";
 import type { DataCacheRequest, DataCacheResponse } from "@data";
+import { isNotFound, resolveDir, splitPath } from "@data/opfs.ts";
 import type { DataHandle, SimulationReader } from "@data/readers/_protocols.ts";
 import { openSimulation } from "@data/readers/_registry.ts";
 import { registerSyntheticReader } from "@data/readers/synthetic.ts";
@@ -29,38 +31,11 @@ const ctx = self as unknown as {
   postMessage(message: DataCacheResponse | DataStreamResponse): void;
 };
 
-function isNotFound(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "NotFoundError";
-}
-
-function splitPath(path: string): { dirs: readonly string[]; name: string } {
-  const segments = path.split("/");
-  const name = segments.pop();
-  if (name === undefined || name === "") throw new Error(`invalid cache path: ${path}`);
-  return { dirs: segments, name };
-}
-
-async function resolveDir(
-  dirs: readonly string[],
-  create: boolean,
-): Promise<FileSystemDirectoryHandle | undefined> {
-  let dir = await navigator.storage.getDirectory();
-  for (const segment of dirs) {
-    try {
-      dir = await dir.getDirectoryHandle(segment, { create });
-    } catch (error) {
-      if (!create && isNotFound(error)) return undefined;
-      throw error;
-    }
-  }
-  return dir;
-}
-
 async function cacheWrite(
   request: Extract<DataCacheRequest, { kind: "cacheWrite" }>,
 ): Promise<void> {
   const { dirs, name } = splitPath(request.path);
-  const dir = await resolveDir(dirs, true);
+  const dir = await resolveDir(dirs, { create: true });
   if (dir === undefined) throw new Error(`could not open cache directory for ${request.path}`);
   const fileHandle = await dir.getFileHandle(name, { create: true });
   const handle = await fileHandle.createSyncAccessHandle();
@@ -77,7 +52,7 @@ async function cacheRemove(
   request: Extract<DataCacheRequest, { kind: "cacheRemove" }>,
 ): Promise<void> {
   const { dirs, name } = splitPath(request.path);
-  const dir = await resolveDir(dirs, false);
+  const dir = await resolveDir(dirs);
   if (dir === undefined) return; // path already gone — idempotent
   try {
     await dir.removeEntry(name);
@@ -209,22 +184,6 @@ function handleSetCursor(req: Extract<DataStreamRequest, { kind: "setCursor" }>)
   ring?.setCursor(req.step);
 }
 
-function disposeStream(): void {
-  ring?.dispose();
-  ring = undefined;
-  port?.close();
-  port = undefined;
-  reader = undefined;
-  handle = undefined;
-  cursor = null;
-}
-
-// performance.memory is Chrome-only and absent from the worker lib types; read defensively.
-function readHeapBytes(): number | null {
-  const memory = (performance as { memory?: { readonly usedJSHeapSize: number } }).memory;
-  return memory !== undefined ? memory.usedJSHeapSize : null;
-}
-
 // Dev perf HUD: start/stop the ~1 Hz self-report (heap + last read time). Idempotent — clears any
 // prior timer first, so a repeated enable doesn't stack intervals.
 function setPerfActive(active: boolean): void {
@@ -265,9 +224,6 @@ ctx.onmessage = (event) => {
       return;
     case "setPerfActive":
       setPerfActive(request.active);
-      return;
-    case "streamDispose":
-      disposeStream();
       return;
     default: {
       const unreachable: never = request;

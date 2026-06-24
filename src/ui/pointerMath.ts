@@ -12,3 +12,13 @@ export function clientToNdc(
     y: 1 - ((clientY - rect.top) / rect.height) * 2,
   };
 }
+
+const NOMINAL_FRAME_MS = 1000 / 60;
+const MAX_FRAME_DT_MS = 100;
+
+// rAF frame delta in ms, clamped: the first frame (no prior timestamp) reports a nominal 60 fps step,
+// and a background-tab resume that hands rAF a huge dt is clamped so an eased loop glides instead of
+// teleporting. Shared by the camera glide (pointerCamera) and the marker arrow-slide (pointerPicker).
+export function frameDt(lastMs: number | undefined, nowMs: number): number {
+  return lastMs === undefined ? NOMINAL_FRAME_MS : Math.min(nowMs - lastMs, MAX_FRAME_DT_MS);
+}

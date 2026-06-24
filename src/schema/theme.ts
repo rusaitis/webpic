@@ -201,7 +201,7 @@ function resolveWebpic(raw: z.infer<typeof RawWebpic>): WebpicThemeConfig {
   };
 }
 
-export const ThemeFileSchema = z
+const ThemeFileSchema = z
   .object({
     name: z.string().optional(),
     colors: z

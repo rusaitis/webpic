@@ -1,3 +1,5 @@
+import { clamp } from "@schema/math.ts";
+
 // Pure coordinate helpers for the scene overlay.
 //
 // COORDINATE INVARIANT (webpic): world axis i == physical/field axis i (identity, right-handed);
@@ -52,6 +54,6 @@ export const LABEL_FADE_FULL_COS = Math.cos((15 * Math.PI) / 180);
  *  fade the GPU applies per fragment. 1 fully visible, 0 fully edge-on. */
 export function labelFadeOpacity(edgeOnCos: number): number {
   const t = (edgeOnCos - LABEL_FADE_START_COS) / (LABEL_FADE_FULL_COS - LABEL_FADE_START_COS);
-  const clamped = Math.min(Math.max(t, 0), 1);
+  const clamped = clamp(t, 0, 1);
   return 1 - clamped * clamped * (3 - 2 * clamped);
 }

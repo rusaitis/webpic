@@ -142,19 +142,15 @@ export function applyControlStyles(root: HTMLElement, theme?: Theme): Disposer {
   };
 }
 
-// Every property name applyUiVars writes, so the disposer clears them all — a set-but-not-cleared
-// token would leak onto document.body across re-installs (embeds/tests).
-const UI_VARS: readonly string[] = [
-  "--webpic-bg",
-  "--webpic-fg",
-  "--webpic-muted",
-  "--webpic-accent",
-  "--webpic-border",
-  "--webpic-axis-x",
-  "--webpic-axis-y",
-  "--webpic-axis-z",
-  ...Object.keys(DERIVED_TOKENS),
-];
+// Every property name applyUiVars writes, derived from the same builders so the cleared set can't
+// drift from the written set — a set-but-not-cleared token would leak onto document.body across
+// re-installs (embeds/tests). The builders return all keys regardless of input, so undefined args
+// yield the full key set.
+const UI_VARS: readonly string[] = Object.keys({
+  ...baseVars(undefined),
+  ...axisVars(undefined),
+  ...DERIVED_TOKENS,
+});
 
 const UI_CSS = `
 /* Control-sizing scope: hosts outside .webpic-shell that mount shell-style controls must redeclare
@@ -257,9 +253,6 @@ const UI_CSS = `
 .webpic-range_input { width: 100%; min-width: 0; box-sizing: border-box; padding: 0 4px;
   height: var(--webpic-unit); border: 1px solid var(--webpic-border); border-radius: var(--webpic-radius);
   background: var(--webpic-input-bg); color: var(--webpic-fg); font: inherit; text-align: right; }
-.webpic-button_btn { width: 100%; height: var(--webpic-unit); border: 1px solid var(--webpic-border);
-  border-radius: var(--webpic-radius); background: var(--webpic-input-bg); color: var(--webpic-fg);
-  font: inherit; cursor: pointer; }
 .webpic-shell :disabled { opacity: 0.5; cursor: default; }
 .webpic-placeholder { padding: 2px 4px; color: var(--webpic-muted); font-style: italic; }
 /* Swatch select (ui/controls/swatchSelect): a gradient-preview trigger that opens a createPopover

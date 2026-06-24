@@ -11,7 +11,7 @@ import {
 } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
-import { clientToNdc } from "./pointerMath.ts";
+import { clientToNdc, frameDt } from "./pointerMath.ts";
 
 // Point-picker pointer input on the main-thread canvas. Capture-phase, so it runs before
 // pointerCamera's bubble-phase handlers on the same element: a pointerdown that grabs the marker (or a
@@ -36,8 +36,6 @@ import { clientToNdc } from "./pointerMath.ts";
 const MIN_HIT_PX = 26;
 const HIT_RADIUS_FACTOR = 2;
 const MARKER_KEY_SPEED = 0.5; // marker slide speed while an arrow is held, box units / s
-const ARROW_MAX_DT_MS = 100; // a background-tab resume hands rAF a huge dt — glide, don't teleport
-const ARROW_NOMINAL_FRAME_MS = 1000 / 60;
 const ARROW_CODES = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
 
 interface ClientPoint {
@@ -235,10 +233,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
 
   const arrowStep = (nowMs: number): void => {
     arrowRafId = undefined;
-    const dtMs =
-      lastArrowMs === undefined
-        ? ARROW_NOMINAL_FRAME_MS
-        : Math.min(nowMs - lastArrowMs, ARROW_MAX_DT_MS);
+    const dtMs = frameDt(lastArrowMs, nowMs);
     lastArrowMs = nowMs;
     const state = store.getState();
     const point = state.pickerPoint;

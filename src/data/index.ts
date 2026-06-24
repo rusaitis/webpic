@@ -46,7 +46,6 @@ export {
   createZarrReader,
   type StoreOpener,
   type ZarrReaderOptions,
-  zarrConfidence,
 } from "./readers/zarr.ts";
 export type {
   DataStreamRequest,
@@ -54,11 +53,3 @@ export type {
   StreamFieldPayload,
   StreamStepMessage,
 } from "./streamMessages.ts";
-export {
-  BUNDLED_THEME_NAMES,
-  type BundledThemeName,
-  DEFAULT_THEME_NAME,
-  loadBundledThemes,
-  parseTheme,
-  type Theme,
-} from "./theme/loader.ts";
