@@ -37,7 +37,9 @@ interface FixtureCase {
   ];
 }
 
-// M3.4 seeds the smooth analytic field; M3.5 (gen-synthetic) appends Orszag–Tang / Harris / GEM cases.
+// The smooth analytic field — the operator-arithmetic isolator. The named MHD configs (Orszag–Tang /
+// Harris / GEM) live on the separate analytical track: scripts/gen-synthetic.ts → tests/fixtures/synthetic
+// (closed-form goldens, no pypic), not here.
 const CASES: readonly FixtureCase[] = [
   {
     name: "smooth-field",

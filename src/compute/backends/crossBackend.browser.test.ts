@@ -13,11 +13,12 @@ import { webgpuBackend } from "@compute/backends/webgpu/index.ts";
 import { hasDevice, installGpu } from "@gpu/device.ts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { smoothVectorField } from "../../../tests/analyticField.ts";
-import { gridOf } from "../../../tests/analyticFieldCore.ts";
+import { gridOf, sampleScalar } from "../../../tests/analyticFieldCore.ts";
 import { assertBackendsAgree, CROSS_BACKEND_CASES } from "../../../tests/crossBackend.ts";
 import goldenJson from "../../../tests/fixtures/v1/smooth-field.json";
 import { fieldArray, makeDataset } from "../../../tests/fixtures.ts";
 import { assertAllclose } from "../../../tests/helpers.ts";
+import { SYNTHETIC_FIELDS, spacingFor } from "../../../tests/syntheticFieldsCore.ts";
 
 interface GoldenFixture {
   readonly grid: { readonly shape: readonly number[]; readonly spacing: [number, number, number] };
@@ -79,5 +80,30 @@ describe("webgpu backend vs pypic goldens", () => {
       const result = await webgpuBackend.compute(testCase.recipe, dataset);
       assertAllclose(result.data, expected, testCase.tol);
     });
+  }
+});
+
+describe("ts vs webgpu — synthetic MHD fields", () => {
+  // Orszag–Tang / Harris / GEM: divergence-free fields with a tanh kink and a magnetic island — a harder
+  // cross-backend stress than the smooth field (zero-crossings, near-cancelling divergence). f32 to both
+  // backends, so the only gap is the f32-vs-f64 arithmetic each kernel's webgpu_f32 cell bounds. The
+  // closed-form goldens themselves are validated TS-side in tests/synthetic.test.ts (node); here we only
+  // assert the two backends agree on the same turbulent inputs.
+  for (const field of SYNTHETIC_FIELDS) {
+    const spacing = spacingFor(field, field.shape);
+    const [b1, b2, b3] = field.components;
+    const dataset = makeDataset(
+      {
+        B_1: fieldArray("B_1", sampleScalar(field.shape, spacing, b1, Float32Array), field.shape),
+        B_2: fieldArray("B_2", sampleScalar(field.shape, spacing, b2, Float32Array), field.shape),
+        B_3: fieldArray("B_3", sampleScalar(field.shape, spacing, b3, Float32Array), field.shape),
+      },
+      { grid: gridOf(field.shape, spacing) },
+    );
+    for (const testCase of CROSS_BACKEND_CASES) {
+      it.skipIf(!hasRealGpu)(`${field.name}: agrees on ${testCase.label}`, async () => {
+        await assertBackendsAgree(tsBackend, webgpuBackend, dataset, testCase);
+      });
+    }
   }
 });
