@@ -166,6 +166,13 @@ export function getDevice(): GPUDevice {
   return requireInstalled().device;
 }
 
+/** Non-throwing companion to {@link getDevice}: is a device installed right now? The WebGPU
+ *  compute backend's `supports()` gates on this — false in Node and in workers (no transferable
+ *  device), so the dispatcher never routes to a backend that would throw on `getDevice()`. */
+export function hasDevice(): boolean {
+  return current !== undefined;
+}
+
 export function getCapabilities(): GpuCapabilities {
   return requireInstalled().capabilities;
 }

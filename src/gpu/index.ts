@@ -6,6 +6,7 @@ export {
   probeCapabilities,
   selectFeatures,
 } from "./capabilities.ts";
+export { type FieldKernelSpec, runFieldKernel } from "./computeKernel.ts";
 export {
   type DeviceLossEvent,
   type DeviceLossKind,
@@ -17,6 +18,7 @@ export {
   type GpuUnsupportedReason,
   getCapabilities,
   getDevice,
+  hasDevice,
   type InstalledGpu,
   installGpu,
   onDeviceLost,
