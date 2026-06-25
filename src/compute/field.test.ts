@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { smoothVectorField } from "../../tests/analyticField.ts";
 import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
 import { computableFields, computeField } from "./field.ts";
 
@@ -16,8 +17,21 @@ describe("computeField", () => {
 
 describe("computableFields", () => {
   it("offers only TS-computable recipes whose inputs are present", () => {
-    // B-only: the magnitude recipe computes; curl/div/psi need ops the TS backend lacks.
+    // B-only on a 1-cell grid: |B| computes; curl/div need a 3-D grid (this fixture is 1-D), so the
+    // grid guard keeps them out even though the TS backend now binds the ops.
     expect(computableFields(vectorTriple("B"))).toEqual(["|B|"]);
+  });
+
+  it("offers curl/divergence once the grid is 3-D", () => {
+    // Same B components, but a real 5×4×3 Cartesian grid: the grid ops the TS backend now binds become
+    // selectable alongside the magnitude.
+    expect(computableFields(smoothVectorField().dataset)).toEqual([
+      "curl_B_1",
+      "curl_B_2",
+      "curl_B_3",
+      "div_B",
+      "|B|",
+    ]);
   });
 
   it("grows as more input components are present", () => {

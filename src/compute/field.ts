@@ -1,6 +1,7 @@
-import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
+import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
 import type { ComputeBackend } from "./backend.ts";
 import { tsBackend } from "./backends/ts/index.ts";
+import type { RecipeMeta } from "./recipe.ts";
 import { RECIPES, type RecipeKey } from "./recipes.generated.ts";
 
 // Registered backends in selection-priority order (first supporting backend wins until calibration
@@ -29,15 +30,28 @@ export function computeField(
   return backend.compute(key, dataset, signal);
 }
 
-// The recipes computable from `dataset` right now: some backend binds the op AND its required input
-// fields are all present. The selectable-field source for the UI (surfaced via the store, since `ui`
-// can't import `compute`). Synchronous — a capability + presence query, not a compute.
+// A needsGrid recipe (curl/divergence) is only evaluable on a 3-D Cartesian grid with the ≥2
+// samples/axis np.gradient needs; otherwise the op throws at compute. A non-throwing mirror of the
+// backends' grid validation, so the field selector never offers a grid op that can't run on this grid.
+function gridCanEvaluate(recipe: RecipeMeta, grid: GridInfo): boolean {
+  if (!recipe.needsGrid) return true;
+  return (
+    grid.geometry === "cartesian" &&
+    grid.dimensions.length === 3 &&
+    grid.dimensions.every((dim) => dim >= 2)
+  );
+}
+
+// The recipes computable from `dataset` right now: some backend binds the op, the grid can evaluate it,
+// AND its required input fields are all present. The selectable-field source for the UI (surfaced via
+// the store, since `ui` can't import `compute`). Synchronous — a capability + presence query, not a compute.
 export function computableFields(dataset: FieldDataset): RecipeKey[] {
   const present = dataset.fields;
   const names: RecipeKey[] = [];
   for (const [key, recipe] of Object.entries(RECIPES)) {
     if (recipe.fields.length === 0) continue;
     if (!BACKENDS.some((backend) => backend.supports(recipe))) continue;
+    if (!gridCanEvaluate(recipe, dataset.grid)) continue;
     if (recipe.fields.every((field) => present.has(field))) {
       names.push(key as RecipeKey); // key ranges over RECIPES, so it is a RecipeKey
     }
