@@ -70,11 +70,23 @@ async function main(): Promise<void> {
     // cost scales per physical pixel, so the ms number is only meaningful alongside it).
     const ctx = await page.evaluate(async () => {
       const w = globalThis as unknown as {
-        document: { querySelector(s: string): { width: number; height: number } | null };
+        // Structural (not DOM-lib `Element`) — this file typechecks under tsconfig.node.json (no DOM lib).
+        document: {
+          querySelector(s: string): {
+            getBoundingClientRect(): { width: number; height: number };
+          } | null;
+        };
         devicePixelRatio: number;
         navigator: { gpu?: { requestAdapter(): Promise<{ info?: unknown } | null> } };
       };
       const canvas = w.document.querySelector("canvas");
+      // Read the CSS client box, NOT canvas.width — after transferControlToOffscreen the main-thread
+      // placeholder's width/height freeze at their pre-transfer value (256), while the worker owns and
+      // sizes the real drawing buffer = clientSize × DPR (viewportTracking). Reconstruct it the same way.
+      const rect = canvas?.getBoundingClientRect();
+      const cssW = rect ? Math.round(rect.width) : 0;
+      const cssH = rect ? Math.round(rect.height) : 0;
+      const dpr = w.devicePixelRatio;
       let adapter = "unknown";
       try {
         const a = await w.navigator.gpu?.requestAdapter();
@@ -83,9 +95,11 @@ async function main(): Promise<void> {
         adapter = "requestAdapter-threw";
       }
       return {
-        bufferW: canvas ? canvas.width : 0,
-        bufferH: canvas ? canvas.height : 0,
-        dpr: w.devicePixelRatio,
+        bufferW: Math.round(cssW * dpr),
+        bufferH: Math.round(cssH * dpr),
+        cssW,
+        cssH,
+        dpr,
         adapter,
       };
     });
@@ -133,7 +147,7 @@ async function main(): Promise<void> {
     console.log(`(base Apple M2; the M2 gate targets M2 Pro — a pass here is conservative)\n`);
     console.log(`  workload:   ${SIZE}³ synthetic |B| volume · 256 steps/ray · early-α 0.98`);
     console.log(
-      `  surface:    ${ctx.bufferW}×${ctx.bufferH} px (${megaPixels.toFixed(2)} MP · dpr ${ctx.dpr})`,
+      `  surface:    ${ctx.bufferW}×${ctx.bufferH} px buffer (${megaPixels.toFixed(2)} MP · ${ctx.cssW}×${ctx.cssH} css · dpr ${ctx.dpr})`,
     );
     console.log(`  adapter:    ${ctx.adapter}`);
     console.log(`  clock:      ${clock || "unknown"}`);

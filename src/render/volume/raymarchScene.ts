@@ -28,10 +28,10 @@ import {
 import { type Node, NodeMaterial } from "three/webgpu";
 import type { VolumeLayerScene } from "../layerScene.ts";
 import { buildMinMaxGrid, createSkipTexture } from "./minMaxGrid.ts";
-import { createNormalization, type WindowLevel } from "./normalization.ts";
+import { createNormalization, type Normalization, type WindowLevel } from "./normalization.ts";
 import { GRAD_EPS, PHONG } from "./shading.ts";
-import { createTransferFunctionTexture } from "./transferFunction.ts";
-import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
+import { createTransferFunctionTexture, type TransferFunctionTexture } from "./transferFunction.ts";
+import { createVolumeTexture, type ScalarField, type VolumeTexture } from "./volumeTexture.ts";
 
 // Single-pass volume raymarcher over the shared `uVolume`. The analytic ray-box clip is
 // `wgslFn hitBox` — the WGSL twin of rayBox.ts.
@@ -41,6 +41,10 @@ import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 // keeping occupied samples on the fixed lattice (output-equivalent). OFF by default — it only pays
 // off on sparse fields; on space-filling |B| the per-step skip-grid fetch is pure overhead (~1.7×
 // slower on the synthetic flux rope). Enable it for genuinely sparse data (vacuum, isolated ropes).
+//
+// `buildRaymarchMaterial` (the TSL/WGSL graph) is split from the preserved GPU resources + uniforms
+// (`buildRaymarchGraph`) so the dev shader hot-reload (`rebuildShader`) can swap the material from
+// freshly imported graph code without re-uploading the 64 MiB volume texture or losing the look/pose.
 
 export interface RaymarchSceneOptions {
   readonly field: ScalarField;
@@ -76,8 +80,13 @@ export interface RaymarchSceneOptions {
   readonly ledgerKey?: string;
 }
 
-// A raymarched volume is exactly the VolumeLayerScene contract (base look ops + march/projection/shading).
-export type RaymarchScene = VolumeLayerScene;
+// A raymarched volume is the VolumeLayerScene contract plus the dev shader hot-reload seam.
+export interface RaymarchScene extends VolumeLayerScene {
+  /** Dev-only shader hot-reload: rebuild the TSL/WGSL material from freshly imported builder code,
+   *  swapping it onto the live mesh. Reuses the uploaded volume texture + colormap LUT + live uniforms
+   *  (no 64 MiB re-upload, look/pose preserved). Inert in prod — never called there. */
+  rebuildShader(build: RaymarchMaterialBuilder): void;
+}
 
 const DEFAULT_STEPS = 256; // fine-march / perf-gate depth
 const DEFAULT_BRICK_SIZE = 8; // empty-space-skip brick edge (voxels); (256/8)³ = 32³ skip grid
@@ -129,31 +138,42 @@ const brickAdvance = wgslFn<{ tex_pos: Node; dir: Node; grid: Node }>(`
   }
 `);
 
-/** Build a themed single-pass raymarch scene from a 3D scalar field. */
-export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
-  const volume = createVolumeTexture(opts.field, opts.float32Filterable, opts.ledgerKey);
-  const tf = createTransferFunctionTexture(opts.colormap);
-  const steps = opts.steps ?? DEFAULT_STEPS;
+// The empty-space-skip acceleration structure (min-max brick grid + its DDA bound). Built only when
+// opted in; a named return type so the preserved graph can carry it across a shader hot-reload.
+function buildSkipState(field: ScalarField, brickSize: number, fallback: number, steps: number) {
+  const grid = buildMinMaxGrid(field, brickSize, fallback);
+  const tex = createSkipTexture(grid);
+  const [gw, gh, gd] = grid.dims;
+  // Bound: fine steps ride the lattice (≤ steps), a ray crosses ≤ gw+gh+gd bricks. Integer-bounded
+  // → guaranteed termination (a float `while` can stall below its ULP and hang the GPU).
+  return { tex, gridDims: vec3(gw, gh, gd), maxIters: steps + gw + gh + gd + 2 };
+}
+type SkipState = ReturnType<typeof buildSkipState>;
 
-  // Empty-space-skip acceleration structure, built only when opted in — the default fixed march pays
-  // no CPU reduction, no texture upload, and no per-step skip-grid fetch. `volume.min` is the brick
-  // fallback so all-NaN bricks map to the colormap floor (skippable), matching the volume's NaN→min.
-  const skipState = opts.skipEmptySpace
-    ? (() => {
-        const grid = buildMinMaxGrid(opts.field, opts.brickSize ?? DEFAULT_BRICK_SIZE, volume.min);
-        const tex = createSkipTexture(grid);
-        const [gw, gh, gd] = grid.dims;
-        // Bound: fine steps ride the lattice (≤ steps), a ray crosses ≤ gw+gh+gd bricks. Integer-bounded
-        // → guaranteed termination (a float `while` can stall below its ULP and hang the GPU).
-        return { tex, gridDims: vec3(gw, gh, gd), maxIters: steps + gw + gh + gd + 2 };
-      })()
-    : undefined;
-
-  // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const norm = createNormalization(volume.min, volume.max, opts.windowLevel, opts.scale);
-  const uDensity = uniform(opts.density ?? 1);
-  const uLayerOpacity = uniform(opts.opacity ?? 1);
-  const uShade = uniform(opts.shaded ? 1 : 0); // live Phong toggle; 0 ⇒ the gradient taps never run
+// The persistent GPU resources + uniforms a raymarch material reads — everything that survives a dev
+// shader hot-reload: the uploaded volume texture, the colormap LUT, the window/scale normalization, and
+// the live look uniforms. `buildRaymarchMaterial` composes a fresh TSL graph over THIS, so a reload
+// rebuilds only the shader, never the upload. The uniforms' inferred proxy types carry the TSL fluent
+// API the graph + the scene controller's setters both use.
+function buildRaymarchGraph(
+  resources: {
+    readonly volume: VolumeTexture;
+    readonly tf: TransferFunctionTexture;
+    readonly norm: Normalization;
+    readonly skipState: SkipState | undefined;
+  },
+  config: {
+    readonly steps: number;
+    readonly density: number;
+    readonly opacity: number;
+    readonly shaded: boolean;
+    readonly fieldShape: readonly number[];
+  },
+) {
+  const { volume, tf, norm, skipState } = resources;
+  const uDensity = uniform(config.density);
+  const uLayerOpacity = uniform(config.opacity);
+  const uShade = uniform(config.shaded ? 1 : 0); // live Phong toggle; 0 ⇒ the gradient taps never run
   // Interaction-time quality: the live march count is ceil(steps · scale) — dt stretches to match,
   // so the emission-absorption integral keeps its meaning at any scale. At 1 the math reduces to
   // the fixed march exactly (ceil(steps·1) = steps); the WGSL loop bound stays the literal `steps`.
@@ -170,13 +190,38 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   // convention the volume is sampled at the .zyx swizzle (see sampleRawAt), so object axis i ↔ field
   // axis i — object x's one-voxel step is 1/shape[0] (field axis 0), etc. ClampToEdge means boundary
   // taps saturate (gradient → 0 at the very face).
-  const fieldShape = opts.field.shape;
   const voxelStep = vec3(
-    1 / (fieldShape[0] ?? 1),
-    1 / (fieldShape[1] ?? 1),
-    1 / (fieldShape[2] ?? 1),
+    1 / (config.fieldShape[0] ?? 1),
+    1 / (config.fieldShape[1] ?? 1),
+    1 / (config.fieldShape[2] ?? 1),
   );
 
+  return {
+    volume,
+    tf,
+    norm,
+    skipState,
+    steps: config.steps,
+    voxelStep,
+    uDensity,
+    uLayerOpacity,
+    uShade,
+    uStepScale,
+    uJitter,
+    uOrtho,
+  };
+}
+
+/** The preserved GPU resources + live uniforms `buildRaymarchMaterial` composes its TSL graph over. */
+export type RaymarchGraph = ReturnType<typeof buildRaymarchGraph>;
+
+/** Builds the raymarch `NodeMaterial` (TSL/TSL+WGSL graph) over a preserved `RaymarchGraph`. The dev
+ *  shader hot-reload re-imports this fresh and applies it to the live graph (see `rebuildShader`). */
+export type RaymarchMaterialBuilder = (graph: RaymarchGraph) => NodeMaterial;
+
+/** Compose the single-pass raymarch material from a preserved graph (textures + uniforms). Pure in the
+ *  graph — no GPU allocation here, so a dev reload rebuilds it without touching the uploaded volume. */
+export const buildRaymarchMaterial: RaymarchMaterialBuilder = (g) => {
   const rgba = Fn(() => {
     // Camera ray in object space; the box is axis-aligned there so the slab test is exact. The box
     // renders BackSide so a fragment is still generated when the camera is inside (front faces clip on
@@ -189,7 +234,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     const orthoForward = varying(
       modelWorldMatrixInverse.mul(cameraWorldMatrix.mul(vec4(0, 0, -1, 0))).xyz,
     );
-    const isOrtho = uOrtho.greaterThan(0.5);
+    const isOrtho = g.uOrtho.greaterThan(0.5);
     const rayOrigin = isOrtho.select(positionGeometry, perspOrigin).toVar();
     const rayDir = isOrtho
       .select(orthoForward.normalize(), positionGeometry.sub(perspOrigin).normalize())
@@ -209,7 +254,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     // Ortho's origin is the back-face fragment, so it marches the full interval from the front wall in.
     const tEntry = isOrtho.select(bounds.x, max(bounds.x, 0.0));
     const tExit = bounds.y;
-    const liveSteps = ceil(float(steps).mul(uStepScale)).max(1.0).toVar();
+    const liveSteps = ceil(float(g.steps).mul(g.uStepScale)).max(1.0).toVar();
     const dt = tExit.sub(tEntry).div(liveSteps).toVar(); // fine step; the lattice is tStart + k·dt
     // Interleaved gradient noise (Jimenez 2014): a per-pixel march phase that turns the coarse
     // march's onion-shell banding into unstructured noise. uJitter is 0 at full quality, so
@@ -219,7 +264,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
         fract(screenCoordinate.x.mul(0.06711056).add(screenCoordinate.y.mul(0.00583715))),
       ),
     );
-    const tStart = tEntry.add(dt.mul(ign).mul(uJitter)).toVar();
+    const tStart = tEntry.add(dt.mul(ign).mul(g.uJitter)).toVar();
     const accumColor = vec3(0).toVar();
     const accumAlpha = float(0).toVar();
 
@@ -232,7 +277,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       // C-order (object x↔field 2, y↔1, z↔0), so its built-in reversal is undone by sampling at the
       // .zyx swizzle of the object-space position — reversal∘reversal = identity. One swappable node
       // so a streamed step re-binds the main sample + all 6 gradient taps that share this helper.
-      const raw = volume.node.sample(p.zyx).r;
+      const raw = g.volume.node.sample(p.zyx).r;
       return raw.abs().lessThan(float(1e30)).select(raw, float(0));
     };
 
@@ -240,20 +285,20 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     // paths so the accumulation math lives once. Object [-0.5,0.5]³ → texture [0,1]³; texture axes are
     // the reverse of field axes (volumeTexture C-order: object x/y/z ↔ field axis 2/1/0).
     const accumulate = (texPos: Node<"vec3">): void => {
-      const t = norm.toT(sampleRawAt(texPos));
+      const t = g.norm.toT(sampleRawAt(texPos));
       // Opacity stays value-proportional (t·density); the LUT alpha channel is reserved for the
       // opacity transfer function, so color comes from the LUT but opacity doesn't.
-      const sampleAlpha = t.mul(uDensity).mul(dt).saturate();
+      const sampleAlpha = t.mul(g.uDensity).mul(dt).saturate();
       const weight = accumAlpha.oneMinus(); // front-to-back: (1 - accumulated)
-      const rgb = texture(tf.texture, vec2(t, 0.5)).rgb.toVar();
+      const rgb = texture(g.tf.texture, vec2(t, 0.5)).rgb.toVar();
 
       // Phong (opt-in via uShade): a render-local lighting normal from the field gradient. Gated on
       // uShade AND a contributing opacity `t` so transparent samples skip the 6 gradient taps
       // (shading.ts is the pure twin of this math).
-      If(uShade.greaterThan(0.5).and(t.greaterThan(SHADE_T_FLOOR)), () => {
-        const dx = vec3(voxelStep.x, 0, 0);
-        const dy = vec3(0, voxelStep.y, 0);
-        const dz = vec3(0, 0, voxelStep.z);
+      If(g.uShade.greaterThan(0.5).and(t.greaterThan(SHADE_T_FLOOR)), () => {
+        const dx = vec3(g.voxelStep.x, 0, 0);
+        const dy = vec3(0, g.voxelStep.y, 0);
+        const dz = vec3(0, 0, g.voxelStep.z);
         const grad = vec3(
           sampleRawAt(texPos.add(dx)).sub(sampleRawAt(texPos.sub(dx))),
           sampleRawAt(texPos.add(dy)).sub(sampleRawAt(texPos.sub(dy))),
@@ -276,11 +321,11 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       accumAlpha.addAssign(sampleAlpha.mul(weight));
     };
 
-    if (skipState !== undefined) {
+    if (g.skipState !== undefined) {
       // Two-level traversal: read the coarse brick max; fine-march occupied bricks, jump empty ones
       // to their far face *snapped back onto the lattice* so occupied samples land exactly where the
       // fixed march would — output-equivalent, not merely close.
-      const { tex, gridDims, maxIters } = skipState;
+      const { tex, gridDims, maxIters } = g.skipState;
       const tCur = tStart.toVar();
       Loop(maxIters, () => {
         If(tCur.greaterThanEqual(tExit), () => {
@@ -291,7 +336,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
         // below it: skipping it can't change the pixel (window-aware, recomputed live).
         // Same .zyx swizzle as the volume sample so the brick lookup addresses the physical brick the
         // ray occupies (the skip grid is built + uploaded C-order, identical to the volume texture).
-        const occupied = norm.toT(texture3D(tex.texture, texPos.zyx).r).greaterThan(EMPTY_T);
+        const occupied = g.norm.toT(texture3D(tex.texture, texPos.zyx).r).greaterThan(EMPTY_T);
         If(occupied, () => {
           accumulate(texPos);
           tCur.addAssign(dt);
@@ -320,7 +365,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
       // The WGSL bound stays the literal `steps`; the counter Breaks at the uniform-driven live count.
       const pos = rayOrigin.add(tStart.mul(rayDir)).toVar();
       const stepIndex = float(0).toVar();
-      Loop(steps, () => {
+      Loop(g.steps, () => {
         If(stepIndex.greaterThanEqual(liveSteps), () => {
           Break(); // interaction-time coarse march reached its live count
         });
@@ -336,7 +381,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
     // accumColor is premultiplied (Σ color·α·weight); un-premultiply so the default normal
     // blend (src·α + dst·(1−α)) composites it correctly over the cleared background. The
     // per-layer opacity scales the whole layer's emitted alpha — a uniform composite fade.
-    return vec4(accumColor.div(max(accumAlpha, 1e-4)), accumAlpha.mul(uLayerOpacity));
+    return vec4(accumColor.div(max(accumAlpha, 1e-4)), accumAlpha.mul(g.uLayerOpacity));
     // One shared temp: colorNode/opacityNode read .rgb/.a from it, so the march runs once.
   })().toVar();
 
@@ -349,7 +394,36 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   // clip on the near plane and the raymarch (a fragment program) would never run. Outside, the ray is
   // camera-origin + direction, identical to FrontSide per pixel; only the spawning face differs.
   material.side = BackSide;
+  return material;
+};
 
+/** Build a themed single-pass raymarch scene from a 3D scalar field. */
+export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
+  const volume = createVolumeTexture(opts.field, opts.float32Filterable, opts.ledgerKey);
+  const tf = createTransferFunctionTexture(opts.colormap);
+  const steps = opts.steps ?? DEFAULT_STEPS;
+
+  // Empty-space-skip acceleration structure, built only when opted in — the default fixed march pays
+  // no CPU reduction, no texture upload, and no per-step skip-grid fetch. `volume.min` is the brick
+  // fallback so all-NaN bricks map to the colormap floor (skippable), matching the volume's NaN→min.
+  const skipState = opts.skipEmptySpace
+    ? buildSkipState(opts.field, opts.brickSize ?? DEFAULT_BRICK_SIZE, volume.min, steps)
+    : undefined;
+
+  // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
+  const norm = createNormalization(volume.min, volume.max, opts.windowLevel, opts.scale);
+  const graph = buildRaymarchGraph(
+    { volume, tf, norm, skipState },
+    {
+      steps,
+      density: opts.density ?? 1,
+      opacity: opts.opacity ?? 1,
+      shaded: opts.shaded ?? false,
+      fieldShape: opts.field.shape,
+    },
+  );
+
+  let material = buildRaymarchMaterial(graph);
   const geometry = new BoxGeometry(1, 1, 1);
   const mesh = new Mesh(geometry, material);
   // Object space stays the unit box [-0.5,0.5]³ (the raymarch clips + samples there); a non-uniform
@@ -366,28 +440,38 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
 
   return {
     scene,
-    setWindowLevel: norm.setWindow,
-    setColormap: tf.setColormap,
-    setScale: norm.setScale,
+    setWindowLevel: graph.norm.setWindow,
+    setColormap: graph.tf.setColormap,
+    setScale: graph.norm.setScale,
     setShading(enabled) {
-      uShade.value = enabled ? 1 : 0;
+      graph.uShade.value = enabled ? 1 : 0;
     },
     setOpacity(opacity) {
-      uLayerOpacity.value = opacity;
+      graph.uLayerOpacity.value = opacity;
     },
     setStepScale(scale) {
       const clamped = clamp(scale, 0.05, 1);
-      uStepScale.value = clamped;
-      uJitter.value = clamped < 1 ? 1 : 0; // jitter only the coarse march (see uJitter)
+      graph.uStepScale.value = clamped;
+      graph.uJitter.value = clamped < 1 ? 1 : 0; // jitter only the coarse march (see uJitter)
     },
     setField(field) {
       // The empty-space-skip grid is built once from the construction field; a streamed step would
       // leave it stale, so force a rebuild there. Default (no skip) takes the in-place ping-pong.
-      if (skipState !== undefined) return false;
-      return volume.setField(field);
+      if (graph.skipState !== undefined) return false;
+      return graph.volume.setField(field);
     },
     setProjection(orthographic) {
-      uOrtho.value = orthographic ? 1 : 0;
+      graph.uOrtho.value = orthographic ? 1 : 0;
+    },
+    rebuildShader(build) {
+      // Dev shader hot-reload: compose a fresh material over the SAME preserved graph (uploaded volume
+      // texture + colormap LUT + live uniforms) and swap it onto the live mesh — the edited WGSL/TSL
+      // re-renders with no 64 MiB re-upload, and the look/geometry/pose carry over. Dispose the old
+      // material only (its pipeline); the textures it referenced are the graph's, not freed here.
+      const next = build(graph);
+      mesh.material = next;
+      material.dispose();
+      material = next;
     },
     dispose() {
       geometry.dispose();

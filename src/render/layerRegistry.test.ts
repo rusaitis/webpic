@@ -18,6 +18,7 @@ interface FakeScene {
   fieldSwaps: number;
   stepScale?: number;
   orthographic?: boolean;
+  shaderRebuilds: number;
 }
 
 function makeFake(
@@ -32,6 +33,7 @@ function makeFake(
     opacity: opts.opacity,
     setFieldResult: true,
     fieldSwaps: 0,
+    shaderRebuilds: 0,
   };
   const base = {
     get scene() {
@@ -61,6 +63,9 @@ function makeFake(
             fake.orthographic = o;
           },
           setShading: () => {},
+          rebuildShader: () => {
+            fake.shaderRebuilds += 1;
+          },
         })
       : base;
   created.push(fake);
@@ -203,6 +208,18 @@ describe("createLayerRegistry", () => {
     const volume = created.find((s) => s.kind === "volume");
     expect(volume?.stepScale).toBe(0.5);
     expect(volume?.orthographic).toBe(true);
+  });
+
+  it("rebuildShaders swaps volume materials only (dev shader HMR), skipping slices", async () => {
+    const { registry, created } = harness();
+    await registry.upsert(upsert("vol", "volume"));
+    await registry.upsert(upsert("sl", "slice")); // no rebuildShader — must be skipped, not throw
+    const build = () => ({}) as unknown as import("three/webgpu").NodeMaterial;
+    registry.rebuildShaders(build);
+    const volume = created.find((s) => s.kind === "volume");
+    const slice = created.find((s) => s.kind === "slice");
+    expect(volume?.shaderRebuilds).toBe(1);
+    expect(slice?.shaderRebuilds).toBe(0); // narrowing left the slice untouched
   });
 
   it("discards a scene superseded mid-warm (a remove during the upsert's warm)", async () => {

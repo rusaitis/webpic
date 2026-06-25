@@ -37,6 +37,7 @@ export const REQUEST_IDS = {
   marker: 11,
   pickerPoint: 12,
   perf: 13,
+  shaderHmr: 14,
 } as const;
 
 // A computed scalar field, serialized for transfer to the worker: the typed array can't
@@ -237,7 +238,14 @@ export type RenderWorkerRequest =
   // computes each scrubbed step off-main and posts StreamStepMessage (from @data) over this port, so
   // the scalar flows data → render with no main-thread hop. Stored on receipt; the port's own
   // onmessage handles the field swaps.
-  | { readonly kind: "pair"; readonly requestId: number; readonly port: MessagePort };
+  | { readonly kind: "pair"; readonly requestId: number; readonly port: MessagePort }
+  // Dev-only shader hot-reload: a watched edit to the raymarch WGSL/TSL fired on the main
+  // thread's Vite HMR client, which forwards this so the worker re-imports the scene factory module
+  // fresh (cache-busted by `timestamp`) and swaps each volume layer's MATERIAL in place — the uploaded
+  // Data3DTexture + live uniforms (look) + pose are all preserved (no 64 MiB re-upload, no reload).
+  // Never sent in production (gated behind `import.meta.hot` on the sender, `import.meta.env.DEV` on
+  // the worker), so it costs the prod bundle nothing.
+  | { readonly kind: "rebuildShader"; readonly requestId: number; readonly timestamp: number };
 
 // Why a terminal GPU loss could not be recovered: re-acquisition found no adapter, or the recovery
 // circuit-breaker tripped on repeated rapid losses.

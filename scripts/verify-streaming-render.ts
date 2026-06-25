@@ -80,11 +80,23 @@ async function main(): Promise<void> {
 
     const ctx = await page.evaluate(async () => {
       const w = globalThis as unknown as {
-        document: { querySelector(s: string): { width: number; height: number } | null };
+        // Structural (not DOM-lib `Element`) — this file typechecks under tsconfig.node.json (no DOM lib).
+        document: {
+          querySelector(s: string): {
+            getBoundingClientRect(): { width: number; height: number };
+          } | null;
+        };
         devicePixelRatio: number;
         navigator: { gpu?: { requestAdapter(): Promise<{ info?: unknown } | null> } };
       };
       const canvas = w.document.querySelector("canvas");
+      // Read the CSS client box, NOT canvas.width — after transferControlToOffscreen the placeholder's
+      // width/height freeze pre-transfer (256); the worker owns the buffer = clientSize × DPR. Same fix
+      // as scripts/profile-raymarch.ts.
+      const rect = canvas?.getBoundingClientRect();
+      const cssW = rect ? Math.round(rect.width) : 0;
+      const cssH = rect ? Math.round(rect.height) : 0;
+      const dpr = w.devicePixelRatio;
       let adapter = "unknown";
       try {
         const a = await w.navigator.gpu?.requestAdapter();
@@ -92,12 +104,7 @@ async function main(): Promise<void> {
       } catch {
         adapter = "requestAdapter-threw";
       }
-      return {
-        bufferW: canvas ? canvas.width : 0,
-        bufferH: canvas ? canvas.height : 0,
-        dpr: w.devicePixelRatio,
-        adapter,
-      };
+      return { bufferW: Math.round(cssW * dpr), bufferH: Math.round(cssH * dpr), dpr, adapter };
     });
 
     // Record long tasks from here on — first-frame compile/upload longtasks are already past.
@@ -116,7 +123,9 @@ async function main(): Promise<void> {
       }).observe({ entryTypes: ["longtask"] });
     });
 
-    const canvas = page.locator("canvas");
+    // Scope to the render canvas — the colorbar + colormap-swatch add their own <canvas> elements, so a
+    // bare "canvas" locator is ambiguous under Playwright strict mode.
+    const canvas = page.locator("#app canvas");
     const before = await canvas.screenshot();
 
     // Tick "Measure (continuous)" to force the sustained-timing loop (every-frame GPU timing). force:
@@ -135,16 +144,20 @@ async function main(): Promise<void> {
       { timeout: 20_000 },
     );
 
-    // Sustained bouncing scrub across the step domain, sampling the rolling-mean readout as we go.
-    // Each ArrowRight/Left moves the cursor one index → setStep → setCursor → off-main read+compute
-    // → streamStep → scene.setField ping-pong. The continuous loop times every frame meanwhile.
-    const grip = page.locator('.webpic-pane:has-text("Time") .webpic-range_grip');
-    await grip.focus();
+    // Sustained bouncing scrub across the step domain, sampling the rolling-mean readout as we go. The
+    // time control moved from a docked pane into the top bar: a chip revealing a popover with prev/next
+    // step buttons. Hover the chip to reveal the popover, then click step-next/prev — each dispatches
+    // setStep → setCursor → off-main read+compute → streamStep → scene.setField ping-pong. The
+    // continuous loop times every frame meanwhile.
+    const timeWrap = page.locator(".webpic-topbar_time");
+    const nextBtn = page.locator('[data-control="step-next"]');
+    const prevBtn = page.locator('[data-control="step-prev"]');
     const readings: number[] = [];
     let clock = "";
     let dir = 1;
     for (let i = 0; i < SCRUB_PRESSES; i++) {
-      await grip.press(dir > 0 ? "ArrowRight" : "ArrowLeft");
+      await timeWrap.hover(); // keep the reveal-on-hover popover open
+      await (dir > 0 ? nextBtn : prevBtn).click({ force: true });
       await page.waitForTimeout(SCRUB_DWELL_MS);
       const text = await readout.innerText();
       const m = text.match(/(-?\d+\.\d{2}) ms/);

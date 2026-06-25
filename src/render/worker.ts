@@ -645,6 +645,28 @@ async function pair(request: Extract<RenderWorkerRequest, { kind: "pair" }>): Pr
   };
 }
 
+// Dev-only shader hot-reload: a watched edit to the raymarch WGSL/TSL. Re-import the scene
+// factory module fresh (cache-busted by `timestamp`) and swap every volume layer's material in place —
+// the uploaded Data3DTexture + live uniforms (look) + the retained pose all carry over (no 64 MiB
+// re-upload, no reload). Re-warm the swapped pipelines off the render path so the first frame doesn't
+// sync-compile, then repaint. A bad edit (syntax/compile error) is reported and leaves the prior shader
+// rendering. Gated on import.meta.env.DEV so prod tree-shakes this branch + the shaderReload module.
+async function rebuildShader(
+  request: Extract<RenderWorkerRequest, { kind: "rebuildShader" }>,
+): Promise<void> {
+  await initDone;
+  if (renderer === undefined) return;
+  if (!import.meta.env.DEV) return; // prod: dead branch → shaderReload never enters the bundle
+  try {
+    const { loadFreshRaymarchBuilder } = await import("./volume/shaderReload.ts");
+    registry.rebuildShaders(await loadFreshRaymarchBuilder(request.timestamp));
+    await renderer.compileComposite(paintItems());
+  } catch (error) {
+    reportFault(error);
+  }
+  requestRender();
+}
+
 function handle(request: RenderWorkerRequest): Promise<void> {
   switch (request.kind) {
     case "init":
@@ -684,6 +706,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return pickRay(request);
     case "pair":
       return pair(request);
+    case "rebuildShader":
+      return rebuildShader(request);
     default: {
       const unreachable: never = request;
       return Promise.reject(new Error(`unknown request: ${JSON.stringify(unreachable)}`));

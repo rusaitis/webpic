@@ -9,7 +9,11 @@ import type { PickLayer } from "./pickRay.ts";
 import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
 import type { CompositeItem } from "./runtime/renderer.ts";
 import { fullRangeWindow } from "./volume/normalization.ts";
-import { createRaymarchScene, type RaymarchScene } from "./volume/raymarchScene.ts";
+import {
+  createRaymarchScene,
+  type RaymarchMaterialBuilder,
+  type RaymarchScene,
+} from "./volume/raymarchScene.ts";
 import { createSliceScene, type SliceAxis, type SliceScene } from "./volume/sliceScene.ts";
 import { finiteRange, type ScalarField } from "./volume/volumeTexture.ts";
 
@@ -74,6 +78,10 @@ export interface LayerRegistry extends RenderModule {
   applyStepScale(stepScale: number): void;
   /** Flip every volume scene's ray generation (the per-layer half of setProjection). */
   applyProjection(orthographic: boolean): void;
+  /** Dev shader hot-reload: swap every volume scene's material from freshly imported builder code,
+   *  reusing each layer's uploaded texture + live uniforms (no rebuild, no re-upload). Slices have no
+   *  raymarch shader, so they're skipped. */
+  rebuildShaders(build: RaymarchMaterialBuilder): void;
   /** The visible layers in draw order paired with their camera; `override` swaps in a not-yet-committed
    *  scene for a warm. The worker appends overlay/marker. */
   layerItems(
@@ -294,6 +302,15 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       for (const entry of layers.values()) {
         // `setProjection` exists only on RaymarchScene; slices are screen-aligned and pose-invariant.
         if ("setProjection" in entry.scene) entry.scene.setProjection(orthographic);
+      }
+    },
+
+    rebuildShaders(build) {
+      // `rebuildShader` exists only on RaymarchScene (the `in` check narrows the union); a slice's
+      // material isn't the hot-reloaded raymarch shader, so it's left untouched. The worker repaints +
+      // re-warms after this returns (the swap itself is synchronous, no requestRender here).
+      for (const entry of layers.values()) {
+        if ("rebuildShader" in entry.scene) entry.scene.rebuildShader(build);
       }
     },
 

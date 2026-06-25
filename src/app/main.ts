@@ -293,9 +293,23 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     });
   }
 
+  // Dev-only shader HMR: forward an edited raymarch WGSL/TSL to the worker (rebuildShader) instead of
+  // the default full page reload, so the camera pose + uploaded volume survive an edit. Behind
+  // import.meta.hot + dynamic-imported, so the bridge is absent from the prod bundle.
+  let disposeShaderHmr: (() => void) | undefined;
+  let shaderHmrDisposed = false;
+  if (import.meta.hot) {
+    void import("./shaderHmr.ts").then(({ installShaderHmr }) => {
+      if (shaderHmrDisposed) return; // bootstrap disposed before the chunk loaded
+      disposeShaderHmr = installShaderHmr(worker);
+    });
+  }
+
   return () => {
     perfDisposed = true;
     perfBridge?.dispose();
+    shaderHmrDisposed = true;
+    disposeShaderHmr?.();
     disposeUi?.();
     disposePointer?.();
     disposePicker?.();

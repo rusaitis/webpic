@@ -18,12 +18,22 @@ function el<T extends HTMLElement>(root: ParentNode, sel: string): T {
   return found;
 }
 
+// The window hosts more than one checkbox now (Diagnostics "Measure" + Shading "Phong"), so target a
+// control by its row label rather than the first match.
+function rowInput(root: ParentNode, label: string): HTMLInputElement {
+  const row = [...root.querySelectorAll<HTMLElement>(".webpic-row")].find(
+    (r) => r.querySelector(".webpic-row_label")?.textContent === label,
+  );
+  if (row === undefined) throw new Error(`missing row ${label}`);
+  return el<HTMLInputElement>(row, ".webpic-checkbox_input");
+}
+
 afterEach(() => {
   document.body.replaceChildren();
 });
 
 describe("developer window", () => {
-  it("mounts a titled floating window hosting the Phong toggle", async () => {
+  it("mounts a titled floating window hosting the Diagnostics + Phong controls", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
     await flushAsync();
@@ -31,7 +41,8 @@ describe("developer window", () => {
 
     const win = el(document.body, ".webpic-window");
     expect(el(win, ".webpic-window_title").textContent).toBe("Developer");
-    expect(el<HTMLInputElement>(win, ".webpic-checkbox_input").disabled).toBe(false); // volume layer
+    expect(rowInput(win, "Phong").disabled).toBe(false); // volume layer → Phong enabled
+    expect(rowInput(win, "Measure (continuous)")).not.toBeNull(); // the GPU frame-time instrument
 
     dispose();
     expect(document.body.querySelector(".webpic-window")).toBeNull();
