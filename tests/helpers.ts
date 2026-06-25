@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import { TOL, type Tolerance } from "./tolerances.ts";
+import { DEFAULT_TOLERANCE, type Tolerance } from "./tolerances.ts";
 
 // Drain the microtask queue (via a macrotask tick) so a fire-and-forget async store action settles
 // before assertions — the recompute that setDataset/selectField kick off computes the active field
@@ -8,14 +8,14 @@ import { TOL, type Tolerance } from "./tolerances.ts";
 export const flushAsync = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 // Shared array-wise tolerance assertion for the numeric kernels. Defaults to the f64 reference
-// precision; pass a tests/tolerances.ts preset (TOL.ts_f32, …) or a partial override otherwise.
+// floor; pass a tests/tolerances.ts cell (TOL.magnitude.ts_f32, …) or a partial override otherwise.
 export function assertAllclose(
   actual: ArrayLike<number>,
   expected: ArrayLike<number>,
-  tol: Partial<Tolerance> = TOL.ts_f64,
+  tol: Partial<Tolerance> = DEFAULT_TOLERANCE,
 ): void {
-  const rtol = tol.rtol ?? TOL.ts_f64.rtol;
-  const atol = tol.atol ?? TOL.ts_f64.atol;
+  const rtol = tol.rtol ?? DEFAULT_TOLERANCE.rtol;
+  const atol = tol.atol ?? DEFAULT_TOLERANCE.atol;
   expect(actual.length).toBe(expected.length);
   for (let i = 0; i < actual.length; i++) {
     const a = actual[i] ?? Number.NaN;

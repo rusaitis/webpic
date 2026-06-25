@@ -825,16 +825,19 @@ Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirr
 11. **Prefetch fuzz** — `tests/prefetch.test.ts` exercises EWMA direction detection with random scrub patterns.
 12. **One smoke E2E** — load Zarr URL, render volume, scrub timestep, no crashes.
 
-**Tolerance table (`tests/tolerances.ts`).** Honest per-kernel, per-precision:
+**Tolerance table (`tests/tolerances.ts`).** Honest per-kernel × per-precision; bare operator keys, `{rtol, atol}` cells (the atol floor is what keeps curl/div honest at their zero-crossings — magnitude needs none):
 
 ```ts
-export const tolerances = {
-  'field.magnitude': { ts_f64: 1e-12, ts_f32: 1e-6, webgpu_f32: 3e-6, webgpu_f16: 1e-3 },
-  'field.curl':      { ts_f64: 1e-10, ts_f32: 3e-5, webgpu_f32: 5e-5, webgpu_f16: 5e-3 },
-};
+export const TOL = {
+  magnitude: { ts_f64: { rtol: 1e-12, atol: 1e-12 }, ts_f32: { rtol: 1e-6, atol: 1e-6 },
+               webgpu_f32: { rtol: 1e-5, atol: 1e-6 }, webgpu_f16: { rtol: 1e-3, atol: 1e-3 } },
+  curl:      { ts_f64: { rtol: 1e-12, atol: 1e-12 }, ts_f32: { rtol: 1e-5, atol: 1e-5 },
+               webgpu_f32: { rtol: 1e-5, atol: 1e-6 }, webgpu_f16: { rtol: 5e-3, atol: 5e-3 } },
+  // divergence ≡ curl numerics; gradient too (its webgpu rows derived — no WGSL gradient kernel yet).
+} satisfies Record<Kernel, Record<Precision, Tolerance>>;
 ```
 
-Header documents derivation: 1e-6 rel on f32 is fiction for curl on 256³ — O(h²) FD accumulates ~3×10⁻⁵; f16 sits at ~5×10⁻³.
+Header marks each cell measured vs derived: magnitude/curl/div @ `webgpu_f32` measured (M3.1, small smooth grid); f16 has no compute kernel in v0.1 (`shader-f16` unrequested), so those cells are paper bounds from the f16 unit roundoff (~5×10⁻³ for the cancelling FD ops). The 1e-6 rel f32 row is honest for `|B|` but fiction for curl — f32 cancellation in the difference, so curl/div carry a looser floor. M3.4 may widen curl/div `ts_f64` toward ~1e-10 and the `webgpu_f32` atol on 256³ turbulent goldens — widen only with that measurement. A `tests/tolerances.test.ts` guard keeps the matrix complete and the ladder honest (f64 tightest, f16 loosest, magnitude ≤ the FD ops).
 
 **Not tested**
 - Three.js scene state, materials, render output (visual regressions flaky).
@@ -972,7 +975,7 @@ Cross-cutting concerns and explicitly deferred items. Milestone-bound work lives
 
 ## Critical files & references
 
-**Codegen + scripts.** Shipped (M0): `scripts/codegen/{bundle,emit,render-schema,render-aliases,render-recipes,render-registry}.ts` (driven by `npm run gen`), `scripts/check-boundaries.ts`, `scripts/sync-themes.ts`, `scripts/perf-gate.ts`. Shipped since: `tests/tolerances.ts` (per-precision presets `ts_f64`/`ts_f32`/`webgpu_f16`; per-kernel granularity at M3). To create: `gen-synthetic.ts` (M3 analytical fields), `gen-fixtures.ts` (dev), `sync-shaders.ts` (rustpic-gated). See §Package shape for the full file inventory.
+**Codegen + scripts.** Shipped (M0): `scripts/codegen/{bundle,emit,render-schema,render-aliases,render-recipes,render-registry}.ts` (driven by `npm run gen`), `scripts/check-boundaries.ts`, `scripts/sync-themes.ts`, `scripts/perf-gate.ts`. Shipped since: `tests/tolerances.ts` (per-kernel × per-precision `{rtol,atol}` matrix `TOL.<kernel>.<precision>` + structural guard `tests/tolerances.test.ts` — landed M3.2). To create: `gen-synthetic.ts` (M3 analytical fields), `gen-fixtures.ts` (dev), `sync-shaders.ts` (rustpic-gated). See §Package shape for the full file inventory.
 
 **Upstream PR.** pypic theme TOMLs — `[webpic]` section (shipped M0; see §UI for schema).
 

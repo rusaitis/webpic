@@ -34,7 +34,7 @@ describe("vectorMagnitude", () => {
       new Float64Array([4, 12, 15]),
       new Float64Array([0, 0, 0]),
     );
-    assertAllclose(out, [5, 13, 17], TOL.ts_f64);
+    assertAllclose(out, [5, 13, 17], TOL.magnitude.ts_f64);
   });
 
   it("computes at render (f32) precision", () => {
@@ -43,7 +43,7 @@ describe("vectorMagnitude", () => {
       new Float32Array([4, 12, 15]),
       new Float32Array([0, 0, 0]),
     );
-    assertAllclose(out, [5, 13, 17], TOL.ts_f32);
+    assertAllclose(out, [5, 13, 17], TOL.magnitude.ts_f32);
   });
 
   it("returns f32 for f32 inputs and f64 for f64 inputs", () => {

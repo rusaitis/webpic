@@ -1,6 +1,7 @@
 import { computeField } from "@compute";
 import { describe, expect, it } from "vitest";
 import { assertAllclose } from "../../tests/helpers.ts";
+import { TOL } from "../../tests/tolerances.ts";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
 
 const N = 32;
@@ -49,7 +50,7 @@ describe("createSyntheticDataset", () => {
       const z = b3[i] ?? 0;
       expected[i] = Math.sqrt(x * x + y * y + z * z);
     }
-    // f32 storage on both sides → agreement at the single-precision result rounding.
-    assertAllclose(mag.data, expected, { rtol: 1e-6, atol: 1e-7 });
+    // f32 storage on both sides → the magnitude single-precision result rounding.
+    assertAllclose(mag.data, expected, TOL.magnitude.ts_f32);
   });
 });

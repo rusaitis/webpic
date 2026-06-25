@@ -73,7 +73,7 @@ describe("divergence", () => {
       shape,
       spacing,
     );
-    assertAllclose(result, constant(shape, 3), TOL.ts_f64);
+    assertAllclose(result, constant(shape, 3), TOL.divergence.ts_f64);
   });
 
   it("handles anisotropic spacing: F=(2x,3y,5z) → div=10", () => {
@@ -86,7 +86,7 @@ describe("divergence", () => {
       shape,
       spacing,
     );
-    assertAllclose(result, constant(shape, 10), TOL.ts_f64);
+    assertAllclose(result, constant(shape, 10), TOL.divergence.ts_f64);
   });
 
   it("propagates NaN", () => {
@@ -126,7 +126,7 @@ describe("curl", () => {
     );
     assertAllclose(c1, zeros(c1.length), { atol: 1e-12, rtol: 0 });
     assertAllclose(c2, zeros(c2.length), { atol: 1e-12, rtol: 0 });
-    assertAllclose(c3, constant(shape, 2), TOL.ts_f64);
+    assertAllclose(c3, constant(shape, 2), TOL.curl.ts_f64);
   });
 });
 
@@ -139,9 +139,9 @@ describe("gradient", () => {
       shape,
       spacing,
     );
-    assertAllclose(g1, constant(shape, 2), TOL.ts_f64);
-    assertAllclose(g2, constant(shape, 3), TOL.ts_f64);
-    assertAllclose(g3, constant(shape, 5), TOL.ts_f64);
+    assertAllclose(g1, constant(shape, 2), TOL.gradient.ts_f64);
+    assertAllclose(g2, constant(shape, 3), TOL.gradient.ts_f64);
+    assertAllclose(g3, constant(shape, 5), TOL.gradient.ts_f64);
   });
 
   it("is exact in the interior for the quadratic f=x²+y² → (2x,2y,0)", () => {
@@ -154,8 +154,8 @@ describe("gradient", () => {
     );
     const expect1 = sample(shape, spacing, (x) => 2 * x);
     const expect2 = sample(shape, spacing, (_x, y) => 2 * y);
-    assertAllclose(interior(g1, shape), interior(expect1, shape), TOL.ts_f64);
-    assertAllclose(interior(g2, shape), interior(expect2, shape), TOL.ts_f64);
+    assertAllclose(interior(g1, shape), interior(expect1, shape), TOL.gradient.ts_f64);
+    assertAllclose(interior(g2, shape), interior(expect2, shape), TOL.gradient.ts_f64);
     assertAllclose(g3, zeros(g3.length), { atol: 1e-14, rtol: 0 });
   });
 });

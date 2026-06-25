@@ -1,6 +1,7 @@
 // Real-WebGPU parity for the field-operator kernels: the GPU magnitude / curl / divergence must
 // match the `coordinates/` + `derived/` TS twins. Inputs are built as Float32Array and fed to BOTH
-// sides, so the only gap is f32-vs-f64 *arithmetic* (not rounded-input skew) — bounded by TOL.webgpu_f32.
+// sides, so the only gap is f32-vs-f64 *arithmetic* (not rounded-input skew) — bounded by each
+// kernel's TOL.*.webgpu_f32 row.
 // A smooth analytic field (well-conditioned differences), a distinct-dims shape (every axis hits all
 // three stencil branches; a transposed stride fails loudly), and one 256³ run that crosses the
 // 65535-workgroup cap to exercise the kernel's grid-stride wraparound. Runs only under the gpu project
@@ -108,7 +109,7 @@ describe("webgpu field-op parity vs the coordinates/derived twins", () => {
     const gpu = await webgpuBackend.compute("|B|", vectorDataset(SHAPE, SPACING, f1, f2, f3));
     const twin = vectorMagnitude(f1, f2, f3);
     expect(maxAbs(twin)).toBeGreaterThan(0.5); // non-vacuous
-    assertAllclose(gpu.data, twin, TOL.webgpu_f32);
+    assertAllclose(gpu.data, twin, TOL.magnitude.webgpu_f32);
   });
 
   it.skipIf(!hasRealGpu)("divergence matches the central/one-sided stencil", async () => {
@@ -118,7 +119,7 @@ describe("webgpu field-op parity vs the coordinates/derived twins", () => {
     const gpu = await webgpuBackend.compute("div_B", vectorDataset(SHAPE, SPACING, f1, f2, f3));
     const twin = divergence(f1, f2, f3, SHAPE, SPACING);
     expect(maxAbs(twin)).toBeGreaterThan(0.1);
-    assertAllclose(gpu.data, twin, TOL.webgpu_f32);
+    assertAllclose(gpu.data, twin, TOL.divergence.webgpu_f32);
   });
 
   it.skipIf(!hasRealGpu)("each curl component matches the twin", async () => {
@@ -131,9 +132,9 @@ describe("webgpu field-op parity vs the coordinates/derived twins", () => {
     const g2 = await webgpuBackend.compute("curl_B_2", ds);
     const g3 = await webgpuBackend.compute("curl_B_3", ds);
     expect(maxAbs(t1) + maxAbs(t2) + maxAbs(t3)).toBeGreaterThan(0.1);
-    assertAllclose(g1.data, t1, TOL.webgpu_f32);
-    assertAllclose(g2.data, t2, TOL.webgpu_f32);
-    assertAllclose(g3.data, t3, TOL.webgpu_f32);
+    assertAllclose(g1.data, t1, TOL.curl.webgpu_f32);
+    assertAllclose(g2.data, t2, TOL.curl.webgpu_f32);
+    assertAllclose(g3.data, t3, TOL.curl.webgpu_f32);
   });
 
   it.skipIf(!hasRealGpu)("rejects a non-cartesian grid like the TS reference", async () => {
