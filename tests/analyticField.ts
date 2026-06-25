@@ -1,61 +1,24 @@
-import type { FieldDataset, GridInfo } from "@containers/field_dataset.ts";
+import type { FieldDataset } from "@containers/field_dataset.ts";
 import type { FloatArray, Vec3 } from "@schema/types.ts";
+import {
+  gridOf,
+  SMOOTH_COMPONENTS,
+  SMOOTH_SHAPE,
+  SMOOTH_SPACING,
+  sampleScalar,
+} from "./analyticFieldCore.ts";
 import { fieldArray, makeDataset } from "./fixtures.ts";
 
 // A smooth analytic vector field on a Cartesian grid: O(1)-amplitude components with non-trivial,
 // well-conditioned curl and divergence everywhere. Shared by the real-GPU parity suite (vs the
-// coordinates/derived twins) and the ts-vs-webgpu cross-backend harness, so the fixture lives once.
+// coordinates/derived twins), the ts-vs-webgpu cross-backend harness, and the pypic golden harness,
+// so the fixture lives once. The definition + sampler live in analyticFieldCore.ts (alias-free, so
+// scripts/gen-fixtures.ts can import them under bare `node`); this file packs them into a FieldDataset.
 
-export type ScalarFn = (x: number, y: number, z: number) => number;
-
-// Distinct dims + anisotropic spacing: every axis hits all three np.gradient stencil branches, and a
-// transposed stride or swapped spacing fails loudly rather than aliasing into a near-equal answer.
-export const SMOOTH_SHAPE: readonly number[] = [5, 4, 3];
-export const SMOOTH_SPACING: Vec3 = [0.5, 1, 2];
-
-export const SMOOTH_COMPONENTS: readonly [ScalarFn, ScalarFn, ScalarFn] = [
-  (x, y, z) => Math.sin(0.7 * x) * Math.cos(0.5 * y) + 0.2 * z,
-  (x, y, z) => Math.cos(0.4 * x) * Math.sin(0.6 * y) * Math.cos(0.3 * z),
-  (x, y, z) => Math.sin(0.3 * x + 0.2 * y) + 0.5 * Math.cos(0.4 * z),
-];
+export type { ScalarFn } from "./analyticFieldCore.ts";
+export { gridOf, SMOOTH_COMPONENTS, SMOOTH_SHAPE, SMOOTH_SPACING, sampleScalar };
 
 type ArrayCtor = Float32ArrayConstructor | Float64ArrayConstructor;
-
-export function gridOf(shape: readonly number[], spacing: Vec3): GridInfo {
-  return {
-    dimensions: [...shape],
-    spacing: [...spacing],
-    origin: [0, 0, 0],
-    geometry: "cartesian",
-    axisLabels: ["x", "y", "z"],
-    dt: null,
-    boundary: null,
-    survivingAxes: null,
-    stagger: null,
-  };
-}
-
-// Sample fn over the row-major grid at physical coordinates index*spacing (origin 0). f32 by default
-// (the GPU storage precision); pass Float64Array for the TS reference path.
-export function sampleScalar(
-  shape: readonly number[],
-  spacing: Vec3,
-  fn: ScalarFn,
-  ArrayType: ArrayCtor = Float32Array,
-): FloatArray {
-  const nx = shape[0] ?? 1;
-  const ny = shape[1] ?? 1;
-  const nz = shape[2] ?? 1;
-  const out = new ArrayType(nx * ny * nz);
-  for (let ix = 0; ix < nx; ix++) {
-    for (let iy = 0; iy < ny; iy++) {
-      for (let iz = 0; iz < nz; iz++) {
-        out[(ix * ny + iy) * nz + iz] = fn(ix * spacing[0], iy * spacing[1], iz * spacing[2]);
-      }
-    }
-  }
-  return out;
-}
 
 export interface SmoothVectorField {
   readonly shape: readonly number[];

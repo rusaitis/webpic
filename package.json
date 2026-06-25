@@ -18,6 +18,7 @@
     "gen:emit": "node scripts/codegen/emit.ts && biome format --write src/schema src/compute",
     "gen": "npm run gen:export && npm run gen:emit",
     "gen:check": "npm run gen:emit && git diff --exit-code -- src/schema src/compute",
+    "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "biome check .",
     "lint:ci": "biome ci .",
     "test": "vitest run",
