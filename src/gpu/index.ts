@@ -28,6 +28,11 @@ export {
 } from "./device.ts";
 export { createGpuProfiler, type GpuProfiler, type GpuProfilerMode } from "./profiler.ts";
 export {
+  runStreamlineKernel,
+  type StreamlineKernelResult,
+  type StreamlineKernelSpec,
+} from "./streamlineKernel.ts";
+export {
   releaseAlloc,
   resetLedger,
   snapshot as vramSnapshot,

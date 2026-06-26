@@ -30,6 +30,34 @@ export type TerminationReason =
   | "callback"
   | "closed_loop";
 
+/**
+ * Integer codes for `TerminationReason`, the single source the WGSL streamline kernel writes into its
+ * `meta` buffer and the GPU orchestrator decodes back. `callback` (3) is CPU-only — a JS predicate isn't
+ * GPU-expressible, so the kernel never emits it. The `satisfies` keeps every reason mapped.
+ */
+export const REASON_CODES = {
+  max_steps: 0,
+  domain_exit: 1,
+  null_point: 2,
+  callback: 3,
+  closed_loop: 4,
+} as const satisfies Record<TerminationReason, number>;
+
+const REASON_BY_CODE: readonly TerminationReason[] = [
+  "max_steps",
+  "domain_exit",
+  "null_point",
+  "callback",
+  "closed_loop",
+];
+
+/** Decode a `REASON_CODES` integer (e.g. from the GPU `meta` buffer) back to a `TerminationReason`. */
+export function reasonFromCode(code: number): TerminationReason {
+  const reason = REASON_BY_CODE[code];
+  if (reason === undefined) throw new Error(`unknown termination reason code ${code}`);
+  return reason;
+}
+
 export interface TraceMetadata {
   readonly method: "rk45_dopri";
   readonly atol: number;
@@ -170,7 +198,7 @@ function searchSortedRight(arr: Float64Array, len: number, value: number): numbe
   return lo;
 }
 
-interface SingleDirResult {
+export interface SingleDirResult {
   readonly points: Float64Array; // flat (n+1, 3)
   readonly reason: TerminationReason;
   readonly maxLocalError: number;
@@ -277,7 +305,7 @@ function reversePoints(flat: Float64Array): Float64Array {
 }
 
 /** Stitch the two directions: forward as-is, backward reversed, "both" = reversed-backward[:-1] ++ forward. */
-function stitch(
+export function stitch(
   direction: TraceDirection,
   fwd: SingleDirResult,
   bwd: SingleDirResult,
@@ -341,7 +369,7 @@ function toSeed(seed: Vec3 | Float64Array | readonly number[]): Float64Array {
   return new Float64Array([seed[0] ?? Number.NaN, seed[1] ?? Number.NaN, seed[2] ?? Number.NaN]);
 }
 
-function validateSeed(
+export function validateSeed(
   interp: VectorFieldInterpolator,
   seed: Float64Array,
   nullThreshold: number,
@@ -357,6 +385,56 @@ function validateSeed(
 }
 
 /**
+ * Resolved numeric/string trace parameters — the single source of pypic-default values shared by the
+ * CPU tracer and the WebGPU orchestrator so the two can never drift. `loopTol="auto"` resolves to
+ * `0.5·min(spacing)`; `loopMinArclen` defaults to `10·stepSizeInit` (see `resolveLoopKwargs`).
+ */
+export interface ResolvedTraceParams {
+  readonly atol: number;
+  readonly rtol: number;
+  readonly stepSizeInit: number;
+  readonly minStep: number;
+  readonly maxStep: number;
+  readonly maxSteps: number;
+  readonly direction: TraceDirection;
+  readonly components: readonly [string, string, string];
+  readonly fieldName: string;
+  readonly nullThreshold: number;
+  readonly loopTol: number | null;
+  readonly loopMinArclen: number;
+}
+
+/** Resolve `AdaptiveTraceOptions` against pypic's defaults. Pure — no interpolator, no seed, no device. */
+export function resolveTraceParams(
+  data: FieldDataset,
+  options: AdaptiveTraceOptions = {},
+): ResolvedTraceParams {
+  const stepSizeInit = options.stepSizeInit ?? 0.5;
+  const loopTolOpt = options.loopTol ?? "auto";
+  const loopTolRaw = loopTolOpt === "auto" ? 0.5 * Math.min(...data.grid.spacing) : loopTolOpt;
+  const { loopTol, loopMinArclen } = resolveLoopKwargs(
+    loopTolRaw,
+    options.loopMinArclen ?? null,
+    stepSizeInit,
+  );
+  const components = options.fieldComponents ?? DEFAULT_COMPONENTS;
+  return {
+    atol: options.atol ?? 1e-6,
+    rtol: options.rtol ?? 1e-3,
+    stepSizeInit,
+    minStep: options.minStep ?? 1e-8,
+    maxStep: options.maxStep ?? 2.0,
+    maxSteps: options.maxSteps ?? 10_000,
+    direction: options.direction ?? "both",
+    components,
+    fieldName: fieldNameFromComponents(components),
+    nullThreshold: options.nullThreshold ?? 1e-12,
+    loopTol,
+    loopMinArclen,
+  };
+}
+
+/**
  * Trace one field line through `data` from `seed` with adaptive Dormand-Prince 5(4). Options mirror
  * pypic's `trace_field_line_adaptive` defaults. Throws if the seed is outside the domain or at a null.
  */
@@ -365,29 +443,11 @@ export function traceFieldLineAdaptive(
   seed: Vec3 | Float64Array | readonly number[],
   options: AdaptiveTraceOptions = {},
 ): FieldLine {
-  const atol = options.atol ?? 1e-6;
-  const rtol = options.rtol ?? 1e-3;
-  const stepSizeInit = options.stepSizeInit ?? 0.5;
-  const minStep = options.minStep ?? 1e-8;
-  const maxStep = options.maxStep ?? 2.0;
-  const maxSteps = options.maxSteps ?? 10_000;
-  const direction = options.direction ?? "both";
-  const components = options.fieldComponents ?? DEFAULT_COMPONENTS;
-  const nullThreshold = options.nullThreshold ?? 1e-12;
+  const p = resolveTraceParams(data, options);
   const terminate = options.terminate ?? null;
-
-  const loopTolOpt = options.loopTol ?? "auto";
-  const loopTolRaw = loopTolOpt === "auto" ? 0.5 * Math.min(...data.grid.spacing) : loopTolOpt;
-  const { loopTol, loopMinArclen } = resolveLoopKwargs(
-    loopTolRaw,
-    options.loopMinArclen ?? null,
-    stepSizeInit,
-  );
-
-  const interp = options.interpolator ?? interpolatorFromDataset(data, components);
+  const interp = options.interpolator ?? interpolatorFromDataset(data, p.components);
   const seedArr = toSeed(seed);
-  validateSeed(interp, seedArr, nullThreshold);
-  const fieldName = fieldNameFromComponents(components);
+  validateSeed(interp, seedArr, p.nullThreshold);
   const seedPoint: Vec3 = [seedArr[0] ?? 0, seedArr[1] ?? 0, seedArr[2] ?? 0];
 
   const adapt = (sign: number): SingleDirResult =>
@@ -395,16 +455,16 @@ export function traceFieldLineAdaptive(
       interp,
       seedArr,
       sign,
-      atol,
-      rtol,
-      stepSizeInit,
-      minStep,
-      maxStep,
-      maxSteps,
-      nullThreshold,
+      p.atol,
+      p.rtol,
+      p.stepSizeInit,
+      p.minStep,
+      p.maxStep,
+      p.maxSteps,
+      p.nullThreshold,
       terminate,
-      loopTol,
-      loopMinArclen,
+      p.loopTol,
+      p.loopMinArclen,
     );
 
   const empty: SingleDirResult = {
@@ -412,25 +472,27 @@ export function traceFieldLineAdaptive(
     reason: "max_steps",
     maxLocalError: 0,
   };
-  const fwd = direction === "forward" || direction === "both" ? adapt(1) : empty;
-  const bwd = direction === "backward" || direction === "both" ? adapt(-1) : empty;
+  const fwd = p.direction === "forward" || p.direction === "both" ? adapt(1) : empty;
+  const bwd = p.direction === "backward" || p.direction === "both" ? adapt(-1) : empty;
 
-  const stitched = stitch(direction, fwd, bwd);
+  const stitched = stitch(p.direction, fwd, bwd);
   return makeFieldLine({
     points: stitched.points,
-    fieldName,
+    fieldName: p.fieldName,
     seedPoint,
     normalization: data.normalization,
-    direction,
+    direction: p.direction,
     reason: stitched.reason,
-    atol,
-    rtol,
+    atol: p.atol,
+    rtol: p.rtol,
     maxLocalError: stitched.maxLocalError,
     step: data.step,
   });
 }
 
-function toSeedList(seeds: ReadonlyArray<Vec3 | readonly number[]> | Float64Array): Float64Array[] {
+export function toSeedList(
+  seeds: ReadonlyArray<Vec3 | readonly number[]> | Float64Array,
+): Float64Array[] {
   if (seeds instanceof Float64Array) {
     const out: Float64Array[] = [];
     for (let i = 0; i + 3 <= seeds.length; i += 3) out.push(seeds.slice(i, i + 3));
