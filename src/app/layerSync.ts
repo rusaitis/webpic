@@ -1,7 +1,10 @@
+import type { FieldLine } from "@compute";
 import type { FieldArray } from "@containers/field_dataset.ts";
 import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
-import { type ColormapBinding, DEFAULT_COLORMAP } from "@schema/colormap.ts";
-import type { Layer, SimulationStore, UiStore } from "@store";
+import { type ColormapBinding, colormapColor, DEFAULT_COLORMAP } from "@schema/colormap.ts";
+import type { Rgba01 } from "@schema/theme.ts";
+import type { Vec3 } from "@schema/types.ts";
+import { gridToWorld, type Layer, type SimulationStore, type UiStore } from "@store";
 import { createStoreBridge } from "./storeBridge.ts";
 
 // The loading pill raised while a layer upsert warms its GPU pipeline off the render path (the warm is
@@ -9,6 +12,10 @@ import { createStoreBridge } from "./storeBridge.ts";
 // layer): a second upsert retitles the same pill, any layerCompiled drops it — like the streaming
 // bridge's flat "open"/"step" keys.
 const RENDER_PHASE_KEY = "render";
+
+// Where on the layer's colormap the solid line color is sampled — high enough to read as a bright,
+// saturated streamline over the volume. Color-by-scalar (the full colormap along the line) is M4.8.
+const FIELDLINE_COLOR_T = 0.75;
 
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
 // render can't import each other). Two channels: `computed` carries field DATA (heavy, transfers the
@@ -39,6 +46,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   const bridge = createStoreBridge(store, isReady);
   let lastLayers: readonly Layer[] = store.getState().layers; // snapshot for the removal diff
   let lastBindings = store.getState().colormapBindings; // snapshot for the per-binding change diff
+  let lastTraces = store.getState().traces; // snapshot for the per-fieldlines-layer change diff
 
   // The layer's ColormapBinding, or undefined if it references none (defensive — every renderable
   // layer is seeded with one).
@@ -121,6 +129,58 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     worker.postMessage(request);
   };
 
+  // Pack a field-line layer's traced lines into the render box and post them as a batched
+  // LineSegments2. The tracer integrates in physical-grid coords; `gridToWorld` (the exact inverse of
+  // the seed pick's `worldToGrid`) maps each point into the same unit box the volume/slice/overlay
+  // share. Both packed buffers are transferred (positions: flat world f32 xyz; counts: u32 per line).
+  const sendUpsertFieldlines = (layer: Layer, lines: readonly FieldLine[]): void => {
+    if (layer.kind !== "fieldlines") return;
+    const grid = store.getState().dataset?.grid ?? null;
+    const halfExtent = store.getState().worldHalfExtent;
+    let total = 0;
+    for (const line of lines) total += line.nPoints;
+    const positions = new Float32Array(total * 3);
+    const counts = new Uint32Array(lines.length);
+    let w = 0;
+    let i = 0;
+    for (const line of lines) {
+      counts[i++] = line.nPoints;
+      const pts = line.points; // flat (N,3), physical f64
+      for (let p = 0; p < line.nPoints; p++) {
+        const phys: Vec3 = [pts[p * 3] ?? 0, pts[p * 3 + 1] ?? 0, pts[p * 3 + 2] ?? 0];
+        const world = grid !== null ? gridToWorld(phys, grid, halfExtent) : phys;
+        positions[w] = world[0];
+        positions[w + 1] = world[1];
+        positions[w + 2] = world[2];
+        w += 3;
+      }
+    }
+    const binding = bindingFor(layer);
+    const rgb = colormapColor(binding?.colormap ?? DEFAULT_COLORMAP, FIELDLINE_COLOR_T);
+    const color: Rgba01 = [rgb[0], rgb[1], rgb[2], 1];
+    const request: RenderWorkerRequest = {
+      kind: "upsertFieldlines",
+      requestId: REQUEST_IDS.layer,
+      id: layer.id,
+      positions: positions.buffer as ArrayBuffer,
+      counts: counts.buffer as ArrayBuffer,
+      color,
+      opacity: layer.opacity,
+    };
+    worker.postMessage(request, [positions.buffer, counts.buffer]);
+    uiStore.getState().beginLoading(RENDER_PHASE_KEY, "preparing render");
+  };
+
+  // Upsert every field-line layer that has traced lines (catch-up + structure-change replay).
+  const flushFieldlines = (): void => {
+    const { layers, traces } = store.getState();
+    for (const layer of layers) {
+      if (layer.kind !== "fieldlines") continue;
+      const lines = traces[layer.id];
+      if (lines !== undefined) sendUpsertFieldlines(layer, lines);
+    }
+  };
+
   // Upsert every layer drawing the active field (currently the one layer) from `computed`. A
   // transferred buffer detaches, so a second same-field layer gets a copy.
   const upsertActiveField = (computed: FieldArray): void => {
@@ -128,6 +188,10 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     let transferred = false;
     for (const layer of layers) {
       if (layer.field !== activeField) continue;
+      // Field lines reference the active field for color, but they draw traced lines (the traces
+      // channel), not the scalar texture — skip them here so the `computed` buffer isn't sliced for a
+      // layer that won't consume it (and so the transfer-detach count stays right).
+      if (layer.kind !== "slice" && layer.kind !== "volume") continue;
       if (transferred) {
         sendUpsert(layer, { ...computed, data: computed.data.slice() });
       } else {
@@ -140,6 +204,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   const flushAll = (): void => {
     const { computed } = store.getState();
     if (computed !== null) upsertActiveField(computed);
+    flushFieldlines();
     sendComposite();
   };
 
@@ -210,6 +275,26 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
         sendLayerColormap(layer, binding);
       }
       lastBindings = bindings;
+    },
+  );
+
+  // Traces channel — a fieldlines layer's traced lines (heavy, transfers the packed buffers). Fires
+  // when retrace publishes fresh FieldLine[] (layer add, dataset switch). Diffed by reference per layer
+  // id so an unrelated traces update can't re-pack an unchanged set.
+  bridge.subscribe(
+    (state) => state.traces,
+    (traces) => {
+      if (!isReady()) {
+        lastTraces = traces; // keep the snapshot current so a later diff isn't spurious
+        return;
+      }
+      for (const layer of store.getState().layers) {
+        if (layer.kind !== "fieldlines") continue;
+        const lines = traces[layer.id];
+        if (lines === undefined || lastTraces[layer.id] === lines) continue;
+        sendUpsertFieldlines(layer, lines);
+      }
+      lastTraces = traces;
     },
   );
 

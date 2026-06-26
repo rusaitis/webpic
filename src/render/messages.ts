@@ -52,7 +52,11 @@ export interface SliceFieldPayload {
 // The renderable kind of a layer (picks the scene factory + the composite camera). The single home
 // for the render-side discriminant; the store mirrors it structurally as `Layer["kind"]` (the DAG
 // keeps the two layers from importing each other — they agree by validation at the message boundary).
-export type LayerKind = "slice" | "volume";
+// Field layers carry a 3D scalar texture (slice/volume, one upsert path); field lines carry packed
+// polylines (a separate upsert + scene), so the field-only upsertLayer message can't be handed a
+// fieldlines kind. LayerKind still names every renderable layer (the composite camera picks by it).
+export type FieldLayerKind = "slice" | "volume";
+export type LayerKind = FieldLayerKind | "fieldlines";
 
 // One field axis's physical extent + sample count + name, for the scene overlay's labeled grid/axes.
 // FIELD-axis order (0/1/2 = pypic GridInfo). `bounds` are inclusive [min, max] in code units (the app
@@ -125,7 +129,7 @@ export type RenderWorkerRequest =
       readonly kind: "upsertLayer";
       readonly requestId: number;
       readonly id: string;
-      readonly layerKind: LayerKind;
+      readonly layerKind: FieldLayerKind;
       readonly field: SliceFieldPayload;
       readonly colormap: string;
       readonly scale: ColorScale;
@@ -139,6 +143,19 @@ export type RenderWorkerRequest =
       // Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (unit cube). Scales the
       // volume mesh to the dataset's physical aspect (non-cubic grids). Volume-only.
       readonly worldHalfExtent?: Vec3;
+    }
+  // Build or rebuild a field-line layer's scene from packed world-space polylines. Transfers both
+  // buffers: `positions` is flat f32 xyz for every vertex of every line concatenated in line order,
+  // `counts` is the u32 vertex count per line (partitions positions). v0.1 colors the set solid
+  // (`color`, derived by the app from the layer's colormap); color-by-scalar is a later refinement.
+  | {
+      readonly kind: "upsertFieldlines";
+      readonly requestId: number;
+      readonly id: string;
+      readonly positions: ArrayBuffer;
+      readonly counts: ArrayBuffer;
+      readonly color: Rgba01;
+      readonly opacity: number;
     }
   | { readonly kind: "removeLayer"; readonly requestId: number; readonly id: string }
   // Cheap reorder/visibility/opacity over the full ordered list — no field transfer.

@@ -84,6 +84,30 @@ export function clampSeedToDomain(physical: Vec3, grid: GridInfo): Vec3 {
   return [map(0), map(1), map(2)];
 }
 
+/** A starter line of `count` seeds across the domain center along the grid's longest axis, each pulled
+ *  into the traceable cell-center domain (`clampSeedToDomain`). Physical coords — the tracer adds its
+ *  own −0.5 offset. A default rake until seed-placement UI lands (M4.7); a few seeds that reliably
+ *  cross the structure of a centered configuration (flux rope / dipole). */
+export function defaultSeedRake(grid: GridInfo, count = 8): Vec3[] {
+  const n = Math.max(2, count);
+  let axis = 0; // the longest physical axis carries the rake; the other two sit at domain center
+  for (let i = 1; i < 3; i++) if (axisSpan(grid, i) > axisSpan(grid, axis)) axis = i;
+  const lo = grid.origin[axis] ?? 0;
+  const span = axisSpan(grid, axis);
+  const center = (i: number): number => (grid.origin[i] ?? 0) + 0.5 * axisSpan(grid, i);
+  const seeds: Vec3[] = [];
+  for (let k = 0; k < n; k++) {
+    const along = lo + ((k + 0.5) / n) * span; // evenly spaced, inset from the faces
+    const raw: Vec3 = [
+      axis === 0 ? along : center(0),
+      axis === 1 ? along : center(1),
+      axis === 2 ? along : center(2),
+    ];
+    seeds.push(clampSeedToDomain(raw, grid));
+  }
+  return seeds;
+}
+
 interface BoxHit {
   readonly tNear: number;
   readonly tFar: number;

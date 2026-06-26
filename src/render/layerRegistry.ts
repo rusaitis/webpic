@@ -1,10 +1,12 @@
 import type { StreamStepMessage } from "@data";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
+import { createFieldlinesScene, type FieldlinesScene } from "./fieldlines/fieldlinesScene.ts";
 import { warmScene } from "./managedScene.ts";
-import type { LayerKind, RenderWorkerRequest, SliceFieldPayload } from "./messages.ts";
+import type { FieldLayerKind, RenderWorkerRequest, SliceFieldPayload } from "./messages.ts";
 import type { PickLayer } from "./pickRay.ts";
 import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
 import type { CompositeItem } from "./runtime/renderer.ts";
@@ -17,14 +19,14 @@ import {
 import { createSliceScene, type SliceAxis, type SliceScene } from "./volume/sliceScene.ts";
 import { finiteRange, type ScalarField } from "./volume/volumeTexture.ts";
 
-// Everything needed to rebuild a layer's scene without the main thread: the decoded field (its CPU
-// buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity
+// Everything needed to rebuild a field layer's scene without the main thread: the decoded field (its
+// CPU buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity
 // are mutable — swapField/setColormap/setComposite update them so a device-loss rebuild reproduces the
 // current state (the live timestep + look), not the stale upsert-time one. Retaining the field doubles
 // its residency (CPU + GPU); fine for v0.1's one small volume, and the price of self-contained
 // recovery (no reseed wire).
-export interface LayerSource {
-  readonly layerKind: LayerKind;
+export interface FieldSource {
+  readonly layerKind: FieldLayerKind;
   field: ScalarField; // mutable: a streamed timestep swaps it in place (see swapField)
   readonly axis?: SliceAxis;
   readonly position?: number;
@@ -38,13 +40,32 @@ export interface LayerSource {
   worldHalfExtent?: Vec3; // volume box aspect (non-cubic dataset); retained for a device-restore rebuild
 }
 
-// One renderable layer's scene + its kind (the kind picks the camera at composite time) + the source
-// it was built from (replayed on device-restore).
-export interface LayerEntry {
-  readonly scene: SliceScene | RaymarchScene;
-  readonly kind: LayerKind;
-  readonly source: LayerSource;
+// A field-line layer's retained source: packed world-space polylines (positions + per-line counts) +
+// solid color + opacity. The CPU buffers survive a device loss, so a restore rebuild redraws the same
+// lines with no re-trace — the line analogue of FieldSource retaining the decoded field.
+export interface FieldlinesSource {
+  readonly layerKind: "fieldlines";
+  lines: { positions: Float32Array; counts: Uint32Array };
+  color: Rgba01; // mutable so a device-restore rebuild keeps the live color
+  opacity: number;
 }
+
+export type LayerSource = FieldSource | FieldlinesSource;
+
+// One renderable layer's scene + its kind (the kind picks the camera at composite time) + the source
+// it was built from (replayed on device-restore). Discriminated on `kind` so narrowing it narrows the
+// scene + source together (a fieldlines entry has no field/window to touch).
+export type LayerEntry =
+  | {
+      readonly kind: FieldLayerKind;
+      readonly scene: SliceScene | RaymarchScene;
+      readonly source: FieldSource;
+    }
+  | {
+      readonly kind: "fieldlines";
+      readonly scene: FieldlinesScene;
+      readonly source: FieldlinesSource;
+    };
 
 // The ordered visibility/opacity view of the layer stack (draw order = array order).
 interface CompositeEntry {
@@ -69,6 +90,9 @@ export interface LayerHost extends RenderModuleContext {
 
 export interface LayerRegistry extends RenderModule {
   upsert(request: Extract<RenderWorkerRequest, { kind: "upsertLayer" }>): Promise<void>;
+  upsertFieldlines(
+    request: Extract<RenderWorkerRequest, { kind: "upsertFieldlines" }>,
+  ): Promise<void>;
   remove(id: string): void;
   swapField(message: StreamStepMessage): void;
   setComposite(order: readonly CompositeEntry[]): void;
@@ -125,6 +149,16 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // device-restore rebuild so both produce an identical scene from the same params.
   // exactOptionalPropertyTypes: only forward params that are set, so the scene factory defaults apply.
   function buildScene(id: string, source: LayerSource): LayerEntry {
+    if (source.layerKind === "fieldlines") {
+      const scene = createFieldlinesScene({
+        positions: source.lines.positions,
+        counts: source.lines.counts,
+        color: source.color,
+        opacity: source.opacity,
+        ledgerKey: id,
+      });
+      return { kind: "fieldlines", scene, source };
+    }
     const windowLevel = source.windowLevel !== undefined ? { windowLevel: source.windowLevel } : {};
     const float32Filterable = host.float32Filterable();
     if (source.layerKind === "slice") {
@@ -191,7 +225,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
 
   // A source with no windowLevel normalizes over its full finite range (buildScene's default) — the
   // in-app path always carries a binding window, so the scan is the defensive branch only.
-  function pickWindow(source: LayerSource): WindowLevel {
+  function pickWindow(source: FieldSource): WindowLevel {
     if (source.windowLevel !== undefined) return source.windowLevel;
     const { min, max } = finiteRange(source.field.data);
     return fullRangeWindow(min, max);
@@ -199,7 +233,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
 
   return {
     async upsert(request) {
-      const source: LayerSource = {
+      const source: FieldSource = {
         layerKind: request.layerKind,
         field: decodeSliceField(request.field),
         colormap: request.colormap,
@@ -214,6 +248,21 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
         ...(request.worldHalfExtent !== undefined
           ? { worldHalfExtent: request.worldHalfExtent }
           : {}),
+      };
+      await replace(request.id, source);
+    },
+
+    // A field-line layer: decode the transferred polyline buffers into a retained source and build the
+    // batched LineSegments2 scene through the same warm-then-commit + device-restore path as upsert.
+    async upsertFieldlines(request) {
+      const source: FieldlinesSource = {
+        layerKind: "fieldlines",
+        lines: {
+          positions: new Float32Array(request.positions),
+          counts: new Uint32Array(request.counts),
+        },
+        color: request.color,
+        opacity: request.opacity,
       };
       await replace(request.id, source);
     },
@@ -239,7 +288,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     // a full rebuild.
     swapField(message) {
       const entry = layers.get(message.id);
-      if (entry === undefined) return;
+      if (entry === undefined || entry.kind === "fieldlines") return; // streams target field layers only
       const field = decodeSliceField(message.field);
       if (entry.scene.setField(field)) {
         entry.source.field = field;
@@ -269,7 +318,9 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     // Live per-layer color: one layer's resolved ColormapBinding (colormap + window/level + scale).
     setColormap(request) {
       const entry = layers.get(request.id);
-      if (entry === undefined) return; // binding update ahead of its upsert — heals on the upsert repaint
+      // binding update ahead of its upsert heals on the upsert repaint; field lines color solid at
+      // trace time (no live colormap window/scale), so they ignore this.
+      if (entry === undefined || entry.kind === "fieldlines") return;
       entry.scene.setColormap(request.colormap);
       entry.scene.setWindowLevel(request.windowLevel.center, request.windowLevel.width);
       entry.scene.setScale(request.scale);
@@ -284,7 +335,8 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     // RaymarchScene; the `in` check narrows the union (and silently no-ops a slice — no normal to light).
     setShading(request) {
       const entry = layers.get(request.id);
-      if (entry === undefined) return; // toggle ahead of its upsert — heals on the upsert (carries shaded)
+      // toggle ahead of its upsert heals on the upsert (carries shaded); field lines have no normal.
+      if (entry === undefined || entry.kind === "fieldlines") return;
       if ("setShading" in entry.scene) {
         entry.scene.setShading(request.shaded);
         entry.source.shaded = request.shaded; // retain for a device-restore rebuild
@@ -323,12 +375,13 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
         if (isOverride) isOverrideListed = true;
         const layer = isOverride ? override.entry : layers.get(entry.id);
         if (layer === undefined) continue; // composite ahead of its upsert — heals on the upsert repaint
-        items.push({ scene: layer.scene.scene, camera: layer.kind === "volume" ? volume : ortho });
+        // Slices are screen-aligned (ortho); volume + field lines live in the box under the pose camera.
+        items.push({ scene: layer.scene.scene, camera: layer.kind === "slice" ? ortho : volume });
       }
       if (override !== undefined && !isOverrideListed) {
         items.push({
           scene: override.entry.scene.scene,
-          camera: override.entry.kind === "volume" ? volume : ortho,
+          camera: override.entry.kind === "slice" ? ortho : volume,
         });
       }
       return items;

@@ -3,6 +3,7 @@ import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
 import {
   clampSeedToDomain,
+  defaultSeedRake,
   gridToWorld,
   seedFromSlice,
   seedFromVolume,
@@ -149,5 +150,40 @@ describe("seedFromSlice", () => {
     // The ray is world (unit-box) space; the seed comes back in physical grid coords.
     expectVec(seedFromSlice([0, 0, 2], [0, 0, -1], "z", 0.5, SHIFTED, UNIT), [14, 24, 34]);
     expectVec(seedFromSlice([0, 0, 1], [0, 0, -1], "z", 0.5, ANISO, ANISO_HALF), [2, 1, 1]);
+  });
+});
+
+describe("defaultSeedRake", () => {
+  // Every coord must land in the interpolator's traceable cell-center domain, or the trace exits at
+  // step 0. The domain per axis is [origin + 0.5dx, origin + (dim − 0.5)dx].
+  const inDomain = (seeds: readonly Vec3[], grid: GridInfo): void => {
+    for (const seed of seeds) {
+      for (let i = 0; i < 3; i++) {
+        const origin = grid.origin[i] ?? 0;
+        const dx = grid.spacing[i] ?? 1;
+        const dim = grid.dimensions[i] ?? 1;
+        expect(seed[i]).toBeGreaterThanOrEqual(origin + 0.5 * dx - 1e-9);
+        expect(seed[i]).toBeLessThanOrEqual(origin + (dim - 0.5) * dx + 1e-9);
+      }
+    }
+  };
+
+  it("returns `count` seeds, all inside the traceable domain", () => {
+    expect(defaultSeedRake(CUBIC)).toHaveLength(8); // default count
+    expect(defaultSeedRake(CUBIC, 5)).toHaveLength(5);
+    inDomain(defaultSeedRake(CUBIC, 12), CUBIC);
+    inDomain(defaultSeedRake(SHIFTED, 6), SHIFTED); // non-zero origin + spacing
+  });
+
+  it("rakes along the longest axis with the others pinned to domain center", () => {
+    // ANISO spans 4,2,2 → x is longest; y,z sit at physical center 1.0 (clamped into [0.5,1.5]).
+    const seeds = defaultSeedRake(ANISO, 4);
+    inDomain(seeds, ANISO);
+    for (const seed of seeds) {
+      expect(seed[1]).toBeCloseTo(1, 12);
+      expect(seed[2]).toBeCloseTo(1, 12);
+    }
+    const xs = seeds.map((s) => s[0]);
+    expect(Math.max(...xs)).toBeGreaterThan(Math.min(...xs)); // spread along x
   });
 });

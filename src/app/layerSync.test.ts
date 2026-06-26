@@ -1,13 +1,16 @@
 import type { RenderWorkerRequest } from "@render";
 import { createSimulationStore, createUiStore, makeDefaultLayer } from "@store";
 import { describe, expect, it } from "vitest";
-import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import { dummyGrid, fieldArray, makeDataset } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import { installLayerSync } from "./layerSync.ts";
 
 interface Post {
   readonly message: RenderWorkerRequest;
   readonly transfer: Transferable[] | undefined;
+  // Transferable byte sizes captured at post time — the realistic mock detaches the buffers right
+  // after, so reading `.byteLength` off the message later would see 0 (as it does in-app).
+  readonly transferBytes: readonly number[];
 }
 
 // |B| = 5 and |E| = 10 — two computable magnitudes for the field-switch test.
@@ -25,7 +28,17 @@ function harness(ready: boolean) {
   const posts: Post[] = [];
   const worker = {
     postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
-      posts.push({ message, transfer });
+      const transferBytes = (transfer ?? []).map((t) =>
+        t instanceof ArrayBuffer ? t.byteLength : 0,
+      );
+      posts.push({ message, transfer, transferBytes });
+      // Mirror a real postMessage: transferred ArrayBuffers detach on the sender side, so any later
+      // read of one (e.g. a stray .slice on a buffer already handed off) throws — as it does in-app.
+      if (transfer !== undefined) {
+        for (const item of transfer) {
+          if (item instanceof ArrayBuffer) structuredClone(item, { transfer: [item] });
+        }
+      }
     },
   } as unknown as Worker;
   let isReady = ready;
@@ -190,5 +203,46 @@ describe("installLayerSync", () => {
       throw new Error("expected a removeLayer");
     }
     expect(remove.message.id).toBe("layer-1");
+  });
+
+  // A 4³ uniform B = (0,0,1) field: the default rake (along x) traces N straight z-lines that the
+  // tracer resolves to ≥2 points each — enough to exercise the store→trace→layerSync line path.
+  const traceableDataset = () => {
+    const n = 4;
+    const size = n * n * n;
+    return makeDataset(
+      {
+        B_1: fieldArray("B_1", new Float64Array(size), [n, n, n]),
+        B_2: fieldArray("B_2", new Float64Array(size), [n, n, n]),
+        B_3: fieldArray("B_3", new Float64Array(size).fill(1), [n, n, n]),
+      },
+      { grid: dummyGrid([n, n, n]) },
+    );
+  };
+
+  it("traces a field-line layer and posts upsertFieldlines (both buffers transferred)", async () => {
+    const { store, posts, sync, setReady } = harness(false);
+    store.getState().setDataset(traceableDataset());
+    await flushAsync();
+    store.getState().addFieldlinesLayer(); // default rake → traces lines into the store
+    expect(Object.keys(store.getState().traces)).toHaveLength(1); // store-side dispatch ran
+    setReady(true);
+    sync.flushAll();
+
+    // The fieldlines layer shares the active field (|B|) for color, but it must NOT be caught in the
+    // scalar-field upsert loop (that sliced the already-transferred buffer → a detached-ArrayBuffer
+    // crash). Exactly one upsertLayer (the volume) + one upsertFieldlines.
+    expect(kinds(posts).filter((k) => k === "upsertLayer")).toHaveLength(1);
+
+    const up = posts.find((p) => p.message.kind === "upsertFieldlines");
+    if (up === undefined || up.message.kind !== "upsertFieldlines") {
+      throw new Error("expected an upsertFieldlines");
+    }
+    expect(up.transfer).toEqual([up.message.positions, up.message.counts]); // transferred, not cloned
+    expect(up.transferBytes[0]).toBeGreaterThan(0); // packed positions (captured pre-detach)
+    expect(up.transferBytes[1]).toBeGreaterThan(0); // per-line counts
+    expect(up.message.color).toHaveLength(4);
+    for (const channel of up.message.color) expect(Number.isFinite(channel)).toBe(true);
+    expect(up.message.opacity).toBe(1);
   });
 });

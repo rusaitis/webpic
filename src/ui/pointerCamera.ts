@@ -592,7 +592,9 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
     else if (key === "o") {
       const state = store.getState();
       state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
-    } else if (key === "n") store.getState().toggleFlyMode(); // orbit ⇄ fly (first-person look)
+    } else if (key === "n")
+      store.getState().toggleFlyMode(); // orbit ⇄ fly (first-person look)
+    else if (key === "t") store.getState().addFieldlinesLayer(); // add field lines (DESIGN §Shortcuts)
   };
   const onKeyUp = (event: KeyboardEvent): void => {
     rollMode.delete(event.code);

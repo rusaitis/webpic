@@ -4,3 +4,4 @@ export * from "./calibration.ts";
 export * from "./field.ts";
 export * from "./recipe.ts";
 export * from "./recipes.generated.ts";
+export * from "./traceField.ts";

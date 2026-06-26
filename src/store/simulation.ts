@@ -1,4 +1,4 @@
-import { computableFields, computeField } from "@compute";
+import { computableFields, computeField, type FieldLine, traceFields } from "@compute";
 import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
 import type { ColormapBinding, ColormapId, ColorScale, WindowLevel } from "@schema/colormap.ts";
 import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
@@ -19,6 +19,7 @@ import type { Layer, LayerKind, LayerSpec } from "./layers.ts";
 import * as layerOps from "./layers.ts";
 import * as overlayOps from "./overlay.ts";
 import { DEFAULT_OVERLAY, type GridPlane, type OverlayState } from "./overlay.ts";
+import { defaultSeedRake } from "./seedPick.ts";
 
 export type { WindowLevel };
 
@@ -139,6 +140,9 @@ export interface SimulationState {
   // the selected one. For now the store auto-seeds exactly one layer for the active field.
   readonly layers: readonly Layer[];
   readonly selectedLayerId: string | null;
+  // Traced field lines per fieldlines-layer id (compute/traceField). recompute/addFieldlinesLayer
+  // refresh it; the app bridges each entry to the render worker as a batched LineSegments2.
+  readonly traces: Readonly<Record<string, FieldLine[]>>;
   // Scene overlay (axes + grid + gnomon) display prefs — user-owned, independent of the dataset. The
   // app forwards the render-bound parts to the worker (sceneSync); cameraChrome consumes showGnomon.
   readonly overlay: OverlayState;
@@ -181,6 +185,9 @@ export interface SimulationState {
   setStep(step: number): void;
   setAvailableSteps(steps: readonly number[]): void;
   addLayer(spec: LayerSpec): void;
+  /** Add a field-line layer seeded with a default rake over the current dataset, then trace it. The
+   *  DESIGN-reserved `T` shortcut / the M4.7 rail's `+Field lines` button dispatch this. */
+  addFieldlinesLayer(): void;
   removeLayer(id: string): void;
   selectLayer(id: string | null): void;
   reorderLayer(id: string, toIndex: number): void;
@@ -361,6 +368,9 @@ export function createSimulationStore() {
             selectedLayerId,
             colormapBindings,
           });
+          // Field lines trace the vector field, not the active scalar — but a dataset switch lands
+          // through here too, so refresh any existing field-line layers against the new dataset.
+          if (layers.some((layer) => layer.kind === "fieldlines")) retrace();
         } catch (err) {
           if (generation !== computeGeneration) return; // superseded — don't clobber with a stale error
           set({
@@ -370,6 +380,29 @@ export function createSimulationStore() {
             dataRange: null,
           });
         }
+      };
+
+      // Re-trace every field-line layer's seeds from the current dataset's vector field
+      // (compute/traceField), publishing FieldLine[] per layer id. v0.1 runs synchronously on the main
+      // thread — cheap for a starter rake; M4.6 moves it off-main, threads the AbortController, and
+      // re-traces on scrub. A per-layer try/catch keeps a dataset without B_1/B_2/B_3 (or seeds gone
+      // stale after a dataset switch) from crashing the store — that layer just renders line-less.
+      const retrace = (): void => {
+        const { dataset, layers, traces } = get();
+        const next: Record<string, FieldLine[]> = {};
+        if (dataset !== null) {
+          for (const layer of layers) {
+            if (layer.kind !== "fieldlines" || layer.seeds.length === 0) continue;
+            try {
+              next[layer.id] = traceFields(dataset, layer.seeds, { direction: "both" });
+            } catch (err) {
+              console.warn(`[webpic] field-line trace failed for ${layer.id}:`, err);
+            }
+          }
+        }
+        // Identity-skip when nothing traced and nothing was traced before (no spurious subscriber fire).
+        if (Object.keys(next).length === 0 && Object.keys(traces).length === 0) return;
+        set({ traces: next });
       };
 
       return {
@@ -394,6 +427,7 @@ export function createSimulationStore() {
         availableSteps: [],
         layers: [],
         selectedLayerId: null,
+        traces: {},
         overlay: DEFAULT_OVERLAY,
         status: "empty",
         error: null,
@@ -514,6 +548,21 @@ export function createSimulationStore() {
             selectedLayerId: layer.id,
             colormapBindings,
           });
+        },
+        addFieldlinesLayer() {
+          const { dataset, activeField } = get();
+          if (dataset === null) return; // nothing to seed/trace yet
+          const seeds = defaultSeedRake(dataset.grid);
+          // Reuse addLayer to mint the id + a ColormapBinding, then trace the rake.
+          get().addLayer({
+            kind: "fieldlines",
+            field: activeField,
+            colormapBindingId: null,
+            visible: true,
+            opacity: 1,
+            seeds,
+          });
+          retrace();
         },
         removeLayer(id) {
           // Orphaned bindings are left in the registry — GC/merge wait for the multi-layer UI.

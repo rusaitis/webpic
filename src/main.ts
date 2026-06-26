@@ -28,6 +28,7 @@ bootstrap({
   // Dev performance HUD (Shift+P): always in dev builds, opt-in via ?perf in production.
   perf: import.meta.env.DEV || params.has("perf"),
   ...(params.has("debugScene") ? { debugScene: true } : {}),
+  ...(params.has("fieldlines") ? { fieldlines: true } : {}),
   ...(pose !== null ? { initialPose: pose } : {}),
   ...(orthographic ? { initialProjection: "orthographic" as const } : {}),
 });

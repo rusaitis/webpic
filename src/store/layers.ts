@@ -1,5 +1,5 @@
 import { clamp } from "@schema/math.ts";
-import type { FieldName } from "@schema/types.ts";
+import type { FieldName, Vec3 } from "@schema/types.ts";
 
 // The instance-first layer registry (DESIGN §"Layers & navigation"): the scene is a flat,
 // ordered list of renderable instances, each owning its kind, field, visibility, opacity, and
@@ -32,7 +32,12 @@ export type Layer =
       // surface is a TF-dependent opacity isosurface, not a physical boundary).
       readonly shaded: boolean;
     })
-  | (LayerBase & { readonly kind: "fieldlines" })
+  | (LayerBase & {
+      readonly kind: "fieldlines";
+      // Trace seeds in the grid's *physical* coords (store/seedPick), one field line per seed. The app
+      // traces them (compute/traceField) and bridges the lines to the render worker.
+      readonly seeds: ReadonlyArray<Vec3>;
+    })
   | (LayerBase & { readonly kind: "particles" });
 
 export type LayerKind = Layer["kind"];
@@ -52,7 +57,7 @@ export function makeDefaultLayer(id: string, field: FieldName, kind: LayerKind):
     case "volume":
       return { ...base, kind, steps: null, density: null, shaded: false };
     case "fieldlines":
-      return { ...base, kind };
+      return { ...base, kind, seeds: [] };
     case "particles":
       return { ...base, kind };
   }

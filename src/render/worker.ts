@@ -448,6 +448,22 @@ async function upsertLayer(
   }
 }
 
+// Build or rebuild a field-line layer from transferred polyline buffers — same warm-then-commit +
+// loading-pill contract as upsertLayer, delegating the decode + LineSegments2 build to the registry.
+async function upsertFieldlines(
+  request: Extract<RenderWorkerRequest, { kind: "upsertFieldlines" }>,
+): Promise<void> {
+  await initDone;
+  if (renderer === undefined) {
+    throw new Error("upsertFieldlines before init");
+  }
+  try {
+    await registry.upsertFieldlines(request);
+  } finally {
+    ctx.postMessage({ kind: "layerCompiled", requestId: request.requestId, id: request.id });
+  }
+}
+
 async function removeLayer(
   request: Extract<RenderWorkerRequest, { kind: "removeLayer" }>,
 ): Promise<void> {
@@ -676,6 +692,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return renderFrame(request);
     case "upsertLayer":
       return upsertLayer(request);
+    case "upsertFieldlines":
+      return upsertFieldlines(request);
     case "removeLayer":
       return removeLayer(request);
     case "setComposite":

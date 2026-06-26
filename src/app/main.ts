@@ -93,6 +93,10 @@ export interface BootstrapOptions {
   /** Render the RGB test triangle while no layers exist (`?debugScene`) — a "renderer alive,
    *  data missing" diagnostic. Off by default: the boot frame is the bare clear color. */
   readonly debugScene?: boolean;
+  /** Auto-add a field-line layer (default seed rake) once the dataset lands (`?fieldlines`) — a dev /
+   *  screenshot affordance until the M4.7 rail's `+Field lines` button. The `T` shortcut does the same
+   *  interactively. */
+  readonly fieldlines?: boolean;
   /** Mount the dev performance HUD (Shift+P) + its worker sampling. The entry gates this on
    *  import.meta.env.DEV || ?perf; the HUD + bridge are dynamic-imported so they tree-shake out of
    *  the default production bundle. */
@@ -257,14 +261,22 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // The recompute that seeds the layer streamed fields address is async (compute is Promise-based), so
   // open the stream once that layer lands — open() carries its id. The UI reacts to computed/status
   // through its own subscription, so it needn't wait on this.
+  // Auto-add the field-line layer once the seed lands (dataset.grid is needed for the default rake,
+  // and the active field computed). The traces ride layerSync's traces channel (or its ready catch-up).
+  const seedFieldlines = (): void => {
+    if (options.fieldlines === true) store.getState().addFieldlinesLayer();
+  };
   const dataset = options.dataset ?? createSyntheticDataset();
   if (streaming !== undefined) {
     void store
       .getState()
       .setDataset(dataset)
-      .then(() => streaming?.open());
+      .then(() => {
+        streaming?.open();
+        seedFieldlines();
+      });
   } else {
-    void store.getState().setDataset(dataset);
+    void store.getState().setDataset(dataset).then(seedFieldlines);
   }
 
   // Mount the UI after the dataset so the field selector sees the computed availableFields. Skipped

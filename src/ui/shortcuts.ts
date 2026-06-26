@@ -42,6 +42,10 @@ export const SHORTCUTS: readonly ShortcutSection[] = [
     ],
   },
   {
+    title: "Layers",
+    items: [{ keys: "T", action: "Add field lines" }],
+  },
+  {
     title: "View",
     items: [
       { keys: "R", action: "Reset view" },
