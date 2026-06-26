@@ -1,0 +1,164 @@
+import type { GridInfo } from "@containers/field_dataset.ts";
+import { clamp, UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import type { Vec3 } from "@schema/types.ts";
+import type { SliceAxis } from "./layers.ts";
+
+// Raycast seed picking for field-line tracing: turn a cursor ray into a seed point in the grid's
+// *physical* (code-unit) coordinates — the space numerics/tracing + the WGSL streamline kernel
+// integrate in. The render box is the unit cube in DATA space (DESIGN §Coordinate systems): per axis,
+// world [-h, h] ↔ texture [0, 1] ↔ physical [origin, origin + dim·dx]. The tracer's interpolator then
+// maps physical→index with its OWN −0.5 cell-centered offset (numerics/interp), so a seed must be
+// PHYSICAL, not index — and must land inside the cell-center domain [origin + 0.5dx, origin +
+// (dim − 0.5)dx] or the trace exits on its first step. That offset is the load-bearing M4.4 ↔ M4.2/4.3
+// invariant: get it wrong and traces silently diverge from pypic.
+//
+// Pure, store-layer (parallels store/pick + store/marker): Vec3 tuples, no THREE/DOM/GPU, imports only
+// @containers (GridInfo) + @schema. The caller builds the ray with store/pick.cursorRay; this restates
+// the ray↔box slab test (render/rayBox), which the store can't import — the same pattern as
+// store/pick.unitBoxChordMidpoint.
+
+// A slice's held axis ("x" holds world/field axis 0, …) → its index. SliceAxis is store/layers' (the
+// in-layer single source); the hold mapping matches render/sliceScene.
+const AXIS_INDEX: Record<SliceAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
+
+// Which box-chord point a volume pick seeds at: "entry" = where the ray first crosses into the box
+// (the near face — predictable for "click over the volume, seed on the surface"); "midpoint" = chord
+// center. Opacity-weighted depth (land on the dominant structure) is the app's render/pickRay path.
+export type VolumeDepth = "entry" | "midpoint";
+
+const EPS = 1e-9;
+
+// Physical span of an axis: spacing·dim, with a voxel-index fallback (dim) when spacing is unusable —
+// mirrors store/simulation.worldHalfExtentForGrid so the unit box and these coords stay consistent.
+function axisSpan(grid: GridInfo, i: number): number {
+  const dim = grid.dimensions[i] ?? 1;
+  const dx = grid.spacing[i];
+  return dx !== undefined && Number.isFinite(dx) && dx > 0 ? dx * dim : dim;
+}
+
+/** World point (unit box) → physical grid coordinate. Pure bijection with `gridToWorld`; does NOT
+ *  clamp to the traceable domain (see `clampSeedToDomain`). */
+export function worldToGrid(
+  world: Vec3,
+  grid: GridInfo,
+  halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT,
+): Vec3 {
+  const map = (i: 0 | 1 | 2): number => {
+    const h = halfExtent[i] || 0.5; // unit-box half-size on this axis (guard a degenerate 0)
+    const t01 = (world[i] + h) / (2 * h); // [-h, h] → [0, 1]
+    return (grid.origin[i] ?? 0) + t01 * axisSpan(grid, i); // [0, 1] → [origin, origin + dim·dx]
+  };
+  return [map(0), map(1), map(2)];
+}
+
+/** Physical grid coordinate → world point (unit box). Inverse of `worldToGrid` — places the picker
+ *  marker (the store's pickerPoint is world space) at a grid seed; the round-trip tests pin both. */
+export function gridToWorld(
+  physical: Vec3,
+  grid: GridInfo,
+  halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT,
+): Vec3 {
+  const map = (i: 0 | 1 | 2): number => {
+    const span = axisSpan(grid, i) || 1;
+    const t01 = (physical[i] - (grid.origin[i] ?? 0)) / span; // [origin, origin + span] → [0, 1]
+    const h = halfExtent[i] || 0.5;
+    return t01 * (2 * h) - h; // [0, 1] → [-h, h]
+  };
+  return [map(0), map(1), map(2)];
+}
+
+/** Pull a physical coordinate into the interpolator's traceable cell-center domain
+ *  [origin + 0.5dx, origin + (dim − 0.5)dx] per axis (numerics/interp's in-domain range), so a seed on
+ *  a box face / slice edge still traces instead of exiting on step 0. A degenerate axis (dim ≤ 1) pins
+ *  to its lone cell center. */
+export function clampSeedToDomain(physical: Vec3, grid: GridInfo): Vec3 {
+  const map = (i: 0 | 1 | 2): number => {
+    const origin = grid.origin[i] ?? 0;
+    const dim = grid.dimensions[i] ?? 1;
+    const dx = grid.spacing[i];
+    const step = dx !== undefined && Number.isFinite(dx) && dx > 0 ? dx : 1;
+    const lo = origin + 0.5 * step;
+    const hi = origin + (dim - 0.5) * step;
+    return lo <= hi ? clamp(physical[i], lo, hi) : (lo + hi) / 2;
+  };
+  return [map(0), map(1), map(2)];
+}
+
+interface BoxHit {
+  readonly tNear: number;
+  readonly tFar: number;
+}
+
+// Ray-slab clip against the box [-h, h]³ — restates render/rayBox.intersectRayBox (store can't import
+// render), like store/pick.unitBoxChordMidpoint's axisSlab. null when the ray misses the box.
+function clipRayToBox(origin: Vec3, dir: Vec3, halfExtent: Vec3): BoxHit | null {
+  let tNear = Number.NEGATIVE_INFINITY;
+  let tFar = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < 3; i++) {
+    const h = halfExtent[i] ?? 0.5;
+    const o = origin[i] ?? 0;
+    const d = dir[i] ?? 0;
+    if (Math.abs(d) < EPS) {
+      if (o < -h || o > h) return null; // parallel and outside this slab
+      continue;
+    }
+    const a = (-h - o) / d;
+    const b = (h - o) / d;
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    if (lo > tNear) tNear = lo;
+    if (hi < tFar) tFar = hi;
+    if (tNear > tFar) return null;
+  }
+  return { tNear, tFar };
+}
+
+/** Ray ∩ volume box → seed (grid coords, clamped to the traceable domain), or null on a miss. `depth`
+ *  picks the box-chord point; "entry" is the predictable default. The pure geometric pick "against the
+ *  volume bounds" — opacity-weighted depth (the dominant structure) stays the app's render/pickRay
+ *  path, which feeds its world hit back through `worldToGrid` + `clampSeedToDomain`. */
+export function seedFromVolume(
+  origin: Vec3,
+  dir: Vec3,
+  grid: GridInfo,
+  halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT,
+  depth: VolumeDepth = "entry",
+): Vec3 | null {
+  const hit = clipRayToBox(origin, dir, halfExtent);
+  if (hit === null) return null;
+  const tEntry = Math.max(hit.tNear, 0); // camera inside the box → start at the camera
+  if (hit.tFar < tEntry) return null; // box entirely behind the camera
+  const t = depth === "entry" ? tEntry : (tEntry + hit.tFar) / 2;
+  const world: Vec3 = [origin[0] + t * dir[0], origin[1] + t * dir[1], origin[2] + t * dir[2]];
+  return clampSeedToDomain(worldToGrid(world, grid, halfExtent), grid);
+}
+
+/** Ray ∩ the slice's axis-aligned plane (held world axis at `position01` ∈ [0, 1] across the box) →
+ *  seed (grid coords, clamped to the traceable domain). null when the ray is parallel to the plane,
+ *  the plane sits behind the camera, or the hit falls outside the box face (clicked off the slice
+ *  quad). Matches render/sliceScene's axis→world-axis hold + position→texture mapping. */
+export function seedFromSlice(
+  origin: Vec3,
+  dir: Vec3,
+  axis: SliceAxis,
+  position01: number,
+  grid: GridInfo,
+  halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT,
+): Vec3 | null {
+  const ai = AXIS_INDEX[axis];
+  const h = halfExtent[ai] || 0.5;
+  const planeWorld = clamp(position01, 0, 1) * (2 * h) - h; // [0, 1] → [-h, h] along the held axis
+  const d = dir[ai];
+  if (Math.abs(d) < EPS) return null; // ray parallel to the plane — no intersection
+  const t = (planeWorld - origin[ai]) / d;
+  if (t < 0) return null; // plane behind the camera
+  const world: Vec3 = [origin[0] + t * dir[0], origin[1] + t * dir[1], origin[2] + t * dir[2]];
+  // A slice is bounded by the box face: off it on either free axis → miss.
+  for (let i = 0; i < 3; i++) {
+    if (i === ai) continue;
+    const hi = halfExtent[i] ?? 0.5;
+    const wi = world[i] ?? 0;
+    if (wi < -hi - EPS || wi > hi + EPS) return null;
+  }
+  return clampSeedToDomain(worldToGrid(world, grid, halfExtent), grid);
+}

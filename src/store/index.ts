@@ -4,5 +4,6 @@ export * from "./marker.ts";
 export * from "./overlay.ts";
 export * from "./perf.ts";
 export * from "./pick.ts";
+export * from "./seedPick.ts";
 export * from "./simulation.ts";
 export * from "./ui.ts";
