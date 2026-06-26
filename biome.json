@@ -42,7 +42,7 @@
       "assist": { "actions": { "source": { "organizeImports": "off" } } }
     },
     {
-      "includes": ["**/*.generated.json"],
+      "includes": ["**/*.generated.json", "tests/fixtures/**/*.json"],
       "formatter": { "enabled": false }
     }
   ]

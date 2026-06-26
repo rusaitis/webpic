@@ -1,0 +1,240 @@
+import type { FieldDataset, GridInfo } from "@containers/field_dataset.ts";
+import { describe, expect, it } from "vitest";
+import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import {
+  makeFieldLine,
+  type TerminationReason,
+  traceFieldLineAdaptive,
+  traceFieldLinesAdaptive,
+} from "./tracing.ts";
+
+// Analytical fixtures; inline tolerances (the accuracy is a DP5(4) method property, not a backend
+// precision gap, so it stays out of tests/tolerances.ts). Fields are sampled CELL-CENTERED — sample i
+// at origin + (i+0.5)·dx — to match the interpolator's pypic-compatible grid convention.
+
+type ScalarFn = (x: number, y: number, z: number) => number;
+type Vec3 = readonly [number, number, number];
+
+function makeGrid(shape: Vec3, spacing: Vec3, origin: Vec3 = [0, 0, 0]): GridInfo {
+  return {
+    dimensions: [...shape],
+    spacing: [...spacing],
+    origin: [...origin],
+    geometry: "cartesian",
+    axisLabels: ["x", "y", "z"],
+    dt: null,
+    boundary: null,
+    survivingAxes: null,
+    stagger: null,
+  };
+}
+
+function sampleCellCentered(shape: Vec3, spacing: Vec3, origin: Vec3, fn: ScalarFn): Float64Array {
+  const [nx, ny, nz] = shape;
+  const out = new Float64Array(nx * ny * nz);
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      for (let k = 0; k < nz; k++) {
+        const x = origin[0] + (i + 0.5) * spacing[0];
+        const y = origin[1] + (j + 0.5) * spacing[1];
+        const z = origin[2] + (k + 0.5) * spacing[2];
+        out[(i * ny + j) * nz + k] = fn(x, y, z);
+      }
+    }
+  }
+  return out;
+}
+
+function vectorDataset(
+  shape: Vec3,
+  spacing: Vec3,
+  fns: readonly [ScalarFn, ScalarFn, ScalarFn],
+  origin: Vec3 = [0, 0, 0],
+): FieldDataset {
+  const grid = makeGrid(shape, spacing, origin);
+  return makeDataset(
+    {
+      B_1: fieldArray("B_1", sampleCellCentered(shape, spacing, origin, fns[0]), shape),
+      B_2: fieldArray("B_2", sampleCellCentered(shape, spacing, origin, fns[1]), shape),
+      B_3: fieldArray("B_3", sampleCellCentered(shape, spacing, origin, fns[2]), shape),
+    },
+    { grid },
+  );
+}
+
+const ZERO: ScalarFn = () => 0;
+const ONE: ScalarFn = () => 1;
+
+function pointAt(points: Float64Array, i: number): Vec3 {
+  return [
+    points[3 * i] ?? Number.NaN,
+    points[3 * i + 1] ?? Number.NaN,
+    points[3 * i + 2] ?? Number.NaN,
+  ];
+}
+
+// 8³ unit grid, uniform +x field — cell centers span [0.5, 7.5]; the pypic doctest grid.
+const uniform = vectorDataset([8, 8, 8], [1, 1, 1], [ONE, ZERO, ZERO]);
+
+describe("traceFieldLineAdaptive — uniform field", () => {
+  it("traces an exact straight line (transverse components stay at the seed)", () => {
+    const fl = traceFieldLineAdaptive(uniform, [4, 4, 4], { direction: "forward" });
+    expect(fl.nPoints).toBeGreaterThanOrEqual(2);
+    expect(fl.reason).toBe<TerminationReason>("domain_exit"); // marches off +x
+    expect(pointAt(fl.points, 0)).toEqual([4, 4, 4]);
+    for (let i = 0; i < fl.nPoints; i++) {
+      const [x, y, z] = pointAt(fl.points, i);
+      expect(Math.abs(y - 4)).toBeLessThan(1e-12);
+      expect(Math.abs(z - 4)).toBeLessThan(1e-12);
+      if (i > 0) expect(x).toBeGreaterThan(pointAt(fl.points, i - 1)[0]); // strictly advancing +x
+    }
+  });
+
+  it('stitches "both" directions through the seed exactly once', () => {
+    const fl = traceFieldLineAdaptive(uniform, [4, 4, 4], { direction: "both" });
+    expect(fl.direction).toBe("both");
+    expect(fl.seedPoint).toEqual([4, 4, 4]);
+    // Strictly increasing x ⇒ the shared seed is not duplicated at the join.
+    for (let i = 1; i < fl.nPoints; i++) {
+      expect(pointAt(fl.points, i)[0]).toBeGreaterThan(pointAt(fl.points, i - 1)[0]);
+    }
+    const seedHits = Array.from({ length: fl.nPoints }, (_, i) => pointAt(fl.points, i)).filter(
+      ([x, y, z]) => Math.abs(x - 4) < 1e-9 && Math.abs(y - 4) < 1e-9 && Math.abs(z - 4) < 1e-9,
+    );
+    expect(seedHits).toHaveLength(1);
+  });
+
+  it("stops at max_steps when it can neither exit nor close", () => {
+    const fl = traceFieldLineAdaptive(uniform, [4, 4, 4], {
+      direction: "forward",
+      maxSteps: 2,
+      maxStep: 0.1,
+    });
+    expect(fl.reason).toBe<TerminationReason>("max_steps");
+    expect(fl.nPoints).toBe(3); // seed + 2 accepted steps
+    expect(fl.metadata.nSteps).toBe(2);
+  });
+
+  it("stops on a terminate() callback", () => {
+    const fl = traceFieldLineAdaptive(uniform, [4, 4, 4], {
+      direction: "forward",
+      terminate: (p) => (p[0] ?? 0) > 6,
+    });
+    expect(fl.reason).toBe<TerminationReason>("callback");
+    expect(pointAt(fl.points, fl.nPoints - 1)[0]).toBeGreaterThan(6);
+  });
+});
+
+describe("traceFieldLineAdaptive — termination on field structure", () => {
+  it("closes a loop in a rotational field", () => {
+    // B = (-(y-16), (x-16), 0): field lines are circles about the grid centre (16, 16).
+    const rot = vectorDataset([32, 32, 3], [1, 1, 1], [(_x, y) => -(y - 16), (x) => x - 16, ZERO]);
+    const fl = traceFieldLineAdaptive(rot, [24, 16, 1.5], { direction: "forward" });
+    expect(fl.reason).toBe<TerminationReason>("closed_loop");
+    // Stays on the radius-8 circle: every point is ≈8 from the centre.
+    for (let i = 0; i < fl.nPoints; i++) {
+      const [x, y] = pointAt(fl.points, i);
+      expect(Math.hypot(x - 16, y - 16)).toBeCloseTo(8, 2);
+    }
+  });
+
+  it("stops at a field null", () => {
+    // B = (x-6, 0, 0): a null plane at x = 6. A small max step lands inside the null band.
+    const sheet = vectorDataset([12, 3, 3], [1, 1, 1], [(x) => x - 6, ZERO, ZERO]);
+    const fl = traceFieldLineAdaptive(sheet, [9, 1.5, 1.5], {
+      direction: "backward",
+      maxStep: 0.05,
+      nullThreshold: 0.1,
+    });
+    expect(fl.reason).toBe<TerminationReason>("null_point");
+    // "backward" reverses at assembly: the seed is last, the null-terminated end is index 0.
+    expect(pointAt(fl.points, fl.nPoints - 1)).toEqual([9, 1.5, 1.5]);
+    expect(pointAt(fl.points, 0)[0]).toBeCloseTo(6, 0); // stopped in the |x−6| < 0.1 null band
+  });
+});
+
+describe("traceFieldLineAdaptive — seed validation", () => {
+  it("throws on an out-of-domain seed", () => {
+    expect(() => traceFieldLineAdaptive(uniform, [100, 4, 4])).toThrow(
+      /outside the interpolation domain/,
+    );
+  });
+
+  it("throws on a seed at a field null", () => {
+    const sheet = vectorDataset([12, 3, 3], [1, 1, 1], [(x) => x - 6, ZERO, ZERO]);
+    expect(() => traceFieldLineAdaptive(sheet, [6, 1.5, 1.5])).toThrow(/field null/);
+  });
+});
+
+describe("traceFieldLinesAdaptive — multi-seed", () => {
+  it("returns one line per seed", () => {
+    const lines = traceFieldLinesAdaptive(uniform, [
+      [2, 4, 4],
+      [5, 4, 4],
+    ]);
+    expect(lines).toHaveLength(2);
+    for (const fl of lines) expect(fl.metadata.method).toBe("rk45_dopri");
+  });
+
+  it("validates every seed up front (one bad seed throws before any tracing)", () => {
+    expect(() =>
+      traceFieldLinesAdaptive(uniform, [
+        [4, 4, 4],
+        [100, 4, 4],
+      ]),
+    ).toThrow(/outside the interpolation domain/);
+  });
+});
+
+describe("makeFieldLine invariants", () => {
+  const base = {
+    fieldName: "B",
+    seedPoint: [0, 0, 0] as Vec3,
+    normalization: uniform.normalization,
+    direction: "forward" as const,
+    reason: "max_steps" as const,
+    atol: 1e-6,
+    rtol: 1e-3,
+    maxLocalError: 0,
+  };
+
+  it("rejects fewer than 2 points", () => {
+    expect(() => makeFieldLine({ ...base, points: new Float64Array([1, 2, 3]) })).toThrow(
+      /≥ 2 points/,
+    );
+  });
+
+  it("rejects a points length that is not a multiple of 3", () => {
+    expect(() => makeFieldLine({ ...base, points: new Float64Array([1, 2, 3, 4]) })).toThrow(
+      /multiple of 3/,
+    );
+  });
+
+  it("rejects a scalar whose length disagrees with the point count", () => {
+    expect(() =>
+      makeFieldLine({
+        ...base,
+        points: new Float64Array([0, 0, 0, 1, 0, 0]),
+        scalars: new Map([["foo", new Float64Array([1, 2, 3])]]),
+      }),
+    ).toThrow(/expected 2/);
+  });
+});
+
+describe("pypic doctest fidelity", () => {
+  it("trace_field_line_adaptive metadata (forward, max_steps=4)", () => {
+    const fl = traceFieldLineAdaptive(uniform, [4, 4, 4], { direction: "forward", maxSteps: 4 });
+    expect(fl.metadata.method).toBe("rk45_dopri");
+    expect(Number.isFinite(fl.metadata.maxLocalError)).toBe(true);
+    expect(pointAt(fl.points, fl.nPoints - 1)[0]).toBeGreaterThan(pointAt(fl.points, 0)[0]);
+  });
+
+  it("trace_field_lines_adaptive returns one rk45_dopri line per seed", () => {
+    const lines = traceFieldLinesAdaptive(uniform, [
+      [2, 2, 2],
+      [4, 4, 4],
+    ]);
+    expect(lines).toHaveLength(2);
+    expect(lines.every((fl) => fl.metadata.method === "rk45_dopri")).toBe(true);
+  });
+});
