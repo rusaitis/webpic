@@ -370,7 +370,8 @@ export function createSimulationStore() {
           });
           // Field lines trace the vector field, not the active scalar — but a dataset switch lands
           // through here too, so refresh any existing field-line layers against the new dataset.
-          if (layers.some((layer) => layer.kind === "fieldlines")) retrace();
+          // Fire-and-forget: retrace is total (owns its own abort + generation guard), never rejects.
+          if (layers.some((layer) => layer.kind === "fieldlines")) void retrace();
         } catch (err) {
           if (generation !== computeGeneration) return; // superseded — don't clobber with a stale error
           set({
@@ -382,24 +383,48 @@ export function createSimulationStore() {
         }
       };
 
+      // The trace twin of computeGeneration/computeAbort: bumped on every retrace so a superseded pass
+      // (a newer dataset switch / layer add started while it awaited) discards instead of committing
+      // stale lines; the controller cancels the superseded trace's in-flight work (the CPU tracer
+      // checks it per integration step).
+      let traceGeneration = 0;
+      let traceAbort: AbortController | null = null;
+
       // Re-trace every field-line layer's seeds from the current dataset's vector field
-      // (compute/traceField), publishing FieldLine[] per layer id. v0.1 runs synchronously on the main
-      // thread — cheap for a starter rake; M4.6 moves it off-main, threads the AbortController, and
-      // re-traces on scrub. A per-layer try/catch keeps a dataset without B_1/B_2/B_3 (or seeds gone
-      // stale after a dataset switch) from crashing the store — that layer just renders line-less.
-      const retrace = (): void => {
+      // (compute/traceField), publishing FieldLine[] per layer id. Mirrors recompute's per-call
+      // AbortController + generation guard — aborts the prior pass and drops a superseded result. A
+      // per-layer try/catch keeps a dataset without B_1/B_2/B_3 (or seeds gone stale after a dataset
+      // switch) from crashing the store — that layer just renders line-less. Total (never rejects), so
+      // callers fire it with `void`. recompute doesn't abort traceAbort on its own supersede — moot
+      // while CPU traces are synchronous (the next retrace aborts it). Off-main + GPU dispatch + scrub
+      // re-trace stay deferred behind the worker/main-device seam.
+      const retrace = async (): Promise<void> => {
+        const generation = ++traceGeneration;
+        traceAbort?.abort();
+        traceAbort = null;
         const { dataset, layers, traces } = get();
+        if (dataset === null) {
+          if (Object.keys(traces).length > 0) set({ traces: {} }); // identity-skip when already empty
+          return;
+        }
+        const controller = new AbortController();
+        traceAbort = controller;
         const next: Record<string, FieldLine[]> = {};
-        if (dataset !== null) {
-          for (const layer of layers) {
-            if (layer.kind !== "fieldlines" || layer.seeds.length === 0) continue;
-            try {
-              next[layer.id] = traceFields(dataset, layer.seeds, { direction: "both" });
-            } catch (err) {
-              console.warn(`[webpic] field-line trace failed for ${layer.id}:`, err);
-            }
+        for (const layer of layers) {
+          if (layer.kind !== "fieldlines" || layer.seeds.length === 0) continue;
+          try {
+            next[layer.id] = await traceFields(
+              dataset,
+              layer.seeds,
+              { direction: "both" },
+              controller.signal,
+            );
+          } catch (err) {
+            if (controller.signal.aborted) return; // superseded mid-trace — the newer retrace owns the commit
+            console.warn(`[webpic] field-line trace failed for ${layer.id}:`, err);
           }
         }
+        if (generation !== traceGeneration) return; // superseded between the last await and the commit
         // Identity-skip when nothing traced and nothing was traced before (no spurious subscriber fire).
         if (Object.keys(next).length === 0 && Object.keys(traces).length === 0) return;
         set({ traces: next });
@@ -562,7 +587,7 @@ export function createSimulationStore() {
             opacity: 1,
             seeds,
           });
-          retrace();
+          void retrace(); // total (owns its abort + generation guard), never rejects
         },
         removeLayer(id) {
           // Orphaned bindings are left in the registry — GC/merge wait for the multi-layer UI.

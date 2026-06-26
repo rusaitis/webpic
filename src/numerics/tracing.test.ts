@@ -1,6 +1,7 @@
 import type { FieldDataset, GridInfo } from "@containers/field_dataset.ts";
 import { describe, expect, it } from "vitest";
 import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import { interpolatorFromDataset, type VectorFieldInterpolator } from "./interp.ts";
 import {
   makeFieldLine,
   type TerminationReason,
@@ -236,5 +237,67 @@ describe("pypic doctest fidelity", () => {
     ]);
     expect(lines).toHaveLength(2);
     expect(lines.every((fl) => fl.metadata.method === "rk45_dopri")).toBe(true);
+  });
+});
+
+describe("cancellation (AbortSignal)", () => {
+  const expectAbortError = (error: unknown): void => {
+    expect(error).toBeInstanceOf(DOMException);
+    expect((error as DOMException).name).toBe("AbortError"); // assert name — message differs Node vs browser
+  };
+
+  it("throws AbortError when the signal is already aborted, before any tracing", () => {
+    let error: unknown;
+    try {
+      traceFieldLineAdaptive(uniform, [4, 4, 4], { direction: "forward" }, AbortSignal.abort());
+    } catch (e) {
+      error = e;
+    }
+    expectAbortError(error);
+  });
+
+  it("interrupts mid-integration — the per-step check fires once the signal aborts", () => {
+    const base = interpolatorFromDataset(uniform, ["B_1", "B_2", "B_3"]);
+    const controller = new AbortController();
+    let calls = 0;
+    // Abort on the first sample after seed validation (call #1) — i.e. during the first integration
+    // step — so the next top-of-loop throwIfAborted fires well before the natural domain exit.
+    const wrapped: VectorFieldInterpolator = {
+      sample(point, out) {
+        if (++calls === 2) controller.abort();
+        return base.sample(point, out);
+      },
+    };
+    let error: unknown;
+    try {
+      traceFieldLineAdaptive(
+        uniform,
+        [4, 4, 4],
+        { direction: "forward", interpolator: wrapped },
+        controller.signal,
+      );
+    } catch (e) {
+      error = e;
+    }
+    expectAbortError(error);
+    expect(calls).toBeGreaterThan(1); // proves it got past validation into the loop, then aborted
+  });
+
+  it("traceFieldLinesAdaptive rejects an already-aborted signal before tracing any seed", () => {
+    let error: unknown;
+    try {
+      traceFieldLinesAdaptive(
+        uniform,
+        [
+          [2, 2, 2],
+          [4, 4, 4],
+        ],
+        {},
+        AbortSignal.abort(),
+      );
+    } catch (e) {
+      error = e;
+    }
+    expectAbortError(error);
   });
 });

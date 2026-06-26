@@ -225,6 +225,7 @@ describe("installLayerSync", () => {
     store.getState().setDataset(traceableDataset());
     await flushAsync();
     store.getState().addFieldlinesLayer(); // default rake → traces lines into the store
+    await flushAsync(); // retrace is async now (owns an AbortController + generation guard)
     expect(Object.keys(store.getState().traces)).toHaveLength(1); // store-side dispatch ran
     setReady(true);
     sync.flushAll();

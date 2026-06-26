@@ -8,15 +8,19 @@ import type { Vec3 } from "@schema/types.ts";
 
 export type { FieldLine } from "@numerics/tracing.ts";
 
-// Field-line trace facade — the trace analogue of computeField. v0.1 runs the CPU DP5(4) tracer
-// (numerics/tracing) synchronously on the main thread for a handful of seeds; M4.6 routes to the GPU
-// streamline backend and threads an AbortSignal through here, the same shape as computeField prepending
-// the WebGPU compute backend. Keeping the store→tracer hop behind this facade is the DAG-clean seam
-// (store → compute, never store → numerics) and the single place M4.6 swaps the backend.
-export function traceFields(
+// Field-line trace facade — the trace analogue of computeField, same `(…, signal?)` shape. Threads an
+// AbortSignal into the CPU DP5(4) tracer (numerics/tracing), which checks it per integration step; a
+// superseded trace aborts mid-line once the tracer runs off-main. Async so the contract is stable for
+// the deferred GPU/worker backend — routing to the WebGPU streamline tracer (traceFieldLinesWebgpu)
+// stays deferred until a main-thread GPUDevice exists (the M3 worker-reads/main-computes device seam).
+// Keeping the store→tracer hop behind this facade is the DAG-clean seam (store → compute, never
+// store → numerics) and the single place to swap the backend.
+export async function traceFields(
   dataset: FieldDataset,
   seeds: ReadonlyArray<Vec3>,
   options: AdaptiveTraceOptions = {},
-): FieldLine[] {
-  return traceFieldLinesAdaptive(dataset, seeds, options);
+  signal?: AbortSignal,
+): Promise<FieldLine[]> {
+  signal?.throwIfAborted();
+  return traceFieldLinesAdaptive(dataset, seeds, options, signal);
 }

@@ -218,6 +218,7 @@ function traceSingleDirectionAdaptive(
   terminate: ((point: Float64Array) => boolean) | null,
   loopTol: number | null,
   loopMinArclen: number,
+  signal?: AbortSignal,
 ): SingleDirResult {
   const buf = new Float64Array((maxSteps + 1) * 3);
   buf[0] = seed[0] ?? 0;
@@ -233,6 +234,11 @@ function traceSingleDirectionAdaptive(
   const control: StepControl = { minStep, maxStep };
 
   while (n < maxSteps) {
+    // Cancellation hook (checked every iteration, accepted or rejected, so a reject-storm can't stall
+    // it). Unwinds before makeFieldLine, so an abort never yields a malformed <2-point line. On the
+    // main thread today this fires only for an already-aborted signal; true mid-flight preemption
+    // arrives once the tracer runs off-main (worker), where this is the durable hook.
+    signal?.throwIfAborted();
     const cur = buf.subarray(3 * n, 3 * n + 3); // alias — dormandPrinceStep never mutates y
     const result = dormandPrinceStep(rhs, cur, h, kCarry);
     if (!result.ok) {
@@ -442,7 +448,9 @@ export function traceFieldLineAdaptive(
   data: FieldDataset,
   seed: Vec3 | Float64Array | readonly number[],
   options: AdaptiveTraceOptions = {},
+  signal?: AbortSignal,
 ): FieldLine {
+  signal?.throwIfAborted();
   const p = resolveTraceParams(data, options);
   const terminate = options.terminate ?? null;
   const interp = options.interpolator ?? interpolatorFromDataset(data, p.components);
@@ -465,6 +473,7 @@ export function traceFieldLineAdaptive(
       terminate,
       p.loopTol,
       p.loopMinArclen,
+      signal,
     );
 
   const empty: SingleDirResult = {
@@ -510,11 +519,17 @@ export function traceFieldLinesAdaptive(
   data: FieldDataset,
   seeds: ReadonlyArray<Vec3 | readonly number[]> | Float64Array,
   options: AdaptiveTraceOptions = {},
+  signal?: AbortSignal,
 ): FieldLine[] {
+  signal?.throwIfAborted();
   const components = options.fieldComponents ?? DEFAULT_COMPONENTS;
   const interp = options.interpolator ?? interpolatorFromDataset(data, components);
   const nullThreshold = options.nullThreshold ?? 1e-12;
   const seedList = toSeedList(seeds);
   for (const s of seedList) validateSeed(interp, s, nullThreshold);
-  return seedList.map((s) => traceFieldLineAdaptive(data, s, { ...options, interpolator: interp }));
+  // Each per-seed trace re-checks `signal` at entry + per integration step, so a cancel lands between
+  // seeds and mid-line.
+  return seedList.map((s) =>
+    traceFieldLineAdaptive(data, s, { ...options, interpolator: interp }, signal),
+  );
 }
