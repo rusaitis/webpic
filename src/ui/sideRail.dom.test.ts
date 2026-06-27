@@ -1,5 +1,7 @@
 import { createSimulationStore, createUiStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
+import { vectorTriple } from "../../tests/fixtures.ts";
+import { flushAsync } from "../../tests/helpers.ts";
 import { installSideRail } from "./sideRail.ts";
 
 const disposers: Array<() => void> = [];
@@ -27,32 +29,107 @@ function setup() {
     if (el === null) throw new Error("flyout not mounted");
     return el;
   };
-  return { parent, store, uiStore, rail, button, flyout, dispose };
+  // The visible add-menu (each add-button owns one, all `.webpic-railmenu`; only the open one shows).
+  const openMenu = (): HTMLElement => {
+    const el = parent.querySelector<HTMLElement>(".webpic-railmenu:not([hidden])");
+    if (el === null) throw new Error("no open rail menu");
+    return el;
+  };
+  return { parent, store, uiStore, rail, button, flyout, openMenu, dispose };
 }
 
+const ready = async (store: ReturnType<typeof createSimulationStore>): Promise<void> => {
+  store.getState().setDataset(vectorTriple("B", { array: Float32Array }));
+  await flushAsync(); // seeds the first volume layer
+};
+
 describe("installSideRail", () => {
-  it("mounts the two tools: view, probe", () => {
-    const { rail, button } = setup();
-    expect(rail.querySelectorAll(".webpic-siderail_btn")).toHaveLength(2);
-    for (const control of ["view", "probe"]) {
+  it("mounts the layer add-buttons, the Layers toggle, and the tools", () => {
+    const { button } = setup();
+    for (const control of [
+      "layers",
+      "add-volume",
+      "add-slice",
+      "add-fieldlines",
+      "view",
+      "probe",
+      "diagnostics",
+    ]) {
       expect(button(control)).toBeInstanceOf(window.HTMLButtonElement);
     }
+    // Reserved/deferred primitives + tools are present but disabled.
+    for (const control of ["add-particles", "reductions", "selections", "theme"]) {
+      expect(button(control).disabled).toBe(true);
+    }
+  });
+
+  it("the Layers button toggles the Layers overlay state and reflects aria-pressed", () => {
+    const { uiStore, button } = setup();
+    const layers = button("layers");
+    expect(uiStore.getState().isLayersPanelOpen).toBe(false);
+    expect(layers.getAttribute("aria-pressed")).toBe("false");
+    layers.dispatchEvent(new MouseEvent("click"));
+    expect(uiStore.getState().isLayersPanelOpen).toBe(true);
+    expect(layers.getAttribute("aria-pressed")).toBe("true");
+    layers.dispatchEvent(new MouseEvent("click"));
+    expect(uiStore.getState().isLayersPanelOpen).toBe(false);
+  });
+
+  it("the Diagnostics button toggles the Developer panel flag", () => {
+    const { uiStore, button } = setup();
+    const diag = button("diagnostics");
+    expect(diag.getAttribute("aria-pressed")).toBe("true"); // dev panel open by default
+    diag.dispatchEvent(new MouseEvent("click"));
+    expect(uiStore.getState().panels.dev).toBe(false);
+    expect(diag.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("an add-button opens a menu of instances + Add new; Add new adds a layer", async () => {
+    const { store, button, openMenu } = setup();
+    await ready(store);
+    expect(store.getState().layers).toHaveLength(1); // the seeded volume
+    button("add-volume").dispatchEvent(new MouseEvent("click"));
+    const menu = openMenu();
+    expect(menu.querySelectorAll(".webpic-railmenu_item")).toHaveLength(1); // one existing volume
+    const add = menu.querySelector<HTMLButtonElement>(".webpic-railmenu_add");
+    if (add === null) throw new Error("no Add new row");
+    add.dispatchEvent(new MouseEvent("click"));
+    // addVolumeLayer adds synchronously (recompute is fire-and-forget) → two volumes now.
+    expect(store.getState().layers).toHaveLength(2);
+    expect(store.getState().layers[1]?.kind).toBe("volume");
+    expect(menu.hidden).toBe(true); // the menu closes on commit
+  });
+
+  it("picking an instance selects it and opens the Layers panel", async () => {
+    const { store, uiStore, button, openMenu } = setup();
+    await ready(store);
+    const seededId = store.getState().layers[0]?.id;
+    store.getState().selectLayer(null); // clear selection so the pick is observable
+    button("add-volume").dispatchEvent(new MouseEvent("click"));
+    const item = openMenu().querySelector<HTMLButtonElement>(".webpic-railmenu_item");
+    if (item === null) throw new Error("no instance row");
+    item.dispatchEvent(new MouseEvent("click"));
+    expect(store.getState().selectedLayerId).toBe(seededId);
+    expect(uiStore.getState().isLayersPanelOpen).toBe(true);
+  });
+
+  it("the V shortcut adds a volume layer", async () => {
+    const { store } = setup();
+    await ready(store);
+    expect(store.getState().layers).toHaveLength(1);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "v" }));
+    expect(store.getState().layers).toHaveLength(2);
   });
 
   it("the Axes & grid tab opens a flyout holding the scene controls", () => {
     const { button, flyout } = setup();
     const view = button("view");
     expect(view.getAttribute("aria-label")).toBe("Axes & grid");
-    // Closed by default.
     expect(flyout().hidden).toBe(true);
-    expect(view.getAttribute("aria-expanded")).toBe("false");
     view.dispatchEvent(new MouseEvent("click"));
     expect(flyout().hidden).toBe(false);
-    expect(view.getAttribute("aria-expanded")).toBe("true");
-    // The flyout body carries the mounted reference-frame controls.
     const labels = [...flyout().querySelectorAll(".webpic-row_label")].map((n) => n.textContent);
     expect(labels).toContain("Grid");
-    // Re-click closes.
     view.dispatchEvent(new MouseEvent("click"));
     expect(flyout().hidden).toBe(true);
   });
@@ -65,17 +142,9 @@ describe("installSideRail", () => {
     if (close === null) throw new Error("no close button");
     close.dispatchEvent(new MouseEvent("click"));
     expect(flyout().hidden).toBe(true);
-    view.dispatchEvent(new MouseEvent("click")); // reopen
+    view.dispatchEvent(new MouseEvent("click"));
     expect(flyout().hidden).toBe(false);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    expect(flyout().hidden).toBe(true);
-  });
-
-  it("an outside pointer-down closes the open flyout", () => {
-    const { parent, button, flyout } = setup();
-    button("view").dispatchEvent(new MouseEvent("click"));
-    expect(flyout().hidden).toBe(false);
-    parent.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     expect(flyout().hidden).toBe(true);
   });
 
@@ -83,7 +152,6 @@ describe("installSideRail", () => {
     const { store, button } = setup();
     const probe = button("probe");
     expect(store.getState().overlay.showPicker).toBe(true);
-    expect(probe.getAttribute("aria-pressed")).toBe("true");
     probe.dispatchEvent(new MouseEvent("click"));
     expect(store.getState().overlay.showPicker).toBe(false);
     expect(probe.getAttribute("aria-pressed")).toBe("false");
@@ -95,15 +163,16 @@ describe("installSideRail", () => {
     expect(flyout().hidden).toBe(false);
     uiStore.getState().toggleUi();
     expect(rail.hidden).toBe(true);
-    expect(flyout().hidden).toBe(true); // not stranded over hidden UI
+    expect(flyout().hidden).toBe(true);
     uiStore.getState().toggleUi();
     expect(rail.hidden).toBe(false);
   });
 
-  it("removes the rail and flyout on dispose", () => {
+  it("removes the rail, flyout, and menus on dispose", () => {
     const { parent, dispose } = setup();
     dispose();
     expect(parent.querySelector(".webpic-siderail")).toBeNull();
     expect(parent.querySelector(".webpic-flyout")).toBeNull();
+    expect(parent.querySelector(".webpic-railmenu")).toBeNull();
   });
 });

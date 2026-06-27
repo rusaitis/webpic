@@ -27,6 +27,22 @@ describe("uiStore", () => {
     expect(seen).toEqual([true, false]);
   });
 
+  it("toggles the Layers overlay, guarding no-op sets", () => {
+    const store = createUiStore();
+    const seen: boolean[] = [];
+    const unsubscribe = store.subscribe(
+      (s) => s.isLayersPanelOpen,
+      (v) => seen.push(v),
+    );
+    expect(store.getState().isLayersPanelOpen).toBe(false);
+    store.getState().toggleLayersPanel();
+    expect(store.getState().isLayersPanelOpen).toBe(true);
+    store.getState().setLayersPanelVisible(true); // unchanged → no fire
+    store.getState().setLayersPanelVisible(false);
+    unsubscribe();
+    expect(seen).toEqual([true, false]);
+  });
+
   it("toggles per-panel visibility (defaulting unseen panels to visible)", () => {
     const store = createUiStore({ field: true });
     store.getState().togglePanel("field");

@@ -21,7 +21,7 @@ import { installColorbarSettings } from "./colorbarSettings.ts";
 // bottom rail's tight per-button rects (not its full-width .webpic-rail container, which can't be
 // cleared by a sideways nudge) so the strip slides past the centered cluster.
 const CHROME_SELECTOR =
-  ".webpic-rail_btn, .webpic-coords-card, .webpic-topbar, .webpic-siderail, .webpic-shell, .webpic-chrome, .webpic-status";
+  ".webpic-rail_btn, .webpic-coords-card, .webpic-topbar, .webpic-siderail, .webpic-layers, .webpic-shell, .webpic-chrome, .webpic-status";
 const INITIAL_GAP_PX = 12; // first-paint inset (bottom-right); reflow then clears the chrome
 // One nice-number target for BOTH orientations, so the tick values are identical horizontal and
 // vertical (the set depends only on the window + this count — never the strip's pixel length). 5

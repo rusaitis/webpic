@@ -107,6 +107,7 @@ const DERIVED_TOKENS = {
   "--webpic-z-window": "15",
   "--webpic-z-chrome-label": "30",
   "--webpic-z-glass": "800",
+  "--webpic-z-layers": "805",
   "--webpic-z-flyout": "810",
   "--webpic-z-modal": "1000",
   "--webpic-z-popover": "1100",
@@ -166,7 +167,7 @@ const UI_CSS = `
    body-appended popovers (each carries its own root class). Opt back in just below. */
 .webpic-shell, .webpic-topbar, .webpic-chrome, .webpic-rail, .webpic-siderail, .webpic-flyout,
 .webpic-coords-card, .webpic-status, .webpic-cbar, .webpic-cbar-pop, .webpic-window, .webpic-help,
-.webpic-popover {
+.webpic-popover, .webpic-railmenu, .webpic-layers {
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 /* Selectable opt-ins: the editable value fields (so the number/text can be selected + edited) and any
@@ -430,6 +431,111 @@ const UI_CSS = `
   border-right: 9px solid var(--webpic-edge-70); }
 .webpic-flyout_arrow::after { top: -8px; right: -1px;
   border-right: 8px solid var(--webpic-panel); }
+/* Rail group separators + disabled (reserved/deferred) buttons. */
+.webpic-siderail_sep { height: 1px; margin: 2px 5px; background: var(--webpic-edge); flex: 0 0 auto; }
+.webpic-siderail_btn:disabled { opacity: 0.28; cursor: not-allowed; }
+.webpic-siderail_btn:disabled:hover { background: transparent; color: var(--webpic-muted); }
+
+/* Rail add-button menu (ui/railMenu): an action list of existing instances + "Add new", opening
+   beside the +Kind button with the same speech-bubble tail as the flyout. Glass like the flyout. */
+.webpic-railmenu { position: fixed; z-index: var(--webpic-z-flyout); box-sizing: border-box;
+  min-width: 168px; max-width: 240px; max-height: calc(100vh - 24px); overflow: visible;
+  display: flex; flex-direction: column; color: var(--webpic-fg);
+  background: var(--webpic-panel); border: 1px solid var(--webpic-edge-70);
+  border-radius: 10px; box-shadow: var(--webpic-shadow-3);
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
+  font: 500 12px/1.4 var(--webpic-mono); padding: 5px; }
+.webpic-railmenu[hidden] { display: none; }
+.webpic-railmenu_arrow { position: absolute; left: 0; top: var(--arrow-pos, 50%); width: 0; height: 0;
+  pointer-events: none; }
+.webpic-railmenu_arrow::before, .webpic-railmenu_arrow::after { content: ""; position: absolute;
+  width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+.webpic-railmenu_arrow::before { top: -9px; right: 100%; margin-right: -5px;
+  border-right: 9px solid var(--webpic-edge-70); }
+.webpic-railmenu_arrow::after { top: -8px; right: 100%; margin-right: -6px;
+  border-right: 8px solid var(--webpic-panel); }
+.webpic-railmenu_title { font-size: 10px; line-height: 1; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--webpic-muted); padding: 4px 7px 6px; }
+.webpic-railmenu_list { display: flex; flex-direction: column; gap: 1px; }
+.webpic-railmenu_item, .webpic-railmenu_add { appearance: none; display: flex; align-items: center;
+  gap: 7px; width: 100%; padding: 6px 8px; text-align: left; cursor: pointer;
+  background: transparent; color: var(--webpic-fg); border: none; border-radius: 6px;
+  font: inherit; transition: background .12s ease, color .12s ease; }
+.webpic-railmenu_item:hover, .webpic-railmenu_item:focus-visible,
+.webpic-railmenu_add:hover, .webpic-railmenu_add:focus-visible {
+  outline: none; background: var(--webpic-hover); }
+.webpic-railmenu_item.is-active { color: var(--webpic-fg); }
+.webpic-railmenu_dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%;
+  background: transparent; }
+.webpic-railmenu_item.is-active .webpic-railmenu_dot { background: var(--webpic-accent); }
+.webpic-railmenu_label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.webpic-railmenu_sep { height: 1px; margin: 4px 4px; background: var(--webpic-edge); }
+.webpic-railmenu_add { color: var(--webpic-muted); }
+.webpic-railmenu_add:hover, .webpic-railmenu_add:focus-visible { color: var(--webpic-fg); }
+.webpic-railmenu_plus { flex: 0 0 auto; display: grid; place-items: center; width: 14px; }
+.webpic-railmenu_plus svg { display: block; width: 14px; height: 14px; fill: none;
+  stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Layers overlay (ui/layersPanel): the rail-toggled, fixed translucent panel of renderable instances.
+   Left is anchored to the rail's right edge by JS; top is fixed below the top bar. Glass like the
+   flyout, but a persistent workspace panel (no tail, no outside-click dismiss). */
+.webpic-layers { position: fixed; top: 56px; left: 56px; z-index: var(--webpic-z-layers);
+  box-sizing: border-box; width: 232px; max-height: calc(100vh - 80px);
+  display: flex; flex-direction: column; color: var(--webpic-fg);
+  background: var(--webpic-panel); border: 1px solid var(--webpic-edge-70);
+  border-radius: 10px; box-shadow: var(--webpic-shadow-3);
+  -webkit-backdrop-filter: blur(var(--webpic-blur)); backdrop-filter: blur(var(--webpic-blur));
+  font: 500 12px/1.4 var(--webpic-mono); }
+.webpic-layers[hidden] { display: none; }
+.webpic-layers_header { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; height: 30px;
+  padding: 0 4px 0 11px; border-radius: 9px 9px 0 0;
+  background: var(--webpic-lift); border-bottom: 1px solid var(--webpic-edge-soft); }
+.webpic-layers_title { flex: 1; font-size: 10px; line-height: 1; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--webpic-muted); }
+.webpic-layers_close { appearance: none; display: grid; place-items: center; width: 20px; height: 20px;
+  padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--webpic-muted);
+  cursor: pointer; opacity: 0.6; transition: opacity .12s ease, background .12s ease, color .12s ease; }
+.webpic-layers_close:hover, .webpic-layers_close:focus-visible { opacity: 1; outline: none;
+  color: var(--webpic-fg); background: var(--webpic-hover); }
+.webpic-layers_close svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 1.6; stroke-linecap: round; }
+.webpic-layers_list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 5px; display: flex;
+  flex-direction: column; gap: 2px; }
+.webpic-layers_empty { padding: 14px 10px; text-align: center; color: var(--webpic-muted);
+  font-size: 11px; }
+.webpic-layers_row { display: flex; align-items: center; gap: 4px; padding: 3px 4px;
+  border-radius: 7px; border: 1px solid transparent;
+  transition: background .12s ease, border-color .12s ease; }
+.webpic-layers_row:hover { background: var(--webpic-lift); }
+.webpic-layers_row.is-selected { background: var(--webpic-active); border-color: var(--webpic-active-edge); }
+.webpic-layers_eye, .webpic-layers_gear, .webpic-layers_move { appearance: none; flex: 0 0 auto;
+  display: grid; place-items: center; padding: 0; cursor: pointer; background: transparent;
+  color: var(--webpic-muted); border: none; border-radius: 5px; opacity: 0.75;
+  transition: opacity .12s ease, background .12s ease, color .12s ease; }
+.webpic-layers_eye, .webpic-layers_gear { width: 24px; height: 24px; }
+.webpic-layers_eye:hover, .webpic-layers_eye:focus-visible,
+.webpic-layers_gear:hover, .webpic-layers_gear:focus-visible,
+.webpic-layers_move:not(:disabled):hover, .webpic-layers_move:not(:disabled):focus-visible {
+  opacity: 1; outline: none; color: var(--webpic-fg); background: var(--webpic-hover); }
+.webpic-layers_eye[aria-pressed="false"] { opacity: 0.4; }
+.webpic-layers_eye svg, .webpic-layers_gear svg { display: block; width: 15px; height: 15px;
+  fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.webpic-layers_main { appearance: none; flex: 1 1 auto; min-width: 0; display: flex; align-items: center;
+  gap: 7px; padding: 4px 4px; text-align: left; cursor: pointer; background: transparent;
+  color: var(--webpic-fg); border: none; border-radius: 5px; font: inherit; }
+.webpic-layers_main:hover, .webpic-layers_main:focus-visible { outline: none; color: var(--webpic-fg); }
+.webpic-layers_kind { flex: 0 0 auto; display: grid; place-items: center; width: 16px;
+  color: var(--webpic-muted); }
+.webpic-layers_kind svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.webpic-layers_name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.webpic-layers_reorder { flex: 0 0 auto; display: flex; flex-direction: column; }
+.webpic-layers_move { width: 20px; height: 13px; }
+.webpic-layers_move:disabled { opacity: 0.22; cursor: default; }
+.webpic-layers_move svg { display: block; width: 13px; height: 13px; fill: none; stroke: currentColor;
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 /* Grid-info card: a parent-level floating dialog above the rail (ui/cameraRail). pointer-events: auto
    so its copy button works; z-index over the transient status pill (11), under the help modal (20). */
 .webpic-coords-card { position: fixed; left: 50%; bottom: calc(54px + env(safe-area-inset-bottom));

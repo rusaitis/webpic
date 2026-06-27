@@ -181,24 +181,20 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     }
   };
 
-  // Upsert every layer drawing the active field (currently the one layer) from `computed`. A
-  // transferred buffer detaches, so a second same-field layer gets a copy.
+  // Upsert every layer drawing the active field from `computed`. Field lines reference the active
+  // field for color, but draw traced lines (the traces channel), not the scalar texture — so only
+  // slice/volume layers consume it. The transfer detaches `computed.data`, so copy (slice) for all
+  // but the last *first* (while the buffer is live) and transfer the original to the last; transferring
+  // first would leave the copies reading a detached buffer.
   const upsertActiveField = (computed: FieldArray): void => {
     const { layers, activeField } = store.getState();
-    let transferred = false;
-    for (const layer of layers) {
-      if (layer.field !== activeField) continue;
-      // Field lines reference the active field for color, but they draw traced lines (the traces
-      // channel), not the scalar texture — skip them here so the `computed` buffer isn't sliced for a
-      // layer that won't consume it (and so the transfer-detach count stays right).
-      if (layer.kind !== "slice" && layer.kind !== "volume") continue;
-      if (transferred) {
-        sendUpsert(layer, { ...computed, data: computed.data.slice() });
-      } else {
-        sendUpsert(layer, computed);
-        transferred = true;
-      }
-    }
+    const targets = layers.filter(
+      (layer) => layer.field === activeField && (layer.kind === "slice" || layer.kind === "volume"),
+    );
+    targets.forEach((layer, index) => {
+      const last = index === targets.length - 1;
+      sendUpsert(layer, last ? computed : { ...computed, data: computed.data.slice() });
+    });
   };
 
   const flushAll = (): void => {

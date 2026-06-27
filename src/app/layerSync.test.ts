@@ -205,6 +205,21 @@ describe("installLayerSync", () => {
     expect(remove.message.id).toBe("layer-1");
   });
 
+  it("upserts a scene for a newly added volume layer (addVolumeLayer recomputes)", async () => {
+    const { store, posts } = harness(true);
+    store.getState().setDataset(beDataset()); // seeds layer-0
+    await flushAsync();
+    posts.length = 0; // ignore the seed traffic
+    store.getState().addVolumeLayer(); // adds layer-1 + recomputes (the detached-buffer fix)
+    await flushAsync();
+    // recompute refills `computed` → the computed channel upserts every active-field layer; the new
+    // layer-1 must be among them (a bare addLayer would leave it composited but never drawn).
+    const newUpsert = posts.find(
+      (p) => p.message.kind === "upsertLayer" && p.message.id === "layer-1",
+    );
+    expect(newUpsert).toBeDefined();
+  });
+
   // A 4³ uniform B = (0,0,1) field: the default rake (along x) traces N straight z-lines that the
   // tracer resolves to ≥2 points each — enough to exercise the store→trace→layerSync line path.
   const traceableDataset = () => {

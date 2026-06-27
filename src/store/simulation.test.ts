@@ -116,6 +116,39 @@ describe("simulationStore", () => {
     });
   });
 
+  it("addVolumeLayer appends a volume on the active field, auto-selects it, mints a binding", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(bDataset());
+    await flushAsync(); // seeds the first volume layer
+    store.getState().addVolumeLayer();
+    await flushAsync(); // recompute refills `computed` so the new layer can render
+    const { layers, selectedLayerId } = store.getState();
+    expect(layers).toHaveLength(2);
+    const added = layers[1];
+    expect(added?.kind).toBe("volume");
+    expect(added?.field).toBe("|B|");
+    expect(added?.id).toBe(selectedLayerId); // addLayer auto-selects the new layer
+    expect(added?.colormapBindingId).not.toBeNull();
+    expect(activeBinding(store)).toMatchObject({ field: "|B|" });
+  });
+
+  it("addSliceLayer appends a mid-plane z slice on the active field", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(bDataset());
+    await flushAsync();
+    store.getState().addSliceLayer();
+    await flushAsync();
+    const added = store.getState().layers[1];
+    expect(added).toMatchObject({ kind: "slice", field: "|B|", axis: "z", position: 0.5 });
+  });
+
+  it("add-layer intents are no-ops with no dataset", () => {
+    const store = createSimulationStore();
+    store.getState().addVolumeLayer();
+    store.getState().addSliceLayer();
+    expect(store.getState().layers).toHaveLength(0);
+  });
+
   it("setBindingWindow updates the binding window without touching the data range", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());

@@ -43,7 +43,11 @@ export const SHORTCUTS: readonly ShortcutSection[] = [
   },
   {
     title: "Layers",
-    items: [{ keys: "T", action: "Add field lines" }],
+    items: [
+      { keys: "L", action: "Toggle Layers panel" },
+      { keys: "V", action: "Add volume" },
+      { keys: "T", action: "Add field lines" },
+    ],
   },
   {
     title: "View",

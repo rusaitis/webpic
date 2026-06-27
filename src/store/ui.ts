@@ -22,6 +22,9 @@ export interface UiState {
   readonly isUiVisible: boolean;
   readonly isHelpVisible: boolean;
   readonly isCoordsInfoVisible: boolean;
+  /** The rail-toggled Layers overlay (M4.7) — a collapsible workspace panel, default closed
+   *  (`layers-collapsed-default`). Distinct from `panels` (docked-shell visibility). */
+  readonly isLayersPanelOpen: boolean;
   /** Responsive override: the bottom band is too narrow to hold the gnomon beside the centered
    *  rail, so the gnomon is hidden until there's room again. Distinct from the user's gnomon
    *  preference (overlay.showGnomon) — it only suppresses, never enables. The colorbar (the
@@ -38,6 +41,8 @@ export interface UiState {
   setHelpVisible(visible: boolean): void;
   toggleCoordsInfo(): void;
   setCoordsInfoVisible(visible: boolean): void;
+  toggleLayersPanel(): void;
+  setLayersPanelVisible(visible: boolean): void;
   setGnomonSuppressed(suppressed: boolean): void;
   togglePanel(name: string): void;
   setPanelVisible(name: string, visible: boolean): void;
@@ -57,6 +62,7 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       isUiVisible: true,
       isHelpVisible: false,
       isCoordsInfoVisible: false,
+      isLayersPanelOpen: false,
       isGnomonSuppressed: false,
       panels: initialPanels,
       loadingPhases: [],
@@ -78,6 +84,12 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       },
       setCoordsInfoVisible(visible) {
         if (get().isCoordsInfoVisible !== visible) set({ isCoordsInfoVisible: visible });
+      },
+      toggleLayersPanel() {
+        set({ isLayersPanelOpen: !get().isLayersPanelOpen });
+      },
+      setLayersPanelVisible(visible) {
+        if (get().isLayersPanelOpen !== visible) set({ isLayersPanelOpen: visible });
       },
       setGnomonSuppressed(suppressed) {
         if (get().isGnomonSuppressed !== suppressed) set({ isGnomonSuppressed: suppressed });

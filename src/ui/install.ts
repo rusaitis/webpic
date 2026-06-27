@@ -7,6 +7,7 @@ import { installColorbar } from "./colorbar/colorbar.ts";
 import type { Disposer } from "./controls/index.ts";
 import { installHelpOverlay } from "./helpOverlay.ts";
 import { isTypingTarget } from "./keyboard.ts";
+import { installLayersPanel } from "./layersPanel.ts";
 import { installDevWindow } from "./panels/devWindow.ts";
 import { mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
@@ -69,6 +70,11 @@ export function installUi(opts: InstallUiOptions): () => void {
   // rail's first occupants on the operations axis. Outside the shell on the left edge, UI-toggle-
   // hidden; layer add-buttons + more tools land here in M4. The gnomon stays on the bottom rail.
   disposers.push(installSideRail(opts.parent, opts.simulationStore, opts.uiStore));
+
+  // The Layers overlay — the rail-toggled, fixed translucent panel of renderable instances (one row
+  // per layer: eye / select / reorder). Mounts next to the rail's interaction cluster; owns the "L"
+  // shortcut. UI-toggle-hidden, like the rail.
+  disposers.push(installLayersPanel(opts.parent, opts.simulationStore, opts.uiStore));
 
   // The floating colorbar — the selected layer's color mapping as a draggable, edge-snapping
   // gradient strip; its gear opens the colormap/scale/window controls. Replaces the old docked

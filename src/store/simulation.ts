@@ -185,6 +185,12 @@ export interface SimulationState {
   setStep(step: number): void;
   setAvailableSteps(steps: readonly number[]): void;
   addLayer(spec: LayerSpec): void;
+  /** Add a volume layer on the active field, then recompute so it gets scalar data + a scene. The
+   *  M4.7 rail's `+Volume` button / `V` shortcut dispatch this. */
+  addVolumeLayer(): void;
+  /** Add a mid-plane z slice on the active field, then recompute so it gets scalar data + a scene.
+   *  The M4.7 rail's `+Slice` button dispatches this. */
+  addSliceLayer(): void;
   /** Add a field-line layer seeded with a default rake over the current dataset, then trace it. The
    *  DESIGN-reserved `T` shortcut / the M4.7 rail's `+Field lines` button dispatch this. */
   addFieldlinesLayer(): void;
@@ -573,6 +579,38 @@ export function createSimulationStore() {
             selectedLayerId: layer.id,
             colormapBindings,
           });
+        },
+        addVolumeLayer() {
+          const { dataset, activeField } = get();
+          if (dataset === null) return; // no field data to draw yet
+          get().addLayer({
+            kind: "volume",
+            field: activeField,
+            colormapBindingId: null,
+            visible: true,
+            opacity: 1,
+            steps: null,
+            density: null,
+            shaded: false,
+          });
+          // A bare addLayer touches only `layers`/bindings, not `computed`, whose buffer was
+          // transferred (detached) on the prior upsert — recompute refills it so layerSync's
+          // `computed` channel upserts a scene for the new layer (mirrors retrace for field lines).
+          void recompute();
+        },
+        addSliceLayer() {
+          const { dataset, activeField } = get();
+          if (dataset === null) return;
+          get().addLayer({
+            kind: "slice",
+            field: activeField,
+            colormapBindingId: null,
+            visible: true,
+            opacity: 1,
+            axis: "z",
+            position: 0.5,
+          });
+          void recompute(); // see addVolumeLayer — refills the detached `computed` buffer
         },
         addFieldlinesLayer() {
           const { dataset, activeField } = get();
