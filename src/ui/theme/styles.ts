@@ -95,6 +95,9 @@ const DERIVED_TOKENS = {
   // Status error is a fixed semantic red (the theme schema has no error color); a recolored
   // axis-X must not drag it along even though the default hex coincides with the X axis.
   "--webpic-error": "#e06c75",
+  // Fixed semantic amber for soft warnings (the colorbar's >2-bindings badge) — same
+  // theme-independent contract as --webpic-error.
+  "--webpic-warn": "#d8a13f",
   // z-index ladder (chrome stacking), names ascending with the value. Within-component z (range
   // grip, segmented seg, minilabel, the topbar reveal's local pop) stay literal — they're local
   // stacking contexts, not part of this global order.
@@ -832,13 +835,24 @@ const UI_CSS = `
 .webpic-cbar.collapsed:hover, .webpic-cbar.collapsed:focus-within { opacity: 1; }
 .webpic-cbar.collapsed .webpic-cbar_ticks, .webpic-cbar.collapsed .webpic-cbar_caption {
   display: none; }
-/* gap:0 so the tick rail sits flush under the strip (marks touch the bar); the caption keeps its own
-   breathing room via its margin (margin-bottom on top/bottom, margin-left on the rotated side dock). */
-.webpic-cbar_main { display: flex; flex: 1 1 auto; gap: 0; min-width: 0; min-height: 0; }
+/* main stacks the sections (one per shown binding, ≤2) along the free axis: below each other on a
+   horizontal dock, side by side on a vertical one. */
+.webpic-cbar_main { display: flex; flex: 1 1 auto; gap: 10px; min-width: 0; min-height: 0; }
+.webpic-cbar.collapsed .webpic-cbar_main { gap: 5px; }
 .webpic-cbar[data-edge="top"] .webpic-cbar_main, .webpic-cbar[data-edge="bottom"] .webpic-cbar_main {
   flex-direction: column; align-items: stretch; }
 .webpic-cbar[data-edge="left"] .webpic-cbar_main, .webpic-cbar[data-edge="right"] .webpic-cbar_main {
   flex-direction: row; align-items: stretch; }
+/* A section runs the same direction as main (inherit tracks the edge without re-stating the four
+   selectors): caption above the gradient, ticks below on horizontal docks; rotated to the side on
+   vertical. gap:0 so the tick rail sits flush under the strip (marks touch the bar); the caption
+   keeps its own breathing room via its margin (margin-bottom on top/bottom, margin-left rotated). */
+.webpic-cbar_sec { display: flex; flex-direction: inherit; align-items: stretch; gap: 0;
+  min-width: 0; min-height: 0; }
+/* Two-strip stack: the selected layer's strip — the gear's edit target — reads full strength; the
+   passenger recedes a notch until hovered. Only set when the active binding holds a slot. */
+.webpic-cbar_sec[data-active="false"] { opacity: 0.66; transition: opacity .15s ease; }
+.webpic-cbar_sec[data-active="false"]:hover { opacity: 1; }
 .webpic-cbar_strip { position: relative; flex: 0 0 auto; border-radius: 4px; overflow: hidden;
   box-shadow: var(--webpic-inset-edge);
   transition: width .28s var(--webpic-ease), height .28s var(--webpic-ease); }
@@ -938,6 +952,20 @@ const UI_CSS = `
   background: var(--webpic-active-strong); }
 .webpic-cbar_btn svg { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+/* Soft warn: more distinct bindings among visible layers than strips — a small "+N" amber pill in
+   the long-axis margin opposite the gear (its title names the stripless fields). Always visible
+   while it applies (a warning shouldn't wait for hover); collapsed returns it to the flow. */
+.webpic-cbar_warn { position: absolute; box-sizing: border-box; padding: 1px 5px; border-radius: 8px;
+  font: 600 9px/1.4 var(--webpic-mono); letter-spacing: 0.02em; cursor: help;
+  color: var(--webpic-warn);
+  border: 1px solid color-mix(in srgb, var(--webpic-warn) 55%, transparent);
+  background: color-mix(in srgb, var(--webpic-warn) 14%, transparent); }
+.webpic-cbar_warn[hidden] { display: none; }
+.webpic-cbar[data-edge="top"] .webpic-cbar_warn, .webpic-cbar[data-edge="bottom"] .webpic-cbar_warn {
+  top: 50%; left: 3px; transform: translateY(-50%); }
+.webpic-cbar[data-edge="left"] .webpic-cbar_warn, .webpic-cbar[data-edge="right"] .webpic-cbar_warn {
+  top: 4px; left: 50%; transform: translateX(-50%); }
+.webpic-cbar.collapsed .webpic-cbar_warn { position: static; transform: none; }
 /* Colorbar settings popover (ui/colorbar/colorbarSettings): a small glass dialog hosting the colormap
    controls, body-appended so it escapes the bar's clip; positioned beside the gear toward the
    viewport center. Headerless (Esc + outside-click dismiss) — too small for a title bar; each control

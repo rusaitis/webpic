@@ -1,6 +1,12 @@
 import { type ColormapBinding, type ColormapId, DEFAULT_COLORMAP } from "@schema/colormap.ts";
 import { FIELD_REGISTRY } from "@schema/registry.ts";
-import { type SimulationStore, selectActiveBinding, type UiStore } from "@store";
+import {
+  type SimulationStore,
+  selectActiveBinding,
+  selectVisibleBindings,
+  type UiStore,
+} from "@store";
+import { shallow } from "zustand/vanilla/shallow";
 import { makeEl, makeIconButton } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { type Box, installDragSnap, type PaneEdge, type Viewport } from "../floating/dragSnap.ts";
@@ -8,14 +14,18 @@ import { installRaise } from "../floating/zStack.ts";
 import { bottomDockLayout, colorbarFitMode, railGnomonCramped } from "./bottomDock.ts";
 import { paintGradient, tickLabels } from "./colorbarGradient.ts";
 import { installColorbarSettings } from "./colorbarSettings.ts";
+import { colorbarStack } from "./colorbarStack.ts";
 
-// The floating colorbar: a draggable, collapsible gradient strip for the selected layer's color
-// mapping. It magnetically snaps to a viewport edge (left/right → vertical, top/bottom → horizontal)
-// and springs clear of the chrome (rails, top bar, docked shell) so it attaches to an edge without
-// covering the centered camera rail. The gear opens a popover hosting the colormap/scale/window
-// controls. ui → store only: it reads the active ColormapBinding and repaints; edits flow through the
-// popover's intents. Hides with the global UI toggle. Chrome state (edge/collapsed/position) is
-// ephemeral DOM state — reset each load, like magviz.
+// The floating colorbar: a draggable, collapsible stack of gradient strips — one per distinct
+// ColormapBinding among the *visible* layers, at most two (colorbarStack.ts; DESIGN §UI "max two
+// for sanity"). More distinct bindings than strips shows a soft-warn "+N" badge naming the fields
+// without one. It magnetically snaps to a viewport edge (left/right → vertical, top/bottom →
+// horizontal) and springs clear of the chrome (rails, top bar, docked shell) so it attaches to an
+// edge without covering the centered camera rail. The gear opens a popover hosting the
+// colormap/scale/window controls for the *selected* layer's binding — that strip carries the
+// active cue when two are up. ui → store only: it reads bindings and repaints; edits flow through
+// the popover's intents. Hides with the global UI toggle. Chrome state (edge/collapsed/position)
+// is ephemeral DOM state — reset each load, like magviz.
 
 // Static chrome the colorbar must not cover on drop; zero-area (hidden) matches are skipped. The
 // bottom rail's tight per-button rects (not its full-width .webpic-rail container, which can't be
@@ -59,21 +69,89 @@ export function installColorbar(
   container.setAttribute("aria-label", "Colorbar");
   container.dataset.edge = "bottom";
 
-  const caption = makeEl(doc, "span", "webpic-cbar_caption");
-
-  // The caption, gradient strip, and tick labels stack inside "main": column for horizontal docks
-  // (caption above the gradient, ticks below) and row for vertical (caption to the left) — magviz.
+  // "main" stacks one section per shown binding: sections run down the free axis (below each other
+  // on horizontal docks, side by side on vertical), and inside a section the caption, gradient
+  // strip, and tick labels stack as before — magviz, per strip.
   const main = makeEl(doc, "div", "webpic-cbar_main");
-  const strip = makeEl(doc, "div", "webpic-cbar_strip");
-  const canvas = doc.createElement("canvas");
-  canvas.className = "webpic-cbar_canvas";
-  // Collapsed-only overlay: the field key painted faintly over the gradient (magviz), so a docked
-  // strip still names its field without the expanded side caption. Empty → hidden by CSS.
-  const miniLabel = makeEl(doc, "span", "webpic-cbar_minilabel");
-  miniLabel.setAttribute("aria-hidden", "true");
-  strip.append(canvas, miniLabel);
-  const ticks = makeEl(doc, "div", "webpic-cbar_ticks");
-  main.append(caption, strip, ticks);
+
+  interface StripSection {
+    readonly root: HTMLElement;
+    update(binding: ColormapBinding | null, horizontal: boolean): void;
+  }
+
+  const makeSection = (): StripSection => {
+    const root = makeEl(doc, "div", "webpic-cbar_sec");
+    const caption = makeEl(doc, "span", "webpic-cbar_caption");
+    const strip = makeEl(doc, "div", "webpic-cbar_strip");
+    const canvas = doc.createElement("canvas");
+    canvas.className = "webpic-cbar_canvas";
+    // Collapsed-only overlay: the field key painted faintly over the gradient (magviz), so a docked
+    // strip still names its field without the expanded side caption. Empty → hidden by CSS.
+    const miniLabel = makeEl(doc, "span", "webpic-cbar_minilabel");
+    miniLabel.setAttribute("aria-hidden", "true");
+    strip.append(canvas, miniLabel);
+    const ticks = makeEl(doc, "div", "webpic-cbar_ticks");
+    root.append(caption, strip, ticks);
+
+    // Last-painted gradient inputs, per strip: resizing the canvas clears its bitmap and re-baking
+    // the 64-stop gradient is wasted on a window/scale/field edit (only the ticks move), so both are
+    // gated on a real change of orientation/colormap.
+    let paintedHorizontal: boolean | null = null;
+    let paintedColormap: ColormapId | null = null;
+
+    // Tick labels depend only on the window (center/width) + scale; skip the full tick-DOM rebuild
+    // when those are unchanged — a colormap/field/orientation edit, or a window-drag frame that
+    // rounds to the same labels, leaves the ticks identical. Field-agnostic, so a field swap isn't
+    // keyed.
+    let paintedTicksSig: string | null = null;
+    const renderTicks = (binding: ColormapBinding | null): void => {
+      const sig =
+        binding === null
+          ? "∅"
+          : `${binding.window.center}|${binding.window.width}|${binding.scale}`;
+      if (sig === paintedTicksSig) return;
+      paintedTicksSig = sig;
+      ticks.replaceChildren();
+      if (binding === null) return;
+      for (const tk of tickLabels(binding.window, binding.scale, TICK_TARGET)) {
+        const span = makeEl(doc, "span", "webpic-cbar_tick");
+        span.style.setProperty("--t", `${tk.t}`);
+        span.textContent = tk.label;
+        ticks.appendChild(span);
+      }
+    };
+
+    const update = (binding: ColormapBinding | null, horizontal: boolean): void => {
+      const colormap = binding?.colormap ?? DEFAULT_COLORMAP;
+      // Render at the orientation's expanded pixel size; CSS scales the displayed strip (incl. the
+      // collapse transition), so the canvas never snaps. A resize clears the bitmap, so any resize
+      // forces a gradient repaint; a colormap change repaints in place.
+      const orientationChanged = paintedHorizontal !== horizontal;
+      if (orientationChanged) {
+        canvas.width = horizontal ? 360 : 24;
+        canvas.height = horizontal ? 24 : 220;
+      }
+      if (orientationChanged || paintedColormap !== colormap) {
+        paintGradient(canvas, colormap, horizontal);
+      }
+      paintedHorizontal = horizontal;
+      paintedColormap = colormap;
+      caption.textContent = captionText(binding?.field);
+      // No placeholder over the gradient — empty hides the collapsed overlay (CSS `:not(:empty)`).
+      miniLabel.textContent = binding?.field ?? "";
+      renderTicks(binding);
+    };
+
+    return { root, update };
+  };
+
+  const sections: StripSection[] = [];
+
+  // Soft-warn badge: >MAX_COLORBARS distinct bindings among visible layers overflow the stack; the
+  // "+N" pill names the stripless fields in its title. Informational only — no drag, no collapse.
+  const warn = makeEl(doc, "span", "webpic-cbar_warn");
+  warn.dataset.noDrag = "";
+  warn.hidden = true;
 
   const actions = makeEl(doc, "div", "webpic-cbar_actions");
   actions.dataset.noDrag = ""; // never start a drag from the controls cluster
@@ -84,58 +162,52 @@ export function installColorbar(
   settingsBtn.setAttribute("aria-expanded", "false");
   actions.append(settingsBtn);
 
-  container.append(main, actions);
+  container.append(main, warn, actions);
   container.style.bottom = `${INITIAL_GAP_PX}px`; // first-paint dock; left set after repaint sizes it
   parent.appendChild(container);
   const disposeRaise = installRaise(container); // clicking the strip lifts it over the floating windows
 
-  // Last-painted gradient inputs: resizing the canvas clears its bitmap and re-baking the 64-stop
-  // gradient is wasted on a window/scale/field edit (only the ticks move), so both are gated on a
-  // real change of orientation/colormap.
-  let paintedHorizontal: boolean | null = null;
-  let paintedColormap: ColormapId | null = null;
-
-  // Tick labels depend only on the window (center/width) + scale; skip the full tick-DOM rebuild
-  // when those are unchanged — a colormap/field/orientation edit, or a window-drag frame that rounds
-  // to the same labels, leaves the ticks identical. Field-agnostic, so a field swap isn't keyed.
-  let paintedTicksSig: string | null = null;
-  const renderTicks = (binding: ColormapBinding | null): void => {
-    const sig =
-      binding === null ? "∅" : `${binding.window.center}|${binding.window.width}|${binding.scale}`;
-    if (sig === paintedTicksSig) return;
-    paintedTicksSig = sig;
-    ticks.replaceChildren();
-    if (binding === null) return;
-    for (const tk of tickLabels(binding.window, binding.scale, TICK_TARGET)) {
-      const span = makeEl(doc, "span", "webpic-cbar_tick");
-      span.style.setProperty("--t", `${tk.t}`);
-      span.textContent = tk.label;
-      ticks.appendChild(span);
-    }
-  };
-
-  const repaint = (): void => {
+  // Reconcile the section stack + warn badge with the store, repainting each strip. Returns whether
+  // the stack's *shape* changed (section or overflow count) — that resizes the container, so the
+  // caller owes a reflow; plain binding edits repaint in place.
+  let overflowCount = 0;
+  const repaint = (): boolean => {
     const edge = (container.dataset.edge as PaneEdge) ?? "bottom";
     const horizontal = edge === "top" || edge === "bottom";
-    const binding = selectActiveBinding(store.getState());
-    const colormap = binding?.colormap ?? DEFAULT_COLORMAP;
-    // Render at the orientation's expanded pixel size; CSS scales the displayed strip (incl. the
-    // collapse transition), so the canvas never snaps. A resize clears the bitmap, so any resize
-    // forces a gradient repaint; a colormap change repaints in place.
-    const orientationChanged = paintedHorizontal !== horizontal;
-    if (orientationChanged) {
-      canvas.width = horizontal ? 360 : 24;
-      canvas.height = horizontal ? 24 : 220;
+    const state = store.getState();
+    const activeId = selectActiveBinding(state)?.id ?? null;
+    const { slots, overflow } = colorbarStack(selectVisibleBindings(state), activeId);
+
+    // Always at least one section: an empty scene keeps the placeholder strip (default colormap, "—").
+    const wanted = Math.max(1, slots.length);
+    const shapeChanged = sections.length !== wanted || overflowCount !== overflow.length;
+    while (sections.length < wanted) {
+      const section = makeSection();
+      sections.push(section);
+      main.appendChild(section.root);
     }
-    if (orientationChanged || paintedColormap !== colormap) {
-      paintGradient(canvas, colormap, horizontal);
+    while (sections.length > wanted) sections.pop()?.root.remove();
+
+    // With two strips up, cue which one the gear edits (the selected layer's binding) — but only
+    // when it actually holds a slot; a hidden selected layer leaves the stack uncued.
+    const cueActive = slots.length > 1 && slots.some((b) => b.id === activeId);
+    sections.forEach((section, i) => {
+      const binding = slots[i] ?? null;
+      if (cueActive && binding !== null)
+        section.root.dataset.active = String(binding.id === activeId);
+      else delete section.root.dataset.active;
+      section.update(binding, horizontal);
+    });
+
+    warn.hidden = overflow.length === 0;
+    if (overflow.length > 0) {
+      warn.textContent = `+${overflow.length}`;
+      const fields = overflow.map((b) => b.field).join(", ");
+      warn.title = `${slots.length + overflow.length} colormaps among visible layers — showing ${slots.length}. Without a strip: ${fields}. Layers can share a binding to declutter.`;
+      warn.setAttribute("aria-label", warn.title);
     }
-    paintedHorizontal = horizontal;
-    paintedColormap = colormap;
-    caption.textContent = captionText(binding?.field);
-    // No placeholder over the gradient — empty hides the collapsed overlay (CSS `:not(:empty)`).
-    miniLabel.textContent = binding?.field ?? "";
-    renderTicks(binding);
+    overflowCount = overflow.length;
+    return shapeChanged;
   };
 
   const settings = installColorbarSettings({
@@ -304,6 +376,20 @@ export function installColorbar(
     });
   };
 
+  // A stack-shape change (strip added/removed, warn toggled) resizes the pill in place: re-clamp/
+  // re-group now, then re-measure the settled size + re-fit — the same dance as collapse/expand.
+  const restackSettle = (): void => {
+    drag.reflow();
+    settings.reposition();
+    scheduleSettle(() => {
+      drag.reflow();
+      settings.reposition();
+      if (isCollapsed()) collapsedWidth = container.getBoundingClientRect().width;
+      else expandedWidth = container.getBoundingClientRect().width;
+      adapt();
+    });
+  };
+
   // Click anywhere on the bar toggles collapse (magviz), except the gear or a just-ended drag's
   // trailing click. The settings popover is body-appended, so its clicks never reach here.
   container.addEventListener("click", (e) => {
@@ -337,10 +423,17 @@ export function installColorbar(
   container.style.right = "auto";
   applyVisible(uiStore.getState().isUiVisible);
 
-  // One subscription drives the strip: the active binding's reference changes on layer-select,
-  // colormap, scale, or window edits — every input the strip reads. (dataRange feeds the settings
-  // slider's track, not the strip, so it needs no repaint here.)
-  const unsubBinding = store.subscribe(selectActiveBinding, repaint);
+  // Two subscriptions drive the stack: the visible-binding set (layer add/remove/visibility/order +
+  // edits to any shown binding; fresh array per state → shallow-compared) and the active binding
+  // (layer-select, which keys the active cue + slot guarantee, plus edits to a hidden selection).
+  // (dataRange feeds the settings slider's track, not the strips, so it needs no repaint here.)
+  const onStoreChange = (): void => {
+    if (repaint()) restackSettle();
+  };
+  const unsubBindings = store.subscribe(selectVisibleBindings, onStoreChange, {
+    equalityFn: shallow,
+  });
+  const unsubBinding = store.subscribe(selectActiveBinding, onStoreChange);
   const unsubVisible = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
   // The bottom band reshapes on a window resize, the gnomon toggle (corner footprint), and a new
   // dataset (the coords chip widens the cluster) — re-fit on each. The gnomon's own show/hide handles
@@ -362,6 +455,7 @@ export function installColorbar(
     unsubGnomon();
     unsubVisible();
     unsubBinding();
+    unsubBindings();
     disposeRaise();
     drag.dispose();
     settings.dispose();

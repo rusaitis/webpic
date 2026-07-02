@@ -242,6 +242,21 @@ export function selectActiveBinding(
   return bindingId === null ? null : (state.colormapBindings[bindingId] ?? null);
 }
 
+/** The distinct ColormapBindings referenced by *visible* layers, in draw order (first reference
+ *  wins). The colorbar's content model (DESIGN §UI): shared bindings collapse to one entry, hidden
+ *  layers contribute nothing. Fresh array per call — subscribe with a shallow equalityFn. */
+export function selectVisibleBindings(
+  state: Pick<SimulationState, "layers" | "colormapBindings">,
+): readonly ColormapBinding[] {
+  const out: ColormapBinding[] = [];
+  for (const layer of state.layers) {
+    if (!layer.visible || layer.colormapBindingId === null) continue;
+    const binding = state.colormapBindings[layer.colormapBindingId];
+    if (binding !== undefined && !out.includes(binding)) out.push(binding);
+  }
+  return out;
+}
+
 // Finite-only min/max in one pass (mirrors volumeTexture.ts; the store can't import `render`,
 // and `reductions` isn't in store's allowed imports). A constant field is widened by 1 so the
 // default window has a finite width; no finite samples → null.

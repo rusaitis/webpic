@@ -6,6 +6,7 @@ import { flushAsync } from "../../tests/helpers.ts";
 import {
   createSimulationStore,
   type SimulationStore,
+  selectVisibleBindings,
   worldHalfExtentForGrid,
 } from "./simulation.ts";
 
@@ -147,6 +148,37 @@ describe("simulationStore", () => {
     store.getState().addVolumeLayer();
     store.getState().addSliceLayer();
     expect(store.getState().layers).toHaveLength(0);
+  });
+
+  it("selectVisibleBindings lists distinct bindings of visible layers in draw order", async () => {
+    const store = createSimulationStore();
+    expect(selectVisibleBindings(store.getState())).toEqual([]); // no layers yet
+    store.getState().setDataset(bDataset());
+    await flushAsync();
+    store.getState().addVolumeLayer();
+    await flushAsync();
+    const [first, second] = store.getState().layers;
+    expect(selectVisibleBindings(store.getState()).map((b) => b.id)).toEqual([
+      first?.colormapBindingId,
+      second?.colormapBindingId,
+    ]);
+    // A third layer sharing the first binding adds no entry (shared bindings collapse to one)...
+    store.getState().addLayer({
+      kind: "volume",
+      field: "|B|",
+      colormapBindingId: first?.colormapBindingId ?? null,
+      visible: true,
+      opacity: 1,
+      steps: null,
+      density: null,
+      shaded: false,
+    });
+    expect(selectVisibleBindings(store.getState())).toHaveLength(2);
+    // ...and hiding a layer drops its binding from the set.
+    store.getState().setLayerVisible(second?.id ?? "", false);
+    expect(selectVisibleBindings(store.getState()).map((b) => b.id)).toEqual([
+      first?.colormapBindingId,
+    ]);
   });
 
   it("setBindingWindow updates the binding window without touching the data range", async () => {
