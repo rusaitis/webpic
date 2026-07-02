@@ -32,8 +32,13 @@ export interface SliceSceneOptions {
   readonly ledgerKey?: string;
 }
 
-// A slice is exactly the base LayerScene — no march to scale, no normal to light, no projection flip.
-export type SliceScene = LayerScene;
+// A slice adds only `setPosition` to the base LayerScene — the plane position is a live uniform (the
+// drag hot path). No march to scale, no normal to light, no projection flip; the held axis is baked
+// into the TSL graph, so an axis change is a registry-side rebuild, not a method here.
+export type SliceScene = LayerScene & {
+  /** Slide the plane along the held axis in place (uniform only, no rebuild), [0, 1]. */
+  setPosition(position: number): void;
+};
 
 // Plane uv (a,b) spans the two free axes; `position` fixes the third. Texture coords
 // (x,y,z) = field (axis2, axis1, axis0) — the reverse of axisLabels (createVolumeTexture) —
@@ -91,6 +96,9 @@ export function createSliceScene(opts: SliceSceneOptions): SliceScene {
     setScale: norm.setScale,
     setOpacity(opacity) {
       uLayerOpacity.value = opacity;
+    },
+    setPosition(position) {
+      uPosition.value = position;
     },
     setField(field) {
       return volume.setField(field);

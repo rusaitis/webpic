@@ -180,6 +180,38 @@ describe("installLayerSync", () => {
     expect(kinds(posts)).not.toContain("setLayerShading");
   });
 
+  it("posts setSliceParams when an existing slice's axis or position changes (changed field only)", async () => {
+    const { store, posts } = harness(true);
+    store.getState().setDataset(beDataset()); // layer-0 (volume)
+    await flushAsync();
+    store.getState().addSliceLayer(); // layer-1 (slice)
+    await flushAsync();
+    posts.length = 0; // ignore the add traffic (axis/position ride the upsert)
+    store.getState().setSlicePosition("layer-1", 0.2);
+    store.getState().setSliceAxis("layer-1", "x");
+
+    const params = posts.map((p) => p.message).filter((m) => m.kind === "setSliceParams");
+    expect(params).toHaveLength(2);
+    const [pos, axis] = params;
+    if (pos?.kind !== "setSliceParams" || axis?.kind !== "setSliceParams") {
+      throw new Error("expected two setSliceParams");
+    }
+    expect(pos.id).toBe("layer-1");
+    expect(pos.position).toBeCloseTo(0.2);
+    expect(pos.axis).toBeUndefined(); // only the changed field rides the wire
+    expect(axis.axis).toBe("x");
+    expect(axis.position).toBeUndefined();
+  });
+
+  it("does not post setSliceParams for a freshly added slice (rides the upsert)", async () => {
+    const { store, posts } = harness(true);
+    store.getState().setDataset(beDataset());
+    await flushAsync();
+    store.getState().addSliceLayer();
+    await flushAsync();
+    expect(kinds(posts)).not.toContain("setSliceParams");
+  });
+
   it("raises the render-loading pill on an upsert and drops it on the layerCompiled ack", async () => {
     const { store, uiStore, sync, setReady } = harness(false);
     store.getState().setDataset(beDataset());

@@ -187,6 +187,17 @@ export type RenderWorkerRequest =
       readonly id: string;
       readonly shaded: boolean;
     }
+  // Live slice plane edit (slice-only). `position` is a uniform write (the drag hot path — no
+  // re-transfer). `axis` is baked into the TSL graph, so a change rebuilds the slice scene from the
+  // worker's RETAINED field (still no re-transfer); rare, so the rebuild is acceptable. Either may be
+  // omitted — only the changed field rides the wire.
+  | {
+      readonly kind: "setSliceParams";
+      readonly requestId: number;
+      readonly id: string;
+      readonly axis?: SliceAxis;
+      readonly position?: number;
+    }
   // Camera pose update — high-frequency, delta-only (DESIGN §Worker message protocol); the worker re-applies + repaints.
   | {
       readonly kind: "setCameraPose";

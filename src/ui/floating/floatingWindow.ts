@@ -114,6 +114,9 @@ export function createFloatingWindow(opts: FloatingWindowOptions): FloatingWindo
     },
     show() {
       container.hidden = false;
+      // Settle the anchor now the window is laid out — a window created hidden (e.g. the per-layer
+      // settings, default-closed) skipped its creation-time reflow (0×0 rect), so do it on first show.
+      doc.defaultView?.requestAnimationFrame(() => drag.reflow());
     },
     hide() {
       container.hidden = true;

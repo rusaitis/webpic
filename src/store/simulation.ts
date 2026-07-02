@@ -15,7 +15,7 @@ import {
   DEFAULT_POSE,
 } from "./camera.ts";
 import * as colormapOps from "./colormap.ts";
-import type { Layer, LayerKind, LayerSpec } from "./layers.ts";
+import type { Layer, LayerKind, LayerSpec, SliceAxis } from "./layers.ts";
 import * as layerOps from "./layers.ts";
 import * as overlayOps from "./overlay.ts";
 import { DEFAULT_OVERLAY, type GridPlane, type OverlayState } from "./overlay.ts";
@@ -143,6 +143,9 @@ export interface SimulationState {
   // Traced field lines per fieldlines-layer id (compute/traceField). recompute/addFieldlinesLayer
   // refresh it; the app bridges each entry to the render worker as a batched LineSegments2.
   readonly traces: Readonly<Record<string, FieldLine[]>>;
+  // Seed-placement mode: the fieldlines-layer id accepting click-to-place seeds, or null (off). The
+  // per-layer settings panel toggles it; ui/pointerSeedPlacer claims canvas clicks while it is set.
+  readonly seedPlacementLayerId: string | null;
   // Scene overlay (axes + grid + gnomon) display prefs — user-owned, independent of the dataset. The
   // app forwards the render-bound parts to the worker (sceneSync); cameraChrome consumes showGnomon.
   readonly overlay: OverlayState;
@@ -200,6 +203,18 @@ export interface SimulationState {
   setLayerVisible(id: string, visible: boolean): void;
   setLayerOpacity(id: string, opacity: number): void;
   setLayerShading(id: string, shaded: boolean): void;
+  /** Set a slice layer's held axis (live — the app forwards it to the render worker). */
+  setSliceAxis(id: string, axis: SliceAxis): void;
+  /** Set a slice layer's plane position along the held axis, [0, 1] (live). */
+  setSlicePosition(id: string, position: number): void;
+  /** Replace a fieldlines layer's seed set, then re-trace. */
+  setFieldlineSeeds(id: string, seeds: ReadonlyArray<Vec3>): void;
+  /** Regenerate a fieldlines layer's seeds as a default rake of `count` over the dataset, then trace. */
+  setFieldlineSeedCount(id: string, count: number): void;
+  /** Append one physical-grid seed to a fieldlines layer, then re-trace (the click-to-place path). */
+  addFieldlineSeed(id: string, seed: Vec3): void;
+  /** Enter (`id`) or leave (`null`) click-to-place seed mode for a fieldlines layer. */
+  setSeedPlacement(id: string | null): void;
   setOverlayShowGrid(on: boolean): void;
   setOverlayPlane(plane: GridPlane, on: boolean): void;
   setOverlayShowAxes(on: boolean): void;
@@ -459,6 +474,7 @@ export function createSimulationStore() {
         layers: [],
         selectedLayerId: null,
         traces: {},
+        seedPlacementLayerId: null,
         overlay: DEFAULT_OVERLAY,
         status: "empty",
         error: null,
@@ -629,13 +645,15 @@ export function createSimulationStore() {
         },
         removeLayer(id) {
           // Orphaned bindings are left in the registry — GC/merge wait for the multi-layer UI.
-          const { layers, selectedLayerId } = get();
+          const { layers, selectedLayerId, seedPlacementLayerId } = get();
           const next = layerOps.removeLayer(layers, id);
           if (next === layers) return; // absent id → no-op
           const selected = selectedLayerId === id ? (next[0]?.id ?? null) : selectedLayerId;
           set({
             layers: next,
             ...(selected !== selectedLayerId ? { selectedLayerId: selected } : {}),
+            // Don't strand seed-placement on a removed layer (the canvas would stay in crosshair mode).
+            ...(seedPlacementLayerId === id ? { seedPlacementLayerId: null } : {}),
           });
         },
         selectLayer(id) {
@@ -653,6 +671,33 @@ export function createSimulationStore() {
         },
         setLayerShading(id, shaded) {
           updateLayers((l) => layerOps.setLayerShading(l, id, shaded));
+        },
+        setSliceAxis(id, axis) {
+          updateLayers((l) => layerOps.setSliceAxis(l, id, axis));
+        },
+        setSlicePosition(id, position) {
+          updateLayers((l) => layerOps.setSlicePosition(l, id, position));
+        },
+        setFieldlineSeeds(id, seeds) {
+          const { layers } = get();
+          const next = layerOps.setFieldlineSeeds(layers, id, seeds);
+          if (next === layers) return; // missing id / non-fieldlines / same ref → no retrace
+          set({ layers: next });
+          void retrace(); // total (owns its abort + generation guard), never rejects
+        },
+        setFieldlineSeedCount(id, count) {
+          const { dataset } = get();
+          if (dataset === null) return; // no grid to rake over yet
+          get().setFieldlineSeeds(id, defaultSeedRake(dataset.grid, count));
+        },
+        addFieldlineSeed(id, seed) {
+          const layer = get().layers.find((l) => l.id === id);
+          if (layer === undefined || layer.kind !== "fieldlines") return;
+          get().setFieldlineSeeds(id, [...layer.seeds, seed]);
+        },
+        setSeedPlacement(id) {
+          if (id === get().seedPlacementLayerId) return; // unchanged → no fire
+          set({ seedPlacementLayerId: id });
         },
         setOverlayShowGrid(on) {
           updateOverlay((o) => overlayOps.setShowGrid(o, on));

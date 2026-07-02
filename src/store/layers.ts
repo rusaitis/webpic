@@ -132,3 +132,51 @@ export function setLayerShading(
   });
   return changed ? next : list;
 }
+
+// Set a slice layer's held axis. Identity for a missing id, a non-slice kind, or an unchanged axis.
+export function setSliceAxis(
+  list: readonly Layer[],
+  id: string,
+  axis: SliceAxis,
+): readonly Layer[] {
+  let changed = false;
+  const next = list.map((layer) => {
+    if (layer.id !== id || layer.kind !== "slice" || layer.axis === axis) return layer;
+    changed = true;
+    return { ...layer, axis };
+  });
+  return changed ? next : list;
+}
+
+// Set a slice layer's position along the held axis, clamped to [0, 1]. Identity for a missing id, a
+// non-slice kind, or an unchanged position.
+export function setSlicePosition(
+  list: readonly Layer[],
+  id: string,
+  position: number,
+): readonly Layer[] {
+  const clamped = clamp(position, 0, 1);
+  let changed = false;
+  const next = list.map((layer) => {
+    if (layer.id !== id || layer.kind !== "slice" || layer.position === clamped) return layer;
+    changed = true;
+    return { ...layer, position: clamped };
+  });
+  return changed ? next : list;
+}
+
+// Replace a fieldlines layer's seed set. Identity for a missing id, a non-fieldlines kind, or the
+// same array reference (the caller mints a fresh array per edit) — so no spurious retrace.
+export function setFieldlineSeeds(
+  list: readonly Layer[],
+  id: string,
+  seeds: ReadonlyArray<Vec3>,
+): readonly Layer[] {
+  let changed = false;
+  const next = list.map((layer) => {
+    if (layer.id !== id || layer.kind !== "fieldlines" || layer.seeds === seeds) return layer;
+    changed = true;
+    return { ...layer, seeds };
+  });
+  return changed ? next : list;
+}

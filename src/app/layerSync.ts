@@ -117,6 +117,21 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
     worker.postMessage(request);
   };
 
+  // Live per-layer slice plane edit (slice-only) — only the changed field rides the wire. position is
+  // a render-side uniform write (the drag hot path); axis rebuilds from the retained field. The store
+  // SliceAxis ("x"|"y"|"z") is structurally the render SliceAxis, so it crosses verbatim.
+  const sendSliceParams = (layer: Layer, axisChanged: boolean, positionChanged: boolean): void => {
+    if (layer.kind !== "slice") return;
+    const request: RenderWorkerRequest = {
+      kind: "setSliceParams",
+      requestId: REQUEST_IDS.layer,
+      id: layer.id,
+      ...(axisChanged ? { axis: layer.axis } : {}),
+      ...(positionChanged ? { position: layer.position } : {}),
+    };
+    worker.postMessage(request);
+  };
+
   const sendComposite = (): void => {
     const order = store
       .getState()
@@ -245,6 +260,16 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
         if (before === undefined) continue; // new layer → its shaded rides the upsert
         if (before.kind === "volume" && before.shaded === layer.shaded) continue;
         sendLayerShading(layer);
+      }
+      // Per-layer slice diff: a brand-new slice's axis/position rides the upsert, so fire only when an
+      // existing slice layer's axis or position changed (position = the live drag hot path).
+      for (const layer of layers) {
+        if (layer.kind !== "slice") continue;
+        const before = prevById.get(layer.id);
+        if (before === undefined || before.kind !== "slice") continue; // new layer → rides the upsert
+        const axisChanged = before.axis !== layer.axis;
+        const positionChanged = before.position !== layer.position;
+        if (axisChanged || positionChanged) sendSliceParams(layer, axisChanged, positionChanged);
       }
       lastLayers = layers;
       sendComposite();

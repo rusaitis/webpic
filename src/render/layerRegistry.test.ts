@@ -18,6 +18,7 @@ interface FakeScene {
   fieldSwaps: number;
   stepScale?: number;
   orthographic?: boolean;
+  position?: number;
   shaderRebuilds: number;
 }
 
@@ -67,7 +68,11 @@ function makeFake(
             fake.shaderRebuilds += 1;
           },
         })
-      : base;
+      : Object.assign(base, {
+          setPosition: (p: number) => {
+            fake.position = p;
+          },
+        });
   created.push(fake);
   return scene;
 }
@@ -184,6 +189,31 @@ describe("createLayerRegistry", () => {
     registry.swapField(step());
     await Promise.resolve();
     expect(created.length).toBeGreaterThan(1); // a fresh scene was built
+  });
+
+  it("setSliceParams writes position in place (uniform) but rebuilds on an axis change", async () => {
+    const { registry, created } = harness();
+    await registry.upsert({ ...upsert("sl", "slice"), axis: "z", position: 0.5 });
+    const scene = created[0];
+    if (scene === undefined) throw new Error("expected a built slice");
+
+    // position → a uniform write on the existing scene, no rebuild.
+    registry.setSliceParams({ kind: "setSliceParams", requestId: 1, id: "sl", position: 0.8 });
+    expect(scene.position).toBe(0.8);
+    expect(created).toHaveLength(1);
+
+    // axis → a rebuild from the retained field (a fresh scene is built).
+    registry.setSliceParams({ kind: "setSliceParams", requestId: 1, id: "sl", axis: "x" });
+    await Promise.resolve();
+    expect(created.length).toBeGreaterThan(1);
+  });
+
+  it("setSliceParams is inert for a non-slice (volume) layer", async () => {
+    const { registry, created } = harness();
+    await registry.upsert(upsert("vol", "volume"));
+    registry.setSliceParams({ kind: "setSliceParams", requestId: 1, id: "vol", position: 0.3 });
+    expect(created).toHaveLength(1); // no rebuild, no throw
+    expect(created[0]?.position).toBeUndefined(); // never touched the volume scene
   });
 
   it("pickLayers returns only the visible volume layers", async () => {

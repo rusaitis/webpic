@@ -87,7 +87,10 @@ export function installLayersPanel(
     const gear = makeIconButton(doc, "webpic-layers_gear", ICON_GEAR, {
       ariaLabel: "Layer settings",
     });
-    gear.addEventListener("click", () => dispatch().selectLayer(layer.id));
+    gear.addEventListener("click", () => {
+      dispatch().selectLayer(layer.id);
+      uiStore.getState().setLayerSettingsVisible(true);
+    });
 
     const reorder = makeEl(doc, "div", "webpic-layers_reorder");
     const up = makeIconButton(doc, "webpic-layers_move", ICON_CARET_UP, { ariaLabel: "Move up" });

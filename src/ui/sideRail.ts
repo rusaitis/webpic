@@ -95,7 +95,10 @@ export function installSideRail(
         store.getState().selectLayer(id);
         uiStore.getState().setLayersPanelVisible(true);
       },
-      onAddNew: () => addLayerOfKind(store, kind),
+      onAddNew: () => {
+        addLayerOfKind(store, kind); // add* selects the new layer; open settings on it
+        uiStore.getState().setLayerSettingsVisible(true);
+      },
     });
     menus.push(menu);
   }

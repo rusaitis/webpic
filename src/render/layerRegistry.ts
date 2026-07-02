@@ -28,8 +28,8 @@ import { finiteRange, type ScalarField } from "./volume/volumeTexture.ts";
 export interface FieldSource {
   readonly layerKind: FieldLayerKind;
   field: ScalarField; // mutable: a streamed timestep swaps it in place (see swapField)
-  readonly axis?: SliceAxis;
-  readonly position?: number;
+  axis?: SliceAxis; // mutable: a live setSliceParams axis edit rebuilds + retains the new hold
+  position?: number; // mutable: a live setSliceParams position edit (uniform write) retains it
   readonly steps?: number;
   readonly density?: number;
   colormap: string;
@@ -98,6 +98,7 @@ export interface LayerRegistry extends RenderModule {
   setComposite(order: readonly CompositeEntry[]): void;
   setColormap(request: Extract<RenderWorkerRequest, { kind: "setLayerColormap" }>): void;
   setShading(request: Extract<RenderWorkerRequest, { kind: "setLayerShading" }>): void;
+  setSliceParams(request: Extract<RenderWorkerRequest, { kind: "setSliceParams" }>): void;
   /** Push a new interaction step-scale to every volume scene (the per-layer half of applyQuality). */
   applyStepScale(stepScale: number): void;
   /** Flip every volume scene's ray generation (the per-layer half of setProjection). */
@@ -342,6 +343,30 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
         entry.source.shaded = request.shaded; // retain for a device-restore rebuild
         host.requestRender();
       }
+    },
+
+    // Live slice plane edit. Position is a uniform write (the drag hot path). Axis is baked into the
+    // TSL graph, so a change rebuilds the slice scene from the RETAINED field (no re-transfer) through
+    // the same warm-then-commit path as upsert. No-op for a missing id or a non-slice kind (an edit
+    // ahead of the upsert heals on it — the upsert carries axis + position).
+    setSliceParams(request) {
+      const entry = layers.get(request.id);
+      if (entry === undefined || entry.kind !== "slice") return;
+      // entry.kind === "slice" doesn't narrow the scene (kind isn't correlated with the scene type in
+      // the field-layer entry); `setPosition` exists only on SliceScene, so the `in` check narrows it.
+      if (!("setPosition" in entry.scene)) return;
+      if (request.position !== undefined) {
+        entry.scene.setPosition(request.position);
+        entry.source.position = request.position; // retain for a device-restore rebuild
+      }
+      if (request.axis !== undefined && request.axis !== entry.source.axis) {
+        entry.source.axis = request.axis;
+        // Fire-and-forget rebuild from the retained field; a failed rebuild is reported and the next
+        // edit retries. The position uniform was already set above and rides the rebuilt source.
+        void replace(request.id, entry.source).catch(host.reportFault);
+        return; // replace() requests its own render on commit
+      }
+      host.requestRender();
     },
 
     applyStepScale(stepScale) {

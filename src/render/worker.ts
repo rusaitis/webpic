@@ -512,6 +512,15 @@ async function setLayerShading(
   registry.setShading(request);
 }
 
+// Live slice plane edit — position is a uniform write, axis rebuilds from the retained field. Inert
+// for non-slice layers (the registry kind-guards it).
+async function setSliceParams(
+  request: Extract<RenderWorkerRequest, { kind: "setSliceParams" }>,
+): Promise<void> {
+  await initDone;
+  registry.setSliceParams(request);
+}
+
 // Live camera pose: re-aim the perspective camera and repaint. Always repaints — a volume-only
 // guard here silently drops the frame during composite-build races and visibility toggles, leaving
 // the 3D view stale while the (independently store-driven) gnomon keeps turning. Slices stay
@@ -702,6 +711,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return setLayerColormap(request);
     case "setLayerShading":
       return setLayerShading(request);
+    case "setSliceParams":
+      return setSliceParams(request);
     case "setCameraPose":
       return setCameraPose(request);
     case "setProjection":

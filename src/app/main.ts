@@ -16,7 +16,12 @@ import {
   type SimulationStore,
   type UiStore,
 } from "@store";
-import { installPointerCamera, installPointerPicker, installUi } from "@ui";
+import {
+  installPointerCamera,
+  installPointerPicker,
+  installPointerSeedPlacer,
+  installUi,
+} from "@ui";
 import type { DatasetEntry } from "./datasets.ts";
 import { installLayerSync } from "./layerSync.ts";
 import type { PerfBridge } from "./perfBridge.ts";
@@ -174,6 +179,9 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // worker draws the marker). transferControlToOffscreen() moves only the drawing surface, so the
   // <canvas> still receives DOM events here. Guarded so the headless fake canvas is left untouched.
   const hasPointerEvents = typeof canvas.addEventListener === "function";
+  // Seed placer first: its capture-phase listener must run before the picker's so it claims the click
+  // while in placement mode (a seed, not a marker grab / orbit).
+  const disposeSeedPlacer = hasPointerEvents ? installPointerSeedPlacer(canvas, store) : undefined;
   const disposePointer = hasPointerEvents ? installPointerCamera(canvas, store) : undefined;
   const disposePicker = hasPointerEvents ? installPointerPicker(canvas, store) : undefined;
 
@@ -323,6 +331,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     shaderHmrDisposed = true;
     disposeShaderHmr?.();
     disposeUi?.();
+    disposeSeedPlacer?.();
     disposePointer?.();
     disposePicker?.();
     viewport.dispose();

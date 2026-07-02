@@ -25,6 +25,9 @@ export interface UiState {
   /** The rail-toggled Layers overlay (M4.7) — a collapsible workspace panel, default closed
    *  (`layers-collapsed-default`). Distinct from `panels` (docked-shell visibility). */
   readonly isLayersPanelOpen: boolean;
+  /** The per-layer settings window (M4.8), opened from the Layers-panel gear or the rail's "Add new".
+   *  Bound to the selected layer; default closed. Distinct from `isLayersPanelOpen` (the list overlay). */
+  readonly isLayerSettingsOpen: boolean;
   /** Responsive override: the bottom band is too narrow to hold the gnomon beside the centered
    *  rail, so the gnomon is hidden until there's room again. Distinct from the user's gnomon
    *  preference (overlay.showGnomon) — it only suppresses, never enables. The colorbar (the
@@ -43,6 +46,8 @@ export interface UiState {
   setCoordsInfoVisible(visible: boolean): void;
   toggleLayersPanel(): void;
   setLayersPanelVisible(visible: boolean): void;
+  toggleLayerSettings(): void;
+  setLayerSettingsVisible(visible: boolean): void;
   setGnomonSuppressed(suppressed: boolean): void;
   togglePanel(name: string): void;
   setPanelVisible(name: string, visible: boolean): void;
@@ -63,6 +68,7 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       isHelpVisible: false,
       isCoordsInfoVisible: false,
       isLayersPanelOpen: false,
+      isLayerSettingsOpen: false,
       isGnomonSuppressed: false,
       panels: initialPanels,
       loadingPhases: [],
@@ -90,6 +96,12 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       },
       setLayersPanelVisible(visible) {
         if (get().isLayersPanelOpen !== visible) set({ isLayersPanelOpen: visible });
+      },
+      toggleLayerSettings() {
+        set({ isLayerSettingsOpen: !get().isLayerSettingsOpen });
+      },
+      setLayerSettingsVisible(visible) {
+        if (get().isLayerSettingsOpen !== visible) set({ isLayerSettingsOpen: visible });
       },
       setGnomonSuppressed(suppressed) {
         if (get().isGnomonSuppressed !== suppressed) set({ isGnomonSuppressed: suppressed });

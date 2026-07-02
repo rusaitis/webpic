@@ -7,6 +7,7 @@ import { installColorbar } from "./colorbar/colorbar.ts";
 import type { Disposer } from "./controls/index.ts";
 import { installHelpOverlay } from "./helpOverlay.ts";
 import { isTypingTarget } from "./keyboard.ts";
+import { installLayerSettings } from "./layerSettings.ts";
 import { installLayersPanel } from "./layersPanel.ts";
 import { installDevWindow } from "./panels/devWindow.ts";
 import { mountPanel } from "./panels/registry.ts";
@@ -75,6 +76,11 @@ export function installUi(opts: InstallUiOptions): () => void {
   // per layer: eye / select / reorder). Mounts next to the rail's interaction cluster; owns the "L"
   // shortcut. UI-toggle-hidden, like the rail.
   disposers.push(installLayersPanel(opts.parent, opts.simulationStore, opts.uiStore));
+
+  // The per-layer settings window — one component opened from the Layers-panel gear or the rail's
+  // "Add new", bound to the selected layer (field/colormap/window/opacity/order/remove + kind-specific).
+  // Free-floating + UI-toggle-hidden like the colorbar/Developer window.
+  disposers.push(installLayerSettings(opts.parent, opts.simulationStore, opts.uiStore));
 
   // The floating colorbar — the selected layer's color mapping as a draggable, edge-snapping
   // gradient strip; its gear opens the colormap/scale/window controls. Replaces the old docked

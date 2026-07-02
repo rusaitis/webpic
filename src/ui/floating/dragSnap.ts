@@ -491,6 +491,10 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     if (!hasInline) return;
     const vp = viewport();
     const r = el.getBoundingClientRect();
+    // A hidden (display:none) or detached element measures 0×0; reflowing it would anchor it to the
+    // viewport origin and clobber its initial inline placement. Keep the inline anchors until it's laid
+    // out — floatingWindow re-runs reflow on show, so a default-hidden window settles when first shown.
+    if (r.width === 0 && r.height === 0) return;
     if (opts.mode === "free") {
       const { left, top } = freePlacement(box(r.left, r.top, r.width, r.height), vp);
       setAnchors("left", "top", left, top, r.width, r.height, vp);

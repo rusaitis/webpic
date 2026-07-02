@@ -1,5 +1,6 @@
+import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
-import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
+import { dummyGrid, fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import {
   addLayer,
@@ -7,11 +8,29 @@ import {
   makeDefaultLayer,
   removeLayer,
   reorderLayer,
+  setFieldlineSeeds,
   setLayerOpacity,
   setLayerShading,
   setLayerVisible,
+  setSliceAxis,
+  setSlicePosition,
 } from "./layers.ts";
 import { createSimulationStore } from "./simulation.ts";
+
+// A 4³ uniform B = (0,0,1) field: the default rake traces straight lines the tracer resolves, so the
+// fieldlines intents (seed count / append / placement) have something real to re-trace.
+const traceableDataset = () => {
+  const n = 4;
+  const size = n * n * n;
+  return makeDataset(
+    {
+      B_1: fieldArray("B_1", new Float64Array(size), [n, n, n]),
+      B_2: fieldArray("B_2", new Float64Array(size), [n, n, n]),
+      B_3: fieldArray("B_3", new Float64Array(size).fill(1), [n, n, n]),
+    },
+    { grid: dummyGrid([n, n, n]) },
+  );
+};
 
 const bDataset = () => vectorTriple("B", { array: Float32Array });
 
@@ -95,6 +114,36 @@ describe("layer helpers", () => {
     expect(setLayerShading(shaded, "v", true)).toBe(shaded); // unchanged → identity
     expect(setLayerShading(before, "s", true)).toBe(before); // slice has no shading → identity
     expect(setLayerShading(before, "missing", true)).toBe(before); // absent id → identity
+  });
+
+  it("setSliceAxis / setSlicePosition touch only a matching slice; clamp + identity", () => {
+    const vol = makeDefaultLayer("v", "|B|", "volume");
+    const before = [slice("s"), vol] as const;
+    const x = setSliceAxis(before, "s", "x");
+    expect(x[0]?.kind === "slice" && x[0].axis).toBe("x");
+    expect(x[1]).toBe(before[1]); // sibling identity preserved
+    expect(setSliceAxis(x, "s", "x")).toBe(x); // unchanged → identity
+    expect(setSliceAxis(before, "v", "x")).toBe(before); // non-slice → identity
+    expect(setSliceAxis(before, "missing", "x")).toBe(before); // absent → identity
+
+    const moved = setSlicePosition(before, "s", 0.25);
+    expect(moved[0]?.kind === "slice" && moved[0].position).toBeCloseTo(0.25);
+    expect(setSlicePosition(before, "s", -1)[0]).toMatchObject({ position: 0 }); // clamp lo
+    expect(setSlicePosition(before, "s", 9)[0]).toMatchObject({ position: 1 }); // clamp hi
+    expect(setSlicePosition(before, "v", 0.3)).toBe(before); // non-slice → identity
+  });
+
+  it("setFieldlineSeeds replaces only a matching fieldlines layer; identity on same ref", () => {
+    const before = [makeDefaultLayer("f", "|B|", "fieldlines"), slice("s")] as const;
+    const seeds: Vec3[] = [
+      [0, 0, 0],
+      [1, 1, 1],
+    ];
+    const set = setFieldlineSeeds(before, "f", seeds);
+    expect(set[0]?.kind === "fieldlines" && set[0].seeds).toBe(seeds);
+    expect(set[1]).toBe(before[1]); // sibling identity preserved
+    expect(setFieldlineSeeds(set, "f", seeds)).toBe(set); // same array ref → identity
+    expect(setFieldlineSeeds(before, "s", seeds)).toBe(before); // non-fieldlines → identity
   });
 });
 
@@ -221,5 +270,69 @@ describe("simulationStore layers", () => {
     await flushAsync();
     expect(a.getState().layers[0]?.id).toBe("layer-0");
     expect(b.getState().layers[0]?.id).toBe("layer-0");
+  });
+
+  it("setSliceAxis / setSlicePosition edit a slice layer in place", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(bDataset());
+    await flushAsync();
+    store.getState().addSliceLayer(); // layer-1 (slice, selected)
+    await flushAsync();
+    store.getState().setSliceAxis("layer-1", "x");
+    store.getState().setSlicePosition("layer-1", 0.2);
+    const layer = store.getState().layers.find((l) => l.id === "layer-1");
+    expect(layer?.kind === "slice" && layer.axis).toBe("x");
+    expect(layer?.kind === "slice" && layer.position).toBeCloseTo(0.2);
+  });
+
+  it("setFieldlineSeedCount regenerates the rake (length = count) and retraces", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(traceableDataset());
+    await flushAsync();
+    store.getState().addFieldlinesLayer(); // layer-1, default rake
+    await flushAsync();
+    store.getState().setFieldlineSeedCount("layer-1", 5);
+    await flushAsync();
+    const layer = store.getState().layers.find((l) => l.id === "layer-1");
+    expect(layer?.kind === "fieldlines" && layer.seeds.length).toBe(5);
+    expect(store.getState().traces["layer-1"]).toBeDefined(); // re-traced
+  });
+
+  it("addFieldlineSeed appends one seed (and is inert for a non-fieldlines id)", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(traceableDataset());
+    await flushAsync();
+    store.getState().addFieldlinesLayer(); // layer-1
+    await flushAsync();
+    const fl = store.getState().layers.find((l) => l.id === "layer-1");
+    const seed = fl?.kind === "fieldlines" ? fl.seeds[0] : undefined;
+    if (seed === undefined) throw new Error("expected a seeded rake");
+    const before = fl?.kind === "fieldlines" ? fl.seeds.length : 0;
+    store.getState().addFieldlineSeed("layer-1", seed); // append an in-domain copy
+    store.getState().addFieldlineSeed("layer-0", seed); // volume id → no-op
+    await flushAsync();
+    const after = store.getState().layers.find((l) => l.id === "layer-1");
+    expect(after?.kind === "fieldlines" && after.seeds.length).toBe(before + 1);
+  });
+
+  it("setSeedPlacement toggles the mode and clears when its layer is removed", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(traceableDataset());
+    await flushAsync();
+    store.getState().addFieldlinesLayer(); // layer-1
+    await flushAsync();
+    store.getState().setSeedPlacement("layer-1");
+    expect(store.getState().seedPlacementLayerId).toBe("layer-1");
+    store.getState().removeLayer("layer-1");
+    expect(store.getState().seedPlacementLayerId).toBeNull(); // don't strand place-mode on a gone layer
+  });
+
+  it("kind-specific intents no-op without a dataset (no throw, no layers)", () => {
+    const store = createSimulationStore();
+    store.getState().setSliceAxis("x", "x");
+    store.getState().setSlicePosition("x", 0.5);
+    store.getState().setFieldlineSeedCount("x", 4);
+    store.getState().addFieldlineSeed("x", [0, 0, 0]);
+    expect(store.getState().layers).toHaveLength(0);
   });
 });
