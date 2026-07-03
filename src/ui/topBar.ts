@@ -266,9 +266,9 @@ export function installTopBar(
   const exportBtn = iconButton("export", ICON.export, "Export PNG (P)");
   exportBtn.addEventListener("click", () => uiStore.getState().requestScreenshot());
 
-  // Hover-revealed actions — a chevron at the right edge opens a popover of (inert until their
-  // milestones land) action buttons. Same reveal mechanism + glass-card (.webpic-topbar_pop) as the
-  // time chip. The popover is absolute, so it never widens the bar.
+  // Hover-revealed actions — a chevron at the right edge opens a popover of (inert placeholder)
+  // action buttons. Same reveal mechanism + glass-card (.webpic-topbar_pop) as the time chip.
+  // The popover is absolute, so it never widens the bar.
   const actionsWrap = makeEl(doc, "div", "webpic-topbar_reveal");
   const chevron = iconButton("more", ICON_CARET_FLAT, "More actions");
   chevron.classList.add("webpic-topbar_chevron");

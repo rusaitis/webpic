@@ -121,6 +121,7 @@ function coordinatesToAttrs(dataset: FieldDataset): Record<string, unknown> {
     frame: dataset.frame,
     axis_labels: [...dataset.grid.axisLabels],
   };
+  // transforms is a plain record by type, so toJsonNative returns one (tags only wrap nested Maps).
   const transforms = toJsonNative(dataset.transforms) as Record<string, unknown>;
   if (Object.keys(transforms).length > 0) out.transforms = transforms;
   return out;

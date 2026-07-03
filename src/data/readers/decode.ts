@@ -239,6 +239,7 @@ export function decodeGrid(rootAttrs: Record<string, unknown>, source: string): 
   return {
     grid: gridInfo,
     frame: coords.frame ?? "simulation",
+    // pypic writes transforms as an untagged JSON object, so the top level decodes to a plain record.
     transforms: fromJsonNative(coords.transforms ?? {}) as Record<string, unknown>,
   };
 }
@@ -278,6 +279,7 @@ export function decodePhysics(
     gamma: p.gamma_eos ?? p.gamma ?? 5 / 3,
     c: normalization.speedOfLight,
     relativistic: p.relativistic ?? false,
+    // extra's top level is a zod-validated record and dicts are untagged, so it decodes to a record.
     extra: fromJsonNative(p.extra ?? {}) as Record<string, unknown>,
   };
 }
