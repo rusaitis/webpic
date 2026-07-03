@@ -8,6 +8,14 @@ export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+export function sameShape(a: readonly number[], b: readonly number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 // Build a Vec3 from components — the single widening site, so call sites construct the readonly
 // 3-tuple without `as Vec3` on a fresh literal (TS infers `[x, y, z]` as the mutable `number[]`).
 export function vec3(x: number, y: number, z: number): Vec3 {

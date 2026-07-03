@@ -52,7 +52,7 @@ export function installLayerSettings(
   uiStore: UiStore,
 ): Disposer {
   const doc = parent.ownerDocument;
-  const dispatch = store.getState;
+  const getState = store.getState;
 
   const win = createFloatingWindow({
     parent,
@@ -64,7 +64,7 @@ export function installLayerSettings(
     initial: { top: 64, left: 320 },
     onClose: () => {
       uiStore.getState().setLayerSettingsVisible(false);
-      dispatch().setSeedPlacement(null); // don't leave the canvas in place-mode behind a closed window
+      getState().setSeedPlacement(null); // don't leave the canvas in place-mode behind a closed window
     },
   });
 
@@ -124,7 +124,7 @@ export function installLayerSettings(
     const up = makeIconButton(doc, "webpic-layerset_move", ICON_CARET_UP, { ariaLabel: "Move up" });
     up.addEventListener("click", () => {
       const index = store.getState().layers.findIndex((l) => l.id === layer.id);
-      if (index > 0) dispatch().reorderLayer(layer.id, index - 1);
+      if (index > 0) getState().reorderLayer(layer.id, index - 1);
     });
     const down = makeIconButton(doc, "webpic-layerset_move", ICON_CARET_DOWN, {
       ariaLabel: "Move down",
@@ -132,7 +132,7 @@ export function installLayerSettings(
     down.addEventListener("click", () => {
       const { layers } = store.getState();
       const index = layers.findIndex((l) => l.id === layer.id);
-      if (index >= 0 && index < layers.length - 1) dispatch().reorderLayer(layer.id, index + 1);
+      if (index >= 0 && index < layers.length - 1) getState().reorderLayer(layer.id, index + 1);
     });
     upBtn = up;
     downBtn = down;
@@ -143,13 +143,13 @@ export function installLayerSettings(
       const clear = makeEl(doc, "button", "webpic-layerset_btn");
       clear.type = "button";
       clear.textContent = "Clear seeds";
-      clear.addEventListener("click", () => dispatch().setFieldlineSeeds(layer.id, []));
+      clear.addEventListener("click", () => getState().setFieldlineSeeds(layer.id, []));
       actionRow.append(clear);
     }
     const remove = makeEl(doc, "button", "webpic-layerset_btn is-danger");
     remove.type = "button";
     remove.textContent = "Remove";
-    remove.addEventListener("click", () => dispatch().removeLayer(layer.id));
+    remove.addEventListener("click", () => getState().removeLayer(layer.id));
     actionRow.append(remove);
     updateReorder();
   };
@@ -176,7 +176,7 @@ export function installLayerSettings(
       label: "Field",
       value: layer.field,
       options: fieldOptions(),
-      onChange: (name) => void dispatch().selectField(name),
+      onChange: (name) => void getState().selectField(name),
     });
     opacityControl = folder.addSlider({
       label: "Opacity",
@@ -184,26 +184,26 @@ export function installLayerSettings(
       min: 0,
       max: 1,
       step: 0.01,
-      onChange: (value) => dispatch().setLayerOpacity(layer.id, value),
+      onChange: (value) => getState().setLayerOpacity(layer.id, value),
     });
     visibleControl = folder.addCheckbox({
       label: "Visible",
       value: layer.visible,
-      onChange: (value) => dispatch().setLayerVisible(layer.id, value),
+      onChange: (value) => getState().setLayerVisible(layer.id, value),
     });
 
     if (layer.kind === "volume") {
       shadedControl = folder.addCheckbox({
         label: "Phong shading",
         value: layer.shaded,
-        onChange: (value) => dispatch().setLayerShading(layer.id, value),
+        onChange: (value) => getState().setLayerShading(layer.id, value),
       });
     } else if (layer.kind === "slice") {
       axisControl = folder.addSegmented<SliceAxis>({
         label: "Axis",
         value: layer.axis,
         options: SLICE_AXES,
-        onChange: (axis) => dispatch().setSliceAxis(layer.id, axis),
+        onChange: (axis) => getState().setSliceAxis(layer.id, axis),
       });
       positionControl = folder.addSlider({
         label: "Position",
@@ -211,7 +211,7 @@ export function installLayerSettings(
         min: 0,
         max: 1,
         step: 0.005,
-        onChange: (value) => dispatch().setSlicePosition(layer.id, value),
+        onChange: (value) => getState().setSlicePosition(layer.id, value),
       });
     } else if (layer.kind === "fieldlines") {
       seedCountControl = folder.addSlider({
@@ -220,12 +220,12 @@ export function installLayerSettings(
         min: MIN_SEEDS,
         max: MAX_SEEDS,
         step: 1,
-        onChange: (count) => dispatch().setFieldlineSeedCount(layer.id, Math.round(count)),
+        onChange: (count) => getState().setFieldlineSeedCount(layer.id, Math.round(count)),
       });
       placeControl = folder.addCheckbox({
         label: "Place seeds",
         value: store.getState().seedPlacementLayerId === layer.id,
-        onChange: (on) => dispatch().setSeedPlacement(on ? layer.id : null),
+        onChange: (on) => getState().setSeedPlacement(on ? layer.id : null),
       });
       seedNote = folder.addNote(seedSummary(layer.seeds.length));
     } else {

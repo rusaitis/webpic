@@ -1,6 +1,7 @@
 import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
 import { runFieldKernel } from "@gpu/computeKernel.ts";
 import { getDevice, hasDevice } from "@gpu/device.ts";
+import { sameShape } from "@schema/math.ts";
 import { fieldInfo } from "@schema/registry.ts";
 import {
   CURL_ENTRY,
@@ -46,14 +47,6 @@ export function isWebgpuOp(recipe: RecipeMeta): boolean {
     recipe.speciesArgs === null &&
     Object.hasOwn(WEBGPU_FIELD_OPS, recipe.func)
   );
-}
-
-function sameShape(a: readonly number[], b: readonly number[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
 }
 
 // Mirror the coordinates/operators.ts guards so a grid op fails the same way on the GPU path: the

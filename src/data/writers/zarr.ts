@@ -7,6 +7,7 @@ import type {
   ReductionSpec,
   StaggerInfo,
 } from "@containers/field_dataset.ts";
+import { sameShape } from "@schema/math.ts";
 import type { FloatArray } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import * as zarr from "zarrita";
@@ -257,10 +258,6 @@ function rowMajorStrides(shape: readonly number[]): number[] {
   return strides;
 }
 
-function shapesEqual(a: readonly number[], b: readonly number[]): boolean {
-  return a.length === b.length && a.every((v, i) => v === b[i]);
-}
-
 /**
  * Write a FieldDataset to a Zarr v3 store as a single-timestep pypic store: root attrs in
  * the schema-v1.0 mirror layout, field arrays + cell-centered coordinate arrays under
@@ -291,7 +288,7 @@ export async function writeZarr(
 
   for (const [name, field] of dataset.fields) {
     signal?.throwIfAborted();
-    if (!shapesEqual(field.shape, grid.dimensions)) {
+    if (!sameShape(field.shape, grid.dimensions)) {
       throw new Error(
         `zarr writer: field "${name}" shape [${field.shape.join(", ")}] does not match ` +
           `grid dimensions [${grid.dimensions.join(", ")}]`,

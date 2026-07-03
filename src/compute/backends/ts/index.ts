@@ -1,4 +1,5 @@
 import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
+import { sameShape } from "@schema/math.ts";
 import { fieldInfo } from "@schema/registry.ts";
 import type { FloatArray } from "@schema/types.ts";
 import type { ComputeBackend } from "../../backend.ts";
@@ -33,14 +34,6 @@ export function isTsComputable(recipe: RecipeMeta): boolean {
     recipe.speciesArgs === null &&
     Object.hasOwn(TS_FIELD_OPS, recipe.func)
   );
-}
-
-function sameShape(a: readonly number[], b: readonly number[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
 }
 
 /**

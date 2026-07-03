@@ -62,18 +62,18 @@ export function installLayersPanel(
   let rows = new Map<string, RowRefs>();
   let pendingFocus: { readonly id: string; readonly dir: "up" | "down" } | null = null;
 
-  const dispatch = store.getState;
+  const getState = store.getState;
 
   const makeRow = (layer: Layer, index: number, count: number): RowRefs => {
     const row = makeEl(doc, "div", "webpic-layers_row");
     row.dataset.id = layer.id;
-    if (layer.id === dispatch().selectedLayerId) row.classList.add("is-selected");
+    if (layer.id === getState().selectedLayerId) row.classList.add("is-selected");
 
     const eye = makeIconButton(doc, "webpic-layers_eye", layer.visible ? ICON_EYE : ICON_EYE_OFF, {
       ariaLabel: layer.visible ? "Hide layer" : "Show layer",
     });
     eye.setAttribute("aria-pressed", String(layer.visible));
-    eye.addEventListener("click", () => dispatch().setLayerVisible(layer.id, !layer.visible));
+    eye.addEventListener("click", () => getState().setLayerVisible(layer.id, !layer.visible));
 
     const main = makeEl(doc, "button", "webpic-layers_main");
     main.type = "button";
@@ -82,13 +82,13 @@ export function installLayersPanel(
     const name = makeEl(doc, "span", "webpic-layers_name");
     name.textContent = `${KIND_LABEL[layer.kind]} ${layer.field}`;
     main.append(kind, name);
-    main.addEventListener("click", () => dispatch().selectLayer(layer.id));
+    main.addEventListener("click", () => getState().selectLayer(layer.id));
 
     const gear = makeIconButton(doc, "webpic-layers_gear", ICON_GEAR, {
       ariaLabel: "Layer settings",
     });
     gear.addEventListener("click", () => {
-      dispatch().selectLayer(layer.id);
+      getState().selectLayer(layer.id);
       uiStore.getState().setLayerSettingsVisible(true);
     });
 
@@ -97,7 +97,7 @@ export function installLayersPanel(
     up.disabled = index === 0;
     up.addEventListener("click", () => {
       pendingFocus = { id: layer.id, dir: "up" };
-      dispatch().reorderLayer(layer.id, index - 1);
+      getState().reorderLayer(layer.id, index - 1);
     });
     const down = makeIconButton(doc, "webpic-layers_move", ICON_CARET_DOWN, {
       ariaLabel: "Move down",
@@ -105,7 +105,7 @@ export function installLayersPanel(
     down.disabled = index === count - 1;
     down.addEventListener("click", () => {
       pendingFocus = { id: layer.id, dir: "down" };
-      dispatch().reorderLayer(layer.id, index + 1);
+      getState().reorderLayer(layer.id, index + 1);
     });
     reorder.append(up, down);
 
