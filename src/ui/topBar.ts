@@ -1,6 +1,6 @@
 import { DATASET_CATALOG } from "@schema/datasets.ts";
 import type { FieldName } from "@schema/types.ts";
-import type { SimulationStore, UiStore } from "@store";
+import type { CameraProjection, SimulationStore, UiStore } from "@store";
 import { makeCaret, makeEl, makeIconButton } from "./controls/dom.ts";
 import { createPopover, type Disposer, type RangeValue } from "./controls/index.ts";
 import { createRangeControl } from "./controls/rangeControl.ts";
@@ -16,8 +16,9 @@ import {
 } from "./topBarInfo.ts";
 
 // The top menu bar (magviz's glass-pill topbar, rebuilt to webpic's structure): a brand, a dataset
-// dropdown, a "content" button that opens the available fields + their metadata, a timestep chip that
-// opens a scrub popover (the custom range control + prev/next) on click/tap, and a click-opened
+// dropdown (label prefers the run name the data carries), a "content" button that opens the available
+// fields + their metadata, a timestep chip that opens a scrub popover (the custom range control +
+// prev/next) on click/tap, a projection chip + PNG-export button, and a click-opened
 // cluster of disabled placeholder actions behind a chevron — both reveals share one installReveal. On
 // a narrow viewport (matchMedia) the bar goes compact: the timestep scrub relocates into the chevron's
 // panel so the row still fits and the chevron never spills off-screen.
@@ -112,10 +113,15 @@ export function installTopBar(
   word.textContent = "webpic";
   brand.append(mark, word);
 
-  // Dataset picker — switches the built-in dataset; labels come from the static schema catalog.
+  // Dataset picker — switches the built-in dataset. The button label prefers the loaded dataset's
+  // run name (attrs.run / simulation_toml, via datasetLabel's chain) over the static catalog entry.
   const datasetBtn = pickerButton("dataset", "webpic-topbar_dataset", "Dataset");
   const datasetLabelEl = makeEl(doc, "span", "webpic-topbar_label");
-  datasetLabelEl.textContent = datasetLabel(store.getState().datasetId);
+  const syncDatasetLabel = (): void => {
+    const state = store.getState();
+    datasetLabelEl.textContent = datasetLabel(state.datasetId, state.dataset?.metadata);
+  };
+  syncDatasetLabel();
   datasetBtn.append(datasetLabelEl, caret());
 
   const datasetItems = DATASET_CATALOG.map((d) => ({ value: d.id, label: d.label }));
@@ -237,6 +243,29 @@ export function installTopBar(
     stepLabelEl.textContent = stepReadout(index, steps);
   };
 
+  // Camera/export cluster (DESIGN §UI's top-bar "camera/projection, export"). The projection chip
+  // mirrors ui/cameraRail's toggle through the same setProjection intent — a second trigger, not a
+  // second model; export fires the M6.4 screenshot chain the P shortcut uses (screenshotBridge owns
+  // the pill, single-flight, and the download).
+  const projChip = makeEl(doc, "button", "webpic-topbar_chip webpic-topbar_proj");
+  projChip.type = "button";
+  projChip.dataset.control = "projection";
+  const applyProjection = (projection: CameraProjection): void => {
+    const ortho = projection === "orthographic";
+    projChip.textContent = ortho ? "ortho" : "persp";
+    projChip.title = ortho
+      ? "Orthographic — switch to perspective (O)"
+      : "Perspective — switch to orthographic (O)";
+  };
+  applyProjection(store.getState().projection);
+  projChip.addEventListener("click", () => {
+    const state = store.getState();
+    state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
+  });
+
+  const exportBtn = iconButton("export", ICON.export, "Export PNG (P)");
+  exportBtn.addEventListener("click", () => uiStore.getState().requestScreenshot());
+
   // Hover-revealed actions — a chevron at the right edge opens a popover of (inert until their
   // milestones land) action buttons. Same reveal mechanism + glass-card (.webpic-topbar_pop) as the
   // time chip. The popover is absolute, so it never widens the bar.
@@ -256,13 +285,12 @@ export function installTopBar(
   actionsGrid.append(
     placeholder("upload", ICON.upload, "Upload data"),
     placeholder("layers", ICON.layers, "Layers"),
-    placeholder("export", ICON.export, "Export view"),
     placeholder("layout", ICON.layout, "Compare / layout"),
   );
   actions.append(actionsGrid); // the compact bar appends the relocated time scrub below this grid
   actionsWrap.append(chevron, actions);
 
-  container.append(brand, datasetBtn, fieldBtn, timeWrap, actionsWrap);
+  container.append(brand, datasetBtn, fieldBtn, timeWrap, projChip, exportBtn, actionsWrap);
   parent.appendChild(container);
 
   // Both reveals share one AbortController (torn down by ac.abort()); installReveal wires each
@@ -285,7 +313,7 @@ export function installTopBar(
     timeReveal.setExpanded(false);
     actionsReveal.setExpanded(false);
     if (isCompact) actions.appendChild(timeWrap);
-    else container.insertBefore(timeWrap, actionsWrap);
+    else container.insertBefore(timeWrap, projChip);
   };
   applyCompact(compactQuery?.matches ?? false);
   compactQuery?.addEventListener("change", (e) => applyCompact(e.matches), { signal: ac.signal });
@@ -306,11 +334,13 @@ export function installTopBar(
   const unsubs = [
     store.subscribe(
       (s) => s.datasetId,
-      (id) => {
-        datasetLabelEl.textContent = datasetLabel(id);
+      () => {
+        syncDatasetLabel();
         datasetPopover.refresh();
       },
     ),
+    store.subscribe((s) => s.dataset, syncDatasetLabel), // run metadata lands after the id switch
+    store.subscribe((s) => s.projection, applyProjection),
     store.subscribe(
       (s) => s.activeField,
       (name) => {

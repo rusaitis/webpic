@@ -22,6 +22,26 @@ describe("datasetLabel", () => {
   it("falls back to the id for an unknown dataset", () => {
     expect(datasetLabel("mystery")).toBe("mystery");
   });
+
+  it("prefers the typed attrs.run name over the catalog", () => {
+    expect(datasetLabel("fluxrope", { run: { name: "run-001" } })).toBe("run-001");
+  });
+
+  it("falls back to re-parsing simulation_toml when attrs.run has no name", () => {
+    const toml = '[run]\nname = "gem-challenge"\n';
+    expect(datasetLabel("fluxrope", { simulation_toml: toml })).toBe("gem-challenge");
+    // an attrs.run WITHOUT a name still defers to the TOML (the DESIGN §Run metadata chain)
+    expect(datasetLabel("fluxrope", { run: { git_sha: "abc" }, simulation_toml: toml })).toBe(
+      "gem-challenge",
+    );
+  });
+
+  it("degrades to the catalog on malformed/empty run metadata, never throwing", () => {
+    expect(datasetLabel("fluxrope", {})).toBe("Flux rope");
+    expect(datasetLabel("fluxrope", { run: "not-a-table" })).toBe("Flux rope");
+    expect(datasetLabel("fluxrope", { run: { name: "" } })).toBe("Flux rope");
+    expect(datasetLabel("fluxrope", { simulation_toml: "not = valid = toml" })).toBe("Flux rope");
+  });
 });
 
 describe("orderedFieldNames", () => {

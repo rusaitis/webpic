@@ -57,7 +57,7 @@ function setup() {
 }
 
 describe("installTopBar", () => {
-  it("mounts the brand, pickers, time chip + scrub track, and four placeholders behind the chevron", () => {
+  it("mounts the brand, pickers, time chip + scrub track, projection/export, and the placeholders", () => {
     const { bar, control, range, valueGrip } = setup();
     expect(bar.querySelector(".webpic-topbar_brand")?.textContent).toContain("webpic");
     expect(control("dataset")).toBeInstanceOf(window.HTMLButtonElement);
@@ -67,10 +67,40 @@ describe("installTopBar", () => {
     for (const c of ["time", "step-prev", "step-next", "more"]) {
       expect(control(c)).toBeInstanceOf(window.HTMLButtonElement);
     }
-    for (const c of ["upload", "layers", "export", "layout"]) {
+    expect(control("projection").disabled).toBe(false); // live bar controls, not placeholders
+    expect(control("export").disabled).toBe(false);
+    for (const c of ["upload", "layers", "layout"]) {
       expect(control(c).disabled).toBe(true);
       expect(control(c).getAttribute("aria-disabled")).toBe("true");
     }
+  });
+
+  it("dispatches requestScreenshot on export click", () => {
+    const { uiStore, control } = setup();
+    const before = uiStore.getState().screenshotSerial;
+    control("export").dispatchEvent(new MouseEvent("click"));
+    expect(uiStore.getState().screenshotSerial).toBe(before + 1);
+  });
+
+  it("shows the projection on the chip and toggles it through the store", () => {
+    const { store, control } = setup();
+    const chip = control("projection");
+    expect(chip.textContent).toBe("persp");
+    chip.dispatchEvent(new MouseEvent("click"));
+    expect(store.getState().projection).toBe("orthographic");
+    expect(chip.textContent).toBe("ortho");
+    store.getState().setProjection("perspective"); // external flip (rail button, O key) reflects
+    expect(chip.textContent).toBe("persp");
+  });
+
+  it("prefers the loaded dataset's run name for the dataset label", () => {
+    const { store, control } = setup();
+    expect(control("dataset").textContent).toContain("Flux rope"); // catalog label pre-load
+    const dataset = vectorTriple("B", { array: Float32Array });
+    void store
+      .getState()
+      .setDataset({ ...dataset, metadata: { run: { name: "run-001" } } });
+    expect(control("dataset").textContent).toContain("run-001");
   });
 
   it("opens the dataset popover and dispatches selectDataset on choose", () => {

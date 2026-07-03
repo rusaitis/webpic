@@ -678,6 +678,8 @@ const UI_CSS = `
 .webpic-topbar_reveal.is-expanded .webpic-topbar_chip .webpic-topbar_caret svg {
   transform: rotate(180deg); }
 .webpic-topbar_step { white-space: nowrap; }
+/* Projection chip — fixed width so persp ⇄ ortho never jitters the bar. */
+.webpic-topbar_proj { width: 52px; justify-content: center; }
 /* Compact, borderless step buttons (magviz's subtle scrubber) — live inside the scrub popover. */
 .webpic-topbar_step-btn { box-sizing: border-box; width: 26px; height: 26px; padding: 0; border: 0;
   display: grid; place-items: center; background: transparent; color: inherit; opacity: 0.75;

@@ -1,6 +1,7 @@
 import { DATASET_CATALOG } from "@schema/datasets.ts";
 import { fieldInfo } from "@schema/registry.ts";
 import type { FieldName } from "@schema/types.ts";
+import { parse as parseToml } from "smol-toml";
 
 // Pure readout formatters for the top menu bar (ui/topBar): dataset + field labels and the timestep
 // index↔value math. Typed-in, string-out — no DOM, no store — so they're node-testable like
@@ -9,10 +10,42 @@ import type { FieldName } from "@schema/types.ts";
 
 const EMPTY = "—";
 
-// Human label for a dataset id. The static catalog is the only dataset metadata the ui can reach (it
-// can't touch the data layer); falls back to the id when the catalog omits it.
-export function datasetLabel(id: string): string {
-  return DATASET_CATALOG.find((d) => d.id === id)?.label ?? id;
+// Human label for a dataset: what the loaded data calls itself, over the static catalog, over the
+// raw id. The run-name chain is DESIGN §Run metadata's consumption rule — prefer the typed
+// `attrs.run`, fall back to re-parsing `attrs.simulation_toml` — with this label as its first
+// consumer (the reserved keys ride the dataset's metadata bag, re-stuffed by the reader).
+export function datasetLabel(
+  id: string,
+  metadata?: Readonly<Record<string, unknown>>,
+): string {
+  return runName(metadata) ?? DATASET_CATALOG.find((d) => d.id === id)?.label ?? id;
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+function runName(metadata: Readonly<Record<string, unknown>> | undefined): string | null {
+  if (metadata === undefined) return null;
+  const run = metadata["run"];
+  if (isRecord(run)) {
+    const name = nonEmptyString(run["name"]);
+    if (name !== null) return name;
+  }
+  const toml = metadata["simulation_toml"];
+  if (typeof toml === "string") {
+    try {
+      const table = parseToml(toml)["run"];
+      if (isRecord(table)) return nonEmptyString(table["name"]);
+    } catch {
+      // malformed TOML names nothing — fall through to the catalog
+    }
+  }
+  return null;
 }
 
 // The short label shown ON the content button — the active field's long name, or the raw canonical
