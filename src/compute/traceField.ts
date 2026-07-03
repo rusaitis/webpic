@@ -12,7 +12,7 @@ export type { FieldLine } from "@numerics/tracing.ts";
 // AbortSignal into the CPU DP5(4) tracer (numerics/tracing), which checks it per integration step; a
 // superseded trace aborts mid-line once the tracer runs off-main. Async so the contract is stable for
 // the deferred GPU/worker backend — routing to the WebGPU streamline tracer (traceFieldLinesWebgpu)
-// stays deferred until a main-thread GPUDevice exists (the M3 worker-reads/main-computes device seam).
+// stays deferred until a main-thread GPUDevice exists (the worker-reads/main-computes device seam).
 // Keeping the store→tracer hop behind this facade is the DAG-clean seam (store → compute, never
 // store → numerics) and the single place to swap the backend.
 export async function traceFields(

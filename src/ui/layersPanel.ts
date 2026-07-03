@@ -15,9 +15,9 @@ import { POPOVER_GAP_PX } from "./layout.ts";
 
 // The Layers overlay (DESIGN §"Layers & navigation"): a rail-toggled, fixed, translucent panel — one
 // row per renderable instance, top (draw order) first. Each row: eye (show/hide) · kind + field
-// (click selects — the colorbar retargets to that layer's binding) · gear (selects in M4.7, opens the
-// per-layer settings panel in M4.8) · ▲/▼ reorder. ui → store only; hides with the global UI toggle.
-// Fixed-position by design (drag/resize/persist is M7); reorder is buttons, not a drag system.
+// (click selects — the colorbar retargets to that layer's binding) · gear (selects the layer + opens
+// the per-layer settings panel) · ▲/▼ reorder. ui → store only; hides with the global UI toggle.
+// Fixed-position by design (drag/resize/persist deferred); reorder is buttons, not a drag system.
 
 const KIND_LABEL: Record<LayerKind, string> = {
   volume: "Volume",

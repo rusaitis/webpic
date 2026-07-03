@@ -38,7 +38,7 @@ const ICON = {
   theme: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 010 11z" fill="currentColor" stroke="none"/></svg>`,
 } as const;
 
-// The kinds with an add-button + instance menu (particles render in M5, so its button is disabled).
+// The kinds with an add-button + instance menu (particle rendering hasn't landed, so its button is disabled).
 const ADD_KINDS: readonly LayerKind[] = ["volume", "slice", "fieldlines"];
 const ADD_LABEL: Record<LayerKind, string> = {
   volume: "Volume",
@@ -102,7 +102,7 @@ export function installSideRail(
     });
     menus.push(menu);
   }
-  // Particles render in M5 — present but disabled so the rail reads complete.
+  // Particle rendering hasn't landed — present but disabled so the rail reads complete.
   const particlesBtn = makeButton("add-particles", LAYER_KIND_ICON.particles);
   particlesBtn.setAttribute("aria-label", "Particles — v0.2");
   particlesBtn.disabled = true;

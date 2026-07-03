@@ -108,7 +108,7 @@ export interface BootstrapOptions {
    *  data missing" diagnostic. Off by default: the boot frame is the bare clear color. */
   readonly debugScene?: boolean;
   /** Auto-add a field-line layer (default seed rake) once the dataset lands (`?fieldlines`) — a dev /
-   *  screenshot affordance until the M4.7 rail's `+Field lines` button. The `T` shortcut does the same
+   *  screenshot affordance; the rail's `+Field lines` button / `T` shortcut do the same
    *  interactively. */
   readonly fieldlines?: boolean;
   /** Mount the dev performance HUD (Shift+P) + its worker sampling. The entry gates this on

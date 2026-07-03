@@ -9,7 +9,7 @@ import type { SliceAxis } from "./layers.ts";
 // world [-h, h] ↔ texture [0, 1] ↔ physical [origin, origin + dim·dx]. The tracer's interpolator then
 // maps physical→index with its OWN −0.5 cell-centered offset (numerics/interp), so a seed must be
 // PHYSICAL, not index — and must land inside the cell-center domain [origin + 0.5dx, origin +
-// (dim − 0.5)dx] or the trace exits on its first step. That offset is the load-bearing M4.4 ↔ M4.2/4.3
+// (dim − 0.5)dx] or the trace exits on its first step. That offset is the load-bearing picking ↔ tracing
 // invariant: get it wrong and traces silently diverge from pypic.
 //
 // Pure, store-layer (parallels store/pick + store/marker): Vec3 tuples, no THREE/DOM/GPU, imports only
@@ -86,7 +86,7 @@ export function clampSeedToDomain(physical: Vec3, grid: GridInfo): Vec3 {
 
 /** A starter line of `count` seeds across the domain center along the grid's longest axis, each pulled
  *  into the traceable cell-center domain (`clampSeedToDomain`). Physical coords — the tracer adds its
- *  own −0.5 offset. A default rake until seed-placement UI lands (M4.7); a few seeds that reliably
+ *  own −0.5 offset. The starter rake for layers with no user-placed seeds; a few seeds that reliably
  *  cross the structure of a centered configuration (flux rope / dipole). */
 export function defaultSeedRake(grid: GridInfo, count = 8): Vec3[] {
   const n = Math.max(2, count);

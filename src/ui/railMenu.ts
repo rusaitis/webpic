@@ -6,7 +6,7 @@ import { POPOVER_GAP_PX } from "./layout.ts";
 // existing instances of one layer kind as quick-jumps, then an "Add new". Not the single-select
 // createPopover — its listbox/check-column semantics are wrong for an action list where "Add new"
 // isn't a value. A flyout-style panel beside the anchor (tail on the button center), built off
-// anchor.ownerDocument (happy-dom + embed safe). Hover-preview/pin is a deferred M7 follow-up.
+// anchor.ownerDocument (happy-dom + embed safe). Hover-preview/pin is a deferred follow-up.
 
 export interface RailMenuItem {
   readonly id: string;
@@ -57,7 +57,8 @@ export function installRailMenu(opts: RailMenuOptions): RailMenuHandle {
     const next = items[Math.max(0, Math.min(index, items.length - 1))];
     next?.focus();
   };
-  const focusedIndex = (): number => items.findIndex((el) => el === doc.activeElement);
+  // indexOf compares identity only, so a non-row (or null) activeElement safely yields −1
+  const focusedIndex = (): number => items.indexOf(doc.activeElement as HTMLButtonElement);
 
   const build = (): void => {
     list.replaceChildren();

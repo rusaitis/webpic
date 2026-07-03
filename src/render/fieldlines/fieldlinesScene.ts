@@ -11,7 +11,7 @@ import { packSegments } from "./segmentPack.ts";
 // and GPU-resident. No per-frame readback (the streamline buffers reach here as a one-time transfer,
 // not a re-read each frame). `Line2NodeMaterial` is the WebGPU/TSL fat line; it reads the viewport size
 // through TSL, so screen-space width needs no resolution plumbing. (The classic `LineMaterial` is raw
-// GLSL — incompatible with WebGPURenderer.) v0.1 colors lines solid; color-by-scalar is M4.8.
+// GLSL — incompatible with WebGPURenderer.) v0.1 colors lines solid; color-by-scalar is deferred.
 
 export interface FieldlinesSceneOptions {
   /** Flat world-space xyz for every vertex of every line, concatenated in line order. */

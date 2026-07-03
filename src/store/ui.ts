@@ -22,10 +22,10 @@ export interface UiState {
   readonly isUiVisible: boolean;
   readonly isHelpVisible: boolean;
   readonly isCoordsInfoVisible: boolean;
-  /** The rail-toggled Layers overlay (M4.7) — a collapsible workspace panel, default closed
+  /** The rail-toggled Layers overlay — a collapsible workspace panel, default closed
    *  (`layers-collapsed-default`). Distinct from `panels` (docked-shell visibility). */
   readonly isLayersPanelOpen: boolean;
-  /** The per-layer settings window (M4.8), opened from the Layers-panel gear or the rail's "Add new".
+  /** The per-layer settings window, opened from the Layers-panel gear or the rail's "Add new".
    *  Bound to the selected layer; default closed. Distinct from `isLayersPanelOpen` (the list overlay). */
   readonly isLayerSettingsOpen: boolean;
   /** Responsive override: the bottom band is too narrow to hold the gnomon beside the centered

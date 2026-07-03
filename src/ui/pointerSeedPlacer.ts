@@ -2,7 +2,7 @@ import { cursorRay, type SimulationStore, seedFromVolume } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { clientToNdc } from "./pointerMath.ts";
 
-// Click-to-place field-line seeds (M4.8). While the store holds a `seedPlacementLayerId` (a fieldlines
+// Click-to-place field-line seeds. While the store holds a `seedPlacementLayerId` (a fieldlines
 // layer in placement mode, toggled from its settings panel), a primary canvas click drops one seed at
 // the cursor and re-traces; otherwise the handler is inert and the click falls through to the picker /
 // camera. ui → store only.

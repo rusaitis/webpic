@@ -69,7 +69,7 @@ export function installUi(opts: InstallUiOptions): () => void {
 
   // The left tool rail — View (toggles the Scene panel) + Probe (the point marker), the instance-first
   // rail's first occupants on the operations axis. Outside the shell on the left edge, UI-toggle-
-  // hidden; layer add-buttons + more tools land here in M4. The gnomon stays on the bottom rail.
+  // hidden; the layer add-buttons + future tools mount here too. The gnomon stays on the bottom rail.
   disposers.push(installSideRail(opts.parent, opts.simulationStore, opts.uiStore));
 
   // The Layers overlay — the rail-toggled, fixed translucent panel of renderable instances (one row

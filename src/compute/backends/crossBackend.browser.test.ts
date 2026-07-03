@@ -3,7 +3,7 @@
 // (magnitude / divergence / curl). This drives the full ComputeBackend path on both sides (recipe
 // resolution, input gathering, FieldArray packaging), the symmetric twin of parity.browser, which
 // compares the WGSL kernel to the coordinates/derived functions directly. Both backends bind the same
-// op set now (M3.3 added TS curl/divergence), so the harness covers it kernel-for-kernel. The second
+// op set now (TS curl/divergence included), so the harness covers it kernel-for-kernel. The second
 // suite pins the WebGPU backend against the checked-in pypic goldens (the f64 authority) at the same
 // webgpu_f32 bound, closing the TS≡WebGPU≡pypic triangle the node tests/goldens.test.ts opens at f64.
 // Runs only under the gpu project (WEBPIC_GPU=1, headed Chrome); skipped green where WebGPU is absent.

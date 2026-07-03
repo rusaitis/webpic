@@ -3,7 +3,7 @@
 // TerminationReason, FieldLine + the closed-loop arc-length gate). Pure leaf — typed arrays in/out,
 // no THREE/DOM/GPU; imports only @containers types + the same-layer integrator/interpolator.
 //
-// The vectorized multi-seed DP kernel is deferred to the GPU (M4.3 WGSL twin); traceFieldLinesAdaptive
+// The vectorized multi-seed DP kernel is deferred to the GPU (the WGSL twin); traceFieldLinesAdaptive
 // here loops the single-seed tracer with a shared interpolator — the CPU-available slice of pypic's
 // batching win. `?? 0` on the buffer reads only satisfies noUncheckedIndexedAccess; every index is in
 // bounds by construction.
@@ -160,7 +160,7 @@ export function makeFieldLine(args: {
   };
 }
 
-// --- internals (mirror pypic._tracing helpers) ---
+// Internals below mirror pypic._tracing helpers.
 
 /** Unit field direction at a point scaled by `sign`, or null on a domain exit / field null. */
 function makeRhs(interp: VectorFieldInterpolator, sign: number, nullThreshold: number): Rhs {
@@ -505,7 +505,8 @@ export function toSeedList(
 ): Float64Array[] {
   if (seeds instanceof Float64Array) {
     const out: Float64Array[] = [];
-    for (let i = 0; i + 3 <= seeds.length; i += 3) out.push(seeds.slice(i, i + 3));
+    // Aliases into the caller's flat buffer — seeds are read-only downstream (makeFieldLine copies).
+    for (let i = 0; i + 3 <= seeds.length; i += 3) out.push(seeds.subarray(i, i + 3));
     return out;
   }
   return seeds.map((s) => toSeed(s));
@@ -514,7 +515,7 @@ export function toSeedList(
 /**
  * Trace N field lines from `seeds` (an array of (x,y,z) triples or a flat Float64Array). Builds the
  * interpolator once and validates every seed up front (mirrors pypic), so an invalid seed throws before
- * any tracing. The vectorized DP kernel stays on the GPU (M4.3); this loops the single-seed tracer.
+ * any tracing. The vectorized DP kernel stays on the GPU; this loops the single-seed tracer.
  */
 export function traceFieldLinesAdaptive(
   data: FieldDataset,

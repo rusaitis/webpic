@@ -37,7 +37,7 @@ afterAll(() => {
   if (installed) dispose?.();
 });
 
-// --- curve-distance helpers (count-independent, so a step-count flip can't fail them) ---
+// Curve-distance helpers — count-independent, so a step-count flip can't fail them.
 
 function pointToSegment(
   p: readonly [number, number, number],

@@ -14,10 +14,7 @@ const EMPTY = "—";
 // raw id. The run-name chain is DESIGN §Run metadata's consumption rule — prefer the typed
 // `attrs.run`, fall back to re-parsing `attrs.simulation_toml` — with this label as its first
 // consumer (the reserved keys ride the dataset's metadata bag, re-stuffed by the reader).
-export function datasetLabel(
-  id: string,
-  metadata?: Readonly<Record<string, unknown>>,
-): string {
+export function datasetLabel(id: string, metadata?: Readonly<Record<string, unknown>>): string {
   return runName(metadata) ?? DATASET_CATALOG.find((d) => d.id === id)?.label ?? id;
 }
 
@@ -31,16 +28,16 @@ function nonEmptyString(value: unknown): string | null {
 
 function runName(metadata: Readonly<Record<string, unknown>> | undefined): string | null {
   if (metadata === undefined) return null;
-  const run = metadata["run"];
+  const run = metadata.run;
   if (isRecord(run)) {
-    const name = nonEmptyString(run["name"]);
+    const name = nonEmptyString(run.name);
     if (name !== null) return name;
   }
-  const toml = metadata["simulation_toml"];
+  const toml = metadata.simulation_toml;
   if (typeof toml === "string") {
     try {
-      const table = parseToml(toml)["run"];
-      if (isRecord(table)) return nonEmptyString(table["name"]);
+      const table = parseToml(toml).run;
+      if (isRecord(table)) return nonEmptyString(table.name);
     } catch {
       // malformed TOML names nothing — fall through to the catalog
     }

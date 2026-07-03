@@ -544,7 +544,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
 
   const onDown = (e: PointerEvent): void => {
     if (!e.isPrimary) return;
-    const target = e.target as Element | null;
+    const target = e.target as Element | null; // EventTarget → Element narrowing for closest()
     if (target?.closest("button, input, select, textarea, a, [data-no-drag]")) return;
     startX = e.clientX;
     startY = e.clientY;

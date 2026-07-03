@@ -172,6 +172,7 @@ export function installColorbar(
   // caller owes a reflow; plain binding edits repaint in place.
   let overflowCount = 0;
   const repaint = (): boolean => {
+    // dragSnap is the sole writer of dataset.edge and only writes PaneEdge values
     const edge = (container.dataset.edge as PaneEdge) ?? "bottom";
     const horizontal = edge === "top" || edge === "bottom";
     const state = store.getState();
@@ -394,7 +395,7 @@ export function installColorbar(
   // trailing click. The settings popover is body-appended, so its clicks never reach here.
   container.addEventListener("click", (e) => {
     if (drag.wasDragging()) return;
-    const target = e.target as Element | null;
+    const target = e.target as Element | null; // EventTarget → Element narrowing for closest()
     if (target?.closest("button, a, input, select, [data-no-drag]")) return;
     setCollapsed(!isCollapsed()); // manual (auto = false): the user owns collapse from here
   });

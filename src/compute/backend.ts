@@ -10,7 +10,7 @@ import type { RecipeKey } from "./recipes.generated.ts";
 // recipe; a `ctx.prefer` override + calibration scoring (DESIGN §compute) will refine the choice once
 // more than one backend qualifies.
 // The id universe, single-sourced: the `BackendId` type and calibration's runtime Zod enum both
-// derive from this, so adding a backend (WebGPU @ M3, WASM @ M9) is one edit here — no skew.
+// derive from this, so adding a backend (WebGPU shipped, WASM planned) is one edit here — no skew.
 export const BACKEND_IDS = ["ts", "wasm", "webgpu"] as const;
 export type BackendId = (typeof BACKEND_IDS)[number];
 

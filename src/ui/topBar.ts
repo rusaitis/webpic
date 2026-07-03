@@ -245,7 +245,7 @@ export function installTopBar(
 
   // Camera/export cluster (DESIGN §UI's top-bar "camera/projection, export"). The projection chip
   // mirrors ui/cameraRail's toggle through the same setProjection intent — a second trigger, not a
-  // second model; export fires the M6.4 screenshot chain the P shortcut uses (screenshotBridge owns
+  // second model; export fires the screenshot chain the P shortcut uses (screenshotBridge owns
   // the pill, single-flight, and the download).
   const projChip = makeEl(doc, "button", "webpic-topbar_chip webpic-topbar_proj");
   projChip.type = "button";

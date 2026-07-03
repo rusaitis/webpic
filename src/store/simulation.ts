@@ -189,13 +189,13 @@ export interface SimulationState {
   setAvailableSteps(steps: readonly number[]): void;
   addLayer(spec: LayerSpec): void;
   /** Add a volume layer on the active field, then recompute so it gets scalar data + a scene. The
-   *  M4.7 rail's `+Volume` button / `V` shortcut dispatch this. */
+   *  rail's `+Volume` button / `V` shortcut dispatch this. */
   addVolumeLayer(): void;
   /** Add a mid-plane z slice on the active field, then recompute so it gets scalar data + a scene.
-   *  The M4.7 rail's `+Slice` button dispatches this. */
+   *  The rail's `+Slice` button dispatches this. */
   addSliceLayer(): void;
   /** Add a field-line layer seeded with a default rake over the current dataset, then trace it. The
-   *  DESIGN-reserved `T` shortcut / the M4.7 rail's `+Field lines` button dispatch this. */
+   *  DESIGN-reserved `T` shortcut / the rail's `+Field lines` button dispatch this. */
   addFieldlinesLayer(): void;
   removeLayer(id: string): void;
   selectLayer(id: string | null): void;
@@ -344,7 +344,7 @@ export function createSimulationStore() {
       // started while it awaited) discards instead of committing a stale field/error — the pull-based
       // invalidation counter (DESIGN §compute) in its v0.1 shape.
       let computeGeneration = 0;
-      // Cancels the superseded compute's in-flight work (an M4 GPU trace, an async backend): the
+      // Cancels the superseded compute's in-flight work (a GPU trace, an async backend): the
       // generation counter only discards the stale *result*, this also stops the work producing it.
       let computeAbort: AbortController | null = null;
 

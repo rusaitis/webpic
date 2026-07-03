@@ -97,9 +97,7 @@ describe("installTopBar", () => {
     const { store, control } = setup();
     expect(control("dataset").textContent).toContain("Flux rope"); // catalog label pre-load
     const dataset = vectorTriple("B", { array: Float32Array });
-    void store
-      .getState()
-      .setDataset({ ...dataset, metadata: { run: { name: "run-001" } } });
+    void store.getState().setDataset({ ...dataset, metadata: { run: { name: "run-001" } } });
     expect(control("dataset").textContent).toContain("run-001");
   });
 

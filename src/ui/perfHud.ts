@@ -207,7 +207,7 @@ export function installPerfHud(
 
   // The ≈ GPU+queue band: the area between the CPU floor and the frame wall-clock (frame − cpu). A
   // derived estimate, not a timestamp — render-pass timestamp-query loses the Metal device, so a true
-  // GPU line isn't available (compute-pass timing lands at M3). Per-segment fill skips NaN gaps.
+  // GPU line isn't available (compute passes are timed separately by gpu/profiler). Per-segment fill skips NaN gaps.
   const drawGpuBand = (yMax: number): void => {
     if (ctx2d === null) return;
     ctx2d.fillStyle = GPU_BAND;

@@ -1,8 +1,8 @@
 // WebGPU field-line tracer — the GPU twin of numerics/tracing.ts `traceFieldLinesAdaptive`. Fans the
 // adaptive Dormand-Prince 5(4) trace out across one GPU invocation per (seed, direction) work-item, then
 // reuses the CPU `stitch` + `makeFieldLine` for the "both"/backward join and FieldLine assembly so the
-// output is shape-identical to the goldens. Like the M3 field-op backend it is a standalone function, NOT
-// a `ComputeBackend` (its output is `FieldLine[]`, not a scalar/vector field) — M4.6 wires it onto the
+// output is shape-identical to the goldens. Like the field-op backend it is a standalone function, NOT
+// a `ComputeBackend` (its output is `FieldLine[]`, not a scalar/vector field) — wired onto the
 // store's `recompute()` AbortController seam.
 
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
@@ -20,11 +20,10 @@ import {
   toSeedList,
   validateSeed,
 } from "@numerics/tracing.ts";
+import type { Vec3 } from "@schema/types.ts";
 import { STREAMLINE_ENTRY, STREAMLINE_WGSL } from "@shaders/kernels/streamline.wgsl.ts";
 import { toFloat32 } from "./params.ts";
 import { buildStreamlineParams, decodeTraceMeta } from "./streamlineParams.ts";
-
-type Vec3 = readonly [number, number, number];
 
 const EMPTY_DIR: SingleDirResult = {
   points: new Float64Array(0),

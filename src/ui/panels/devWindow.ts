@@ -22,8 +22,8 @@ export function installDevWindow(
     title: "Developer",
     onClose: () => uiStore.getState().setPanelVisible("dev", false),
   });
-  // GPU frame-time readout + "Measure (continuous)" — the sustained per-frame instrument the M2
-  // raymarch gate (and scripts/profile-raymarch.ts) drives. Orphaned when the docked shell stopped
+  // GPU frame-time readout + "Measure (continuous)" — the sustained per-frame instrument the
+  // raymarch perf gate (and scripts/profile-raymarch.ts) drives. Orphaned when the docked shell stopped
   // mounting default panels; re-homed here so the dev tool still has a measurement surface.
   const disposeDiagnostics = installDiagnosticsPanel(win.body, store);
   const disposePanel = installDevPanel(win.body, store);

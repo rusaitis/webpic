@@ -41,7 +41,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 - **Functions:** descriptive English — `magneticFieldMagnitude()`, `traceFieldLine()`, `plasmaBeta()`.
 - **Parameters:** short scientific — `bx`, `rho`, `dt`, `qOverM`. The doc has the full description.
 - **Variables in code:** descriptive — `electronDensity` not `ne`. Math symbols belong in docstrings, not identifiers.
-- **Constants:** `UPPER_SNAKE_CASE`. **Booleans:** name as questions — `isPeriodic`, `hasField`.
+- **Constants:** `UPPER_SNAKE_CASE`. **Booleans:** name as questions — `isPeriodic`, `hasField`. Exception: layer `visible` mirrors three's `Object3D.visible` across the store→render seam.
 - **File names mirror pypic** where the file maps to a pypic module — `plasma_beta.ts` ↔ `pypic.derived.plasma_beta` — but the recipe registers under the canonical short key (`'beta'`).
 - **Magnitudes use literal pipes:** `'|B|'`, `'|E|'`, `'|V_s0|'`. `'B_mag'` is an alias (might be needed for Arrow).
 

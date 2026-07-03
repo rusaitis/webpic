@@ -14,7 +14,7 @@ import { createStoreBridge } from "./storeBridge.ts";
 const RENDER_PHASE_KEY = "render";
 
 // Where on the layer's colormap the solid line color is sampled — high enough to read as a bright,
-// saturated streamline over the volume. Color-by-scalar (the full colormap along the line) is M4.8.
+// saturated streamline over the volume. Color-by-scalar (the full colormap along the line) is deferred.
 const FIELDLINE_COLOR_T = 0.75;
 
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
@@ -177,6 +177,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       kind: "upsertFieldlines",
       requestId: REQUEST_IDS.layer,
       id: layer.id,
+      // .buffer is typed ArrayBufferLike; both were allocated above as plain ArrayBuffers
       positions: positions.buffer as ArrayBuffer,
       counts: counts.buffer as ArrayBuffer,
       color,

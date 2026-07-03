@@ -5,7 +5,7 @@
 // pypic grids are CELL-CENTERED: sample i sits at origin + (i + 0.5)·dx (GridInfo.coordinate_arrays),
 // so the physical→index map carries a −0.5 offset and the in-domain range is t ∈ [0, dim−1], i.e.
 // physical [origin + 0.5·dx, origin + (dim − 0.5)·dx]. This is the first webpic path that depends on
-// absolute grid coordinates — the M3 finite-difference kernels only used spacing, so they were immune.
+// absolute grid coordinates — the finite-difference kernels only used spacing, so they were immune.
 //
 // Pure leaf — typed arrays in/out, no THREE/DOM/GPU; imports only @containers types. The boolean
 // out-of-domain contract replaces pypic's NaN sentinel (cleaner in TS); the tracer's failure
