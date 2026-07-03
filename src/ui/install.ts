@@ -97,15 +97,17 @@ export function installUi(opts: InstallUiOptions): () => void {
   // Keyboard cheat-sheet modal (? / H). Its own keydown listener — independent of the UI toggle.
   disposers.push(installHelpOverlay(opts.parent, opts.uiStore));
 
-  // Global UI toggle bound to the theme's bare-key shortcut (default "F"); ignore it while
-  // typing in a control and when modifiers are held (those are reserved for the palette).
+  // Global bare-key shortcuts: the theme's UI toggle (default "F") + the PNG screenshot ("P");
+  // ignored while typing in a control and when modifiers are held (Shift+P is the perf HUD).
   const toggleKey = shortcuts.toggleUi.toLowerCase();
   const doc = opts.parent.ownerDocument;
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
       return;
     if (isTypingTarget(event.target)) return;
-    if (event.key.toLowerCase() === toggleKey) opts.uiStore.getState().toggleUi();
+    const key = event.key.toLowerCase();
+    if (key === toggleKey) opts.uiStore.getState().toggleUi();
+    else if (key === "p") opts.uiStore.getState().requestScreenshot();
   };
   doc.addEventListener("keydown", onKeyDown);
   disposers.push(() => doc.removeEventListener("keydown", onKeyDown));

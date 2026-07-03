@@ -83,7 +83,9 @@ describe("gatherEdges + findViolations (in-memory project)", () => {
 });
 
 describe("real source tree", () => {
-  it("has no layer-boundary violations", () => {
+  // The ts-morph whole-project load scales with the tree and runs beside the rest of the suite —
+  // it drifts past the 5 s vitest default under parallel load without being unhealthy.
+  it("has no layer-boundary violations", { timeout: 60_000 }, () => {
     const project = new Project({ tsConfigFilePath: resolve(ROOT, "tsconfig.json") });
     expect(findViolations(gatherEdges(project))).toEqual([]);
   });

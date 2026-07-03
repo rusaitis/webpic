@@ -24,6 +24,7 @@ import {
   decodePhysics,
   fromJsonNative,
   isCanonicalFieldName,
+  mergeReservedRootAttrs,
   resolveFieldMeta,
 } from "./decode.ts";
 
@@ -194,9 +195,11 @@ async function openPypicStore(
   const species = (fromJsonNative(rootAttrs.species ?? []) ?? []) as ReadonlyArray<
     Readonly<Record<string, unknown>>
   >;
-  const metadata = (fromJsonNative(rootAttrs.metadata ?? {}) ?? {}) as Readonly<
-    Record<string, unknown>
-  >;
+  const metadata = mergeReservedRootAttrs(
+    rootAttrs,
+    (fromJsonNative(rootAttrs.metadata ?? {}) ?? {}) as Readonly<Record<string, unknown>>,
+    source,
+  );
 
   const fieldNames = listFieldArrayNames(store);
 

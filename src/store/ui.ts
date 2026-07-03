@@ -38,6 +38,14 @@ export interface UiState {
    *  message — newest-wins reverts the text when a later phase ends first (A→B→A). */
   readonly loadingPhases: readonly LoadingPhase[];
   readonly statusError: { readonly message: string } | null;
+  /** Monotonic PNG-capture trigger: each request increments, subscribers fire per change — no
+   *  consume/reset ping-pong. The app bridge owns the capture; ui only dispatches the intent. */
+  readonly screenshotSerial: number;
+  /** The active theme's name (slug, e.g. "catppuccin-mocha"); null until the app seeds it. The app
+   *  theme bridge owns the bundled list + application — ui reads this for display only. */
+  readonly themeName: string | null;
+  /** Monotonic cycle-to-next-theme trigger (rail button), same shape as screenshotSerial. */
+  readonly themeCycleSerial: number;
   toggleUi(): void;
   setUiVisible(visible: boolean): void;
   toggleHelp(): void;
@@ -55,6 +63,9 @@ export interface UiState {
   endLoading(key: string): void;
   flashError(message: string): void;
   clearError(): void;
+  requestScreenshot(): void;
+  setThemeName(name: string): void;
+  requestThemeCycle(): void;
 }
 
 // Inferred from the factory so the `subscribeWithSelector` overload survives (a plain
@@ -73,6 +84,18 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       panels: initialPanels,
       loadingPhases: [],
       statusError: null,
+      screenshotSerial: 0,
+      requestScreenshot() {
+        set({ screenshotSerial: get().screenshotSerial + 1 });
+      },
+      themeName: null,
+      themeCycleSerial: 0,
+      setThemeName(name) {
+        if (get().themeName !== name) set({ themeName: name });
+      },
+      requestThemeCycle() {
+        set({ themeCycleSerial: get().themeCycleSerial + 1 });
+      },
       toggleUi() {
         set({ isUiVisible: !get().isUiVisible });
       },

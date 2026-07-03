@@ -1,5 +1,6 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
 import type { RenderWorkerRequest } from "@render";
+import { parseTheme } from "@schema";
 import { createSimulationStore } from "@store";
 import { describe, expect, it } from "vitest";
 import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
@@ -183,5 +184,31 @@ describe("installSceneSync", () => {
     sync.dispose();
     store.getState().setOverlayPlane("xy", true);
     expect(posts).toHaveLength(0);
+  });
+
+  it("setTheme re-posts the overlay with the new palette while ready", () => {
+    const { store, posts, sync } = harness(true);
+    store.getState().setDataset(volumeDataset());
+    posts.length = 0;
+    sync.setTheme(parseTheme('name = "t"\n[colors]\ngrid = [1.0, 0.0, 0.0, 0.5]', "t"));
+
+    const msg = posts.at(-1)?.message;
+    if (msg?.kind !== "setSceneOverlay" || msg.overlay === null) {
+      throw new Error("expected a setSceneOverlay");
+    }
+    expect(msg.overlay.grid.color).toEqual([1, 0, 0, 0.5]);
+  });
+
+  it("setTheme before ready is silent; the palette rides the later flushAll", () => {
+    const { posts, sync, setReady } = harness(false);
+    sync.setTheme(parseTheme('name = "t"\n[colors]\ngrid = [0.0, 1.0, 0.0, 0.5]', "t"));
+    expect(posts).toHaveLength(0);
+    setReady(true);
+    sync.flushAll();
+    const msg = posts.at(-1)?.message;
+    if (msg?.kind !== "setSceneOverlay" || msg.overlay === null) {
+      throw new Error("expected a setSceneOverlay");
+    }
+    expect(msg.overlay.grid.color).toEqual([0, 1, 0, 0.5]);
   });
 });

@@ -30,19 +30,21 @@ export interface PickerSyncOptions {
   readonly store: SimulationStore;
   readonly worker: Pick<Worker, "postMessage">;
   readonly isReady: () => boolean;
-  /** Static per session — colors are resolved once at install (no runtime theme swap yet). */
+  /** The boot theme; a runtime switch rides setTheme (the app theme bridge). */
   readonly theme?: Theme;
 }
 
 export interface PickerSync {
   /** Post the current marker config + position (catch-up on the worker `ready`, like sceneSync). */
   readonly flushAll: () => void;
+  /** Re-resolve the marker palette from a new theme and rebuild it (the theme switcher). */
+  readonly setTheme: (theme: Theme | undefined) => void;
   readonly dispose: () => void;
 }
 
 export function installPickerSync(opts: PickerSyncOptions): PickerSync {
   const { store, worker, isReady } = opts;
-  const config = buildMarkerConfig(opts.theme);
+  let config = buildMarkerConfig(opts.theme);
   const bridge = createStoreBridge(store, isReady);
 
   // The readiness gate lives in the bridge (subscribeWhenReady); flushAll is only called post-ready.
@@ -75,6 +77,10 @@ export function installPickerSync(opts: PickerSyncOptions): PickerSync {
     flushAll() {
       postMarker();
       postPoint();
+    },
+    setTheme(theme) {
+      config = buildMarkerConfig(theme);
+      if (isReady()) postMarker();
     },
     dispose: () => bridge.dispose(),
   };

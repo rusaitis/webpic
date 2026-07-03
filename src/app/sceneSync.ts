@@ -84,19 +84,21 @@ export interface SceneSyncOptions {
   readonly store: SimulationStore;
   readonly worker: Pick<Worker, "postMessage">;
   readonly isReady: () => boolean;
-  /** Static per session — colors are resolved once at install (there's no runtime theme swap yet). */
+  /** The boot theme; a runtime switch rides setTheme (the app theme bridge). */
   readonly theme?: Theme;
 }
 
 export interface SceneSync {
   /** Post the current overlay state (catch-up on the worker `ready`, mirroring layerSync.flushAll). */
   readonly flushAll: () => void;
+  /** Re-resolve the overlay palette from a new theme and repaint (the theme switcher). */
+  readonly setTheme: (theme: Theme | undefined) => void;
   readonly dispose: () => void;
 }
 
 export function installSceneSync(opts: SceneSyncOptions): SceneSync {
   const { store, worker, isReady } = opts;
-  const colors = resolveOverlayColors(opts.theme);
+  let colors = resolveOverlayColors(opts.theme);
   const bridge = createStoreBridge(store, isReady);
 
   // The readiness gate lives in the bridge (subscribeWhenReady); flushAll is only called post-ready.
@@ -116,6 +118,10 @@ export function installSceneSync(opts: SceneSyncOptions): SceneSync {
 
   return {
     flushAll: post,
+    setTheme(theme) {
+      colors = resolveOverlayColors(theme);
+      if (isReady()) post();
+    },
     dispose: () => bridge.dispose(),
   };
 }

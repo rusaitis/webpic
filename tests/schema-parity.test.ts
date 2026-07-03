@@ -68,6 +68,9 @@ describe.skipIf(!RUN_PYPIC)("additive-compat vs pypic ground truth", () => {
   let checkedIn: Bundle;
   let current: Bundle;
 
+  // Hook/test timeouts sized to the spawnSync budget: concurrent uv invocations (the
+  // writer-parity suite shells out too) contend on the project env and can exceed the
+  // 5 s vitest default even when each subprocess is healthy.
   beforeAll(() => {
     checkedIn = loadBundle(BUNDLE_PATH);
     // Same flags as `npm run gen:export`, so the jsonSchema is apples-to-apples.
@@ -84,7 +87,7 @@ describe.skipIf(!RUN_PYPIC)("additive-compat vs pypic ground truth", () => {
       throw new Error(`pypic export bundle failed (status ${exported.status}): ${exported.stderr}`);
     }
     current = JSON.parse(readFileSync(out, "utf8")) as Bundle;
-  });
+  }, 120_000);
 
   // These canonical-name surfaces aren't in the jsonSchema, so the structural diff below
   // wouldn't catch a removal — check them directly.
@@ -96,7 +99,9 @@ describe.skipIf(!RUN_PYPIC)("additive-compat vs pypic ground truth", () => {
     expect(removed).toEqual([]);
   });
 
-  it("jsonSchema changes are additive (pypic schema diff: no removals)", () => {
+  it("jsonSchema changes are additive (pypic schema diff: no removals)", {
+    timeout: 120_000,
+  }, () => {
     const a = join(tmpdir(), "webpic-schema-checked-in.json");
     const b = join(tmpdir(), "webpic-schema-current.json");
     writeFileSync(a, JSON.stringify(checkedIn.jsonSchema));

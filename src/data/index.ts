@@ -53,3 +53,10 @@ export type {
   StreamFieldPayload,
   StreamStepMessage,
 } from "./streamMessages.ts";
+export {
+  encodePypicAttrs,
+  toJsonNative,
+  type WriteDtype,
+  writeZarr,
+  type ZarrWriteOptions,
+} from "./writers/zarr.ts";

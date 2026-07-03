@@ -125,9 +125,11 @@ export function installSideRail(
   const selectionsBtn = makeButton("selections", ICON.selections);
   selectionsBtn.setAttribute("aria-label", "Selections — v0.2");
   selectionsBtn.disabled = true;
+  // Theme cycler: each click asks the app theme bridge for the next bundled theme. Enabled only
+  // once the bridge seeds themeName — a boot without a theme catalog (headless/embed) keeps it inert.
   const themeBtn = makeButton("theme", ICON.theme);
-  themeBtn.setAttribute("aria-label", "Theme — M6");
-  themeBtn.disabled = true;
+  themeBtn.setAttribute("aria-label", "Cycle theme");
+  themeBtn.addEventListener("click", () => uiStore.getState().requestThemeCycle(), { signal });
   container.append(viewBtn, probeBtn, diagBtn, reductionsBtn, selectionsBtn, themeBtn);
   parent.appendChild(container);
 
@@ -229,6 +231,10 @@ export function installSideRail(
   const applyDiagPressed = (open: boolean): void => {
     diagBtn.setAttribute("aria-pressed", String(open));
   };
+  const applyThemeName = (name: string | null): void => {
+    themeBtn.disabled = name === null;
+    themeBtn.title = name === null ? "Theme" : `Theme: ${name} — click to cycle`;
+  };
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
     if (!visible) {
@@ -241,6 +247,7 @@ export function installSideRail(
   applyProbe(store.getState().overlay.showPicker);
   applyLayersPressed(uiStore.getState().isLayersPanelOpen);
   applyDiagPressed(uiStore.getState().panels.dev ?? true);
+  applyThemeName(uiStore.getState().themeName);
   applyVisible(uiStore.getState().isUiVisible);
 
   const unsubs = [
@@ -253,6 +260,7 @@ export function installSideRail(
     ),
     uiStore.subscribe((s) => s.isLayersPanelOpen, applyLayersPressed),
     uiStore.subscribe((s) => s.panels.dev ?? true, applyDiagPressed),
+    uiStore.subscribe((s) => s.themeName, applyThemeName),
     uiStore.subscribe((s) => s.isUiVisible, applyVisible),
   ];
 

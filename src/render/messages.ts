@@ -38,6 +38,7 @@ export const REQUEST_IDS = {
   pickerPoint: 12,
   perf: 13,
   shaderHmr: 14,
+  screenshot: 15,
 } as const;
 
 // A computed scalar field, serialized for transfer to the worker: the typed array can't
@@ -267,6 +268,10 @@ export type RenderWorkerRequest =
   // the scalar flows data → render with no main-thread hop. Stored on receipt; the port's own
   // onmessage handles the field swaps.
   | { readonly kind: "pair"; readonly requestId: number; readonly port: MessagePort }
+  // Capture the current composite as a PNG (the OffscreenCanvas worker's canvas.toBlob): the
+  // deterministic full-res readback (never render-scaled, unaffected by a live gesture) is encoded
+  // worker-side and returned as a Blob for the app to download.
+  | { readonly kind: "screenshot"; readonly requestId: number }
   // Dev-only shader hot-reload: a watched edit to the raymarch WGSL/TSL fired on the main
   // thread's Vite HMR client, which forwards this so the worker re-imports the scene factory module
   // fresh (cache-busted by `timestamp`) and swaps each volume layer's MATERIAL in place — the uploaded
@@ -333,6 +338,16 @@ export type RenderWorkerResponse =
   // them under a single pill). Fires on success, supersede, OR warm failure (the first paint then
   // sync-compiles), so the pill never strands.
   | { readonly kind: "layerCompiled"; readonly requestId: number; readonly id: string }
+  // The finished PNG capture, at the readback target's physical size (logical × DPR). `blob` is
+  // null when the capture failed — posted from a catch so the app's pending state never strands
+  // (the layerCompiled never-strand contract); the failure itself rides the error channel.
+  | {
+      readonly kind: "screenshot";
+      readonly requestId: number;
+      readonly blob: Blob | null;
+      readonly width: number;
+      readonly height: number;
+    }
   | { readonly kind: "error"; readonly requestId: number; readonly message: string }
   // Terminal GPU failure: the device was lost and the recovery circuit-breaker stopped re-acquiring
   // (repeated rapid losses) or no adapter is available. The render loop is halted; the app surfaces a

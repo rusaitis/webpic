@@ -309,6 +309,35 @@ export function decodeFieldAttrs(rawAttrs: unknown, name: string): DecodedFieldA
   };
 }
 
+// Re-stuff the reserved root attrs (attrs.run / attrs.simulation_toml / attrs.model) into
+// the metadata bag under their pypic reserved keys, mirroring pypic.io.metadata
+// .decode_pypic_attrs — the in-memory FieldDataset shape stays one bag, and the writer
+// lifts them back out. Carried verbatim (no Zod): normalizing attrs.run through a
+// strip-mode schema would silently drop additive v1.x fields and corrupt the round-trip.
+export function mergeReservedRootAttrs(
+  rootAttrs: Record<string, unknown>,
+  metadata: Readonly<Record<string, unknown>>,
+  source: string,
+): Readonly<Record<string, unknown>> {
+  const out: Record<string, unknown> = { ...metadata };
+  if (rootAttrs.model !== undefined && rootAttrs.model !== null) {
+    out.model = fromJsonNative(rootAttrs.model);
+  }
+  if (rootAttrs.run !== undefined && rootAttrs.run !== null) {
+    if (!isRecord(rootAttrs.run)) {
+      throw new Error(`${source}.run: expected a JSON object`);
+    }
+    out.run = fromJsonNative(rootAttrs.run);
+  }
+  if (rootAttrs.simulation_toml !== undefined && rootAttrs.simulation_toml !== null) {
+    if (typeof rootAttrs.simulation_toml !== "string") {
+      throw new Error(`${source}.simulation_toml: expected a string of TOML source`);
+    }
+    out.simulation_toml = rootAttrs.simulation_toml;
+  }
+  return out;
+}
+
 // Canonical field-name resolution (species-suffix aware).
 // pypic's registry lists base canonical forms (B_1, V_1, P_11, n_s0) but synthesizes
 // per-species *component* names (V_s0_1, P_s0_11) via the species-suffix regex. Strip

@@ -23,6 +23,7 @@ import { createFrameTimer, type FrameTimer } from "./runtime/frameTimer.ts";
 import { createQualityController } from "./runtime/qualityController.ts";
 import { type CompositeItem, type InstalledRenderer, installRenderer } from "./runtime/renderer.ts";
 import { createRenderLoop } from "./runtime/renderLoop.ts";
+import { pixelsToPngBlob } from "./runtime/screenshot.ts";
 import { createTestScene, type TestScene } from "./scene.ts";
 
 // Worker-scope view of `self`. The DOM lib types `self` as Window (whose
@@ -413,20 +414,57 @@ async function renderFrame(
   loop.beginReadback();
   try {
     const pixels = await renderer.readCompositePixels(items);
+    // The readback target's physical size (logical × DPR) — the dimensions the buffer actually
+    // holds; `dims` is logical and disagrees at DPR ≠ 1.
+    const size = renderer.readbackSize();
     // Freshly allocated readback buffer (never shared) — safe to transfer.
     const buffer = pixels.buffer as ArrayBuffer;
     ctx.postMessage(
       {
         kind: "frame",
         requestId: request.requestId,
-        width: dims.width,
-        height: dims.height,
+        width: size.width,
+        height: size.height,
         pixels: buffer,
       },
       [buffer],
     );
   } finally {
     loop.endReadback(); // re-dirty so the swapchain the readback borrowed repaints
+  }
+}
+
+// Capture the composite as a PNG: the same deterministic full-res readback as renderFrame (never
+// render-scaled, immune to swapchain-present timing), PNG-encoded worker-side. The failure arm
+// posts blob:null so the app's pending state never strands (layerCompiled's never-strand contract);
+// the rethrow still surfaces the message on the error channel.
+async function screenshot(
+  request: Extract<RenderWorkerRequest, { kind: "screenshot" }>,
+): Promise<void> {
+  await initDone;
+  if (renderer === undefined) {
+    throw new Error("screenshot before init");
+  }
+  try {
+    let pixels: Uint8Array;
+    loop.beginReadback();
+    try {
+      pixels = await renderer.readCompositePixels(paintItems());
+    } finally {
+      loop.endReadback();
+    }
+    const { width, height } = renderer.readbackSize();
+    const blob = await pixelsToPngBlob(pixels, width, height);
+    ctx.postMessage({ kind: "screenshot", requestId: request.requestId, blob, width, height });
+  } catch (error) {
+    ctx.postMessage({
+      kind: "screenshot",
+      requestId: request.requestId,
+      blob: null,
+      width: 0,
+      height: 0,
+    });
+    throw error;
   }
 }
 
@@ -699,6 +737,8 @@ function handle(request: RenderWorkerRequest): Promise<void> {
       return initDone;
     case "renderFrame":
       return renderFrame(request);
+    case "screenshot":
+      return screenshot(request);
     case "upsertLayer":
       return upsertLayer(request);
     case "upsertFieldlines":

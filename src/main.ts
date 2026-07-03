@@ -1,4 +1,6 @@
 import { bootstrap, datasetCatalog } from "@app";
+import { DEFAULT_THEME_NAME, loadBundledThemes } from "@data/theme/loader.ts";
+import { readThemePref } from "@data/theme/prefs.ts";
 import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
 import { parsePoseParam } from "@store";
 
@@ -21,10 +23,20 @@ const orthographic = params.get("proj") === "ortho";
 const catalog = datasetCatalog(n);
 const initial = catalog.get(DEFAULT_DATASET_ID);
 if (initial === undefined) throw new Error(`unknown default dataset: ${DEFAULT_DATASET_ID}`);
+
+// Boot theme: the persisted OPFS pref when it names a bundled theme, else the default. Awaited
+// (one small OPFS read, ~ms) so the first paint carries the user's theme — no default-theme flash.
+const themes = loadBundledThemes();
+const savedTheme = await readThemePref();
+const themeName = savedTheme !== null && themes.has(savedTheme) ? savedTheme : DEFAULT_THEME_NAME;
+const theme = themes.get(themeName);
+
 bootstrap({
   dataset: initial.makeDataset(),
   streamSource: initial.streamSource,
   datasetCatalog: catalog,
+  ...(theme !== undefined ? { theme } : {}),
+  themeCatalog: themes,
   // Dev performance HUD (Shift+P): always in dev builds, opt-in via ?perf in production.
   perf: import.meta.env.DEV || params.has("perf"),
   ...(params.has("debugScene") ? { debugScene: true } : {}),

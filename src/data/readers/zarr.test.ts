@@ -27,6 +27,8 @@ const ROOT_ATTRS = {
   physics: { relativistic: false, gamma_eos: 1.6666666666666667, extra: {} },
   time: { dt: 0.1 },
   metadata: { step: 0, run_name: "test" },
+  run: { name: "test-run", git_sha: "abc123" },
+  simulation_toml: '[run]\nname = "test-run"\n',
 };
 
 const B_ATTRS = (component: number) => ({
@@ -234,11 +236,26 @@ describe("ZarrReader — single-step read", () => {
     expect(ds.fields.get("B_2")?.reduction).toEqual({ axis: "z", op: "mean", lengthAxes: 1 });
   });
 
-  it("carries decoded metadata verbatim", async () => {
+  it("carries decoded metadata verbatim, re-stuffing the reserved root attrs", async () => {
     const reader = readerFor(await buildSingleStepStore());
     const ds = await reader.readTimestep(HANDLE, 0, { fields: ["B_1"] });
-    expect(ds.metadata).toEqual({ step: 0, run_name: "test" });
+    expect(ds.metadata).toEqual({
+      step: 0,
+      run_name: "test",
+      run: { name: "test-run", git_sha: "abc123" },
+      simulation_toml: '[run]\nname = "test-run"\n',
+    });
     expect(ds.species).toEqual([{ name: "electrons", charge: -1, mass: 1, charge_to_mass: -1 }]);
+  });
+
+  it("rejects a non-string attrs.simulation_toml loudly", async () => {
+    const store = await buildSingleStepStore();
+    const doc = JSON.parse(new TextDecoder().decode(store.get("/zarr.json"))) as {
+      attributes: Record<string, unknown>;
+    };
+    doc.attributes.simulation_toml = { not: "a string" };
+    store.set("/zarr.json", new TextEncoder().encode(JSON.stringify(doc)));
+    await expect(readerFor(store).readTimestep(HANDLE, 0)).rejects.toThrow(/simulation_toml/);
   });
 
   it("rejects explicitly-requested unknown fields (KeyError mirror)", async () => {

@@ -107,6 +107,47 @@ describe("uiStore", () => {
     unsubscribe();
   });
 
+  it("increments the screenshot serial per request (monotonic trigger)", () => {
+    const store = createUiStore();
+    const serials: number[] = [];
+    const unsubscribe = store.subscribe(
+      (s) => s.screenshotSerial,
+      (serial) => serials.push(serial),
+    );
+    expect(store.getState().screenshotSerial).toBe(0);
+    store.getState().requestScreenshot();
+    store.getState().requestScreenshot(); // repeats must refire — each is a fresh capture ask
+    expect(serials).toEqual([1, 2]);
+    unsubscribe();
+  });
+
+  it("holds the theme name (identity-skipped) and a cycle serial that always refires", () => {
+    const store = createUiStore();
+    let nameFires = 0;
+    let cycleFires = 0;
+    const unsubName = store.subscribe(
+      (s) => s.themeName,
+      () => {
+        nameFires += 1;
+      },
+    );
+    const unsubCycle = store.subscribe(
+      (s) => s.themeCycleSerial,
+      () => {
+        cycleFires += 1;
+      },
+    );
+    expect(store.getState().themeName).toBeNull();
+    store.getState().setThemeName("dark");
+    store.getState().setThemeName("dark"); // identity — silent
+    expect(nameFires).toBe(1);
+    store.getState().requestThemeCycle();
+    store.getState().requestThemeCycle(); // monotonic — every request fires
+    expect(cycleFires).toBe(2);
+    unsubName();
+    unsubCycle();
+  });
+
   it("flashes errors with fresh identity so repeats refire", () => {
     const store = createUiStore();
     const seen: (string | undefined)[] = [];

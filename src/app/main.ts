@@ -1,5 +1,6 @@
 import type { FieldDataset } from "@containers/field_dataset.ts";
 import type { DataHandle } from "@data";
+import { writeThemePref } from "@data/theme/prefs.ts";
 import {
   REQUEST_IDS,
   type RenderWorkerRequest,
@@ -17,6 +18,7 @@ import {
   type UiStore,
 } from "@store";
 import {
+  applyUiVars,
   installPointerCamera,
   installPointerPicker,
   installPointerSeedPlacer,
@@ -28,8 +30,10 @@ import type { PerfBridge } from "./perfBridge.ts";
 import { installPickerSync } from "./pickerSync.ts";
 import { installRenderWorkerSync } from "./renderWorkerSync.ts";
 import { installSceneSync } from "./sceneSync.ts";
+import { installScreenshotBridge } from "./screenshotBridge.ts";
 import { installStreamingBridge, type StreamingBridge } from "./streamingBridge.ts";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
+import { installThemeBridge, type ThemeBridge } from "./themeBridge.ts";
 import { currentDevicePixelRatio, installViewportTracking } from "./viewportTracking.ts";
 
 const DEFAULT_SIZE = 256;
@@ -79,6 +83,11 @@ export interface BootstrapOptions {
   readonly datasetCatalog?: ReadonlyMap<string, DatasetEntry>;
   /** Theme for overlay colors (axes/grid/labels). Omitted → the gnomon-matching fallback palette. */
   readonly theme?: Theme;
+  /** Bundled theme catalog (name → Theme, insertion order = cycle order) enabling the runtime
+   *  theme switcher (rail button). Omit → the switcher stays disabled; `theme` is the boot theme. */
+  readonly themeCatalog?: ReadonlyMap<string, Theme>;
+  /** Persists the theme choice; defaults to the OPFS pref writer. Injectable for tests. */
+  readonly persistTheme?: (name: string) => Promise<void>;
   /** Initial camera pose (the `?pose=` permalink). Seeded into the store before the worker spawns,
    *  so the existing ready-time pose replay carries it — no extra protocol. */
   readonly initialPose?: CameraPose;
@@ -192,6 +201,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const sceneSync = installSceneSync({ store, worker, isReady, ...theme });
   const pickerSync = installPickerSync({ store, worker, isReady, ...theme });
   const renderSync = installRenderWorkerSync({ store, worker, isReady });
+  const screenshotBridge = installScreenshotBridge({ store, uiStore, worker, isReady });
   const viewport = installViewportTracking({ canvas, worker, isReady, logicalSize });
 
   // Dataset switch (the dropdown): the store records `datasetId`; rebuild the dataset here (the app
@@ -246,6 +256,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       renderSync.handlePickResult(message);
     } else if (message.kind === "layerCompiled") {
       layerSync.handleCompiled(); // the layer's pipeline is warm → drop the render-loading pill
+    } else if (message.kind === "screenshot") {
+      screenshotBridge.handleScreenshot(message);
     } else if (message.kind === "error") {
       console.error("[render worker]", message.message);
     } else if (message.kind === "gpuRecoveryFailed") {
@@ -292,8 +304,31 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const uiParent =
     options.uiParent ?? (typeof document !== "undefined" ? document.body : undefined);
   const disposeUi = uiParent
-    ? installUi({ parent: uiParent, simulationStore: store, uiStore })
+    ? installUi({ parent: uiParent, simulationStore: store, uiStore, ...theme })
     : undefined;
+
+  // Runtime theme switcher: the rail button cycles the catalog; every switch re-applies the CSS
+  // vars + the worker overlay/marker palettes live and persists the choice. Layout/shortcuts stay
+  // from the boot theme (identical across the bundled color themes).
+  let themeBridge: ThemeBridge | undefined;
+  const themeCatalog = options.themeCatalog;
+  if (themeCatalog !== undefined && themeCatalog.size > 0 && uiParent !== undefined) {
+    const firstName = themeCatalog.keys().next().value;
+    const initialName = options.theme?.name ?? firstName;
+    if (initialName !== undefined) {
+      themeBridge = installThemeBridge({
+        uiStore,
+        themes: themeCatalog,
+        initialName,
+        applyTheme: (next) => {
+          applyUiVars(uiParent, next);
+          sceneSync.setTheme(next);
+          pickerSync.setTheme(next);
+        },
+        persist: options.persistTheme ?? writeThemePref,
+      });
+    }
+  }
 
   // Dev performance HUD (Shift+P): the HUD overlay + worker sampling, dynamic-imported so the feature
   // is absent from the default prod bundle. Needs a DOM parent; skipped headless.
@@ -328,6 +363,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   return () => {
     perfDisposed = true;
     perfBridge?.dispose();
+    themeBridge?.dispose();
     shaderHmrDisposed = true;
     disposeShaderHmr?.();
     disposeUi?.();
@@ -339,6 +375,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     sceneSync.dispose();
     pickerSync.dispose();
     renderSync.dispose();
+    screenshotBridge.dispose();
     unsubscribeDatasetId();
     streaming?.dispose();
     worker.terminate();

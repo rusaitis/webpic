@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { compactPaddedRows, toTransferablePixels } from "./pixels.ts";
+import { compactPaddedRows, toOpaqueImageBytes, toTransferablePixels } from "./pixels.ts";
+
+describe("toOpaqueImageBytes", () => {
+  it("forces alpha to 255 while preserving RGB, without mutating the input", () => {
+    const readback = new Uint8Array([10, 20, 30, 128, 40, 50, 60, 0]);
+    const out = toOpaqueImageBytes(readback);
+    expect(Array.from(out)).toEqual([10, 20, 30, 255, 40, 50, 60, 255]);
+    expect(Array.from(readback)).toEqual([10, 20, 30, 128, 40, 50, 60, 0]);
+    expect(out).toBeInstanceOf(Uint8ClampedArray);
+  });
+});
 
 describe("toTransferablePixels", () => {
   it("returns an already-compact Uint8Array unchanged (no copy)", () => {

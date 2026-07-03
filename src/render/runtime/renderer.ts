@@ -38,6 +38,8 @@ export interface InstalledRenderer {
   compileComposite(items: readonly CompositeItem[]): Promise<void>;
   /** Deterministic readback of the composited layers — the testable compositing primitive. */
   readCompositePixels(items: readonly CompositeItem[]): Promise<Uint8Array>;
+  /** The readback target's physical size (logical × DPR) — the dimensions readCompositePixels fills. */
+  readbackSize(): { width: number; height: number };
   /** Resize the swapchain + readback/composite targets to a new logical size and DPR. */
   setSize(width: number, height: number, devicePixelRatio?: number): void;
   /** Scale the swapchain drawing buffer (interaction-time quality). Readback stays full-res. */
@@ -217,6 +219,9 @@ export async function installRenderer(opts: RendererOptions): Promise<InstalledR
       );
       renderer.setRenderTarget(null);
       return toTransferablePixels(compactPaddedRows(data, readTarget.width, readTarget.height));
+    },
+    readbackSize() {
+      return { width: readTarget.width, height: readTarget.height };
     },
     setSize(width, height, devicePixelRatio) {
       logical = { width, height };
