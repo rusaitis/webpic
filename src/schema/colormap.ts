@@ -45,9 +45,9 @@ export type Rgb = readonly [number, number, number];
 export type ColormapName = ColormapId;
 
 // c0..c6 — the polynomial coefficients, one Rgb per power of t.
-type Coeffs = readonly [Rgb, Rgb, Rgb, Rgb, Rgb, Rgb, Rgb];
+export type ColormapCoeffs = readonly [Rgb, Rgb, Rgb, Rgb, Rgb, Rgb, Rgb];
 
-const VIRIDIS: Coeffs = [
+const VIRIDIS: ColormapCoeffs = [
   [0.2777273272234177, 0.005407344544966578, 0.3340998053353061],
   [0.1050930431085774, 1.404613529898575, 1.384590162594685],
   [-0.3308618287255563, 0.214847559468213, 0.09509516302823659],
@@ -57,7 +57,7 @@ const VIRIDIS: Coeffs = [
   [-5.435455855934631, 4.645852612178535, 26.3124352495832],
 ];
 
-const INFERNO: Coeffs = [
+const INFERNO: ColormapCoeffs = [
   [0.0002189403691192265, 0.001651004631001012, -0.01948089843709184],
   [0.1065134194856116, 0.5639564367884091, 3.932712388889277],
   [11.60249308247187, -3.972853965665698, -15.9423941062914],
@@ -67,7 +67,7 @@ const INFERNO: Coeffs = [
   [25.13112622477341, -12.24266895238567, -23.07032500287172],
 ];
 
-const PLASMA: Coeffs = [
+const PLASMA: ColormapCoeffs = [
   [0.05873234392399702, 0.02333670892565664, 0.5433401826748754],
   [2.176514634195958, 0.2383834171260182, 0.7539604599784036],
   [-2.689460476458034, -7.455851135738909, 3.110799939717086],
@@ -77,7 +77,7 @@ const PLASMA: Coeffs = [
   [-3.658713842777788, -22.93153465461149, 18.19190778539828],
 ];
 
-const MAGMA: Coeffs = [
+const MAGMA: ColormapCoeffs = [
   [-0.002136485053939582, -0.000749655052795221, -0.005386127855323933],
   [0.2516605407371642, 0.6775232436837668, 2.494026599312351],
   [8.353717279216625, -3.577719514958484, 0.3144679030132573],
@@ -87,7 +87,7 @@ const MAGMA: Coeffs = [
   [18.65570506591883, -11.48977351997711, -5.601961508734096],
 ];
 
-export const COLORMAP_COEFFS: Readonly<Record<ColormapId, Coeffs>> = {
+export const COLORMAP_COEFFS: Readonly<Record<ColormapId, ColormapCoeffs>> = {
   inferno: INFERNO,
   viridis: VIRIDIS,
   plasma: PLASMA,
@@ -101,7 +101,7 @@ export function resolveColormapName(name: string): ColormapName {
   return Object.hasOwn(COLORMAP_COEFFS, name) ? (name as ColormapName) : "inferno";
 }
 
-function channel(c: Coeffs, k: 0 | 1 | 2, t: number): number {
+function channel(c: ColormapCoeffs, k: 0 | 1 | 2, t: number): number {
   let v = c[6][k];
   v = v * t + c[5][k];
   v = v * t + c[4][k];

@@ -301,7 +301,7 @@ webpic/
     bench.ts                      #   v0.2 — per-kernel benchmarking
 ```
 
-**Public library export** (`@webpic/embed`): `schema/*`, `containers/*`, `coordinates/*`, `numerics/*`, `reductions/*`, `compute/{dispatcher,recipes,compute_field}`, `derived/*`, `diagnostics/*`, `data/readers`. Does **not** export `render`, `ui`, `app`, `store`, `remote/client` — a downstream Jupyter widget imports the math + data layers without dragging in Three.js. Bundle budgets enforced by `size-limit` (see §Deferred but tracked).
+**Public library export** (`@webpic/embed`): `schema/*`, `containers/*`, `coordinates/*`, `numerics/*`, `reductions/*`, `compute/{dispatcher,recipes,compute_field,trace_field}`, `derived/*`, `diagnostics/*`, `data/{readers,writers}` (writers joined the surface with the M6 Zarr writer — a headless analyzer persists derived fields). Does **not** export `render`, `ui`, `app`, `store`, `remote/client` — a downstream Jupyter widget imports the math + data layers without dragging in Three.js. The facade is `src/embed/index.ts` (star-exports over the layer barrels / curated modules; `tests/embed.test.ts` guards against ES's silent ambiguous-star-export drops); TypeDoc (`npm run docs:api`, `treatWarningsAsErrors`) documents exactly this surface. Bundle budgets enforced by `size-limit` (see §Deferred but tracked).
 
 ---
 

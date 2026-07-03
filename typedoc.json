@@ -1,0 +1,20 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "@webpic/embed",
+  "entryPoints": ["src/embed/index.ts"],
+  "tsconfig": "tsconfig.json",
+  "out": "docs/api",
+  "readme": "none",
+  "excludeInternal": true,
+  "treatWarningsAsErrors": true,
+  "externalSymbolLinkMappings": {
+    "zod": { "ZodError": "https://zod.dev/error" }
+  },
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "rewrittenLink": true,
+    "notDocumented": false,
+    "unusedMergeModuleWith": true
+  }
+}

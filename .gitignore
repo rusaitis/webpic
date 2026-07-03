@@ -7,6 +7,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# Generated API docs (npm run docs:api)
+docs/api/
+
 # NOTE: *.generated.ts + *.generated.json (the pypic export bundle and schema/alias/
 # recipe codegen) and tests/fixtures/v*/ are intentionally COMMITTED — webpic builds
 # without Python. See docs/DESIGN.md.

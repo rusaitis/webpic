@@ -18,7 +18,8 @@ import {
 } from "./integrators.ts";
 import { interpolatorFromDataset, type VectorFieldInterpolator } from "./interp.ts";
 
-type Vec3 = readonly [number, number, number];
+// Seed coordinates are PHYSICAL grid positions (schema-import-free layer: not @schema's Vec3).
+export type SeedPoint = readonly [number, number, number];
 
 export type TraceDirection = "forward" | "backward" | "both";
 
@@ -76,7 +77,7 @@ export interface FieldLine {
   readonly points: Float64Array;
   readonly nPoints: number;
   readonly fieldName: string;
-  readonly seedPoint: Vec3;
+  readonly seedPoint: SeedPoint;
   readonly normalization: Normalization;
   readonly step: number | null;
   readonly time: number | null;
@@ -112,7 +113,7 @@ export interface AdaptiveTraceOptions {
 export function makeFieldLine(args: {
   readonly points: Float64Array;
   readonly fieldName: string;
-  readonly seedPoint: Vec3;
+  readonly seedPoint: SeedPoint;
   readonly normalization: Normalization;
   readonly direction: TraceDirection;
   readonly reason: TerminationReason;
@@ -371,7 +372,7 @@ function fieldNameFromComponents(components: readonly [string, string, string]):
   return name ?? "";
 }
 
-function toSeed(seed: Vec3 | Float64Array | readonly number[]): Float64Array {
+function toSeed(seed: SeedPoint | Float64Array | readonly number[]): Float64Array {
   return new Float64Array([seed[0] ?? Number.NaN, seed[1] ?? Number.NaN, seed[2] ?? Number.NaN]);
 }
 
@@ -446,7 +447,7 @@ export function resolveTraceParams(
  */
 export function traceFieldLineAdaptive(
   data: FieldDataset,
-  seed: Vec3 | Float64Array | readonly number[],
+  seed: SeedPoint | Float64Array | readonly number[],
   options: AdaptiveTraceOptions = {},
   signal?: AbortSignal,
 ): FieldLine {
@@ -456,7 +457,7 @@ export function traceFieldLineAdaptive(
   const interp = options.interpolator ?? interpolatorFromDataset(data, p.components);
   const seedArr = toSeed(seed);
   validateSeed(interp, seedArr, p.nullThreshold);
-  const seedPoint: Vec3 = [seedArr[0] ?? 0, seedArr[1] ?? 0, seedArr[2] ?? 0];
+  const seedPoint: SeedPoint = [seedArr[0] ?? 0, seedArr[1] ?? 0, seedArr[2] ?? 0];
 
   const adapt = (sign: number): SingleDirResult =>
     traceSingleDirectionAdaptive(
@@ -500,7 +501,7 @@ export function traceFieldLineAdaptive(
 }
 
 export function toSeedList(
-  seeds: ReadonlyArray<Vec3 | readonly number[]> | Float64Array,
+  seeds: ReadonlyArray<SeedPoint | readonly number[]> | Float64Array,
 ): Float64Array[] {
   if (seeds instanceof Float64Array) {
     const out: Float64Array[] = [];
@@ -517,7 +518,7 @@ export function toSeedList(
  */
 export function traceFieldLinesAdaptive(
   data: FieldDataset,
-  seeds: ReadonlyArray<Vec3 | readonly number[]> | Float64Array,
+  seeds: ReadonlyArray<SeedPoint | readonly number[]> | Float64Array,
   options: AdaptiveTraceOptions = {},
   signal?: AbortSignal,
 ): FieldLine[] {
