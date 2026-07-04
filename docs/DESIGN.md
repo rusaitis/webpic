@@ -55,9 +55,9 @@ Semver. **v0.1** = M0–M4 + M6 = first publishable shell (early adopters; expec
 
 Enforced by **three layers of defense in depth** (Biome has no `eslint-plugin-boundaries` equivalent):
 
-1. **Primary:** `scripts/check-boundaries.ts` (~80 LoC, `ts-morph`) parses each `@webpic/<name>` package.json deps + tsconfig references, asserts no source file imports outside the declared set. Catches type-only-import escapes. Runs in CI ahead of `biome ci`.
-2. **Secondary:** pnpm workspaces — cross-package imports fail at install if not declared in `package.json` deps.
-3. **Tertiary:** Biome `noRestrictedImports` with per-layer banned patterns (e.g. `ui/` forbids `from 'three'`).
+1. **Primary:** `scripts/check-boundaries.ts` (`ts-morph`) gathers every cross-layer import edge under `src/<layer>/` and asserts it against the `ALLOWED_IMPORTS` DAG in `scripts/layers.ts`. Catches type-only, dynamic, and re-export escapes. Runs in CI ahead of `biome ci`, and again inside `npm test` via `tests/boundaries.test.ts` (which also unit-tests the checker itself).
+2. **Secondary:** Biome `noRestrictedImports` — external-package bans the edge checker doesn't see: `three`/`three/**` error everywhere except `src/render/**` (override re-allows render).
+3. **Deferred:** pnpm workspaces — install-time rejection of undeclared cross-package imports; arrives only if the package split ever happens (§Package shape).
 
 ```
 schema      ──►  (none)                       Zod, registry, units, aliases, selections
@@ -137,12 +137,12 @@ type SimulationState = {
 
 ### Package shape
 
-**Single package, `src/<layer>/` from day one.** v0.1 ships as one package whose source is split into `src/<layer>/` folders named per the DAG above; `scripts/check-boundaries.ts` enforces the layer boundaries on those directories. Path aliases (`@schema/*`, `@compute/*`, …) stand in for the eventual `@webpic/<layer>` package specifiers, so the workspace split is a mechanical lift later. The pnpm-workspace / `@webpic/<name>` packaging is **deferred to M6** — see the M2.14 decision below (stay single-package for v0.1; if ever split, collapse the math-y layers into one `@webpic/core` rather than promoting all 18).
+**Single package, `src/<layer>/` from day one.** v0.1 ships as one package whose source is split into `src/<layer>/` folders named per the DAG above; `scripts/check-boundaries.ts` enforces the layer boundaries on those directories. Path aliases (`@schema/*`, `@compute/*`, …) stand in for the eventual `@webpic/<layer>` package specifiers, so the workspace split is a mechanical lift later. The pnpm-workspace / `@webpic/<name>` packaging is **deferred** (M2.14, reaffirmed at M6 close) — see the decision below (stay single-package; if ever split, collapse the math-y layers into one `@webpic/core` rather than promoting all 18).
 
 > **Trade-off acknowledged.** 18 packages is heavy for a single-dev browser app.
 > - **Benefit:** defense-in-depth on layer enforcement (pnpm rejects undeclared cross-package imports at install).
 > - **Costs:** inter-package version drift, slower install, `package.json` boilerplate, publish-flow complexity.
-> - **Decided at M2 (M2.14): stay single-package for v0.1.** The DAG is already enforced three ways — `scripts/check-boundaries.ts` (ts-morph), Biome `noRestrictedImports`, and `tests/boundaries.test.ts` — so a workspace split buys only install-time enforcement at the cost of 18 `package.json` files, several for 3-line leaf layers (`coordinates`, `reductions`, `diagnostics`, `shaders`) with no external consumer yet. **Revisit at M6**, where `@webpic/embed` publishing (M6.6 TypeDoc, M6.7 `size-limit`) is the first thing that actually needs package boundaries. **If it ever splits, collapse to coarse packages** — one `@webpic/core` for the math-y mirror layers (`containers`, `coordinates`, `numerics`, `reductions`, `derived`, `diagnostics`; same external dep surface, ship together), plus `@webpic/app` and `@webpic/embed` — not 18. `check-boundaries.ts` keeps enforcing `src/<layer>/` dirs within the single package either way.
+> - **Decided at M2 (M2.14): stay single-package for v0.1.** The DAG is already enforced three ways — `scripts/check-boundaries.ts` (ts-morph), Biome `noRestrictedImports`, and `tests/boundaries.test.ts` — so a workspace split buys only install-time enforcement at the cost of 18 `package.json` files, several for 3-line leaf layers (`coordinates`, `reductions`, `diagnostics`, `shaders`) with no external consumer yet. **Revisited at M6 close (2026-07-03): stayed single-package.** `@webpic/embed` shipped from the single package via `vite.embed.config.ts` + `size-limit` (M6.6 TypeDoc, M6.7 budget) — publishing needed a build target, not a package boundary. Next trigger: an actual npm publish of `@webpic/embed`, or a first external consumer. **If it ever splits, collapse to coarse packages** — one `@webpic/core` for the math-y mirror layers (`containers`, `coordinates`, `numerics`, `reductions`, `derived`, `diagnostics`; same external dep surface, ship together), plus `@webpic/app` and `@webpic/embed` — not 18. `check-boundaries.ts` keeps enforcing `src/<layer>/` dirs within the single package either way.
 
 **The tree below (and the `// packages/<layer>/src/…` headers in later code blocks) shows the eventual `@webpic/<layer>` *target* layout** — pnpm workspace, one package per layer. v0.1 ships these same modules under **`src/<layer>/` in a single package**, so any `packages/…` path here lives under `src/…` today (path aliases `@schema/*`, `@compute/*`, … bridge the two).
 
@@ -467,7 +467,7 @@ Each worker's `onmessage` would handle `'pair'` once, storing the port; a worker
 ## Rendering pipeline
 
 ### Renderer
-- **`THREE.WebGPURenderer`** (`three/webgpu`) — **pinned to `three@0.184.0`** (latest), not a floating `r172+` range. r179 broke OffscreenCanvas-in-worker (#31605); PR-#31607 fixed it (guards `HTMLVideoElement instanceof` with a `typeof … !== 'undefined'` presence check) and first shipped in r180/`0.180.0`; `0.184.0` still carries it (verified, not reverted). Canonical pin reference for the whole doc. CI smoke asserts worker-frame vs main-frame within 1 px.
+- **`THREE.WebGPURenderer`** (`three/webgpu`) — **pinned to `three@0.184.0`**, not a floating `r172+` range; bump the pin deliberately, with the full GPU gate. r179 broke OffscreenCanvas-in-worker (#31605); PR-#31607 fixed it (guards `HTMLVideoElement instanceof` with a `typeof … !== 'undefined'` presence check) and first shipped in r180/`0.180.0`; `0.184.0` still carries it (verified, not reverted). Canonical pin reference for the whole doc. CI smoke asserts worker-frame vs main-frame within 1 px.
 - **OffscreenCanvas-on-Worker from day one.** `render/worker.ts` owns canvas + scene + renderer; `app/main.ts` transfers via `transferControlToOffscreen()`; talks to `store/` via `MessageChannel`.
 - **Raw `GPUComputePassEncoder` pipelines** owned by `compute/backends/webgpu/`; shared kernels in `@webpic/shaders`.
 - `gpu/profiler.ts`: `GPUQuerySet` with `timestamp-query`; `performance.now()` + `onSubmittedWorkDone()` fallback.
