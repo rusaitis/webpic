@@ -23,7 +23,7 @@
 - WebGPU is shipped in Chrome/Edge (since 2023), Safari 18+ (2024), and Firefox 141+ (2025; behind a flag in earlier versions). Coverage is solid enough to make it the only path and skip the WebGL2 twin.
 
 ### Versioning scheme
-Semver. **v0.1** = M0–M4 + M6 = first publishable shell (early adopters; expect breaking schema changes). **v0.2** = +M5 + M7 + M8 + remote = feature-complete. **v1.0** = production-stable after ≥3 months of v0.2 with no pending breaking schema changes. **"post-v1.0"** = explicitly deferred until after v1.0.
+Semver. **v0.1** = M0–M4 + M6 (writers/export — v0.1 numbering) = first publishable shell (early adopters; expect breaking schema changes). **v0.2** = +M5 (UI polish) + M6 (particles) + M7 (HDF5/LIC/oblique) + M8 (remote client) = feature-complete — the backlog was renumbered at v0.1 close; TASKS.md is the numbering authority. **v1.0** = production-stable after ≥3 months of v0.2 with no pending breaking schema changes. **"post-v1.0"** = explicitly deferred until after v1.0.
 
 ---
 
@@ -683,7 +683,7 @@ The `SubscribeRequest` JSON shape (mirror in `remote/protocol.ts` field-for-fiel
 
 ## UI
 
-**Layout — "the visualization is the product."** Full-bleed 3D canvas with thin, translucent floating overlays over a fixed icon rail — never a docked frame that steals canvas area. *magviz's skin, instance-first bones*: keep magviz's full-bleed look (left icon rail, draggable floating colorbar, bottom gnomon/coords) and borrow only the instance-first *data model* (below) from napari — explicitly **not** napari's layout, whose layer dock + controls consume ~half the viewport (disqualifying under this philosophy). Overlays are translucent and content-sized, not window-sized. **Embed** degrades by hiding/toggling overlays — same components, fewer of them (`[webpic.embed]`) — not by reflowing; panels are container-agnostic (`install(host) → Disposer`, intents out), so a docked container for very cramped embeds is a possible v0.2 fallback. **v0.1 reality (M2.2):** today's `shell` is a *docked* hideable container — the scaffold, not the target. The rail + Layers panel + instance-first layer model land across M2.5a (model + render composite) and M4 (the UI); from M4 the overlays are **fixed-position translucent** (the immersive *look*, cheap — no window manager), and only user **drag/resize/persist/focus** (magviz's `windowManager` + `draggablePanels`) defers to M7/v0.2. Until M4 lands, panels mount in the docked scaffold.
+**Layout — "the visualization is the product."** Full-bleed 3D canvas with thin, translucent floating overlays over a fixed icon rail — never a docked frame that steals canvas area. *magviz's skin, instance-first bones*: keep magviz's full-bleed look (left icon rail, draggable floating colorbar, bottom gnomon/coords) and borrow only the instance-first *data model* (below) from napari — explicitly **not** napari's layout, whose layer dock + controls consume ~half the viewport (disqualifying under this philosophy). Overlays are translucent and content-sized, not window-sized. **Embed** degrades by hiding/toggling overlays — same components, fewer of them (`[webpic.embed]`) — not by reflowing; panels are container-agnostic (`install(host) → Disposer`, intents out), so a docked container for very cramped embeds is a possible v0.2 fallback. **v0.1 reality (M2.2):** today's `shell` is a *docked* hideable container — the scaffold, not the target. The rail + Layers panel + instance-first layer model land across M2.5a (model + render composite) and M4 (the UI); from M4 the overlays are **fixed-position translucent** (the immersive *look*, cheap — no window manager), and only user **drag/resize/persist/focus** (magviz's `windowManager` + `draggablePanels`) defers to M5/v0.2. Until M4 lands, panels mount in the docked scaffold.
 
 **Layers & navigation (instance-first).** The scene is a flat, ordered list of *renderable instances* — each volume, slice, fieldline set, or particle cloud is one layer carrying its own visibility, opacity, `ColormapBinding`, and draw order. You navigate by instance ("the things on screen"), not by type ("the volume pane") — the one idea worth taking from napari.
 
@@ -716,7 +716,7 @@ The `SubscribeRequest` JSON shape (mirror in `remote/protocol.ts` field-for-fiel
 - The schema-aware `ControlDescriptor` binder below sits on top of that facade (in `ui/binding/`); store contract is callbacks-out / `set()`-in (intent dispatch + selective subscribe — no two-way binding, *not* magviz's mutate-the-target `addBinding`).
 - **Aim small** — magviz's TS UI tree (~3 kLoC) is the comparison, not a target. If the shell starts looking like a framework, stop.
 - **CSP:** control styles inject via a single `<style>` at init (`applyControlStyles`); for strict-CSP hosts, ship extracted CSS via `<link>` with a nonce.
-- **v0.1 reality (M2.2):** the facade is `kind`-tagged callback methods (`addSlider`/`addSelect`/`addCheckbox`/`addText` + `set()`/`dispose()`), *not* magviz's mutate-the-target `addBinding(target, key)` — webpic's no-two-way-binding rule made the rewrite cleaner than the lift, and controls build DOM off `parent.ownerDocument` (no global `document`). `select` is a native `<select>`; the slider is a basic linear `<input type=range>` — the log/symlog/interval `RangeControl` (+ `rangeMath`) ports with M2.3 window/level, and magviz's body-portaled popover dropdown with M7. `ControlDescriptor` is a discriminated union; it resolves *labels* from the registry (`fieldInfo`), but numeric bounds come from the descriptor since `FieldMeta` carries no ranges. The field-selector's option list is the store's `availableFields` (UI can't reach `compute`).
+- **v0.1 reality (M2.2):** the facade is `kind`-tagged callback methods (`addSlider`/`addSelect`/`addCheckbox`/`addText` + `set()`/`dispose()`), *not* magviz's mutate-the-target `addBinding(target, key)` — webpic's no-two-way-binding rule made the rewrite cleaner than the lift, and controls build DOM off `parent.ownerDocument` (no global `document`). `select` is a native `<select>`; the slider is a basic linear `<input type=range>` — the log/symlog/interval `RangeControl` (+ `rangeMath`) ports with M2.3 window/level, and magviz's body-portaled popover dropdown with M5. `ControlDescriptor` is a discriminated union; it resolves *labels* from the registry (`fieldInfo`), but numeric bounds come from the descriptor since `FieldMeta` carries no ranges. The field-selector's option list is the store's `availableFields` (UI can't reach `compute`).
 
 **Schema-aware bindings** via `ControlDescriptor`:
 
@@ -785,7 +785,7 @@ default-controls-visible = true
 
 Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirror pypic's set (7): `dark`, `light`, `catppuccin-mocha`, `lcars`, `synthwave`, `andromeda`, `anuppuccin-light`.
 
-**Shortcuts.** Hand-rolled registry (`ui/shortcuts.ts` is the cheat-sheet authority; OPFS remapping rides the M7 shortcuts UI). Shipped defaults: `V`/`T` add volume/field-lines — `S` is **deliberately unbound** (collides with the W/S dolly; slices add via the rail) and `P` went to the PNG screenshot, so particles get a binding at M5 — `L` toggle Layers, `F` toggle UI, `O` projection, `R`/`Z` reset/fit, digits axis-snap, `?`/`H` shortcut overlay, `Cmd+K` palette (v0.2). Stepping rides the top bar's scrub chip + prev/next buttons (no `[`/`]` binding shipped).
+**Shortcuts.** Hand-rolled registry (`ui/shortcuts.ts` is the cheat-sheet authority; OPFS remapping rides the M5 shortcuts UI). Shipped defaults: `V`/`T` add volume/field-lines — `S` is **deliberately unbound** (collides with the W/S dolly; slices add via the rail) and `P` went to the PNG screenshot, so particles get a binding at M6 — `L` toggle Layers, `F` toggle UI, `O` projection, `R`/`Z` reset/fit, digits axis-snap, `?`/`H` shortcut overlay, `Cmd+K` palette (v0.2). Stepping rides the top bar's scrub chip + prev/next buttons (no `[`/`]` binding shipped).
 
 **Accessibility.** Tab order, focus rings, palette keyboard nav, ARIA roles. High-contrast theme to v0.2.
 
@@ -909,13 +909,13 @@ Scope per §Versioning scheme; M9 contingent on rustpic shipping plasma-wasm. Ea
 - Termination mirrors `pypic.traces.TerminationReason` (out-of-bounds, max-steps, low-step-size, …), re-exported under `@webpic/numerics`.
 - **v0.2 candidates from these primitives:** `poincare_section` + `PoincareSurface`/`PoincareSection` (2-D scatter overlay, no new compute); `estimate_tracing_error` (embedded-RK45 norm) for a per-streamline confidence overlay / tolerance-slider that retraces.
 
-**v0.2 (post-launch):**
-- **M5 — Particles:** `hyparquet`, instanced billboards, GPU cull/sort, density-binning fallback, `particleAccessMode` enum, DuckDB dynamic import
-- **M7 — UI polish:** command palette, remappable shortcuts UI, comparison view, high-contrast theme
-- **M8 — HDF5 + LIC + oblique slicing:** `h5wasm`, LIC compute pass, oblique clip planes
-- **WebCodecs video export**
-- **Remote support:** `remote/client.ts` against shipped `pypic.server` Arrow-IPC WebSocket endpoint; mirror `SubscribeRequest`/`BoxSpec`/`PlaneSpec`/`SphereSpec`/`ReductionSpec` from `pypic/server/protocol.py`; SSE for live timestep when pypic.server exposes it
-- **PWA manifest**
+**v0.2 (post-launch)** — renumbered at v0.1 close (TASKS.md is the numbering authority; the completed v0.1 "M6 — Writers + export" keeps its historical label):
+- **M5 — UI polish** *(next up)*: floating window manager (magviz's `windowManager` + `draggablePanels`), command palette (Cmd+K), remappable shortcuts UI, comparison view, high-contrast theme, plus the carried UI deferrals (rail-menu previews, colorbar overflow chips, theme picker, popover dropdown, binding merge/GC + magviz import adapter, top-bar actions)
+- **M6 — Particles:** `hyparquet`, instanced billboards, GPU cull/sort, density-binning fallback, `particleAccessMode` enum, DuckDB dynamic import
+- **M7 — HDF5 + LIC + oblique slicing:** `h5wasm`, LIC compute pass, oblique clip planes; real readers register into the data worker (replacing the synthetic-only streaming registration)
+- **M8 — Remote client:** `remote/client.ts` against shipped `pypic.server` Arrow-IPC WebSocket endpoint; mirror `SubscribeRequest`/`BoxSpec`/`PlaneSpec`/`SphereSpec`/`ReductionSpec` from `pypic/server/protocol.py`; SSE for live timestep when pypic.server exposes it
+- **WebCodecs video export** (unscheduled)
+- **PWA manifest** — shipped
 
 **M9 (contingent):** WASM backend integration when rustpic ships `plasma-wasm`. Cross-backend equivalence extends to TS vs WASM vs WebGPU.
 
