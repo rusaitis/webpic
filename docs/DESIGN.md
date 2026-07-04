@@ -467,7 +467,7 @@ Each worker's `onmessage` would handle `'pair'` once, storing the port; a worker
 ## Rendering pipeline
 
 ### Renderer
-- **`THREE.WebGPURenderer`** (`three/webgpu`) — **pinned to `three@0.184.0`**, not a floating `r172+` range; bump the pin deliberately, with the full GPU gate. r179 broke OffscreenCanvas-in-worker (#31605); PR-#31607 fixed it (guards `HTMLVideoElement instanceof` with a `typeof … !== 'undefined'` presence check) and first shipped in r180/`0.180.0`; `0.184.0` still carries it (verified, not reverted). Canonical pin reference for the whole doc. CI smoke asserts worker-frame vs main-frame within 1 px.
+- **`THREE.WebGPURenderer`** (`three/webgpu`) — **pinned to `three@0.185.1`**, not a floating `r172+` range; bump the pin deliberately, with the full GPU gate. r179 broke OffscreenCanvas-in-worker (#31605); PR-#31607 fixed it (guards `HTMLVideoElement instanceof` with a `typeof … !== 'undefined'` presence check) and first shipped in r180/`0.180.0`; `0.185.1` still carries it (worker-frame parity smoke green on bump). Canonical pin reference for the whole doc. CI smoke asserts worker-frame vs main-frame within 1 px.
 - **OffscreenCanvas-on-Worker from day one.** `render/worker.ts` owns canvas + scene + renderer; `app/main.ts` transfers via `transferControlToOffscreen()`; talks to `store/` via `MessageChannel`.
 - **Raw `GPUComputePassEncoder` pipelines** owned by `compute/backends/webgpu/`; shared kernels in `@webpic/shaders`.
 - `gpu/profiler.ts`: `GPUQuerySet` with `timestamp-query`; `performance.now()` + `onSubmittedWorkDone()` fallback.
