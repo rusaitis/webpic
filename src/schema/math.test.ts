@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sameShape } from "./math.ts";
+import { rowMajorStrides, sameShape } from "./math.ts";
 
 describe("sameShape", () => {
   it("accepts equal shapes", () => {
@@ -16,5 +16,16 @@ describe("sameShape", () => {
 
   it("accepts two empty shapes", () => {
     expect(sameShape([], [])).toBe(true);
+  });
+});
+
+describe("rowMajorStrides", () => {
+  it("computes C-order strides", () => {
+    expect(rowMajorStrides([2, 3, 4])).toEqual([12, 4, 1]);
+  });
+
+  it("handles 1-D and empty shapes", () => {
+    expect(rowMajorStrides([7])).toEqual([1]);
+    expect(rowMajorStrides([])).toEqual([]);
   });
 });

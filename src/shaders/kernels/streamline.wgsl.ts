@@ -8,7 +8,7 @@
 //   rhs         ← tracing.ts `makeRhs`          (unit field direction, sign-bearing; null on exit/null)
 //   dpStep      ← integrators.ts `dormandPrinceStep` (7-stage FSAL, exact tableau fractions)
 //   errorNorm   ← integrators.ts `embeddedErrorNorm`
-//   iController ← integrators.ts `iStepController`  (PI is *not* implemented — pypic ships I; DESIGN §Numerics)
+//   iController ← integrators.ts `iStepController`  (PI is *not* implemented — pypic ships I; DESIGN §Field lines)
 //   streamline_main ← tracing.ts `traceSingleDirectionAdaptive`
 //
 // Field B is bound as three storage buffers (not a 3D texture): manual trilinear reproduces the f64

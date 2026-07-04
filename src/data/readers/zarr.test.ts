@@ -1,3 +1,4 @@
+import { rowMajorStrides } from "@schema/math.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as zarr from "zarrita";
 import type { DataHandle } from "./_protocols.ts";
@@ -39,16 +40,6 @@ const B_ATTRS = (component: number) => ({
   latex: `$B_${component}$`,
   unit_dimension: [0, 1, -2, -1, 0, 0, 0],
 });
-
-function rowMajorStrides(shape: readonly number[]): number[] {
-  const strides = new globalThis.Array<number>(shape.length);
-  let acc = 1;
-  for (let i = shape.length - 1; i >= 0; i--) {
-    strides[i] = acc;
-    acc *= shape[i] ?? 1;
-  }
-  return strides;
-}
 
 type Loc = zarr.Location<Map<string, Uint8Array>>;
 

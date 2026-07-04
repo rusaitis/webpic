@@ -1,4 +1,5 @@
 import type { FieldArray, FieldDataset, GridInfo, StaggerInfo } from "@containers/field_dataset.ts";
+import { rowMajorStrides } from "@schema/math.ts";
 import type { FieldName, FloatArray } from "@schema/types.ts";
 
 // Destagger Yee-mesh fields to a co-located cell-centered grid on load (mirrors pypic._stagger).
@@ -89,16 +90,6 @@ export function destaggerArrayToCellCenters(
   return { data: result, shape: resultShape };
 }
 
-function computeStrides(shape: readonly number[]): number[] {
-  const strides = new Array<number>(shape.length);
-  let acc = 1;
-  for (let k = shape.length - 1; k >= 0; k--) {
-    strides[k] = acc;
-    acc *= shape[k] ?? 1;
-  }
-  return strides;
-}
-
 // Trim trailing samples per axis so a C-order `data`/`shape` array fits `target` (≤ shape).
 function cropToShape(
   data: FloatArray,
@@ -106,7 +97,7 @@ function cropToShape(
   target: readonly number[],
 ): FloatArray {
   const ndim = shape.length;
-  const srcStrides = computeStrides(shape);
+  const srcStrides = rowMajorStrides(shape);
   let outLen = 1;
   for (const n of target) outLen *= n;
   const out = allocLike(data, outLen);

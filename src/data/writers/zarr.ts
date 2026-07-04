@@ -7,7 +7,7 @@ import type {
   ReductionSpec,
   StaggerInfo,
 } from "@containers/field_dataset.ts";
-import { sameShape } from "@schema/math.ts";
+import { rowMajorStrides, sameShape } from "@schema/math.ts";
 import type { FloatArray } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import * as zarr from "zarrita";
@@ -248,16 +248,6 @@ function coerceDtype(
 // Spec-strict readers (zarr-python) require an explicit ArrayBytesCodec; zarrita's
 // create would otherwise write an empty codec list, which they reject.
 const BYTES_CODEC = [{ name: "bytes", configuration: { endian: "little" as const } }];
-
-function rowMajorStrides(shape: readonly number[]): number[] {
-  const strides = new globalThis.Array<number>(shape.length);
-  let acc = 1;
-  for (let i = shape.length - 1; i >= 0; i--) {
-    strides[i] = acc;
-    acc *= shape[i] ?? 1;
-  }
-  return strides;
-}
 
 /**
  * Write a FieldDataset to a Zarr v3 store as a single-timestep pypic store: root attrs in

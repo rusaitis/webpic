@@ -16,6 +16,16 @@ export function sameShape(a: readonly number[], b: readonly number[]): boolean {
   return true;
 }
 
+export function rowMajorStrides(shape: readonly number[]): number[] {
+  const strides = new Array<number>(shape.length);
+  let acc = 1;
+  for (let i = shape.length - 1; i >= 0; i--) {
+    strides[i] = acc;
+    acc *= shape[i] ?? 1;
+  }
+  return strides;
+}
+
 // Build a Vec3 from components — the single widening site, so call sites construct the readonly
 // 3-tuple without `as Vec3` on a fresh literal (TS infers `[x, y, z]` as the mutable `number[]`).
 export function vec3(x: number, y: number, z: number): Vec3 {
