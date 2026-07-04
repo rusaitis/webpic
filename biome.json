@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -17,7 +17,20 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "preset": "recommended",
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["three", "three/**"],
+                "message": "three.js is render-only — no THREE.* outside src/render/ (see docs/DESIGN.md §Layered dependency DAG)."
+              }
+            ]
+          }
+        }
+      }
     }
   },
   "javascript": {
@@ -36,6 +49,10 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["src/render/**"],
+      "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
+    },
     {
       "includes": ["**/*.generated.ts"],
       "linter": { "enabled": false },

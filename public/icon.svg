@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>webpic</title>
   <!-- webpic app icon: the topbar brand mark (two plasma-wave strokes) on the UI's dark bg.
        Full-bleed square, mark kept inside the central ~50% so a maskable crop never clips it. -->
   <rect width="512" height="512" fill="#101820"/>
