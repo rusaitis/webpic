@@ -106,14 +106,14 @@ async function main(): Promise<void> {
 
     // Tick "Measure (continuous)" to force the sustained-timing loop. force: the styled SVG box
     // overlays the real <input>; checking the input directly still fires its change handler.
-    await page
-      .locator(".webpic-pane", { hasText: "Diagnostics" })
-      .locator(".webpic-checkbox_input")
-      .check({ force: true });
+    // Scoped to the Developer window (the instrument's home since it left the docked shell) — a docked
+    // Diagnostics pane can coexist and makes a bare pane locator ambiguous under strict mode.
+    const diagnostics = page
+      .getByLabel("Developer", { exact: true })
+      .locator(".webpic-pane", { hasText: "Diagnostics" });
+    await diagnostics.locator(".webpic-checkbox_input").check({ force: true });
 
-    const readout = page
-      .locator(".webpic-pane", { hasText: "Diagnostics" })
-      .locator(".webpic-placeholder");
+    const readout = diagnostics.locator(".webpic-placeholder");
     await page.waitForFunction(
       (el) => /\d+\.\d{2} ms/.test((el as { textContent: string | null }).textContent ?? ""),
       await readout.elementHandle(),
