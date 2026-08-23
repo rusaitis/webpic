@@ -1,4 +1,6 @@
-<h1 align="center">webpic</h1>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rusaitis/webpic/main/docs/assets/webpic-logo.png" alt="webpic" width="440">
+</p>
 
 <p align="center"><em>Plasma simulation data, rendered in the browser</em></p>
 
@@ -12,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/webpic-hero.png" alt="webpic rendering a synthetic magnetic flux rope: volume raymarching of |B| with traced field lines" width="900">
+  <img src="https://raw.githubusercontent.com/rusaitis/webpic/main/docs/assets/webpic-hero.png" alt="webpic rendering a synthetic magnetic flux rope: volume raymarching of |B| with traced field lines" width="900">
 </p>
 
 A browser-native 3D visualizer and lightweight analyzer for plasma simulation output from
