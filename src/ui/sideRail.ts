@@ -15,7 +15,7 @@ import { installRailMenu, type RailMenuHandle, type RailMenuItem } from "./railM
 //
 //   • Axes & grid — opens a flyout beside the tab hosting the reference-frame (Scene) controls.
 //   • Probe — toggles the draggable value-probe marker.
-//   • Diagnostics — reopens the Developer window (the panels.dev flag the window subscribes).
+//   • Diagnostics — opens the Developer window (the panels.dev flag the window subscribes).
 //
 // Layer settings live in the Layers panel + colorbar, not here — these are tools, not layers.
 
@@ -242,7 +242,7 @@ export function installSideRail(
   setOpen(false);
   applyProbe(store.getState().overlay.showPicker);
   applyLayersPressed(uiStore.getState().isLayersPanelOpen);
-  applyDiagPressed(uiStore.getState().panels.dev ?? true);
+  applyDiagPressed(uiStore.getState().panels.dev ?? false);
   applyThemeName(uiStore.getState().themeName);
   applyVisible(uiStore.getState().isUiVisible);
 
@@ -255,7 +255,7 @@ export function installSideRail(
       },
     ),
     uiStore.subscribe((s) => s.isLayersPanelOpen, applyLayersPressed),
-    uiStore.subscribe((s) => s.panels.dev ?? true, applyDiagPressed),
+    uiStore.subscribe((s) => s.panels.dev ?? false, applyDiagPressed),
     uiStore.subscribe((s) => s.themeName, applyThemeName),
     uiStore.subscribe((s) => s.isUiVisible, applyVisible),
   ];

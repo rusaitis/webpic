@@ -1,24 +1,14 @@
 import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
-import { PANEL_REGISTRY } from "./registry.ts";
+import { isKnownPanel } from "./registry.ts";
 
 // Drift guard: a shipped theme's `default-panels` (vendored byte-for-byte from pypic via
 // scripts/sync-themes.ts) must name panels webpic actually serves, or mountPanel silently renders a
 // "Coming soon" placeholder. Each name must be either registered (docked via mountPanel) or listed
-// here as deliberately served by another surface. An unrecognized name fails CI — fix the upstream
+// in registry.ts's SERVED_ELSEWHERE. An unrecognized name fails CI — fix the upstream
 // pypic theme or register/allow-list the panel; do NOT hand-edit the synced TOMLs (the sync reverts).
 // Loaded via import.meta.glob (the same mechanism data/theme/loader.ts uses), so no fs access.
-const SERVED_ELSEWHERE = new Set([
-  "colormap", // ui/colorbar/ — colormap controls live in the colorbar popover, not a docked panel
-  "layers", // ui/colorbar/ — the instance-first layer list
-  "dataset", // top bar
-  "time", // top bar
-  "scene", // left tool rail (installScenePanel, mounted directly — not via mountPanel)
-]);
-
-function isKnownPanel(name: string): boolean {
-  return Object.hasOwn(PANEL_REGISTRY, name) || SERVED_ELSEWHERE.has(name);
-}
+// SERVED_ELSEWHERE lives in registry.ts so the shell filters on the same list this guards.
 
 const RAW_THEMES = import.meta.glob("../../data/theme/themes/*.toml", {
   query: "?raw",

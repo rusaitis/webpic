@@ -78,10 +78,12 @@ describe("installSideRail", () => {
   it("the Diagnostics button toggles the Developer panel flag", () => {
     const { uiStore, button } = setup();
     const diag = button("diagnostics");
-    expect(diag.getAttribute("aria-pressed")).toBe("true"); // dev panel open by default
+    expect(diag.getAttribute("aria-pressed")).toBe("false"); // a dev instrument — closed on boot
+    diag.dispatchEvent(new MouseEvent("click"));
+    expect(uiStore.getState().panels.dev).toBe(true); // one click opens it, not two
+    expect(diag.getAttribute("aria-pressed")).toBe("true");
     diag.dispatchEvent(new MouseEvent("click"));
     expect(uiStore.getState().panels.dev).toBe(false);
-    expect(diag.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("an add-button opens a menu of instances + Add new; Add new adds a layer", async () => {

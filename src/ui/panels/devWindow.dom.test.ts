@@ -50,8 +50,11 @@ describe("developer window", () => {
 
   it("dismisses via the header close button", () => {
     const store = createSimulationStore();
-    const dispose = installDevWindow(document.body, store, createUiStore());
+    const uiStore = createUiStore();
+    const dispose = installDevWindow(document.body, store, uiStore);
     const win = el(document.body, ".webpic-window");
+    expect(win.hidden).toBe(true); // closed on boot
+    uiStore.getState().setPanelVisible("dev", true);
     expect(win.hidden).toBe(false);
 
     el<HTMLButtonElement>(win, ".webpic-window_close").click();
@@ -65,6 +68,7 @@ describe("developer window", () => {
     const uiStore = createUiStore();
     const dispose = installDevWindow(document.body, store, uiStore);
     const win = el(document.body, ".webpic-window");
+    uiStore.getState().setPanelVisible("dev", true); // the UI toggle only matters once opened
     expect(win.hidden).toBe(false);
 
     uiStore.getState().setUiVisible(false);

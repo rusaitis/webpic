@@ -72,6 +72,10 @@ export interface UiState {
 // StoreApi<UiState> annotation would erase it) — mirrors createSimulationStore.
 export type UiStore = ReturnType<typeof createUiStore>;
 
+// `dev` is seeded rather than left to a consumer-side `?? false`: togglePanel flips
+// `!(panels[name] ?? true)`, so an unseeded default-closed panel would need two clicks to open.
+const SEEDED_PANELS: Readonly<Record<string, boolean>> = { dev: false };
+
 export function createUiStore(initialPanels: Readonly<Record<string, boolean>> = {}) {
   return createStore<UiState>()(
     subscribeWithSelector((set, get) => ({
@@ -81,7 +85,7 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       isLayersPanelOpen: false,
       isLayerSettingsOpen: false,
       isGnomonSuppressed: false,
-      panels: initialPanels,
+      panels: { ...SEEDED_PANELS, ...initialPanels },
       loadingPhases: [],
       statusError: null,
       screenshotSerial: 0,

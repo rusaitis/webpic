@@ -104,6 +104,10 @@ async function main(): Promise<void> {
       };
     });
 
+    // The Developer window is closed on boot (it is a dev instrument, not chrome), so open it from
+    // the rail before locating its Diagnostics pane.
+    await page.locator('.webpic-siderail [data-control="diagnostics"]').click();
+
     // Tick "Measure (continuous)" to force the sustained-timing loop. force: the styled SVG box
     // overlays the real <input>; checking the input directly still fires its change handler.
     // Scoped to the Developer window (the instrument's home since it left the docked shell) — a docked

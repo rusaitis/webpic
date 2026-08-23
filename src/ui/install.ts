@@ -10,7 +10,7 @@ import { isTypingTarget } from "./keyboard.ts";
 import { installLayerSettings } from "./layerSettings.ts";
 import { installLayersPanel } from "./layersPanel.ts";
 import { installDevWindow } from "./panels/devWindow.ts";
-import { mountPanel } from "./panels/registry.ts";
+import { isDockable, mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
 import { installSideRail } from "./sideRail.ts";
 import { installStatusPill } from "./statusPill.ts";
@@ -31,7 +31,7 @@ export interface InstallUiOptions {
 export function installUi(opts: InstallUiOptions): () => void {
   const layout = opts.theme?.webpic.layout ?? DEFAULT_WEBPIC_CONFIG.layout;
   const shortcuts = opts.theme?.webpic.shortcuts ?? DEFAULT_WEBPIC_CONFIG.shortcuts;
-  const panels = layout.defaultPanels;
+  const panels = layout.defaultPanels.filter(isDockable);
 
   const disposers: Disposer[] = [];
   disposers.push(applyControlStyles(opts.parent, opts.theme));

@@ -9,8 +9,9 @@ import { installDiagnosticsPanel } from "./diagnosticsPanel.ts";
 // in-development controls: the GPU frame-time diagnostics (the 8 ms raymarch-gate instrument + its
 // sustained-measurement toggle) and the volume Phong toggle. Hides with the global UI toggle, like the
 // colorbar. Opens compact in the top-right (the window's defaults), where the docked panel used to sit.
-// Visibility is the `panels.dev` flag (default open): the header × clears it, and the rail's
-// Diagnostics button toggles it — so a dismissed window can be reopened without the F UI toggle.
+// Visibility is the `panels.dev` flag, default *closed*: it is a developer instrument, and an
+// open dev window is the wrong first frame for someone who just opened the app. The rail's
+// Diagnostics button toggles it and the header × clears it, both without the F UI toggle.
 
 export function installDevWindow(
   parent: HTMLElement,
@@ -28,10 +29,10 @@ export function installDevWindow(
   const disposeDiagnostics = installDiagnosticsPanel(win.body, store);
   const disposePanel = installDevPanel(win.body, store);
 
-  // Shown when the UI is visible AND the dev panel isn't dismissed (default open).
+  // Shown when the UI is visible AND the dev window has been opened from the rail.
   const applyVisible = (): void => {
     const ui = uiStore.getState();
-    if (ui.isUiVisible && (ui.panels.dev ?? true)) win.show();
+    if (ui.isUiVisible && (ui.panels.dev ?? false)) win.show();
     else win.hide();
   };
   applyVisible();
