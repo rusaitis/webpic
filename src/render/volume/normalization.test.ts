@@ -1,3 +1,4 @@
+import { LOG_DECADES, logWindowFloor } from "@schema/colormap.ts";
 import { describe, expect, it } from "vitest";
 import { createNormalization, fullRangeWindow, safeWidth, windowedT } from "./normalization.ts";
 
@@ -42,6 +43,20 @@ describe("windowedT", () => {
     expect(windowedT(1, 50.5, 99, "log")).toBeCloseTo(0, 6);
     expect(windowedT(100, 50.5, 99, "log")).toBeCloseTo(1, 6);
     expect(windowedT(10, 50.5, 99, "log")).toBeCloseTo(0.5, 6); // sqrt(1·100) = 10
+  });
+
+  // window {center 5e3, width 1e4} → interval [0, 1e4]: the full-range window of any field with a
+  // vacuum region. Without the decades floor the ε bottom spans ~30 decades and everything lands at
+  // t ≈ 1 (the volume renders as a saturated brick).
+  it("log anchors a window bottoming at zero LOG_DECADES below its top", () => {
+    const floor = logWindowFloor(1e4);
+    expect(floor).toBeCloseTo(1e4 * 10 ** -LOG_DECADES, 12);
+    expect(windowedT(floor, 5e3, 1e4, "log")).toBeCloseTo(0, 6);
+    expect(windowedT(1e4, 5e3, 1e4, "log")).toBeCloseTo(1, 6);
+    // Geometric midpoint of [1e-2, 1e4] is 10 — three decades up of six.
+    expect(windowedT(10, 5e3, 1e4, "log")).toBeCloseTo(0.5, 6);
+    // A real value well inside the range must NOT saturate (the bug this floor fixes).
+    expect(windowedT(30, 5e3, 1e4, "log")).toBeLessThan(0.7);
   });
 
   it("log floors a non-positive input to a finite, saturated t (no NaN)", () => {

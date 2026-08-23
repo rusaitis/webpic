@@ -5,6 +5,7 @@ import {
   type ColormapId,
   type ColorScale,
   DEFAULT_COLORMAP,
+  logWindowFloor,
 } from "@schema/colormap.ts";
 import {
   type DataRange,
@@ -37,9 +38,10 @@ const colormapOptions = COLORMAP_IDS.map((id) => ({ value: id, label: id }));
 const scaleOptions = COLOR_SCALES.map((scale) => ({ value: scale, label: scale }));
 
 // log needs a positive track minimum (makeScale throws on min ≤ 0): the data minimum when positive,
-// else a small fraction of the maximum — a v0.1 stand-in for magviz's logFloor.
+// else the shared decades floor (@schema/colormap) the shader normalizes with — same constant on both
+// sides, so the slider track spans exactly what is drawn.
 function logTrackMin(bounds: DataRange): number {
-  return Math.max(bounds.min, bounds.max > 0 ? bounds.max * 1e-6 : 1);
+  return Math.max(bounds.min, logWindowFloor(bounds.max) || 1);
 }
 
 interface ActiveBinding {

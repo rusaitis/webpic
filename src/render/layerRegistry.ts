@@ -133,6 +133,11 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // One scene whose dispose is deferred by a swap so the rAF loop can't sample a GPUTexture that a
   // replace just released mid-rebuild (use-after-free reads back as the magenta sentinel).
   let pendingDispose: LayerEntry | undefined;
+  // Scenes being warmed but not yet committed. A look edit that lands during the warm would otherwise
+  // reach only the entry about to be discarded, and the incoming scene — built from the source as it
+  // was at upsert time — would silently revert it (a dataset switch does exactly this: the new
+  // dataset's default color scale posts while the new layer is still compiling).
+  const building = new Map<string, LayerEntry>();
 
   function bumpEpoch(id: string): number {
     const next = (epochs.get(id) ?? 0) + 1;
@@ -205,13 +210,19 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   async function replace(id: string, source: LayerSource): Promise<void> {
     const epoch = bumpEpoch(id);
     const next = buildScene(id, source);
-    const committed = await warmScene(
-      next,
-      () => host.warmComposite({ id, entry: next }),
-      () => epochs.get(id) === epoch,
-      (entry) => entry.scene.dispose(),
-      host.reportFault,
-    );
+    building.set(id, next);
+    let committed: boolean;
+    try {
+      committed = await warmScene(
+        next,
+        () => host.warmComposite({ id, entry: next }),
+        () => epochs.get(id) === epoch,
+        (entry) => entry.scene.dispose(),
+        host.reportFault,
+      );
+    } finally {
+      if (building.get(id) === next) building.delete(id);
+    }
     if (!committed) return;
     // The warm's await is a real yield: a setProjection / quality change that landed mid-warm only
     // reached committed scenes, so re-assert the live state on this one before it becomes visible.
@@ -222,6 +233,29 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     pendingDispose?.scene.dispose();
     pendingDispose = previous;
     host.requestRender();
+  }
+
+  // Push a look / shading edit onto one entry (committed or warming), keeping its retained source in
+  // step so a device-restore rebuild reproduces it. Undefined entry (no such layer yet) is a no-op.
+  function applyColormap(
+    entry: LayerEntry | undefined,
+    request: Extract<RenderWorkerRequest, { kind: "setLayerColormap" }>,
+  ): void {
+    if (entry === undefined || entry.kind === "fieldlines") return;
+    entry.scene.setColormap(request.colormap);
+    entry.scene.setWindowLevel(request.windowLevel.center, request.windowLevel.width);
+    entry.scene.setScale(request.scale);
+    entry.source.colormap = request.colormap;
+    entry.source.windowLevel = request.windowLevel;
+    entry.source.scale = request.scale;
+  }
+
+  function applyShading(entry: LayerEntry | undefined, shaded: boolean): boolean {
+    if (entry === undefined || entry.kind === "fieldlines") return false;
+    if (!("setShading" in entry.scene)) return false;
+    entry.scene.setShading(shaded);
+    entry.source.shaded = shaded; // retain for a device-restore rebuild
+    return true;
   }
 
   // A source with no windowLevel normalizes over its full finite range (buildScene's default) — the
@@ -317,32 +351,26 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     },
 
     // Live per-layer color: one layer's resolved ColormapBinding (colormap + window/level + scale).
+    // Applied to the committed scene AND to one warming in the background, so an edit that lands
+    // mid-warm survives the commit. A binding update ahead of the first upsert still heals on it;
+    // field lines color solid at trace time (no live colormap window/scale), so they ignore this.
     setColormap(request) {
-      const entry = layers.get(request.id);
-      // binding update ahead of its upsert heals on the upsert repaint; field lines color solid at
-      // trace time (no live colormap window/scale), so they ignore this.
-      if (entry === undefined || entry.kind === "fieldlines") return;
-      entry.scene.setColormap(request.colormap);
-      entry.scene.setWindowLevel(request.windowLevel.center, request.windowLevel.width);
-      entry.scene.setScale(request.scale);
-      // Keep the retained source current so a device-restore rebuild reproduces the live color.
-      entry.source.colormap = request.colormap;
-      entry.source.windowLevel = request.windowLevel;
-      entry.source.scale = request.scale;
-      host.requestRender();
+      const committed = layers.get(request.id);
+      const warming = building.get(request.id);
+      applyColormap(committed, request);
+      if (warming !== committed) applyColormap(warming, request);
+      if (committed !== undefined || warming !== undefined) host.requestRender();
     },
 
     // Live per-layer Phong toggle — a uniform flip on the volume scene. `setShading` exists only on
     // RaymarchScene; the `in` check narrows the union (and silently no-ops a slice — no normal to light).
     setShading(request) {
-      const entry = layers.get(request.id);
+      const committed = layers.get(request.id);
+      const warming = building.get(request.id);
       // toggle ahead of its upsert heals on the upsert (carries shaded); field lines have no normal.
-      if (entry === undefined || entry.kind === "fieldlines") return;
-      if ("setShading" in entry.scene) {
-        entry.scene.setShading(request.shaded);
-        entry.source.shaded = request.shaded; // retain for a device-restore rebuild
-        host.requestRender();
-      }
+      const applied = applyShading(committed, request.shaded);
+      const alsoWarming = warming !== committed && applyShading(warming, request.shaded);
+      if (applied || alsoWarming) host.requestRender();
     },
 
     // Live slice plane edit. Position is a uniform write (the drag hot path). Axis is baked into the

@@ -20,6 +20,8 @@ interface FakeScene {
   orthographic?: boolean;
   position?: number;
   shaderRebuilds: number;
+  scale?: string;
+  colormap?: string;
 }
 
 function makeFake(
@@ -50,9 +52,13 @@ function makeFake(
     setOpacity: (o: number) => {
       fake.opacity = o;
     },
-    setColormap: () => {},
+    setColormap: (c: string) => {
+      fake.colormap = c;
+    },
     setWindowLevel: () => {},
-    setScale: () => {},
+    setScale: (sc: string) => {
+      fake.scale = sc;
+    },
   };
   const scene =
     kind === "volume"
@@ -166,6 +172,34 @@ describe("createLayerRegistry", () => {
     const overrideEntry = { scene: created[0], kind: "volume" as const, source: {} } as never;
     const items = registry.layerItems(VOLUME, ORTHO, { id: "z", entry: overrideEntry });
     expect(items).toHaveLength(2); // committed a + appended override z
+  });
+
+  it("lands a colormap edit on the scene warming in the background, not just the one it replaces", async () => {
+    // A dataset switch does exactly this: the new dataset's default color scale posts while the new
+    // layer is still compiling. Before, the edit reached only the outgoing scene and the incoming one
+    // committed with the stale look — the dipole rendered linear despite a log binding.
+    const { registry, created, setWarm } = harness();
+    await registry.upsert(upsert("a", "volume"));
+    let release: () => void = () => {};
+    setWarm(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const rebuilding = registry.upsert(upsert("a", "volume", [4, 4, 4])); // new shape ⇒ rebuild
+    registry.setColormap({
+      kind: "setLayerColormap",
+      requestId: 2,
+      id: "a",
+      colormap: "inferno",
+      windowLevel: { center: 5, width: 10 },
+      scale: "log",
+    });
+    release();
+    await rebuilding;
+    expect(created).toHaveLength(2);
+    expect(created[1]?.scale).toBe("log"); // the committed scene carries the edit
+    expect(created[1]?.colormap).toBe("inferno");
   });
 
   it("swaps a streamed field in place when the scene accepts it, else rebuilds", async () => {

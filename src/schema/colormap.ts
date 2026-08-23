@@ -17,6 +17,19 @@ export const DEFAULT_COLORMAP: ColormapId = "inferno";
 export type ColorScale = "linear" | "log" | "symlog";
 export const COLOR_SCALES = ["linear", "log", "symlog"] as const;
 
+// A log window anchored at or below zero has no bottom — log(0) is −∞ — and any field with a vacuum
+// region (|B| outside a planetary cutoff, a density with empty cells) has a zero minimum, so the
+// full-range window hits this by default. matplotlib's LogNorm refuses vmin ≤ 0; webpic keeps the
+// view alive by choosing a floor this many decades below the window's top instead. The slider track
+// and the shader must derive it from the same constant or the control would misreport what is drawn.
+export const LOG_DECADES = 6;
+
+/** The positive low edge to use for a log mapping whose own low edge is ≤ 0; 0 when `hi` is also
+ *  non-positive (a log view of a negative window is meaningless — the caller falls back to its ε). */
+export function logWindowFloor(hi: number): number {
+  return hi > 0 ? hi * 10 ** -LOG_DECADES : 0;
+}
+
 // Value→color window in the canonical {center, width} form (not a separate min/max). ui's
 // rangeMath.ts keeps a local copy so that sublayer stays dependency-free and liftable.
 export interface WindowLevel {

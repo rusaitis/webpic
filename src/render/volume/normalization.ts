@@ -1,4 +1,9 @@
-import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
+import {
+  type ColorScale,
+  LOG_DECADES,
+  logWindowFloor,
+  type WindowLevel,
+} from "@schema/colormap.ts";
 import { abs, float, max, sign, uniform } from "three/tsl";
 import type { Node } from "three/webgpu";
 
@@ -51,7 +56,10 @@ export function windowedT(
   let t: number;
   if (scale === "log") {
     const e = (x: number): number => Math.log(Math.max(x, LOG_EPS));
-    t = (e(raw) - e(lo)) / den(e(hi) - e(lo));
+    // A window bottoming at ≤ 0 gets a decades-based floor; without it the ε floor stretches the
+    // domain over ~30 decades and every real value lands at t ≈ 1 (a uniformly saturated volume).
+    const eLo = e(lo > 0 ? lo : logWindowFloor(hi));
+    t = (e(raw) - eLo) / den(e(hi) - eLo);
   } else if (scale === "symlog") {
     const L = symlogThresh(lo, hi, linthresh);
     const g = (v: number): number =>
@@ -94,9 +102,10 @@ export function createNormalization(
       // linear: (raw − lo)/(hi − lo); hi − lo ≡ uWidth (floored).
       const linearT = raw.sub(lo).div(uWidth);
 
-      // log: ε-floored so a non-positive lo/raw stays finite (the UI keeps the log track positive;
-      // this is the in-shader safety net).
-      const logLo = max(lo, eps).log();
+      // log: a non-positive low edge falls back to the decades floor (mirrors windowedT), then ε
+      // guards what is left — raw included, so a zeroed cell stays finite instead of going NaN.
+      const decadesFloor = max(hi, float(0)).mul(10 ** -LOG_DECADES);
+      const logLo = max(lo.greaterThan(0).select(lo, decadesFloor), eps).log();
       const logT = max(raw, eps)
         .log()
         .sub(logLo)
