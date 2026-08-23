@@ -10,7 +10,8 @@ import { build, preview } from "vite";
 // the boot frame must be the bare background (no RGB test triangle), the blue +z axis must point UP
 // and agree with the CSS gnomon. Also drives the full pointer surface — orbit drag with damped
 // glide, cursor-anchored wheel, right-drag pan, double-click reset tween, gnomon tip snap — and
-// reads the pose HUD after each gesture. Run: `node scripts/verify-orientation.ts`.
+// reads the pose off the bottom rail's coords card after each gesture.
+// Run: `node scripts/verify-orientation.ts`.
 
 const WINDOW = "1280,860";
 
@@ -50,8 +51,21 @@ async function main(): Promise<void> {
     // a colored triangle is not.
     await page.screenshot({ path: join(shotDir, "0-boot.png") });
     await page.waitForTimeout(600); // volume warm-compile + commit + a few settled frames
-    const readout = (): Promise<string> =>
-      page.locator(".webpic-readout").innerText({ timeout: 5_000 });
+    // The probe marker defaults on and sits at the box center, where every gesture below is anchored —
+    // leave it up and the drags grab the marker instead of the camera. Off for the whole run.
+    const probe = page.locator('[aria-label="Hide point marker"]');
+    if ((await probe.count()) > 0) await probe.first().click();
+    // The pose lives in the C-toggled coords card's View + Center rows (ui/cameraRail) — the two rows
+    // parented directly by the card, next to the nested grid rows. Every canvas gesture below is an
+    // outside pointer-down, which dismisses the card, so re-open it before each read.
+    const card = page.locator(".webpic-coords-card");
+    const poseRows = page.locator(".webpic-coords-card > .webpic-coords-card_row");
+    const readout = async (): Promise<string> => {
+      if (await card.isHidden()) await page.keyboard.press("c");
+      await card.waitFor({ state: "visible", timeout: 5_000 });
+      const rows = await poseRows.allInnerTexts();
+      return rows.join("  ·  ").replace(/\s+/g, " ");
+    };
 
     const initialPose = await readout();
     await page.screenshot({ path: join(shotDir, "1-initial.png") });
@@ -99,11 +113,12 @@ async function main(): Promise<void> {
     const afterPanPose = await readout();
     await page.screenshot({ path: join(shotDir, "4-after-right-drag-pan.png") });
 
-    // Double-click: eased fly back to the default pose (az 45°, el 27°, d 2.39, target 0).
+    // Double-click: pick-to-focus — an eased fly onto the picked point, so the center moves onto the
+    // volume and the distance closes to the echoed focus distance (it is not a reset-to-default).
     await page.mouse.dblclick(cx, cy);
     await page.waitForTimeout(700); // 400 ms tween + margin
-    const afterResetPose = await readout();
-    await page.screenshot({ path: join(shotDir, "5-after-dblclick-reset.png") });
+    const afterFocusPose = await readout();
+    await page.screenshot({ path: join(shotDir, "5-after-dblclick-focus.png") });
 
     // Gnomon +x tip: snap to the side view (az 0°, el 0°), distance preserved.
     await page.locator(".webpic-gnomon_tip.is-px").click({ force: true });
@@ -117,7 +132,7 @@ async function main(): Promise<void> {
     console.log(`after drag:  ${afterDragPose}`);
     console.log(`after zoom:  ${afterZoomPose}`);
     console.log(`after pan:   ${afterPanPose}`);
-    console.log(`after reset: ${afterResetPose}`);
+    console.log(`after focus: ${afterFocusPose}`);
     console.log(`after snap:  ${afterSnapPose}`);
     if (errors.length > 0) {
       exitCode = 1;
