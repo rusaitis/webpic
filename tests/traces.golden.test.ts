@@ -61,8 +61,11 @@ describe("trace fixture drift guard", () => {
       }
       return out;
     };
-    assertAllclose(resample(SMOOTH_COMPONENTS[0]), fix.inputs.B_1, { rtol: 0, atol: 0 });
-    assertAllclose(resample(SMOOTH_COMPONENTS[1]), fix.inputs.B_2, { rtol: 0, atol: 0 });
-    assertAllclose(resample(SMOOTH_COMPONENTS[2]), fix.inputs.B_3, { rtol: 0, atol: 0 });
+    // The f64 reference floor, not bit-exactness: the fixture was generated on one platform and
+    // this resample runs on another, and libm transcendentals differ by ~1 ULP between them. Any
+    // real drift (an edited component or sampling convention) moves values far above 1e-12.
+    assertAllclose(resample(SMOOTH_COMPONENTS[0]), fix.inputs.B_1);
+    assertAllclose(resample(SMOOTH_COMPONENTS[1]), fix.inputs.B_2);
+    assertAllclose(resample(SMOOTH_COMPONENTS[2]), fix.inputs.B_3);
   });
 });

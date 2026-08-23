@@ -80,8 +80,11 @@ describe("pypic goldens — TS backend vs checked-in pypic outputs", () => {
       Array.from(sampleScalar(SMOOTH_SHAPE, SMOOTH_SPACING, fn, Float64Array));
     expect([...fixture.grid.shape]).toEqual([...SMOOTH_SHAPE]);
     expect(fixture.grid.spacing).toEqual([...SMOOTH_SPACING]);
-    expect(fixture.inputs.B_1).toEqual(resample(fn1));
-    expect(fixture.inputs.B_2).toEqual(resample(fn2));
-    expect(fixture.inputs.B_3).toEqual(resample(fn3));
+    // assertAllclose, not toEqual: deep equality on f64 arrays demands bit-exactness across
+    // whatever platform generated the fixture and whatever platform runs CI (~1 ULP apart on
+    // transcendentals). The f64 floor still catches any real regeneration drift.
+    assertAllclose(fixture.inputs.B_1, resample(fn1));
+    assertAllclose(fixture.inputs.B_2, resample(fn2));
+    assertAllclose(fixture.inputs.B_3, resample(fn3));
   });
 });
