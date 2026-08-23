@@ -68,7 +68,9 @@ rounding = 0.04
 version = 1
 
 [webpic.layout]
-default-panels = ["field", "colormap", "diagnostics"]
+# Empty: webpic's chrome floats (top bar owns dataset/field/time, the left rail owns
+# axes & grid, the colorbar owns color mapping), so nothing docks by default.
+default-panels = []
 docked-side = "right"
 panel-collapsed-default = false
 
