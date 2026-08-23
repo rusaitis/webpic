@@ -86,7 +86,7 @@ export interface SimulationState {
   readonly computed: FieldArray | null;
   // The active field's finite extent — the slider track bounds (independent of any binding).
   readonly dataRange: DataRange | null;
-  // The ColormapBinding registry (DESIGN §Magviz Stage 8 coordination): the color-mapping layers reference by id, owning
+  // The ColormapBinding registry (DESIGN §Store schema additions): the color-mapping layers reference by id, owning
   // colormap + window/level + scale. Layers share or split bindings; GC/merge wait for the multi-layer UI.
   readonly colormapBindings: Readonly<Record<string, ColormapBinding>>;
   // Orbit camera pose. Non-nullable — DEFAULT_POSE is always valid; the app streams it to the

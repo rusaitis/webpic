@@ -1,9 +1,30 @@
 {
   "name": "webpic",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "TypeScript/WebGPU plasma-physics data visualizer + lightweight analyzer",
+  "license": "MIT",
+  "author": "Liutauras Rusaitis <liutauras.rusaitis@gmail.com>",
+  "homepage": "https://rusaitis.github.io/webpic/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rusaitis/webpic.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rusaitis/webpic/issues"
+  },
+  "keywords": [
+    "plasma-physics",
+    "particle-in-cell",
+    "magnetohydrodynamics",
+    "scientific-visualization",
+    "webgpu",
+    "volume-rendering",
+    "field-lines",
+    "zarr",
+    "heliophysics",
+    "typescript"
+  ],
   "engines": {
     "node": ">=20"
   },
@@ -20,6 +41,8 @@
     "gen:emit": "node scripts/codegen/emit.ts && biome format --write src/schema src/compute",
     "gen": "npm run gen:export && npm run gen:emit",
     "gen:check": "npm run gen:emit && git diff --exit-code -- src/schema src/compute",
+    "gen:themes": "node scripts/sync-themes.ts",
+    "gen:themes:check": "npm run gen:themes && git diff --exit-code -- src/data/theme/themes",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "gen:synthetic": "node scripts/gen-synthetic.ts",
     "gen:trace-fixtures": "node scripts/gen-trace-fixtures.ts",

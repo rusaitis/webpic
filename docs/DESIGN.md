@@ -1,6 +1,12 @@
-# webpic — Plan (v0.1 draft)
+# webpic — Design
 
-> *Citation anchor:* `file:line` references against sibling repos were last re-verified **2026-06-07** against the current `pypic`/`magviz` working trees (several drifted line numbers corrected that pass). Line numbers drift on every commit; re-verify (or replace with `file::Symbol` references) when reading well after that date.
+> The design rationale behind webpic: the layer DAG, schema sharing with pypic, the compute
+> dispatcher, the rendering pipeline, and the open risks. `TASKS.md` tracks what is built;
+> this document explains why it is shaped the way it is.
+>
+> *Citation anchor:* `file:line` references into sibling repositories were last re-verified
+> **2026-06-07**. Line numbers drift on every commit — prefer the `file::Symbol` form, and
+> re-verify when reading well after that date.
 
 ## Context
 
@@ -10,7 +16,8 @@
 - **rustpic** (Rust) — future PIC simulator; plan reserves `@rustpic/plasma-wasm` (npm) and `@rustpic/shaders` (npm) for browser-side reuse. Neither exists yet.
 - **webpic** (TypeScript / Three.js / WebGPU) — local and remote 3D viewer and lightweight analyzer.
 
-**Why a clean restart.** The prototype `magviz` proved browser-side plasma viz is feasible, but its pre-refactor form entangled rendering, UI, data, and physics — extension was painful (since refactored to layered TS; the lesson, not the LoC, is what matters). webpic restarts with:
+**Why a clean restart.** The prototype `magviz` (a private WebGL predecessor, referenced
+throughout this document for the lessons it produced) proved browser-side plasma viz is feasible, but its pre-refactor form entangled rendering, UI, data, and physics — extension was painful (since refactored to layered TS; the lesson, not the LoC, is what matters). webpic restarts with:
 
 - Hard layer boundaries, WebGPU-first compute, strict TypeScript.
 - Schema-level pypic compatibility — same `simulation.toml`, same Zarr/HDF5/Parquet on disk, eventually the same WGSL kernels in both browser and Rust simulator.
@@ -473,7 +480,7 @@ Each worker's `onmessage` would handle `'pair'` once, storing the port; a worker
 - `gpu/profiler.ts`: `GPUQuerySet` with `timestamp-query`; `performance.now()` + `onSubmittedWorkDone()` fallback.
 - **`device.lost` recovery** (`gpu/device.ts`): rebuild `compute/` + `render/` from OPFS-cached source, restore scene from `store/`. UX: canvas freezes on last frame; "GPU was reset; recovering…" banner with elapsed seconds; UI stays interactive (Zustand survives in main); 200 ms fade-in on recovery; OPFS-evicted fields marked "unavailable, refetching" — never silent.
 - Memory pressure (`gpu/memory.ts`): on alloc failure, halve texture resolution + banner.
-- Boot: `app/main.ts`'s `bootstrap()` shows "requires WebGPU" page with magviz fallback link when `!navigator.gpu`.
+- Boot: `main.ts` shows a blocking "requires WebGPU" banner naming the supported browsers when `navigator.gpu` is absent, and the same banner (with a reload) when adapter/device acquisition fails before the first frame. There is no WebGL fallback.
 - **Pipeline compile:** `renderer.compileAsync(scene, camera)` (the renderer method — there is no `material.compileAsync`) warms each heavy scene's pipeline before its first `renderOnce`, off the critical path, so first frame doesn't hitch on driver compile. "At boot" only if a default dataset auto-loads — `worker.ts:init()` builds just the triangle at startup, so the warm hangs off `upsertLayer` (the volume/slice layer-build seam). Streamlines/particles compile lazily on toggle. First-frame: <500 ms cold, <100 ms warm. (Dev-only shader HMR is a separate concern — see §Build system & tooling / §Milestones M2 (M2.13); it ships nothing in the prod bundle.)
 
 ### Volume rendering
@@ -981,7 +988,7 @@ Cross-cutting concerns and explicitly deferred items. Milestone-bound work lives
 
 **To read for ground truth (sibling repos).**
 
-*pypic* — `/Users/leo/projects/pypic/src/pypic/`:
+*pypic* — [`src/pypic/`](https://github.com/rusaitis/pypic/tree/main/src/pypic) (MIT, public):
 - `schema/{_models.py,_export.py,cli.py,simulation.schema.v1.0.json}` — Pydantic v2 root `SimulationSchema`, JSON Schema 2020-12 export, Typer CLI, bundled output
 - `fields.py` (FieldInfo registry), `derived.py` (recipes), `diagnostics.py` (div_B, div_E, field_energy)
 - `compute.py` — `Recipe` dataclass (lines 49-79), `RECIPES` (`MappingProxyType`), `SpeciesArgs`, `SpeciesTemplate`, `SPECIES_TEMPLATES`; API: `compute_field`, `available_quantities`, `field_dependencies`, `register_recipe`, `unregister_recipe`
@@ -994,11 +1001,10 @@ Cross-cutting concerns and explicitly deferred items. Milestone-bound work lives
 - `readers/{_protocols.py,_registry.py,config.py}` — stackable reader protocols, `can_read_confidence` dispatch, TOML config loader
 - `plotting/themes/*.toml`, `pypic.simulation.toml` — themes (incl. `[webpic]`), canonical config example
 
-*magviz* — `/Users/leo/projects/magviz/`:
-- `src/physics/{trace,sample}.ts` (RK4 + trilinear, worth porting), `src/scene/volume.ts` (GLSL raymarcher, obsoleted), `src/ui/` (keymap + panel patterns). Layered TS post-refactor; the pre-refactor tangle is the failure mode webpic's layer DAG avoids
-
-*planner* — `/Users/leo/projects/planner/`:
-- `schema.md` (full schema reference), `plan-rustpic.md` (WGSL kernel pattern, plasma-wasm intent)
+*magviz* — the private WebGL prototype webpic replaces. Referenced here for the lessons carried
+forward (RK4 + trilinear tracing, keymap and panel patterns) and, more importantly, for the failure
+mode webpic's layer DAG exists to avoid: rendering, UI, data, and physics entangled to the point
+where extension was painful. Its GLSL raymarcher is obsoleted by the WebGPU one.
 
 ---
 
@@ -1023,12 +1029,28 @@ If 1–12 pass on a clean checkout against pinned pypic + browser versions, ship
 
 ---
 
-## Magviz Stage 8 coordination — proposed webpic schema additions
+## Store schema additions — colormap bindings & selections
 
-One store node is already prototyped in magviz (`ColormapBinding`); two more are *proposed* (not yet in magviz). All three land in `@webpic/schema`, which is the **authority** — magviz conforms to webpic naming, not the reverse; magviz session exports reach webpic through a boundary adapter, never by webpic mirroring the prototype shape:
+Three store-node shapes, one shipped and two proposed. All live in `@webpic/schema`, which is the
+**authority**: the prototype that motivated them conforms to webpic naming, not the reverse, and any
+imported session state crosses through a boundary adapter rather than webpic mirroring a foreign shape.
 
-1. **`ColormapBinding`** — reified colormap registry; primitives reference bindings by id and share or split deliberately. webpic designs the shape it wants (typed `FieldName` + `ColormapId`, window/level `{center,width}` consistent with M2.3's `RangeControl`, discriminated `scale: linear|log|symlog`), **not** a field-for-field copy of magviz's `schema.ts:51-65` (its bare-string `colormap`, per-binding `units`, `min/max`, `transparentBounds` stay out — units come from schema/theme, the range matches RangeControl). magviz's prototype (intents `magviz/src/store/intents.ts`, registry helpers `magviz/src/store/bindings.ts`) is reference for the *registry mechanics* — `merge`/GC/auto-share — not the data shape. **Land the abstraction before v0.1 freeze** — reified bindings are painful to retrofit once primitives hardcode color state. v0.1 ships the minimal registry (slice + volume); `merge`/GC/the 2-colormap soft-warn wait for the M4 multi-layer UI (field lines + colorbar).
-2. **`CriterionSelection`** (*proposed — not yet in magviz; `schema.ts:107-125` currently holds `BoxSelection`/`SphereSelection`*) — predicate selection: `{ kind, id, label, field, op: '>' | '<' | '>=' | '<=' | '==' | '!=', value }`. Joint addition with pypic (Step 37b natural pairing).
-3. **`CompositeSelection`** (*proposed — not yet in magviz*) — set-algebra over primitives: `{ kind, id, label, op: 'union' | 'intersection' | 'difference', left, right }`. Same pypic Step 37b pairing.
+1. **`ColormapBinding`** *(shipped, M2.5b)* — a reified colormap registry: primitives reference
+   bindings by id and share or split deliberately, rather than each hardcoding its own color state.
+   webpic designs the shape it wants — typed `FieldName` + `ColormapId`, window/level as
+   `{center, width}` consistent with the `RangeControl`, and a discriminated `scale: linear|log|symlog`.
+   Deliberately excluded: per-binding `units` (they come from the schema/theme) and raw `min`/`max`
+   (the window/level pair is the range representation). Landed **before the v0.1 freeze** — reified
+   bindings are painful to retrofit once primitives hardcode color state. v0.1 ships the minimal
+   registry (slice + volume); `merge`/GC and the two-colormap soft-warning wait for the multi-layer UI.
+2. **`CriterionSelection`** *(proposed, v0.2)* — predicate selection:
+   `{ kind, id, label, field, op: '>' | '<' | '>=' | '<=' | '==' | '!=', value }`. A joint addition
+   with pypic rather than a webpic-only shape.
+3. **`CompositeSelection`** *(proposed, v0.2)* — set algebra over selection primitives:
+   `{ kind, id, label, op: 'union' | 'intersection' | 'difference', left, right }`. Same pypic pairing.
 
-For (1), magviz session round-trip is a **boundary concern, not a schema constraint** (mirrors the CLAUDE.md §"Schema, validation, boundaries" rule): a one-shot import adapter (`data/import/magviz.ts`) decodes magviz's `{min,max,log,logFloor,centerOnZero}` → webpic's window/level binding on load, dropping prototype-only fields. It rides M6 session-export / v0.2 — session-state persistence is already v0.2-soft (pending pypic Step 37b; see §Data layer), and there's no live corpus of saved magviz sessions to gate v0.1 on. (2) and (3) are additive v0.2 work — design them jointly with pypic Step 37b rather than mirroring an existing magviz shape (there isn't one yet).
+Importing session state from another tool is a **boundary concern, not a schema constraint** (see
+CLAUDE.md §"Schema, validation, boundaries"): a one-shot adapter decodes the foreign
+`{min, max, log, logFloor, centerOnZero}` form into webpic's window/level binding on load and drops
+prototype-only fields. That rides session-export in v0.2, which is itself gated on the upstream
+selection work — there is no corpus of saved sessions to gate v0.1 on.

@@ -1,6 +1,6 @@
 import type { FieldName } from "./types.ts";
 
-// The reified color-mapping a renderable layer references (DESIGN §Magviz Stage 8 coordination). @webpic/schema is the
+// The reified color-mapping a renderable layer references (DESIGN §Store schema additions). @webpic/schema is the
 // authority for this shape — render/store/ui import it, restating nothing. Window/level in the
 // canonical {center, width} form; a discriminated scale. No per-binding units/min,max (units come
 // from the registry/theme; the range is the window) or linthresh (symlog's half-width is auto-derived).

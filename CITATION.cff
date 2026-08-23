@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "webpic — WebGPU plasma-physics data visualizer"
+abstract: >-
+  A browser-native 3D visualizer and lightweight analyzer for plasma
+  simulation output from PIC and MHD codes. Volume raymarching,
+  orthogonal slices, and GPU field-line tracing run on WebGPU with no
+  install; data is read from pypic-blessed formats (Zarr v3) under the
+  same canonical field schema, so the browser view and the Python
+  analysis agree by construction.
+type: software
+authors:
+  - family-names: Rusaitis
+    given-names: Liutauras
+    email: liutauras.rusaitis@gmail.com
+    orcid: "https://orcid.org/0000-0003-2904-3672"
+version: 0.1.0
+license: MIT
+date-released: 2026-08-23
+url: "https://rusaitis.github.io/webpic/"
+repository-code: "https://github.com/rusaitis/webpic"
+keywords:
+  - plasma physics
+  - particle-in-cell
+  - magnetohydrodynamics
+  - scientific visualization
+  - webgpu
+  - heliophysics
+  - typescript
+references:
+  - type: software
+    title: "pypic — Python for Plasma In Cells"
+    authors:
+      - family-names: Rusaitis
+        given-names: Liutauras
+        orcid: "https://orcid.org/0000-0003-2904-3672"
+    doi: 10.5281/zenodo.22059414
+    repository-code: "https://github.com/rusaitis/pypic"
+    notes: "Schema authority — webpic mirrors its canonical field names and recipes."

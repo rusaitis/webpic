@@ -39,7 +39,10 @@ async function main(): Promise<void> {
     await page.locator('.webpic-siderail [data-control="diagnostics"]').click();
 
     // The diagnostics readout before measuring — should be awaiting a frame (continuous off).
-    const before = await page.getByLabel("Developer", { exact: true }).locator(".webpic-pane", { hasText: "Diagnostics" }).innerText();
+    const before = await page
+      .getByLabel("Developer", { exact: true })
+      .locator(".webpic-pane", { hasText: "Diagnostics" })
+      .innerText();
 
     // Tick "Measure (continuous)" to force the sustained-timing loop, then read the streaming value.
     // force: the styled SVG box overlays the real <input>, intercepting a normal click — but
