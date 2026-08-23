@@ -1,6 +1,6 @@
 import { installOutsideClickDismiss, makeEl } from "./controls/dom.ts";
 import { ICON_PLUS } from "./layerIcons.ts";
-import { POPOVER_GAP_PX } from "./layout.ts";
+import { positionArrowFlyout } from "./layout.ts";
 
 // A rail add-button's click-to-open menu (DESIGN §UI "create and navigate from one seam"): lists the
 // existing instances of one layer kind as quick-jumps, then an "Add new". Not the single-select
@@ -98,17 +98,9 @@ export function installRailMenu(opts: RailMenuOptions): RailMenuHandle {
     items.push(add);
   };
 
-  // Anchor-relative placement, mirroring the View flyout: open to the right of the rail, the tail on
-  // the button's vertical center, clamped within the viewport.
   const position = (): void => {
     const btn = anchor.getBoundingClientRect();
-    panel.style.left = `${Math.round(btn.right + POPOVER_GAP_PX)}px`;
-    const arrowY = btn.top + btn.height / 2;
-    const height = panel.offsetHeight; // valid only while shown
-    const viewportH = doc.documentElement.clientHeight;
-    const top = Math.max(8, Math.min(arrowY - height / 2, viewportH - height - 8));
-    panel.style.top = `${Math.round(top)}px`;
-    panel.style.setProperty("--arrow-pos", `${Math.round(arrowY - top)}px`);
+    positionArrowFlyout(panel, btn, btn, doc);
   };
 
   function open(): void {

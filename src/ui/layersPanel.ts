@@ -114,7 +114,7 @@ export function installLayersPanel(
   };
 
   const render = (): void => {
-    const { layers } = store.getState();
+    const { layers } = getState();
     listEl.replaceChildren();
     rows = new Map();
     if (layers.length === 0) {

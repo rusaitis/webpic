@@ -4,7 +4,7 @@ import type { Disposer } from "./controls/index.ts";
 import { ICON_CLOSE } from "./icons.ts";
 import { isTypingTarget } from "./keyboard.ts";
 import { LAYER_KIND_ICON } from "./layerIcons.ts";
-import { POPOVER_GAP_PX } from "./layout.ts";
+import { positionArrowFlyout } from "./layout.ts";
 import { installScenePanel } from "./panels/scenePanel.ts";
 import { installRailMenu, type RailMenuHandle, type RailMenuItem } from "./railMenu.ts";
 
@@ -152,17 +152,13 @@ export function installSideRail(
   const sceneDispose = installScenePanel(body, store);
 
   let isOpen = false;
-  const position = (): void => {
-    const rail = container.getBoundingClientRect();
-    const btn = viewBtn.getBoundingClientRect();
-    flyout.style.left = `${Math.round(rail.right + POPOVER_GAP_PX)}px`;
-    const arrowY = btn.top + btn.height / 2;
-    const height = flyout.offsetHeight; // valid only while shown
-    const viewportH = doc.documentElement.clientHeight;
-    const top = Math.max(8, Math.min(arrowY - height / 2, viewportH - height - 8));
-    flyout.style.top = `${Math.round(top)}px`;
-    flyout.style.setProperty("--arrow-pos", `${Math.round(arrowY - top)}px`);
-  };
+  const position = (): void =>
+    positionArrowFlyout(
+      flyout,
+      container.getBoundingClientRect(),
+      viewBtn.getBoundingClientRect(),
+      doc,
+    );
   const setOpen = (next: boolean): void => {
     isOpen = next;
     flyout.hidden = !next;

@@ -92,7 +92,7 @@ export function installLayerSettings(
   let downBtn: HTMLButtonElement | null = null;
 
   const fieldOptions = (): ReadonlyArray<{ value: FieldName; label: FieldName }> =>
-    store.getState().availableFields.map((name) => ({ value: name, label: name }));
+    getState().availableFields.map((name) => ({ value: name, label: name }));
 
   const teardown = (): void => {
     pane?.dispose();
@@ -114,7 +114,7 @@ export function installLayerSettings(
 
   const updateReorder = (): void => {
     if (built === null || upBtn === null || downBtn === null) return;
-    const { layers } = store.getState();
+    const { layers } = getState();
     const index = layers.findIndex((layer) => layer.id === built?.layerId);
     upBtn.disabled = index <= 0;
     downBtn.disabled = index < 0 || index >= layers.length - 1;
@@ -123,14 +123,14 @@ export function installLayerSettings(
   const buildActions = (layer: Layer): void => {
     const up = makeIconButton(doc, "webpic-layerset_move", ICON_CARET_UP, { ariaLabel: "Move up" });
     up.addEventListener("click", () => {
-      const index = store.getState().layers.findIndex((l) => l.id === layer.id);
+      const index = getState().layers.findIndex((l) => l.id === layer.id);
       if (index > 0) getState().reorderLayer(layer.id, index - 1);
     });
     const down = makeIconButton(doc, "webpic-layerset_move", ICON_CARET_DOWN, {
       ariaLabel: "Move down",
     });
     down.addEventListener("click", () => {
-      const { layers } = store.getState();
+      const { layers } = getState();
       const index = layers.findIndex((l) => l.id === layer.id);
       if (index >= 0 && index < layers.length - 1) getState().reorderLayer(layer.id, index + 1);
     });
@@ -156,7 +156,7 @@ export function installLayerSettings(
 
   const rebuild = (): void => {
     teardown();
-    const layer = selectActiveLayer(store.getState());
+    const layer = selectActiveLayer(getState());
     if (layer === null) {
       built = null;
       win.setTitle("Layer");
@@ -224,7 +224,7 @@ export function installLayerSettings(
       });
       placeControl = folder.addCheckbox({
         label: "Place seeds",
-        value: store.getState().seedPlacementLayerId === layer.id,
+        value: getState().seedPlacementLayerId === layer.id,
         onChange: (on) => getState().setSeedPlacement(on ? layer.id : null),
       });
       seedNote = folder.addNote(seedSummary(layer.seeds.length));
@@ -238,7 +238,7 @@ export function installLayerSettings(
   // Reflect value edits without a rebuild (opacity/visible/position/axis/seed-count, reorder enablement).
   // A selection / kind change (or the layer vanishing) falls through to a full rebuild.
   const sync = (): void => {
-    const layer = selectActiveLayer(store.getState());
+    const layer = selectActiveLayer(getState());
     if (
       layer === null ||
       built === null ||
@@ -258,16 +258,16 @@ export function installLayerSettings(
       positionControl?.set(layer.position);
     } else if (layer.kind === "fieldlines") {
       seedCountControl?.set(Math.min(Math.max(layer.seeds.length, MIN_SEEDS), MAX_SEEDS));
-      placeControl?.set(store.getState().seedPlacementLayerId === layer.id);
+      placeControl?.set(getState().seedPlacementLayerId === layer.id);
       if (seedNote !== null) seedNote.element.textContent = seedSummary(layer.seeds.length);
     }
     updateReorder();
   };
 
   const syncPlacement = (): void => {
-    const layer = selectActiveLayer(store.getState());
+    const layer = selectActiveLayer(getState());
     if (layer?.kind === "fieldlines") {
-      placeControl?.set(store.getState().seedPlacementLayerId === layer.id);
+      placeControl?.set(getState().seedPlacementLayerId === layer.id);
     }
   };
 
