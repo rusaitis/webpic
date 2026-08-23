@@ -33,11 +33,14 @@ export function datasetCatalog(n: number): ReadonlyMap<string, DatasetEntry> {
     [
       "dipole",
       {
-        // magviz's static Earth dipole — non-cubic bounds, |B| spanning orders of magnitude (log reads
-        // best). One timestep, so the scrub collapses to a single step on switch.
+        // magviz's static Earth dipole — non-cubic bounds, |B| spanning orders of magnitude between the
+        // inner cutoff and the box edge. symlog over the plain log: the zeroed interior puts the
+        // window's low edge at 0, where log has no bottom and every real value crowds the top of the
+        // ramp; symlog's linear waist near zero keeps the falloff readable. One timestep, so the scrub
+        // collapses to a single step on switch.
         makeDataset: () => dipoleStep(),
         streamSource: dipoleHandle(),
-        defaultScale: "log",
+        defaultScale: "symlog",
       },
     ],
   ]);

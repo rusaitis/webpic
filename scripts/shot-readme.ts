@@ -4,16 +4,20 @@ import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { build, preview } from "vite";
 
-// Regenerates the README hero from the real production build: the synthetic flux rope, |B| volume
-// raymarching under a traced field-line rake. Headed Chrome — WebGPU on macOS/Metal is unreliable
-// headless. `npx tsx scripts/shot-readme.ts [outPath]`; override the view with WEBPIC_POSE.
+// Regenerates the README hero from the real production build: the Earth dipole, |B| volume raymarching
+// under a traced field-line rake that closes on the inner cutoff. Headed Chrome — WebGPU on
+// macOS/Metal is unreliable headless. `npx tsx scripts/shot-readme.ts [outPath]`; override the view
+// with WEBPIC_POSE.
+//
+// The dipole is a dropdown away rather than a URL parameter, so this drives the top bar's dataset
+// picker — one click for a reader who wants the same frame. Everything else is the app's own default:
+// the catalog's log scale over |B|, which spans four decades between the inner cutoff and the box edge.
 
 const OUT = process.argv[2] ?? "docs/assets/webpic-hero.png";
-const SIZE = 128; // volume resolution: crisp enough for a still, well under the 256³ ceiling
 const WINDOW = { width: 1600, height: 900 };
-// "az,el,dist,tx,ty,tz,roll" (radians) — low elevation off the x axis, so the rake's traces cross
-// on screen and the rope reads as twisted rather than as a bundle of parallel lines.
-const POSE = process.env.WEBPIC_POSE ?? "0.4000,0.3000,2.1000,0,0,0,0";
+// "az,el,dist,tx,ty,tz,roll" (radians) — off the meridian the seed rake lies in, so the closed loops
+// read as loops in perspective rather than as a flat fan, with the near-planet field filling frame.
+const POSE = process.env.WEBPIC_POSE ?? "1.0000,0.3000,2.0000,0,0,0,0";
 const SETTLE_MS = 3000; // trace + volume upload, then the camera settle ramp back to full render scale
 
 async function main(): Promise<void> {
@@ -39,15 +43,21 @@ async function main(): Promise<void> {
     const page = await context.newPage();
     page.on("pageerror", (e) => console.error("[pageerror]", e.message));
 
-    await page.goto(`${url}?n=${SIZE}&fieldlines&pose=${POSE}`, { waitUntil: "load" });
+    await page.goto(`${url}?fieldlines&pose=${POSE}`, { waitUntil: "load" });
     await page.waitForFunction(
       () => performance.getEntriesByName("webpic:first-frame").length > 0,
       undefined,
       { timeout: 60_000 },
     );
+    // Switch to the dipole (no URL parameter for it — the top bar's dataset picker is the way in).
+    await page.click('button[data-control="dataset"]');
+    await page.click('.webpic-popover_item[data-value="dipole"]');
+    await page.waitForTimeout(SETTLE_MS); // re-read + recompute + retrace against the new grid
+
     // The probe marker defaults on and lands dead centre of the frame — off for the still.
     const probe = page.locator('[aria-label="Hide point marker"]');
     if ((await probe.count()) > 0) await probe.first().click();
+
     await page.mouse.move(WINDOW.width - 4, WINDOW.height - 4); // park the pointer clear of hovers
     await page.waitForTimeout(SETTLE_MS);
     await page.screenshot({ path: OUT });

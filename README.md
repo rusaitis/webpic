@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rusaitis/webpic/main/docs/assets/webpic-hero.png" alt="webpic rendering a synthetic magnetic flux rope: volume raymarching of |B| with traced field lines" width="900">
+  <img src="https://raw.githubusercontent.com/rusaitis/webpic/main/docs/assets/webpic-hero.png" alt="webpic rendering an Earth dipole: volume raymarching of |B| on a symlog scale, with traced field lines closing on the inner cutoff" width="900">
 </p>
 
 A browser-native 3D visualizer and lightweight analyzer for plasma simulation output from
@@ -34,7 +34,8 @@ analysis agree by construction rather than by convention.
 **[rusaitis.github.io/webpic](https://rusaitis.github.io/webpic/)** — boots on a synthetic
 magnetic flux rope, no data needed. Left-drag orbits, wheel dollies, right-drag pans,
 double-click focuses. `?fieldlines` adds traced field lines; `?n=128` raises the volume
-resolution.
+resolution. The view above is the **Dipole** dataset — one pick away in the top bar, and shown with
+the defaults it ships with.
 
 Or run it locally:
 
