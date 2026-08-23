@@ -41,10 +41,12 @@ export function showBlockingBanner(message: string, options: BlockingBannerOptio
   document.getElementById("splash")?.remove(); // the boot spinner must not outlive the view
 }
 
-// Pre-boot guard: `navigator.gpu` absent means no adapter request can ever succeed, so say so
-// before spawning workers. Returns whether the app may continue.
+// Pre-boot guard: no `navigator.gpu` means no adapter request can ever succeed, so say so before
+// spawning workers. Tests the value rather than the key — a browser can expose the property as
+// undefined (or a policy can neuter it), and `"gpu" in navigator` would still read as supported.
+// Returns whether the app may continue.
 export function requireWebGpu(): boolean {
-  if (typeof navigator !== "undefined" && "gpu" in navigator) return true;
+  if (typeof navigator !== "undefined" && navigator.gpu !== undefined) return true;
   showBlockingBanner("webpic needs WebGPU, which this browser does not expose.", {
     detail:
       "Supported: Chrome/Edge 113+, Safari 18+, Firefox 141+. In Safari and older Firefox, WebGPU may need to be enabled in settings.",
