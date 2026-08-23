@@ -220,6 +220,19 @@ describe("panPose", () => {
     expect(next.target[2]).toBeGreaterThan(LEVEL.target[2]); // drag down ⇒ target rises (+z)
   });
 
+  it("keeps full authority at the elevation clamp — the pole degenerates orbit, not pan", () => {
+    // Looking straight down, screenUp loses its z-component but both basis vectors stay unit-length
+    // in the xy-plane, so a drag there displaces the target by exactly as much as one at level.
+    const pole: CameraPose = { ...LEVEL, elevation: ELEVATION_LIMIT };
+    const next = panPose(pole, 0.1, 0.05);
+    const moved = Math.hypot(
+      next.target[0] - pole.target[0],
+      next.target[1] - pole.target[1],
+      next.target[2] - pole.target[2],
+    );
+    expect(moved).toBeCloseTo(Math.hypot(0.1, 0.05) * 2 * TAN_HALF_FOV * pole.distance, 12);
+  });
+
   it("at level elevation a horizontal drag stays in the xy-plane, world tracking the cursor", () => {
     const next = panPose(LEVEL, 0.1, 0); // drag right; azimuth 0 ⇒ screenRight = (0,1,0)
     expect(next.target[2]).toBeCloseTo(LEVEL.target[2], 12); // z held (horizontal plane)
