@@ -24,6 +24,7 @@ import {
   installPointerSeedPlacer,
   installUi,
 } from "@ui";
+import { showBlockingBanner } from "./blockingBanner.ts";
 import type { DatasetEntry } from "./datasets.ts";
 import { installLayerSync } from "./layerSync.ts";
 import type { PerfBridge } from "./perfBridge.ts";
@@ -37,29 +38,6 @@ import { installThemeBridge, type ThemeBridge } from "./themeBridge.ts";
 import { currentDevicePixelRatio, installViewportTracking } from "./viewportTracking.ts";
 
 const DEFAULT_SIZE = 256;
-
-// Terminal GPU-loss state: the worker's recovery circuit-breaker gave up. Replace the dead view with
-// a reload prompt rather than leaving a frozen canvas. Idempotent; skipped headless (no DOM).
-function showGpuLostBanner(message: string): void {
-  if (typeof document === "undefined" || document.getElementById("webpic-gpu-lost") !== null)
-    return;
-  const banner = document.createElement("div");
-  banner.id = "webpic-gpu-lost";
-  banner.setAttribute("role", "alert");
-  banner.style.cssText =
-    "position:fixed;inset:0;z-index:1000;display:grid;place-items:center;gap:1rem;padding:2rem;text-align:center;background:rgba(16,24,32,0.94);color:#e8eef4;font:500 14px/1.5 system-ui,sans-serif;";
-  const text = document.createElement("p");
-  text.style.cssText = "margin:0;max-width:40rem;";
-  text.textContent = `GPU device lost and could not recover. ${message}`;
-  const reload = document.createElement("button");
-  reload.type = "button";
-  reload.textContent = "Reload";
-  reload.style.cssText =
-    "padding:0.5rem 1.25rem;font:inherit;cursor:pointer;border-radius:6px;border:1px solid #4a5a6a;background:#1c2a38;color:inherit;";
-  reload.addEventListener("click", () => location.reload());
-  banner.append(text, reload);
-  document.body.appendChild(banner);
-}
 
 // Seams default to the real DOM/Worker; the handshake test injects fakes so
 // bootstrap runs headless in Node.
@@ -260,10 +238,21 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       screenshotBridge.handleScreenshot(message);
     } else if (message.kind === "error") {
       console.error("[render worker]", message.message);
+      // Pre-first-frame it is fatal (no adapter, no device, pipeline failure): the status pill
+      // auto-clears, so without a banner the user is left staring at an empty canvas.
+      if (!workerReady) {
+        uiStore.getState().endLoading(BOOT_PHASE_KEY);
+        showBlockingBanner("webpic could not start the WebGPU renderer.", {
+          detail: message.message,
+          reload: true,
+        });
+      }
     } else if (message.kind === "gpuRecoveryFailed") {
       console.error(`[render worker] GPU unrecoverable (${message.reason}):`, message.message);
       uiStore.getState().endLoading(BOOT_PHASE_KEY); // no spinner behind the terminal banner
-      showGpuLostBanner(message.message);
+      showBlockingBanner(`GPU device lost and could not recover. ${message.message}`, {
+        reload: true,
+      });
     }
   };
 

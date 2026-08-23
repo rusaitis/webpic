@@ -14,6 +14,7 @@ const ManifestSchema = z.object({
   short_name: z.string().min(1),
   display: z.string(),
   start_url: z.string(),
+  scope: z.string(),
   background_color: z.string(),
   theme_color: z.string(),
   icons: z
@@ -35,7 +36,10 @@ const manifest = ManifestSchema.parse(
 describe("PWA manifest", () => {
   it("declares the install essentials", () => {
     expect(manifest.display).toBe("standalone");
-    expect(manifest.start_url).toBe("/");
+    // Relative, not "/": the manifest is copied verbatim (never base-rewritten), so an absolute
+    // scope would break the installed app wherever the build is served from a subpath.
+    expect(manifest.start_url).toBe("./");
+    expect(manifest.scope).toBe("./");
     // theme_color tints the system bars; the index.html <meta name="theme-color"> must agree.
     expect(manifest.theme_color).toBe("#101820");
     expect(manifest.background_color).toBe(manifest.theme_color); // seamless launch splash
@@ -52,7 +56,7 @@ describe("PWA manifest", () => {
     );
     expect(maskable.length).toBeGreaterThan(0); // Android adaptive-icon crop needs one
     for (const icon of manifest.icons) {
-      expect(existsSync(`${publicDir}${icon.src.replace(/^\//, "")}`)).toBe(true);
+      expect(existsSync(`${publicDir}${icon.src.replace(/^\.?\//, "")}`)).toBe(true);
     }
   });
 });

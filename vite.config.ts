@@ -45,10 +45,15 @@ function lanHttps(mode: string) {
   };
 }
 
-export default defineConfig(({ mode }) => {
+// Relative asset URLs in the production build, so one artifact runs unchanged from a domain
+// root, a GitHub Pages repo subpath, or a nested directory — nothing bakes in a deploy path.
+// Safe here because the app is a single page with query-param state and no history routing.
+// Dev keeps an absolute base (Vite's default) so the module graph resolves from `/`.
+export default defineConfig(({ command, mode }) => {
   const https = lanHttps(mode);
   const serve = { headers: crossOriginIsolation, ...(https && { https }) };
   return {
+    base: command === "build" ? "./" : "/",
     plugins: [shaderHmr()],
     resolve: {
       alias: layerAliases(import.meta.dirname),

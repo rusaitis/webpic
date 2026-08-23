@@ -1,8 +1,14 @@
-import { bootstrap, datasetCatalog } from "@app";
+import { bootstrap, datasetCatalog, requireWebGpu } from "@app";
 import { DEFAULT_THEME_NAME, loadBundledThemes } from "@data/theme/loader.ts";
 import { readThemePref } from "@data/theme/prefs.ts";
 import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
 import { parsePoseParam } from "@store";
+
+// Bail before spawning workers or touching OPFS: without `navigator.gpu` nothing downstream can
+// succeed, and a silent empty canvas is the worst way to say so.
+if (!requireWebGpu()) {
+  throw new Error("WebGPU unavailable");
+}
 
 // `?n=<size>` overrides the scaffold volume's per-axis resolution — a dev/profiling affordance for
 // feeding the raymarcher the 256³ gate workload (see scripts/profile-raymarch.ts). Absent or
