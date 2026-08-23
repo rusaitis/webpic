@@ -1,4 +1,11 @@
-import { computableFields, computeField, type FieldLine, traceFields } from "@compute";
+import {
+  computableFields,
+  computeField,
+  displayTraceSteps,
+  type FieldLine,
+  traceFields,
+  vectorComponentsForField,
+} from "@compute";
 import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
 import type { ColormapBinding, ColormapId, ColorScale, WindowLevel } from "@schema/colormap.ts";
 import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
@@ -19,7 +26,7 @@ import type { Layer, LayerKind, LayerSpec, SliceAxis } from "./layers.ts";
 import * as layerOps from "./layers.ts";
 import * as overlayOps from "./overlay.ts";
 import { DEFAULT_OVERLAY, type GridPlane, type OverlayState } from "./overlay.ts";
-import { defaultSeedRake } from "./seedPick.ts";
+import { defaultSeedRake, isSeedInDomain } from "./seedPick.ts";
 
 export type { WindowLevel };
 
@@ -67,6 +74,21 @@ export function worldHalfExtentForGrid(grid: GridInfo): Vec3 {
   const sz = span(2);
   const max = Math.max(sx, sy, sz) || 1;
   return [(0.5 * sx) / max, (0.5 * sy) / max, (0.5 * sz) / max];
+}
+
+/** Per-layer outcome of a field-line retrace. `traced < requested` means seeds were skipped (a field
+ *  null, or outside the domain after a dataset switch); `error` is a genuine trace failure. */
+export interface TraceNotice {
+  readonly requested: number;
+  readonly traced: number;
+  readonly nullSeeds: number;
+  readonly outsideSeeds: number;
+  /** Seeds that started but produced no usable line (a first step that leaves the domain both ways). */
+  readonly failedSeeds: number;
+  /** The vector the trace followed ("B", "E") — known even when nothing traced; null on a failure
+   *  that never reached the tracer. */
+  readonly fieldName: string | null;
+  readonly error: string | null;
 }
 
 export interface SimulationState {
@@ -143,6 +165,9 @@ export interface SimulationState {
   // Traced field lines per fieldlines-layer id (compute/traceField). recompute/addFieldlinesLayer
   // refresh it; the app bridges each entry to the render worker as a batched LineSegments2.
   readonly traces: Readonly<Record<string, FieldLine[]>>;
+  // What the last retrace of each fieldlines layer actually did — facts, not sentences: the UI writes
+  // the wording. Committed with `traces`, so a layer that traced 6 of 8 seeds still renders its six.
+  readonly traceNotices: Readonly<Record<string, TraceNotice>>;
   // Seed-placement mode: the fieldlines-layer id accepting click-to-place seeds, or null (off). The
   // per-layer settings panel toggles it; ui/pointerSeedPlacer claims canvas clicks while it is set.
   readonly seedPlacementLayerId: string | null;
@@ -301,6 +326,41 @@ function nearestStep(step: number, steps: readonly number[]): number {
   return best;
 }
 
+// A layer that never reached the tracer: nothing drawn, nothing classified, just the reason.
+function failedNotice(requested: number, error: string): TraceNotice {
+  return {
+    requested,
+    traced: 0,
+    nullSeeds: 0,
+    outsideSeeds: 0,
+    failedSeeds: 0,
+    fieldName: null,
+    error,
+  };
+}
+
+// Drop one key from a per-layer record (traces / notices), leaving the original untouched.
+function omitKey<T>(record: Readonly<Record<string, T>>, key: string): Record<string, T> {
+  const next: Record<string, T> = {};
+  for (const [k, value] of Object.entries(record)) if (k !== key) next[k] = value;
+  return next;
+}
+
+// Seeds are physical coordinates, so a rake laid on one dataset is meaningless on another (the flux
+// rope spans [0,n], the dipole x∈[-10,5]). When every seed of a layer misses the new grid it is a
+// stale rake, not a placed set — re-rake it at the same count so the layer keeps drawing. A partial
+// miss is left alone: the per-seed skip drops the strays and keeps the user's placed seeds.
+function rerakeStaleSeeds(layers: readonly Layer[], grid: GridInfo): readonly Layer[] {
+  let changed = false;
+  const next = layers.map((layer) => {
+    if (layer.kind !== "fieldlines" || layer.seeds.length === 0) return layer;
+    if (layer.seeds.some((seed) => isSeedInDomain(seed, grid))) return layer;
+    changed = true;
+    return { ...layer, seeds: defaultSeedRake(grid, layer.seeds.length) };
+  });
+  return changed ? next : layers;
+}
+
 // Inferred from the factory so the `subscribeWithSelector` overload (selector + listener)
 // survives — a plain StoreApi<SimulationState> annotation would erase it.
 export type SimulationStore = ReturnType<typeof createSimulationStore>;
@@ -348,7 +408,11 @@ export function createSimulationStore() {
       // generation counter only discards the stale *result*, this also stops the work producing it.
       let computeAbort: AbortController | null = null;
 
-      const recompute = async (): Promise<void> => {
+      // `rebind` says how far the fresh value scale reaches: a field switch moves only the layer that
+      // followed the selector, but a dataset switch invalidates every layer drawing the active field —
+      // the new run can span a different order of magnitude (flux-rope |B| ~1 vs dipole |B| ~1e4 nT),
+      // and a stale window paints the whole volume saturated.
+      const recompute = async (rebind: "selected" | "activeField" = "selected"): Promise<void> => {
         const generation = ++computeGeneration;
         computeAbort?.abort();
         computeAbort = null;
@@ -383,17 +447,21 @@ export function createSimulationStore() {
             layers = layerOps.addLayer(layers, { ...layer, colormapBindingId: bindingId });
             selectedLayerId = layers[0]?.id ?? null;
           } else {
-            // Field switch: repoint the selected layer's binding at the new field + full range,
-            // keeping its colormap + scale (the user's color choices outlive a field change).
-            const bindingId =
-              layers.find((layer) => layer.id === selectedLayerId)?.colormapBindingId ?? null;
-            if (bindingId !== null)
+            // Repoint the affected bindings at the new field + full range, keeping their colormap +
+            // scale (the user's color choices outlive a field change).
+            const rebound =
+              rebind === "activeField"
+                ? layers.filter((layer) => layer.field === activeField)
+                : layers.filter((layer) => layer.id === selectedLayerId);
+            for (const layer of rebound) {
+              if (layer.colormapBindingId === null) continue;
               colormapBindings = colormapOps.retargetBinding(
                 colormapBindings,
-                bindingId,
+                layer.colormapBindingId,
                 activeField,
                 window,
               );
+            }
           }
           set({
             computed,
@@ -404,8 +472,8 @@ export function createSimulationStore() {
             selectedLayerId,
             colormapBindings,
           });
-          // Field lines trace the vector field, not the active scalar — but a dataset switch lands
-          // through here too, so refresh any existing field-line layers against the new dataset.
+          // Field lines follow their layer's field (the vector family behind the displayed scalar),
+          // and a dataset switch lands here too — so refresh every field-line layer either way.
           // Fire-and-forget: retrace is total (owns its own abort + generation guard), never rejects.
           if (layers.some((layer) => layer.kind === "fieldlines")) void retrace();
         } catch (err) {
@@ -426,44 +494,99 @@ export function createSimulationStore() {
       let traceGeneration = 0;
       let traceAbort: AbortController | null = null;
 
-      // Re-trace every field-line layer's seeds from the current dataset's vector field
-      // (compute/traceField), publishing FieldLine[] per layer id. Mirrors recompute's per-call
-      // AbortController + generation guard — aborts the prior pass and drops a superseded result. A
-      // per-layer try/catch keeps a dataset without B_1/B_2/B_3 (or seeds gone stale after a dataset
-      // switch) from crashing the store — that layer just renders line-less. Total (never rejects), so
-      // callers fire it with `void`. recompute doesn't abort traceAbort on its own supersede — moot
-      // while CPU traces are synchronous (the next retrace aborts it). Off-main + GPU dispatch + scrub
-      // re-trace stay deferred behind the worker/main-device seam.
+      // Re-trace every field-line layer's seeds from the vector field its `field` names
+      // (compute/vectorComponentsForField), publishing FieldLine[] + a TraceNotice per layer id.
+      // Mirrors recompute's per-call AbortController + generation guard — aborts the prior pass and
+      // drops a superseded result. Seed failure is per seed, not per batch: a seed at a null or
+      // outside the domain is skipped and counted in the notice, so one bad seed in a rake can't
+      // discard the rest (issue #1). A per-layer try/catch still guards a genuine failure — a dataset
+      // without the components, a degenerate grid — recorded as the notice's `error`. Total (never
+      // rejects), so callers fire it with `void`. recompute doesn't abort traceAbort on its own
+      // supersede — moot while CPU traces are synchronous (the next retrace aborts it). Off-main + GPU
+      // dispatch + scrub re-trace stay deferred behind the worker/main-device seam.
       const retrace = async (): Promise<void> => {
         const generation = ++traceGeneration;
         traceAbort?.abort();
         traceAbort = null;
-        const { dataset, layers, traces } = get();
+        const { dataset, layers, traces, traceNotices } = get();
         if (dataset === null) {
-          if (Object.keys(traces).length > 0) set({ traces: {} }); // identity-skip when already empty
+          // identity-skip when already empty
+          if (Object.keys(traces).length > 0 || Object.keys(traceNotices).length > 0)
+            set({ traces: {}, traceNotices: {} });
           return;
         }
         const controller = new AbortController();
         traceAbort = controller;
         const next: Record<string, FieldLine[]> = {};
+        const notices: Record<string, TraceNotice> = {};
+        const steps = displayTraceSteps(dataset.grid);
         for (const layer of layers) {
-          if (layer.kind !== "fieldlines" || layer.seeds.length === 0) continue;
+          if (layer.kind !== "fieldlines") continue;
+          const requested = layer.seeds.length;
+          if (requested === 0) {
+            // Commit the empty set so a cleared rake clears the scene — omitting the key would strand
+            // the previous seeds' lines on screen. No notice: an empty layer is a state, not a finding.
+            next[layer.id] = [];
+            continue;
+          }
+          // Field lines follow the layer's own field; fall back to B when it names no stored vector
+          // (a scalar like `beta`, or a derived family that was never materialized).
+          const components =
+            vectorComponentsForField(layer.field, dataset) ??
+            vectorComponentsForField("|B|", dataset);
+          if (components === null) {
+            notices[layer.id] = failedNotice(
+              requested,
+              `no vector field to trace for ${layer.field}`,
+            );
+            next[layer.id] = [];
+            continue;
+          }
           try {
-            next[layer.id] = await traceFields(
+            const { lines, skipped, fieldName } = await traceFields(
               dataset,
               layer.seeds,
-              { direction: "both" },
+              { direction: "both", fieldComponents: components, ...steps },
               controller.signal,
             );
+            let nullSeeds = 0;
+            let outsideSeeds = 0;
+            let failedSeeds = 0;
+            for (const skip of skipped) {
+              if (skip.reason === "field_null") nullSeeds++;
+              else if (skip.reason === "outside_domain") outsideSeeds++;
+              else failedSeeds++;
+            }
+            // Commit even an empty set: the app clears a stale scene from the entry, not from its absence.
+            next[layer.id] = lines;
+            notices[layer.id] = {
+              requested,
+              traced: lines.length,
+              nullSeeds,
+              outsideSeeds,
+              failedSeeds,
+              fieldName,
+              error: null,
+            };
           } catch (err) {
             if (controller.signal.aborted) return; // superseded mid-trace — the newer retrace owns the commit
             console.warn(`[webpic] field-line trace failed for ${layer.id}:`, err);
+            next[layer.id] = [];
+            notices[layer.id] = failedNotice(
+              requested,
+              err instanceof Error ? err.message : String(err),
+            );
           }
         }
         if (generation !== traceGeneration) return; // superseded between the last await and the commit
         // Identity-skip when nothing traced and nothing was traced before (no spurious subscriber fire).
-        if (Object.keys(next).length === 0 && Object.keys(traces).length === 0) return;
-        set({ traces: next });
+        if (
+          Object.keys(next).length === 0 &&
+          Object.keys(traces).length === 0 &&
+          Object.keys(traceNotices).length === 0
+        )
+          return;
+        set({ traces: next, traceNotices: notices });
       };
 
       return {
@@ -489,6 +612,7 @@ export function createSimulationStore() {
         layers: [],
         selectedLayerId: null,
         traces: {},
+        traceNotices: {},
         seedPlacementLayerId: null,
         overlay: DEFAULT_OVERLAY,
         status: "empty",
@@ -501,13 +625,16 @@ export function createSimulationStore() {
           // needs a valid 1-element domain, while a reader-populated one (setAvailableSteps) stays.
           const { availableSteps } = get();
           set({
+            layers: rerakeStaleSeeds(get().layers, dataset.grid),
             dataset,
             worldHalfExtent: worldHalfExtentForGrid(dataset.grid),
             availableFields: computableFields(dataset),
             currentStep: dataset.step,
             ...(availableSteps.length === 0 ? { availableSteps: [dataset.step] } : {}),
           });
-          return recompute(); // resolves once the seed lands — callers may await (bootstrap sequences on it)
+          // A new run's values live on a new scale — rebind every layer on the active field, not just
+          // the selected one.
+          return recompute("activeField"); // resolves once the seed lands — callers may await
         },
         selectDataset(id) {
           if (id === get().datasetId) return; // unchanged → no fire (the app reacts to a real switch)
@@ -664,8 +791,11 @@ export function createSimulationStore() {
           const next = layerOps.removeLayer(layers, id);
           if (next === layers) return; // absent id → no-op
           const selected = selectedLayerId === id ? (next[0]?.id ?? null) : selectedLayerId;
+          const { traces, traceNotices } = get();
           set({
             layers: next,
+            ...(Object.hasOwn(traces, id) ? { traces: omitKey(traces, id) } : {}),
+            ...(Object.hasOwn(traceNotices, id) ? { traceNotices: omitKey(traceNotices, id) } : {}),
             ...(selected !== selectedLayerId ? { selectedLayerId: selected } : {}),
             // Don't strand seed-placement on a removed layer (the canvas would stay in crosshair mode).
             ...(seedPlacementLayerId === id ? { seedPlacementLayerId: null } : {}),

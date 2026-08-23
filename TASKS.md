@@ -91,6 +91,10 @@ Goal: persist derived fields + screenshots; lock bundle budgets.
 
 ---
 
+## Fixes since v0.1
+
+- [x] **#1 — a null seed no longer kills a field-line layer.** Seed rejection moved from per-batch to per seed in the `compute/traceField` facade (`numerics/tracing` keeps pypic's strict batch behind `onInvalidSeed: "throw"`); the store publishes a per-layer `traceNotices` tally the field-lines panel reports and the status pill flashes when a layer draws nothing. **Breaking:** `traceFields` now resolves to `{ lines, skipped, fieldName }`, not `FieldLine[]`. Field lines also follow their layer's displayed field (`|E|` → E_1..3, falling back to B), re-rake seeds stranded by a dataset switch, and draw at a domain-scaled `max_step`. A dataset switch now rescales every layer on the active field, not just the selected one.
+
 ## Backlog (v0.2)
 
 ### M5 — UI polish *(next up)*

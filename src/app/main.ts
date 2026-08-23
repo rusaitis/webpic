@@ -198,9 +198,15 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
         .setDataset(entry.makeDataset())
         .then(() => {
           const state = store.getState();
-          const layer = state.layers.find((candidate) => candidate.id === state.selectedLayerId);
-          const bindingId = layer?.colormapBindingId ?? null;
-          if (bindingId !== null) state.setBindingScale(bindingId, entry.defaultScale);
+          // Every field-drawing layer, not just the selected one — a field-lines layer is selected by
+          // its own add, and its binding only tints a line color, so scoping the scale to the
+          // selection can leave the volume linear (all-black on the dipole). setBindingScale
+          // identity-skips, so shared bindings cost nothing.
+          for (const layer of state.layers) {
+            if (layer.kind !== "volume" && layer.kind !== "slice") continue;
+            if (layer.colormapBindingId !== null)
+              state.setBindingScale(layer.colormapBindingId, entry.defaultScale);
+          }
           streaming?.reopen(entry.streamSource);
         });
     },

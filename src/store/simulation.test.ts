@@ -447,6 +447,53 @@ describe("selectDataset", () => {
   });
 });
 
+describe("setDataset — field-line seeds across a switch", () => {
+  // Seeds are physical coordinates: a rake laid on one grid means nothing on another. Without the
+  // re-rake every seed lands outside the new domain and the layer traces nothing at all.
+  const gridA = () => gridOf([4, 4, 4], [1, 1, 1]);
+  const traceableOn = (grid: GridInfo, origin: readonly number[] = [0, 0, 0]) => {
+    const size = grid.dimensions.reduce((a, b) => a * b, 1);
+    return makeDataset(
+      {
+        B_1: fieldArray("B_1", new Float64Array(size), grid.dimensions),
+        B_2: fieldArray("B_2", new Float64Array(size), grid.dimensions),
+        B_3: fieldArray("B_3", new Float64Array(size).fill(1), grid.dimensions),
+      },
+      { grid: { ...grid, origin: [...origin] } },
+    );
+  };
+
+  it("re-rakes a layer whose seeds all miss the new grid", async () => {
+    const store = createSimulationStore();
+    await store.getState().setDataset(traceableOn(gridA()));
+    store.getState().addFieldlinesLayer();
+    await flushAsync();
+    const before = store.getState().layers.find((l) => l.id === "layer-1");
+    expect(before?.kind === "fieldlines" && before.seeds[0]?.[0]).toBeCloseTo(0.5);
+
+    await store.getState().setDataset(traceableOn(gridA(), [100, 100, 100]));
+    await flushAsync();
+    const after = store.getState().layers.find((l) => l.id === "layer-1");
+    expect(after?.kind === "fieldlines" && after.seeds).toHaveLength(8);
+    expect(after?.kind === "fieldlines" && after.seeds[0]?.[0]).toBeCloseTo(100.5);
+    expect(store.getState().traces["layer-1"]).toHaveLength(8);
+    expect(store.getState().traceNotices["layer-1"]?.traced).toBe(8);
+  });
+
+  it("leaves a layer whose seeds still land in the new grid alone", async () => {
+    const store = createSimulationStore();
+    await store.getState().setDataset(traceableOn(gridA()));
+    store.getState().addFieldlinesLayer();
+    await flushAsync();
+    store.getState().setFieldlineSeeds("layer-1", [[2, 2, 2]]);
+    await flushAsync();
+    await store.getState().setDataset(traceableOn(gridOf([8, 8, 8], [1, 1, 1])));
+    await flushAsync();
+    const layer = store.getState().layers.find((l) => l.id === "layer-1");
+    expect(layer?.kind === "fieldlines" && layer.seeds).toEqual([[2, 2, 2]]); // the placed seed survives
+  });
+});
+
 describe("setDataset", () => {
   it("derives worldHalfExtent from the loaded grid", () => {
     const store = createSimulationStore();

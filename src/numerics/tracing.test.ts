@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
 import { interpolatorFromDataset, type VectorFieldInterpolator } from "./interp.ts";
 import {
+  classifySeed,
   makeFieldLine,
+  partitionSeeds,
   type TerminationReason,
   traceFieldLineAdaptive,
   traceFieldLinesAdaptive,
@@ -164,6 +166,36 @@ describe("traceFieldLineAdaptive — seed validation", () => {
   it("throws on a seed at a field null", () => {
     const sheet = vectorDataset([12, 3, 3], [1, 1, 1], [(x) => x - 6, ZERO, ZERO]);
     expect(() => traceFieldLineAdaptive(sheet, [6, 1.5, 1.5])).toThrow(/field null/);
+  });
+});
+
+describe("classifySeed / partitionSeeds", () => {
+  const sheet = () => vectorDataset([12, 3, 3], [1, 1, 1], [(x) => x - 6, ZERO, ZERO]);
+
+  it("names why a seed can't start a trace, without throwing", () => {
+    const interp = interpolatorFromDataset(sheet());
+    expect(classifySeed(interp, Float64Array.from([2, 1.5, 1.5]), 1e-12)).toBeNull();
+    expect(classifySeed(interp, Float64Array.from([6, 1.5, 1.5]), 1e-12)).toBe("field_null");
+    expect(classifySeed(interp, Float64Array.from([100, 1.5, 1.5]), 1e-12)).toBe("outside_domain");
+  });
+
+  it("splits a rake, keeping original indices and order", () => {
+    const interp = interpolatorFromDataset(sheet());
+    const seeds = [
+      [2, 1.5, 1.5],
+      [6, 1.5, 1.5], // the null sheet
+      [9, 1.5, 1.5],
+      [100, 1.5, 1.5], // outside
+    ].map((s) => Float64Array.from(s));
+    const { traceable, skipped } = partitionSeeds(interp, seeds, 1e-12);
+    expect(traceable.map((t) => [t.index, t.seed[0]])).toEqual([
+      [0, 2],
+      [2, 9],
+    ]);
+    expect(skipped.map((s) => [s.index, s.reason])).toEqual([
+      [1, "field_null"],
+      [3, "outside_domain"],
+    ]);
   });
 });
 

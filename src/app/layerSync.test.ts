@@ -293,4 +293,28 @@ describe("installLayerSync", () => {
     for (const channel of up.message.color) expect(Number.isFinite(channel)).toBe(true);
     expect(up.message.opacity).toBe(1);
   });
+
+  it("flashes the status pill once when a field-line layer traces nothing", async () => {
+    const { store, uiStore } = harness(true);
+    store.getState().setDataset(traceableDataset());
+    await flushAsync();
+    store.getState().addFieldlinesLayer();
+    await flushAsync();
+    expect(uiStore.getState().statusError).toBeNull(); // eight lines traced — nothing to say
+
+    const seen: string[] = [];
+    const unsubscribe = uiStore.subscribe(
+      (s) => s.statusError,
+      (e) => {
+        if (e !== null) seen.push(e.message);
+      },
+    );
+    store.getState().setFieldlineSeeds("layer-1", [[100, 100, 100]]); // stale — nothing can trace
+    await flushAsync();
+    expect(seen).toHaveLength(1);
+    store.getState().setFieldlineSeeds("layer-1", [[200, 200, 200]]); // same outcome, same cause
+    await flushAsync();
+    expect(seen).toHaveLength(1); // said once, not per retrace
+    unsubscribe();
+  });
 });

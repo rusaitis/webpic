@@ -259,6 +259,9 @@ const UI_CSS = `
   background: var(--webpic-input-bg); color: var(--webpic-fg); font: inherit; text-align: right; }
 .webpic-shell :disabled { opacity: 0.5; cursor: default; }
 .webpic-placeholder { padding: 2px 4px; color: var(--webpic-muted); font-style: italic; }
+/* A note reporting dropped work (seeds skipped, nothing traced) — amber and upright, so it
+   reads as a finding rather than a hint. */
+.webpic-placeholder[data-kind="warn"] { color: var(--webpic-warn); font-style: normal; }
 /* Swatch select (ui/controls/swatchSelect): a gradient-preview trigger that opens a createPopover
    list of painted rows. The trigger's canvas grows to fill; name + caret trail on the right. */
 .webpic-swatch { box-sizing: border-box; width: 100%; height: var(--webpic-unit); display: flex;

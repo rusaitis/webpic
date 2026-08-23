@@ -1,8 +1,9 @@
+import { displayTraceSteps, traceFields } from "@compute";
 import { dipoleStep, syntheticStep } from "@data/readers/synthetic.ts";
 import { interpolatorFromDataset } from "@numerics/interp.ts";
 import { traceFieldLinesAdaptive } from "@numerics/tracing.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { seedFromSlice, seedFromVolume, worldHalfExtentForGrid } from "@store";
+import { defaultSeedRake, seedFromSlice, seedFromVolume, worldHalfExtentForGrid } from "@store";
 import { describe, expect, it } from "vitest";
 
 // Cross-layer guard for M4.4: a picked seed (store/seedPick, world → physical grid coords) must land
@@ -81,5 +82,59 @@ describe("seed picking → tracer", () => {
     expect(seed).not.toBeNull();
     if (seed === null) return;
     expect(() => traceFieldLinesAdaptive(DATASET, [seed])).not.toThrow();
+  });
+});
+
+// Issue #1: the dipole's default rake drops one seed inside the zeroed r < 1.1 R_E interior. Before
+// the per-seed skip that single null took the whole layer's traces with it and the layer rendered
+// empty. Cross-layer because it needs the real dipole (data) + rake (store) + tracer (compute).
+describe("default rake → dipole (issue #1)", () => {
+  const dipole = dipoleStep();
+
+  it("traces every seed outside the inner cutoff and reports the one that is inside", async () => {
+    const seeds = defaultSeedRake(dipole.grid);
+    const { lines, skipped } = await traceFields(dipole, seeds, {
+      direction: "both",
+      ...displayTraceSteps(dipole.grid),
+    });
+    expect(seeds).toHaveLength(8);
+    expect(lines).toHaveLength(7);
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]?.reason).toBe("field_null");
+    // The rake runs along x at y = z = 0; only the seed inside r < 1.1 R_E is a null.
+    expect(Math.hypot(...(skipped[0]?.seed ?? [9, 9, 9]))).toBeLessThan(1.1);
+    for (const line of lines) expect(line.fieldName).toBe("B");
+  });
+
+  it("resolves the lines finely enough to read as curves, not polygons", async () => {
+    const steps = displayTraceSteps(dipole.grid);
+    const { lines } = await traceFields(dipole, defaultSeedRake(dipole.grid), {
+      direction: "both",
+      ...steps,
+    });
+    // No segment longer than the display step — that, not a point count, is the smoothness the
+    // renderer needs (a short line near the cutoff legitimately has few points).
+    for (const line of lines) {
+      for (let p = 1; p < line.nPoints; p++) {
+        const a = (p - 1) * 3;
+        const b = p * 3;
+        const segment = Math.hypot(
+          (line.points[b] ?? 0) - (line.points[a] ?? 0),
+          (line.points[b + 1] ?? 0) - (line.points[a + 1] ?? 0),
+          (line.points[b + 2] ?? 0) - (line.points[a + 2] ?? 0),
+        );
+        expect(segment).toBeLessThanOrEqual(steps.maxStep * (1 + 1e-9));
+      }
+    }
+    // pypic's max_step of 2.0 gave 3–13 points per line on this 15x10x10 R_E domain.
+    expect(Math.max(...lines.map((line) => line.nPoints))).toBeGreaterThan(40);
+  });
+
+  it("closes every line on the inner cutoff — the dipole's own null region", async () => {
+    const { lines } = await traceFields(dipole, defaultSeedRake(dipole.grid), {
+      direction: "both",
+      ...displayTraceSteps(dipole.grid),
+    });
+    for (const line of lines) expect(line.reason).toBe("null_point");
   });
 });

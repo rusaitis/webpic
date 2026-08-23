@@ -1,6 +1,6 @@
 import { createSimulationStore, createUiStore, makeDefaultLayer } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
-import { vectorTriple } from "../../tests/fixtures.ts";
+import { dummyGrid, fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import { installLayerSettings } from "./layerSettings.ts";
 
@@ -136,6 +136,38 @@ describe("installLayerSettings", () => {
     place.checked = true;
     place.dispatchEvent(new Event("change"));
     expect(store.getState().seedPlacementLayerId).toBe("layer-1");
+  });
+
+  it("the seed note reports what the last retrace did, amber when seeds were dropped", async () => {
+    const { store, win, open } = setup();
+    // A 4³ uniform B = (0,0,1): traceable, so the note can show a real line count.
+    const size = 4 ** 3;
+    store.getState().setDataset(
+      makeDataset(
+        {
+          B_1: fieldArray("B_1", new Float64Array(size), [4, 4, 4]),
+          B_2: fieldArray("B_2", new Float64Array(size), [4, 4, 4]),
+          B_3: fieldArray("B_3", new Float64Array(size).fill(1), [4, 4, 4]),
+        },
+        { grid: dummyGrid([4, 4, 4]) },
+      ),
+    );
+    await flushAsync();
+    store.getState().addLayer(makeDefaultLayer("ignored", "|B|", "fieldlines")); // layer-1, selected
+    open();
+    const note = () => win.querySelector<HTMLElement>(".webpic-placeholder");
+    expect(note()?.textContent).toContain("0 seeds"); // no retrace yet — just the placement hint
+    expect(note()?.dataset.kind).toBeUndefined();
+
+    store.getState().setFieldlineSeeds("layer-1", [
+      [2, 2, 2],
+      [100, 100, 100], // stale — another grid's coordinates
+    ]);
+    await flushAsync();
+    expect(note()?.textContent).toContain("2 seeds");
+    expect(note()?.textContent).toContain("1 line");
+    expect(note()?.textContent).toContain("1 seed outside the domain");
+    expect(note()?.dataset.kind).toBe("warn");
   });
 
   it("hides with the global UI toggle and tears down on dispose", async () => {

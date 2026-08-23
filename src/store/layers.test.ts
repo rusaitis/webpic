@@ -32,6 +32,44 @@ const traceableDataset = () => {
   );
 };
 
+// The same grid with B zeroed across the two middle x planes, so the interpolated field is null over
+// a whole cell: the default rake drops seeds in there and traces the rest — the dipole's shape, in
+// miniature (a masked interior a geometric rake can't know about).
+const nullSlabDataset = () => {
+  const n = 4;
+  const size = n * n * n;
+  const b3 = new Float64Array(size).fill(1);
+  for (const ix of [1, 2])
+    for (let iy = 0; iy < n; iy++) for (let iz = 0; iz < n; iz++) b3[iz + n * (iy + n * ix)] = 0;
+  return makeDataset(
+    {
+      B_1: fieldArray("B_1", new Float64Array(size), [n, n, n]),
+      B_2: fieldArray("B_2", new Float64Array(size), [n, n, n]),
+      B_3: fieldArray("B_3", b3, [n, n, n]),
+    },
+    { grid: dummyGrid([n, n, n]) },
+  );
+};
+
+// B along z and E along x on the same 4³ grid: two traceable vector families, so a field switch can
+// be seen in what the lines follow.
+const beTraceableDataset = () => {
+  const n = 4;
+  const size = n * n * n;
+  const zero = () => new Float64Array(size);
+  return makeDataset(
+    {
+      B_1: fieldArray("B_1", zero(), [n, n, n]),
+      B_2: fieldArray("B_2", zero(), [n, n, n]),
+      B_3: fieldArray("B_3", new Float64Array(size).fill(1), [n, n, n]),
+      E_1: fieldArray("E_1", new Float64Array(size).fill(1), [n, n, n]),
+      E_2: fieldArray("E_2", zero(), [n, n, n]),
+      E_3: fieldArray("E_3", zero(), [n, n, n]),
+    },
+    { grid: dummyGrid([n, n, n]) },
+  );
+};
+
 const bDataset = () => vectorTriple("B", { array: Float32Array });
 
 // |B| = 5 and |E| = 10 — two computable magnitudes for the field-switch re-point test.
@@ -283,6 +321,87 @@ describe("simulationStore layers", () => {
     const layer = store.getState().layers.find((l) => l.id === "layer-1");
     expect(layer?.kind === "slice" && layer.axis).toBe("x");
     expect(layer?.kind === "slice" && layer.position).toBeCloseTo(0.2);
+  });
+
+  it("keeps the traceable seeds when one sits at a field null (issue #1)", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(nullSlabDataset());
+    await flushAsync();
+    store.getState().addFieldlinesLayer(); // layer-1, default rake of 8 along the longest axis
+    await flushAsync();
+    const notice = store.getState().traceNotices["layer-1"];
+    expect(notice?.requested).toBe(8);
+    expect(notice?.nullSeeds).toBeGreaterThan(0);
+    expect(notice?.traced).toBe(notice ? notice.requested - notice.nullSeeds : -1);
+    expect(store.getState().traces["layer-1"]).toHaveLength(notice?.traced ?? -1);
+    expect(notice?.fieldName).toBe("B");
+    expect(notice?.error).toBeNull();
+  });
+
+  it("commits an empty trace set (not a missing one) when no seed can start", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(traceableDataset());
+    await flushAsync();
+    store.getState().addFieldlinesLayer();
+    await flushAsync();
+    store.getState().setFieldlineSeeds("layer-1", [[100, 100, 100]]); // outside the domain
+    await flushAsync();
+    expect(store.getState().traces["layer-1"]).toEqual([]);
+    expect(store.getState().traceNotices["layer-1"]).toMatchObject({
+      requested: 1,
+      traced: 0,
+      outsideSeeds: 1,
+      fieldName: "B", // named even with nothing drawn — that's the case that needs explaining
+    });
+  });
+
+  it("clears the lines when the seeds are cleared (no ghost set on screen)", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(traceableDataset());
+    await flushAsync();
+    store.getState().addFieldlinesLayer();
+    await flushAsync();
+    expect(store.getState().traces["layer-1"]?.length).toBeGreaterThan(0);
+    store.getState().setFieldlineSeeds("layer-1", []);
+    await flushAsync();
+    expect(store.getState().traces["layer-1"]).toEqual([]); // committed, not absent
+    expect(store.getState().traceNotices["layer-1"]).toBeUndefined(); // empty is a state, not a finding
+  });
+
+  it("drops a removed layer's trace and notice", async () => {
+    const store = createSimulationStore();
+    store.getState().setDataset(traceableDataset());
+    await flushAsync();
+    store.getState().addFieldlinesLayer();
+    await flushAsync();
+    expect(store.getState().traces["layer-1"]).toBeDefined();
+    store.getState().removeLayer("layer-1");
+    expect(store.getState().traces["layer-1"]).toBeUndefined();
+    expect(store.getState().traceNotices["layer-1"]).toBeUndefined();
+  });
+
+  it("follows the layer's field: switching to |E| traces E, not B", async () => {
+    const store = createSimulationStore();
+    await store.getState().setDataset(beTraceableDataset());
+    store.getState().addFieldlinesLayer(); // layer-1, selected, on the active field
+    await flushAsync();
+    expect(store.getState().traceNotices["layer-1"]?.fieldName).toBe("B");
+
+    await store.getState().selectField("|E|"); // repoints the selected layer + retraces
+    await flushAsync();
+    expect(store.getState().traceNotices["layer-1"]?.fieldName).toBe("E");
+    for (const line of store.getState().traces["layer-1"] ?? []) expect(line.fieldName).toBe("E");
+  });
+
+  it("falls back to B when the layer's field names no stored vector", async () => {
+    const store = createSimulationStore();
+    await store.getState().setDataset(beTraceableDataset());
+    store.getState().addFieldlinesLayer();
+    await flushAsync();
+    await store.getState().selectField("div_E"); // a scalar diagnostic — no vector family to follow
+    await flushAsync();
+    expect(store.getState().status).toBe("ready"); // the switch really happened
+    expect(store.getState().traceNotices["layer-1"]?.fieldName).toBe("B");
   });
 
   it("setFieldlineSeedCount regenerates the rake (length = count) and retraces", async () => {

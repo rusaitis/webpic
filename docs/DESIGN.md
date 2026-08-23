@@ -505,6 +505,9 @@ Single-pass WGSL fragment raymarcher; gradient + Phong from M2. Min-max mipmap e
 - Render with `Line2`/`LineSegments2` via indirect draw. No CPU readback per frame.
 - Vector field lookup is `textureSampleLevel` on packed `texture_3d<rgba16float>` of (B_1, B_2, B_3).
 - Cancellable via `AbortSignal` through the dispatcher.
+- **Which vector a layer traces** follows the layer's displayed field: `compute/vectorComponentsForField` maps a magnitude to its stored components through `RECIPES` (`|B|` → `B_1/B_2/B_3`, `|E|` → `E_1/E_2/E_3`), falling back to B when the field names no stored vector. A perpendicular magnitude resolves to its unprojected family (`|E_perp|` → E) — the vector actually stored; tracing derived vectors (`curl_B_*`) waits for on-the-fly component compute.
+- **Seed failure is per seed, not per batch.** `numerics/tracing` keeps pypic's strict validate-then-throw batch (`onInvalidSeed: "throw"`); the `compute/traceField` facade partitions seeds, traces the rest, and reports the dropped ones — a field null (a masked planetary interior, a reconnection X-line) must cost one line, not the layer. The store surfaces the tally per layer (`traceNotices`) rather than a console warning.
+- Traces that will be *drawn* refine `max_step` to ~2% of the domain diagonal (`displayTraceSteps`), never coarser than pypic's default — a rendering choice kept out of the pypic-mirroring defaults.
 
 **Secondary: LIC (Line Integral Convolution) for dense 2D slice flow viz (v0.2).** Separate compute pass writes a 2D LIC texture from vector field sampled along a slice plane.
 

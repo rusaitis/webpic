@@ -4,6 +4,7 @@ import {
   type SimulationStore,
   type SliceAxis,
   selectActiveLayer,
+  type TraceNotice,
   type UiStore,
 } from "@store";
 import { installColormapControls } from "./colorbar/colormapControls.ts";
@@ -43,8 +44,47 @@ const SLICE_AXES: ReadonlyArray<{ value: SliceAxis; label: string }> = [
 const MIN_SEEDS = 2;
 const MAX_SEEDS = 32;
 
-const seedSummary = (n: number): string =>
-  `${n} seed${n === 1 ? "" : "s"} · toggle "Place seeds", then click the volume`;
+const PLACE_HINT = 'toggle "Place seeds", then click the volume';
+
+// The field-lines status line: seeds asked for, lines drawn, the vector they followed, and why any
+// seed was dropped. `notice` is undefined until the layer's first retrace lands.
+function seedSummary(n: number, notice: TraceNotice | undefined): string {
+  const seeds = `${n} seed${n === 1 ? "" : "s"}`;
+  if (notice === undefined) return `${seeds} · ${PLACE_HINT}`;
+  if (notice.error !== null) return `${seeds} · ${notice.error}`;
+  const drawn =
+    notice.traced === 0 ? "no lines" : `${notice.traced} line${notice.traced === 1 ? "" : "s"}`;
+  const parts = [seeds, drawn];
+  if (notice.fieldName !== null) parts.push(notice.fieldName);
+  if (notice.nullSeeds > 0)
+    parts.push(`${notice.nullSeeds} seed${notice.nullSeeds === 1 ? "" : "s"} at a field null`);
+  if (notice.outsideSeeds > 0)
+    parts.push(
+      `${notice.outsideSeeds} seed${notice.outsideSeeds === 1 ? "" : "s"} outside the domain`,
+    );
+  if (notice.failedSeeds > 0)
+    parts.push(`${notice.failedSeeds} seed${notice.failedSeeds === 1 ? "" : "s"} would not trace`);
+  if (notice.traced === n) parts.push(PLACE_HINT);
+  return parts.join(" · ");
+}
+
+// Seeds skipped or nothing drawn — amber, so an empty layer never reads as an empty scene.
+function noticeKind(notice: TraceNotice | undefined): string | null {
+  if (notice === undefined) return null;
+  return notice.error !== null || notice.traced < notice.requested ? "warn" : null;
+}
+
+function applySeedNote(
+  note: NoteHandle | null,
+  layer: Layer,
+  notice: TraceNotice | undefined,
+): void {
+  if (note === null || layer.kind !== "fieldlines") return;
+  note.element.textContent = seedSummary(layer.seeds.length, notice);
+  const kind = noticeKind(notice);
+  if (kind === null) note.element.removeAttribute("data-kind");
+  else note.element.dataset.kind = kind;
+}
 
 export function installLayerSettings(
   parent: HTMLElement,
@@ -227,7 +267,8 @@ export function installLayerSettings(
         value: getState().seedPlacementLayerId === layer.id,
         onChange: (on) => getState().setSeedPlacement(on ? layer.id : null),
       });
-      seedNote = folder.addNote(seedSummary(layer.seeds.length));
+      seedNote = folder.addNote("");
+      applySeedNote(seedNote, layer, getState().traceNotices[layer.id]);
     } else {
       folder.addNote("Particles render in v0.2.");
     }
@@ -259,7 +300,7 @@ export function installLayerSettings(
     } else if (layer.kind === "fieldlines") {
       seedCountControl?.set(Math.min(Math.max(layer.seeds.length, MIN_SEEDS), MAX_SEEDS));
       placeControl?.set(getState().seedPlacementLayerId === layer.id);
-      if (seedNote !== null) seedNote.element.textContent = seedSummary(layer.seeds.length);
+      applySeedNote(seedNote, layer, getState().traceNotices[layer.id]);
     }
     updateReorder();
   };
@@ -285,6 +326,7 @@ export function installLayerSettings(
     store.subscribe((s) => s.availableFields, rebuild), // new dataset → new field options
     store.subscribe((s) => s.layers, sync),
     store.subscribe((s) => s.seedPlacementLayerId, syncPlacement),
+    store.subscribe((s) => s.traceNotices, sync), // the seed note reports what the last retrace did
     uiStore.subscribe((s) => s.isUiVisible, applyVisible),
     uiStore.subscribe((s) => s.isLayerSettingsOpen, applyVisible),
   ];

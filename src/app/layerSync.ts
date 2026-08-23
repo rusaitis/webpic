@@ -47,6 +47,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   let lastLayers: readonly Layer[] = store.getState().layers; // snapshot for the removal diff
   let lastBindings = store.getState().colormapBindings; // snapshot for the per-binding change diff
   let lastTraces = store.getState().traces; // snapshot for the per-fieldlines-layer change diff
+  let lastNotices = store.getState().traceNotices; // snapshot so one failure flashes once, not per retrace
 
   // The layer's ColormapBinding, or undefined if it references none (defensive — every renderable
   // layer is seeded with one).
@@ -317,6 +318,28 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
         sendUpsertFieldlines(layer, lines);
       }
       lastTraces = traces;
+    },
+  );
+
+  // Trace notices → status pill. A layer that traced *some* of its seeds explains itself in the
+  // field-lines panel; one that traced none is the silent-empty case worth interrupting for (issue
+  // #1). Unconditional (not `subscribeWhenReady`) — the message is about the trace, not the renderer.
+  bridge.subscribe(
+    (state) => state.traceNotices,
+    (notices) => {
+      for (const [id, notice] of Object.entries(notices)) {
+        if (notice.requested === 0 || notice.traced > 0) continue;
+        const previous = lastNotices[id];
+        // Same layer, same empty outcome, same cause → already said; a different failure speaks up.
+        if (
+          previous?.traced === 0 &&
+          previous.requested === notice.requested &&
+          previous.error === notice.error
+        )
+          continue;
+        uiStore.getState().flashError(notice.error ?? "field lines: no seed could be traced");
+      }
+      lastNotices = notices;
     },
   );
 

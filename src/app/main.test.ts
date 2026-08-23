@@ -1,8 +1,9 @@
+import type { DatasetEntry } from "@app";
 import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import { createSimulationStore, createUiStore, DEFAULT_POSE, focusPoseOnPoint } from "@store";
 import { describe, expect, it, vi } from "vitest";
-import { vectorTriple } from "../../tests/fixtures.ts";
+import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import { bootstrap } from "./main.ts";
 
@@ -199,6 +200,67 @@ describe("bootstrap store → compute → render", () => {
     }
     expect(posePost.message.pose).toEqual(DEFAULT_POSE);
 
+    dispose();
+  });
+});
+
+describe("bootstrap dataset switch", () => {
+  // The dropdown switch has to re-scale every layer drawing the active field, not just the selected
+  // one: a field-lines layer selects itself on add, and its binding only tints a line color — so
+  // scoping the rescale to the selection left the dipole's volume on the flux rope's window (a
+  // saturated white box) and on the previous scale.
+  it("applies the new dataset's default scale + value range to every field-drawing layer", async () => {
+    const worker = {
+      onmessage: null,
+      postMessage: () => {},
+      terminate: () => {},
+    } as unknown as Worker;
+    const store = createSimulationStore();
+    const big = () =>
+      makeDataset({
+        B_1: fieldArray("B_1", new Float32Array([3000]), [1]),
+        B_2: fieldArray("B_2", new Float32Array([4000]), [1]),
+        B_3: fieldArray("B_3", new Float32Array([0]), [1]),
+      });
+    const catalog = new Map<string, DatasetEntry>([
+      [
+        "small",
+        { makeDataset: tinyDataset, streamSource: syntheticHandle(4, 1), defaultScale: "linear" },
+      ],
+      ["big", { makeDataset: big, streamSource: syntheticHandle(4, 1), defaultScale: "log" }],
+    ]);
+
+    const dispose = bootstrap({
+      width: 64,
+      height: 48,
+      createCanvas: fakeCanvas,
+      mount: () => {},
+      spawnWorker: () => worker,
+      dataset: tinyDataset(),
+      datasetCatalog: catalog,
+      store,
+    });
+    await flushAsync();
+    // A field-lines layer selects itself on add — the state that used to misdirect the rescale.
+    // Seedless, so this stays a binding test (a 1-cell grid has nothing to trace).
+    store.getState().addLayer({
+      kind: "fieldlines",
+      field: "|B|",
+      colormapBindingId: null,
+      visible: true,
+      opacity: 1,
+      seeds: [],
+    });
+    await flushAsync();
+
+    store.getState().selectDataset("big");
+    await flushAsync();
+    await flushAsync();
+
+    const volume = store.getState().layers.find((layer) => layer.kind === "volume");
+    const binding = store.getState().colormapBindings[volume?.colormapBindingId ?? ""];
+    expect(binding?.scale).toBe("log");
+    expect(binding?.window.center).toBeCloseTo(5000.5); // |B| = 5000 (was 5 — the flux-rope scale)
     dispose();
   });
 });

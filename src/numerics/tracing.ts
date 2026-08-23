@@ -89,6 +89,11 @@ export interface FieldLine {
 
 const DEFAULT_COMPONENTS = ["B_1", "B_2", "B_3"] as const;
 
+/** pypic's `max_step` / `step_size_init` defaults (physical units) — exported so display-side step
+ *  policy can refine them without restating the literals. */
+export const DEFAULT_MAX_STEP = 2.0;
+export const DEFAULT_STEP_SIZE_INIT = 0.5;
+
 export interface AdaptiveTraceOptions {
   readonly atol?: number;
   readonly rtol?: number;
@@ -376,19 +381,67 @@ function toSeed(seed: SeedPoint | Float64Array | readonly number[]): Float64Arra
   return new Float64Array([seed[0] ?? Number.NaN, seed[1] ?? Number.NaN, seed[2] ?? Number.NaN]);
 }
 
+/** Why a seed can't start a trace — the two conditions `validateSeed` rejects. */
+export type SeedRejection = "outside_domain" | "field_null";
+
+/** A seed a batch declined to trace, with its position in the caller's seed list. */
+export interface SkippedSeed {
+  readonly index: number;
+  readonly seed: SeedPoint;
+  readonly reason: SeedRejection;
+}
+
+/** A seed that can start a trace, still carrying its position in the caller's list — so a batch that
+ *  traces seed by seed can report which one failed. */
+export interface TraceableSeed {
+  readonly index: number;
+  readonly seed: Float64Array;
+}
+
+/** Classify a seed without throwing — `null` when it can start a trace. The non-throwing core of
+ *  `validateSeed`, so a caller can skip bad seeds instead of losing the whole batch. */
+export function classifySeed(
+  interp: VectorFieldInterpolator,
+  seed: Float64Array,
+  nullThreshold: number,
+): SeedRejection | null {
+  const field = new Float64Array(3);
+  if (!interp.sample(seed, field)) return "outside_domain";
+  const mag = Math.hypot(field[0] ?? 0, field[1] ?? 0, field[2] ?? 0);
+  return mag < nullThreshold ? "field_null" : null;
+}
+
 export function validateSeed(
   interp: VectorFieldInterpolator,
   seed: Float64Array,
   nullThreshold: number,
 ): void {
-  const field = new Float64Array(3);
+  const rejection = classifySeed(interp, seed, nullThreshold);
+  if (rejection === null) return;
   const at = `(${seed[0]}, ${seed[1]}, ${seed[2]})`;
-  if (!interp.sample(seed, field)) {
+  if (rejection === "outside_domain") {
     throw new Error(`seed ${at} is outside the interpolation domain`);
   }
-  const mag = Math.hypot(field[0] ?? 0, field[1] ?? 0, field[2] ?? 0);
-  if (mag < nullThreshold)
-    throw new Error(`seed ${at} is at a field null (|B| < ${nullThreshold})`);
+  throw new Error(`seed ${at} is at a field null (|B| < ${nullThreshold})`);
+}
+
+/** Split a seed list into the traceable ones and the rejected ones (original indices kept, order
+ *  preserved). The skip-policy primitive shared by the CPU and WebGPU batch paths. */
+export function partitionSeeds(
+  interp: VectorFieldInterpolator,
+  seeds: readonly Float64Array[],
+  nullThreshold: number,
+): { readonly traceable: readonly TraceableSeed[]; readonly skipped: readonly SkippedSeed[] } {
+  const traceable: TraceableSeed[] = [];
+  const skipped: SkippedSeed[] = [];
+  for (let i = 0; i < seeds.length; i++) {
+    const seed = seeds[i];
+    if (seed === undefined) continue;
+    const reason = classifySeed(interp, seed, nullThreshold);
+    if (reason === null) traceable.push({ index: i, seed });
+    else skipped.push({ index: i, seed: [seed[0] ?? 0, seed[1] ?? 0, seed[2] ?? 0], reason });
+  }
+  return { traceable, skipped };
 }
 
 /**
@@ -416,7 +469,7 @@ export function resolveTraceParams(
   data: FieldDataset,
   options: AdaptiveTraceOptions = {},
 ): ResolvedTraceParams {
-  const stepSizeInit = options.stepSizeInit ?? 0.5;
+  const stepSizeInit = options.stepSizeInit ?? DEFAULT_STEP_SIZE_INIT;
   const loopTolOpt = options.loopTol ?? "auto";
   const loopTolRaw = loopTolOpt === "auto" ? 0.5 * Math.min(...data.grid.spacing) : loopTolOpt;
   const { loopTol, loopMinArclen } = resolveLoopKwargs(
@@ -430,7 +483,7 @@ export function resolveTraceParams(
     rtol: options.rtol ?? 1e-3,
     stepSizeInit,
     minStep: options.minStep ?? 1e-8,
-    maxStep: options.maxStep ?? 2.0,
+    maxStep: options.maxStep ?? DEFAULT_MAX_STEP,
     maxSteps: options.maxSteps ?? 10_000,
     direction: options.direction ?? "both",
     components,
@@ -501,7 +554,7 @@ export function traceFieldLineAdaptive(
 }
 
 export function toSeedList(
-  seeds: ReadonlyArray<SeedPoint | readonly number[]> | Float64Array,
+  seeds: ReadonlyArray<SeedPoint | readonly number[] | Float64Array> | Float64Array,
 ): Float64Array[] {
   if (seeds instanceof Float64Array) {
     const out: Float64Array[] = [];
@@ -519,7 +572,7 @@ export function toSeedList(
  */
 export function traceFieldLinesAdaptive(
   data: FieldDataset,
-  seeds: ReadonlyArray<SeedPoint | readonly number[]> | Float64Array,
+  seeds: ReadonlyArray<SeedPoint | readonly number[] | Float64Array> | Float64Array,
   options: AdaptiveTraceOptions = {},
   signal?: AbortSignal,
 ): FieldLine[] {

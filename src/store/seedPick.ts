@@ -84,6 +84,14 @@ export function clampSeedToDomain(physical: Vec3, grid: GridInfo): Vec3 {
   return [map(0), map(1), map(2)];
 }
 
+/** Whether a physical coordinate already lies in the traceable cell-center domain — the predicate
+ *  behind `clampSeedToDomain`. Seeds retained across a dataset switch are in the *old* grid's
+ *  coordinates, so this is what tells a stale rake from a placed one. */
+export function isSeedInDomain(physical: Vec3, grid: GridInfo): boolean {
+  const clamped = clampSeedToDomain(physical, grid);
+  return clamped[0] === physical[0] && clamped[1] === physical[1] && clamped[2] === physical[2];
+}
+
 /** A starter line of `count` seeds across the domain center along the grid's longest axis, each pulled
  *  into the traceable cell-center domain (`clampSeedToDomain`). Physical coords — the tracer adds its
  *  own −0.5 offset. The starter rake for layers with no user-placed seeds; a few seeds that reliably

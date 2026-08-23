@@ -5,6 +5,7 @@ import {
   clampSeedToDomain,
   defaultSeedRake,
   gridToWorld,
+  isSeedInDomain,
   seedFromSlice,
   seedFromVolume,
   worldToGrid,
@@ -106,6 +107,16 @@ describe("clampSeedToDomain", () => {
   it("pins a degenerate (dim 1) axis to its lone cell center", () => {
     const flat = makeGrid([1, 4, 4], [1, 1, 1], [0, 0, 0]); // x has one sample → domain lo == hi
     expect(clampSeedToDomain([99, 2, 2], flat)[0]).toBeCloseTo(0.5, 12);
+  });
+});
+
+describe("isSeedInDomain", () => {
+  it("accepts the cell-center domain and rejects everything past it", () => {
+    expect(isSeedInDomain([2, 2, 2], CUBIC)).toBe(true);
+    expect(isSeedInDomain([0.5, 0.5, 0.5], CUBIC)).toBe(true); // the bound itself is traceable
+    expect(isSeedInDomain([3.5, 3.5, 3.5], CUBIC)).toBe(true);
+    expect(isSeedInDomain([0, 2, 2], CUBIC)).toBe(false); // the box face is outside it
+    expect(isSeedInDomain([2, 2, 2], SHIFTED)).toBe(false); // another grid's coordinates
   });
 });
 
