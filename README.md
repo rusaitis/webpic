@@ -7,6 +7,7 @@
   <a href="https://rusaitis.github.io/webpic/"><img src="https://img.shields.io/badge/demo-live-brightgreen" alt="Live demo"></a>
   <a href="https://github.com/rusaitis/webpic/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/WebGPU-required-orange" alt="WebGPU required">
+  <a href="https://doi.org/10.5281/zenodo.22069392"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22069392.svg" alt="DOI"></a>
   <img src="https://img.shields.io/badge/TypeScript-6.0-blue" alt="TypeScript 6.0">
 </p>
 
@@ -122,9 +123,10 @@ See [TASKS.md](TASKS.md) for the full roadmap.
 
 ## Citing
 
-If webpic contributes to work you publish, please cite it. Metadata lives in
-[CITATION.cff](CITATION.cff), which GitHub renders as a ready-to-paste citation via the
-*Cite this repository* button.
+If webpic contributes to work you publish, please cite it. The concept DOI
+[10.5281/zenodo.22069392](https://doi.org/10.5281/zenodo.22069392) always resolves to the latest release; each release
+also gets its own version DOI. Metadata lives in [CITATION.cff](CITATION.cff), which GitHub
+renders as a ready-to-paste citation via the *Cite this repository* button.
 
 ## License
 

@@ -27,6 +27,10 @@ keywords:
   - webgpu
   - heliophysics
   - typescript
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22069392
+    description: Zenodo concept DOI (resolves to the latest version).
 references:
   - type: software
     title: "pypic — Python for Plasma In Cells"
