@@ -14,7 +14,7 @@ authors:
     given-names: Liutauras
     email: liutauras.rusaitis@gmail.com
     orcid: "https://orcid.org/0000-0003-2904-3672"
-version: 0.1.0
+version: 0.1.1
 license: MIT
 date-released: 2026-08-23
 url: "https://rusaitis.github.io/webpic/"
