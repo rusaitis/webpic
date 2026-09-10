@@ -30,6 +30,8 @@ jobs:
       # The build emits relative asset URLs (vite.config.ts `base`), so the artifact runs
       # unchanged from the repo subpath Pages serves it under.
       - run: npm run build
+      # The @webpic/embed API reference (TypeDoc, treatWarningsAsErrors) publishes under /api/.
+      - run: npm run docs:api && mkdir -p dist/api && cp -R docs/api/. dist/api/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

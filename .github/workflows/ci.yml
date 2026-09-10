@@ -18,8 +18,15 @@ jobs:
       - run: npm run typecheck
       - run: npm run check:boundaries
       - run: npm run gen:check
+      - run: npm run gen:themes:check
       - run: npm run lint:ci
-      - run: npm run test
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
       - run: npm run build
       - run: npm run build:embed
+      - run: npm run docs:api
       - run: npm run size

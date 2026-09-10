@@ -18,7 +18,19 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error",
+        "useExhaustiveSwitchCases": "error"
+      },
+      "suspicious": {
+        "noConsole": {
+          "level": "error",
+          "options": { "allow": ["warn", "error"] }
+        }
+      },
       "style": {
+        "noParameterAssign": "error",
         "noRestrictedImports": {
           "level": "error",
           "options": {
@@ -52,6 +64,10 @@
     {
       "includes": ["src/render/**"],
       "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
+    },
+    {
+      "includes": ["scripts/**", "tests/**", "**/*.test.ts"],
+      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     },
     {
       "includes": ["**/*.generated.ts"],

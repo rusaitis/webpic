@@ -24,12 +24,12 @@ import type {
 // engine (and the only write path at all on Safari <26). The main thread reads async and dispatches
 // writes here. See docs/DESIGN.md §Caching.
 
-// Worker-scope view of `self` (the DOM lib types it as Window); narrow to the
-// dedicated-worker surface, same pattern as render/worker.ts.
-const ctx = self as unknown as {
+// This chunk typechecks under the WebWorker lib (tsconfig.worker.json), so `self` is the worker
+// global; the annotation just pins the message types on the wire.
+const ctx: {
   onmessage: ((event: MessageEvent<DataCacheRequest | DataStreamRequest>) => void) | null;
   postMessage(message: DataCacheResponse | DataStreamResponse): void;
-};
+} = self;
 
 async function cacheWrite(
   request: Extract<DataCacheRequest, { kind: "cacheWrite" }>,

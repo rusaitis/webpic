@@ -1,7 +1,8 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022"],
+    "lib": ["ES2024", "ESNext.Disposable"],
+    "erasableSyntaxOnly": true,
     "types": ["node", "@webgpu/types"]
   },
   "include": ["vite.config.ts", "vite.embed.config.ts", "vitest.config.ts", "scripts", "tests"]

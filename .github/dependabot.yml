@@ -1,0 +1,19 @@
+# three is pinned exactly (PR-#31607 carrier) and bumped by hand with the full GPU gate —
+# see CLAUDE.md §Dependencies. Everything else groups into one weekly PR.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: three
+      - dependency-name: "@types/three"
+    groups:
+      dev-minor:
+        dependency-type: development
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

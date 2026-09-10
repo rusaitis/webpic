@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <!-- regenerate: node scripts/shot-readme.ts -->
   <img src="https://raw.githubusercontent.com/rusaitis/webpic/main/docs/assets/webpic-hero.png" alt="webpic rendering an Earth dipole: volume raymarching of |B| on a symlog scale, with traced field lines closing on the inner cutoff" width="900">
 </p>
 
@@ -95,16 +96,23 @@ the opt-in cross-language parity suites (`WEBPIC_PYPIC_PARITY=1 npm test`).
 
 ```sh
 npm run dev              # Vite dev server
-npm run typecheck        # app + worker tsconfigs
+npm run typecheck        # app + worker + node tsconfigs
 npm run check:boundaries # layer-DAG enforcement (ts-morph)
 npm run gen:check        # schema codegen drift guard
 npm run lint             # Biome
 npm run test             # Vitest (node + dom projects)
 npm run build            # production build
 npm run test:gpu         # real-GPU suites, headed Chrome (local only)
+npm run test:coverage    # Vitest + v8 coverage report (coverage/)
+npm run test:parity      # cross-language parity vs a live pypic checkout (WEBPIC_PYPIC_PARITY=1)
+npm run perf:gate        # M0/M2 acceptance numbers, headed Chrome (local only)
+npm run gen              # regenerate schema/recipe codegen from pypic (needs uv + ../pypic)
+npm run gen:themes       # re-vendor pypic's theme TOMLs (gen:themes:check guards drift in CI)
+npm run docs:api         # TypeDoc for @webpic/embed → docs/api (published under /api/ on Pages)
+npm run size             # size-limit budgets (needs build + build:embed first)
 ```
 
-CI runs everything except `test:gpu`, which needs a real adapter.
+CI runs everything except `test:gpu`, `perf:gate` (both need a real adapter) and `test:parity` (needs a pypic checkout). A `lefthook` pre-commit runs Biome on staged files and pre-push runs typecheck + tests; skip once with `LEFTHOOK=0`.
 
 Architecture and design rationale — the layer DAG, schema codegen, the compute dispatcher,
 tolerance policy, and the open risks — live in
