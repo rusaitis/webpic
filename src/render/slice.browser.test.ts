@@ -9,9 +9,6 @@ import type { FieldArray } from "@containers/field_dataset.ts";
 import { fieldInfo } from "@schema/registry.ts";
 import { describe, expect, it } from "vitest";
 
-const hasRealGpu =
-  typeof navigator !== "undefined" && "gpu" in navigator && typeof OffscreenCanvas !== "undefined";
-
 const SIZE = 32;
 
 // |B| ramping 0→1 along the last (fastest, C-order) axis, flat across the other two.
@@ -62,7 +59,7 @@ async function renderSlicePixels(): Promise<Uint8Array> {
 }
 
 describe("slice scene render", () => {
-  it.skipIf(!hasRealGpu)("paints a horizontal inferno ramp from the field", async () => {
+  it("paints a horizontal inferno ramp from the field", async () => {
     const px = await renderSlicePixels();
     const row = SIZE >> 1;
     const at = (col: number): readonly [number, number, number] => {

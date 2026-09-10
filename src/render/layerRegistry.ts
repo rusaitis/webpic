@@ -1,23 +1,30 @@
 import type { StreamStepMessage } from "@data";
+import { finiteRange } from "@reductions";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
+import { fullRangeWindow } from "@schema/colormap.ts";
+import type { LayerKind } from "@schema/layers.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
 import { createFieldlinesScene, type FieldlinesScene } from "./fieldlines/fieldlinesScene.ts";
 import { warmScene } from "./managedScene.ts";
-import type { FieldLayerKind, RenderWorkerRequest, SliceFieldPayload } from "./messages.ts";
+import type {
+  FieldLayerKind,
+  FieldLayerParams,
+  RenderWorkerRequest,
+  SliceFieldPayload,
+} from "./messages.ts";
 import type { PickLayer } from "./pickRay.ts";
 import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
 import type { CompositeItem } from "./runtime/renderer.ts";
-import { fullRangeWindow } from "./volume/normalization.ts";
 import {
   createRaymarchScene,
   type RaymarchMaterialBuilder,
   type RaymarchScene,
 } from "./volume/raymarchScene.ts";
-import { createSliceScene, type SliceAxis, type SliceScene } from "./volume/sliceScene.ts";
-import { finiteRange, type ScalarField } from "./volume/volumeTexture.ts";
+import { createSliceScene, type SliceScene } from "./volume/sliceScene.ts";
+import { NO_FINITE_RANGE, type ScalarField } from "./volume/volumeTexture.ts";
 
 // Everything needed to rebuild a field layer's scene without the main thread: the decoded field (its
 // CPU buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity
@@ -28,16 +35,13 @@ import { finiteRange, type ScalarField } from "./volume/volumeTexture.ts";
 export interface FieldSource {
   readonly layerKind: FieldLayerKind;
   field: ScalarField; // mutable: a streamed timestep swaps it in place (see swapField)
-  axis?: SliceAxis; // mutable: a live setSliceParams axis edit rebuilds + retains the new hold
-  position?: number; // mutable: a live setSliceParams position edit (uniform write) retains it
-  readonly steps?: number;
-  readonly density?: number;
   colormap: string;
   scale: ColorScale;
   windowLevel?: WindowLevel;
-  shaded?: boolean; // volume Phong toggle — mutable so a device-restore rebuild keeps the live state
   opacity: number;
-  worldHalfExtent?: Vec3; // volume box aspect (non-cubic dataset); retained for a device-restore rebuild
+  // The kind's build params (`layerKind` agrees with the entry's). Replaced by a live setSliceParams /
+  // setLayerShading edit so a device-restore rebuild reproduces the current hold + look.
+  params: FieldLayerParams;
 }
 
 // A field-line layer's retained source: packed world-space polylines (positions + per-line counts) +
@@ -51,6 +55,18 @@ export interface FieldlinesSource {
 }
 
 export type LayerSource = FieldSource | FieldlinesSource;
+
+// Which camera composites each kind: slices are screen-aligned (ortho); volumes and field lines live in
+// the box under the pose camera. A complete record, so a new kind must declare its camera.
+const LAYER_CAMERA: Readonly<Record<LayerKind, "ortho" | "pose">> = {
+  slice: "ortho",
+  volume: "pose",
+  fieldlines: "pose",
+};
+
+function cameraFor(kind: LayerKind, pose: Camera, ortho: Camera): Camera {
+  return LAYER_CAMERA[kind] === "ortho" ? ortho : pose;
+}
 
 // One renderable layer's scene + its kind (the kind picks the camera at composite time) + the source
 // it was built from (replayed on device-restore). Discriminated on `kind` so narrowing it narrows the
@@ -113,6 +129,7 @@ export interface LayerRegistry extends RenderModule {
     volume: Camera,
     ortho: Camera,
     override?: { readonly id: string; readonly entry: LayerEntry },
+    into?: CompositeItem[],
   ): CompositeItem[];
   /** The visible volume layers' CPU fields + look, for the worker's opacity-weighted ray pick. */
   pickLayers(): { layers: PickLayer[]; halfExtent: Vec3 };
@@ -165,39 +182,39 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       });
       return { kind: "fieldlines", scene, source };
     }
-    const windowLevel = source.windowLevel !== undefined ? { windowLevel: source.windowLevel } : {};
-    const float32Filterable = host.float32Filterable();
-    if (source.layerKind === "slice") {
-      const scene = createSliceScene({
-        field: source.field,
-        colormap: source.colormap,
-        scale: source.scale,
-        axis: source.axis ?? "z",
-        position: source.position ?? 0.5,
-        opacity: source.opacity,
-        float32Filterable,
-        ledgerKey: id,
-        ...windowLevel,
-      });
-      return { scene, kind: "slice", source };
-    }
-    const scene = createRaymarchScene({
+    const common = {
       field: source.field,
       colormap: source.colormap,
       scale: source.scale,
       opacity: source.opacity,
-      float32Filterable,
+      float32Filterable: host.float32Filterable(),
       ledgerKey: id,
-      ...windowLevel,
-      ...(source.steps !== undefined ? { steps: source.steps } : {}),
-      ...(source.density !== undefined ? { density: source.density } : {}),
-      ...(source.shaded !== undefined ? { shaded: source.shaded } : {}),
-      ...(source.worldHalfExtent !== undefined ? { worldHalfExtent: source.worldHalfExtent } : {}),
-    });
-    // A scene built mid-gesture (stream rebuild) inherits the live interaction quality + projection.
-    scene.setStepScale(host.stepScale());
-    scene.setProjection(host.isOrthographic());
-    return { scene, kind: "volume", source };
+      ...(source.windowLevel !== undefined ? { windowLevel: source.windowLevel } : {}),
+    };
+    const { params } = source;
+    switch (params.layerKind) {
+      case "slice":
+        return {
+          scene: createSliceScene({ ...common, axis: params.axis, position: params.position }),
+          kind: "slice",
+          source,
+        };
+      case "volume": {
+        const scene = createRaymarchScene({
+          ...common,
+          ...(params.steps !== undefined ? { steps: params.steps } : {}),
+          ...(params.density !== undefined ? { density: params.density } : {}),
+          ...(params.shaded !== undefined ? { shaded: params.shaded } : {}),
+          ...(params.worldHalfExtent !== undefined
+            ? { worldHalfExtent: params.worldHalfExtent }
+            : {}),
+        });
+        // A scene built mid-gesture (stream rebuild) inherits the live interaction quality + projection.
+        scene.setStepScale(host.stepScale());
+        scene.setProjection(host.isOrthographic());
+        return { scene, kind: "volume", source };
+      }
+    }
   }
 
   // Install a layer's scene from a fully-specified source, releasing the prior scene's Data3DTexture
@@ -254,7 +271,8 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     if (entry === undefined || entry.kind === "fieldlines") return false;
     if (!("setShading" in entry.scene)) return false;
     entry.scene.setShading(shaded);
-    entry.source.shaded = shaded; // retain for a device-restore rebuild
+    const { params } = entry.source;
+    if (params.layerKind === "volume") entry.source.params = { ...params, shaded }; // retained for a rebuild
     return true;
   }
 
@@ -262,27 +280,19 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // in-app path always carries a binding window, so the scan is the defensive branch only.
   function pickWindow(source: FieldSource): WindowLevel {
     if (source.windowLevel !== undefined) return source.windowLevel;
-    const { min, max } = finiteRange(source.field.data);
-    return fullRangeWindow(min, max);
+    return fullRangeWindow(finiteRange(source.field.data) ?? NO_FINITE_RANGE);
   }
 
   return {
     async upsert(request) {
       const source: FieldSource = {
-        layerKind: request.layerKind,
+        layerKind: request.params.layerKind,
         field: decodeSliceField(request.field),
         colormap: request.colormap,
         scale: request.scale,
         opacity: request.opacity,
         ...(request.windowLevel !== undefined ? { windowLevel: request.windowLevel } : {}),
-        ...(request.axis !== undefined ? { axis: request.axis } : {}),
-        ...(request.position !== undefined ? { position: request.position } : {}),
-        ...(request.steps !== undefined ? { steps: request.steps } : {}),
-        ...(request.density !== undefined ? { density: request.density } : {}),
-        ...(request.shaded !== undefined ? { shaded: request.shaded } : {}),
-        ...(request.worldHalfExtent !== undefined
-          ? { worldHalfExtent: request.worldHalfExtent }
-          : {}),
+        params: request.params,
       };
       await replace(request.id, source);
     },
@@ -383,12 +393,17 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       // entry.kind === "slice" doesn't narrow the scene (kind isn't correlated with the scene type in
       // the field-layer entry); `setPosition` exists only on SliceScene, so the `in` check narrows it.
       if (!("setPosition" in entry.scene)) return;
+      const { params } = entry.source;
+      if (params.layerKind !== "slice") return; // the entry kind says slice; params agree by construction
+      let next = params;
       if (request.position !== undefined) {
         entry.scene.setPosition(request.position);
-        entry.source.position = request.position; // retain for a device-restore rebuild
+        next = { ...next, position: request.position };
       }
-      if (request.axis !== undefined && request.axis !== entry.source.axis) {
-        entry.source.axis = request.axis;
+      const axisChanged = request.axis !== undefined && request.axis !== params.axis;
+      if (request.axis !== undefined && axisChanged) next = { ...next, axis: request.axis };
+      entry.source.params = next; // retained for a device-restore rebuild
+      if (axisChanged) {
         // Fire-and-forget rebuild from the retained field; a failed rebuild is reported and the next
         // edit retries. The position uniform was already set above and rides the rebuilt source.
         void replace(request.id, entry.source).catch(host.reportFault);
@@ -419,8 +434,8 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       }
     },
 
-    layerItems(volume, ortho, override) {
-      const items: CompositeItem[] = [];
+    layerItems(volume, ortho, override, into) {
+      const items = into ?? []; // the worker's paint scratch when given — no allocation per frame
       let isOverrideListed = false;
       for (const entry of composite) {
         if (!entry.visible) continue;
@@ -429,12 +444,12 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
         const layer = isOverride ? override.entry : layers.get(entry.id);
         if (layer === undefined) continue; // composite ahead of its upsert — heals on the upsert repaint
         // Slices are screen-aligned (ortho); volume + field lines live in the box under the pose camera.
-        items.push({ scene: layer.scene.scene, camera: layer.kind === "slice" ? ortho : volume });
+        items.push({ scene: layer.scene.scene, camera: cameraFor(layer.kind, volume, ortho) });
       }
       if (override !== undefined && !isOverrideListed) {
         items.push({
           scene: override.entry.scene.scene,
-          camera: override.entry.kind === "slice" ? ortho : volume,
+          camera: cameraFor(override.entry.kind, volume, ortho),
         });
       }
       return items;
@@ -447,12 +462,14 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
         if (!entry.visible) continue;
         const layer = layers.get(entry.id);
         if (layer === undefined || layer.kind !== "volume") continue;
-        halfExtent = layer.source.worldHalfExtent ?? halfExtent;
+        const { params } = layer.source;
+        if (params.layerKind !== "volume") continue; // agrees with the entry kind by construction
+        halfExtent = params.worldHalfExtent ?? halfExtent;
         result.push({
           field: layer.source.field,
           windowLevel: pickWindow(layer.source),
           scale: layer.source.scale,
-          density: layer.source.density ?? 1, // the scene factory default
+          density: params.density ?? 1, // the scene factory default
           opacity: entry.opacity,
         });
       }

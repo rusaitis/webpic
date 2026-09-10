@@ -1,21 +1,23 @@
-import type { SimulationStore, UiStore } from "@store";
+import type { PerfStore, SimulationStore, UiStore } from "@store";
 import type { Disposer } from "../controls/index.ts";
 import { createFloatingWindow } from "../floating/floatingWindow.ts";
+import { createSubscriptions } from "../subscriptions.ts";
 import { installDevPanel } from "./devPanel.ts";
-import { installDiagnosticsPanel } from "./diagnosticsPanel.ts";
+import { installTimingPanel } from "./timingPanel.ts";
 
 // The Developer tool as a small, free-floating window (grip-dragged, corner-resized) rather than a
 // full-height docked panel. Reuses the createFloatingWindow template for the chrome and hosts the
-// in-development controls: the GPU frame-time diagnostics (the 8 ms raymarch-gate instrument + its
+// in-development controls: the frame-timing panel (the 8 ms raymarch-gate instrument + its
 // sustained-measurement toggle) and the volume Phong toggle. Hides with the global UI toggle, like the
 // colorbar. Opens compact in the top-right (the window's defaults), where the docked panel used to sit.
 // Visibility is the `panels.dev` flag, default *closed*: it is a developer instrument, and an
 // open dev window is the wrong first frame for someone who just opened the app. The rail's
-// Diagnostics button toggles it and the header × clears it, both without the F UI toggle.
+// Developer button toggles it and the header × clears it, both without the F UI toggle.
 
 export function installDevWindow(
   parent: HTMLElement,
   store: SimulationStore,
+  perfStore: PerfStore,
   uiStore: UiStore,
 ): Disposer {
   const win = createFloatingWindow({
@@ -26,7 +28,7 @@ export function installDevWindow(
   // GPU frame-time readout + "Measure (continuous)" — the sustained per-frame instrument the
   // raymarch perf gate (and scripts/profile-raymarch.ts) drives. Orphaned when the docked shell stopped
   // mounting default panels; re-homed here so the dev tool still has a measurement surface.
-  const disposeDiagnostics = installDiagnosticsPanel(win.body, store);
+  const disposeTiming = installTimingPanel(win.body, perfStore);
   const disposePanel = installDevPanel(win.body, store);
 
   // Shown when the UI is visible AND the dev window has been opened from the rail.
@@ -36,15 +38,14 @@ export function installDevWindow(
     else win.hide();
   };
   applyVisible();
-  const unsubs = [
-    uiStore.subscribe((s) => s.isUiVisible, applyVisible),
-    uiStore.subscribe((s) => s.panels.dev, applyVisible),
-  ];
+  const subs = createSubscriptions();
+  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subs.on(uiStore, (s) => s.panels.dev, applyVisible);
 
   return () => {
-    for (const unsub of unsubs) unsub();
+    subs.dispose();
     disposePanel();
-    disposeDiagnostics();
+    disposeTiming();
     win.dispose();
   };
 }

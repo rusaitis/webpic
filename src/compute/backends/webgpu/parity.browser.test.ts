@@ -25,13 +25,11 @@ import { assertAllclose } from "../../../../tests/helpers.ts";
 import { TOL } from "../../../../tests/tolerances.ts";
 import { webgpuBackend } from "./index.ts";
 
-const hasRealGpu = typeof navigator !== "undefined" && "gpu" in navigator;
-
 let installed = false;
 let dispose: (() => void) | undefined;
 
 beforeAll(async () => {
-  if (!hasRealGpu || hasDevice()) return; // a sibling suite may already hold the singleton
+  if (hasDevice()) return; // a sibling suite may already hold the singleton
   const handle = await installGpu();
   dispose = handle.dispose;
   installed = true;
@@ -46,21 +44,21 @@ describe("webgpu field-op parity vs the coordinates/derived twins", () => {
   // its inputs, so one instance serves all three.
   const { shape, spacing, f1, f2, f3, dataset } = smoothVectorField();
 
-  it.skipIf(!hasRealGpu)("magnitude matches vectorMagnitude", async () => {
+  it("magnitude matches vectorMagnitude", async () => {
     const gpu = await webgpuBackend.compute("|B|", dataset);
     const twin = vectorMagnitude(f1, f2, f3);
     expect(maxAbs(twin)).toBeGreaterThan(0.5); // non-vacuous
     assertAllclose(gpu.data, twin, TOL.magnitude.webgpu_f32);
   });
 
-  it.skipIf(!hasRealGpu)("divergence matches the central/one-sided stencil", async () => {
+  it("divergence matches the central/one-sided stencil", async () => {
     const gpu = await webgpuBackend.compute("div_B", dataset);
     const twin = divergence(f1, f2, f3, shape, spacing);
     expect(maxAbs(twin)).toBeGreaterThan(0.1);
     assertAllclose(gpu.data, twin, TOL.divergence.webgpu_f32);
   });
 
-  it.skipIf(!hasRealGpu)("each curl component matches the twin", async () => {
+  it("each curl component matches the twin", async () => {
     const [t1, t2, t3] = curl(f1, f2, f3, shape, spacing);
     const g1 = await webgpuBackend.compute("curl_B_1", dataset);
     const g2 = await webgpuBackend.compute("curl_B_2", dataset);
@@ -71,7 +69,7 @@ describe("webgpu field-op parity vs the coordinates/derived twins", () => {
     assertAllclose(g3.data, t3, TOL.curl.webgpu_f32);
   });
 
-  it.skipIf(!hasRealGpu)("rejects a non-cartesian grid like the TS reference", async () => {
+  it("rejects a non-cartesian grid like the TS reference", async () => {
     const ds = makeDataset(
       {
         B_1: fieldArray("B_1", f1, shape),
@@ -86,7 +84,7 @@ describe("webgpu field-op parity vs the coordinates/derived twins", () => {
   // 256³ = 16,777,216 > 65535*256 = 16,776,960, so the last 256 elements only get computed on the
   // grid-stride loop's second iteration. Cheap integer fills + a manual max-diff keep the 16.7M-element
   // comparison fast (no per-element expect).
-  it.skipIf(!hasRealGpu)("256³ magnitude exercises the grid-stride wraparound", async () => {
+  it("256³ magnitude exercises the grid-stride wraparound", async () => {
     const n = 256 * 256 * 256;
     const bigShape: readonly number[] = [256, 256, 256];
     const b1 = new Float32Array(n);

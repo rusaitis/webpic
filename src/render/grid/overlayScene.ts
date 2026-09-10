@@ -21,6 +21,7 @@ import {
   LABEL_FADE_FULL_COS,
   LABEL_FADE_START_COS,
   physicalToObject,
+  type ThreeAxis,
 } from "./overlayRemap.ts";
 
 // The themeable 3D axes + equatorial grid overlay scene. Composited last with the perspective camera
@@ -68,6 +69,8 @@ const PLANES = [
   { key: "yz", a: 1, b: 2, h: 0 },
   { key: "xz", a: 0, b: 2, h: 1 },
 ] as const;
+
+const THREE_AXES: readonly ThreeAxis[] = [0, 1, 2];
 
 type ThreeAxisData = {
   readonly ticks: readonly { obj: number; value: number }[];
@@ -133,15 +136,15 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
   // physical aspect (worldHalfExtent ∝ span), so equal physical steps map to equal world distances;
   // per-axis niceTicks would instead pick a coarser step on the wider axis (dipole x vs y). Base the
   // step on the widest span so the longest axis lands ~targetCount divisions, shorter ones fewer.
-  const spans = [0, 1, 2].map((threeAxis) => {
-    const [min, max] = config.axes[fieldAxisToThree(threeAxis as 0 | 1 | 2)].bounds;
+  const spans = THREE_AXES.map((threeAxis) => {
+    const [min, max] = config.axes[fieldAxisToThree(threeAxis)].bounds;
     return Math.abs(max - min);
   });
   const commonStep = niceStep(Math.max(...spans), config.tick.targetCount);
 
   // Major-tick lattice per THREE axis (the shared step over the mapped field axis's physical bounds).
-  const axisData: readonly ThreeAxisData[] = [0, 1, 2].map((threeAxis) => {
-    const axis = config.axes[fieldAxisToThree(threeAxis as 0 | 1 | 2)];
+  const axisData: readonly ThreeAxisData[] = THREE_AXES.map((threeAxis) => {
+    const axis = config.axes[fieldAxisToThree(threeAxis)];
     const [min, max] = axis.bounds;
     const nt = ticksForStep(min, max, commonStep);
     return {
@@ -258,8 +261,8 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       config.axisColors.y,
       config.axisColors.z,
     ];
-    const originAt = (a: number): number => {
-      const [min, max] = config.axes[fieldAxisToThree(a as 0 | 1 | 2)].bounds;
+    const originAt = (a: ThreeAxis): number => {
+      const [min, max] = config.axes[fieldAxisToThree(a)].bounds;
       const h = halfAt(a);
       return clamp(physicalToObject(0, min, max, h), -h, h);
     };

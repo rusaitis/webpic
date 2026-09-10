@@ -1,11 +1,12 @@
 import type { DatasetEntry } from "@app";
 import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from "@data";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
+import { REQUEST_IDS } from "@render/messages.ts";
 import { createSimulationStore, createUiStore, DEFAULT_POSE, focusPoseOnPoint } from "@store";
 import { describe, expect, it, vi } from "vitest";
 import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
-import { bootstrap } from "./main.ts";
+import { bootstrap, DISPOSE_GRACE_MS } from "./main.ts";
 
 interface Post {
   readonly message: RenderWorkerRequest;
@@ -71,7 +72,41 @@ describe("bootstrap OffscreenCanvas handshake", () => {
     expect(post.transfer).toEqual([offscreen]);
 
     dispose();
+    // Teardown is a handshake: a `dispose` request first, terminate on the worker's ack.
+    expect(posts.at(-1)?.message.kind).toBe("dispose");
+    expect(terminated).toBe(0);
+    const disposed = {
+      data: { kind: "disposed", requestId: REQUEST_IDS.dispose },
+    } as MessageEvent<RenderWorkerResponse>;
+    worker.onmessage?.(disposed);
     expect(terminated).toBe(1);
+  });
+
+  it("terminates after the grace period when the worker never acks", () => {
+    vi.useFakeTimers();
+    try {
+      let terminated = 0;
+      const worker = {
+        onmessage: null,
+        postMessage: () => {},
+        terminate: () => {
+          terminated += 1;
+        },
+      } as unknown as Worker;
+      const dispose = bootstrap({
+        width: 64,
+        height: 48,
+        createCanvas: fakeCanvas,
+        mount: () => {},
+        spawnWorker: () => worker,
+      });
+      dispose();
+      expect(terminated).toBe(0);
+      vi.advanceTimersByTime(DISPOSE_GRACE_MS);
+      expect(terminated).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -114,7 +149,7 @@ describe("bootstrap store → compute → render", () => {
     if (upsert === undefined || upsert.message.kind !== "upsertLayer") {
       throw new Error("expected an upsertLayer message");
     }
-    expect(upsert.message.layerKind).toBe("volume");
+    expect(upsert.message.params.layerKind).toBe("volume");
     expect(upsert.message.field.dtype).toBe("f32");
     expect(upsert.message.field.shape).toEqual([1, 1, 1]);
     expect(Array.from(new Float32Array(upsert.message.field.buffer))).toEqual([5]);

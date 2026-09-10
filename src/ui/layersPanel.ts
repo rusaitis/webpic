@@ -1,8 +1,7 @@
-import type { Layer, LayerKind, SimulationStore, UiStore } from "@store";
+import { LAYER_KINDS, type Layer, type SimulationStore, type UiStore } from "@store";
 import { makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import { ICON_CLOSE } from "./icons.ts";
-import { isTypingTarget } from "./keyboard.ts";
 import {
   ICON_CARET_DOWN,
   ICON_CARET_UP,
@@ -12,19 +11,14 @@ import {
   LAYER_KIND_ICON,
 } from "./layerIcons.ts";
 import { POPOVER_GAP_PX } from "./layout.ts";
+import { createShortcutRegistry } from "./shortcuts.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 
 // The Layers overlay (DESIGN §"Layers & navigation"): a rail-toggled, fixed, translucent panel — one
 // row per renderable instance, top (draw order) first. Each row: eye (show/hide) · kind + field
 // (click selects — the colorbar retargets to that layer's binding) · gear (selects the layer + opens
 // the per-layer settings panel) · ▲/▼ reorder. ui → store only; hides with the global UI toggle.
 // Fixed-position by design (drag/resize/persist deferred); reorder is buttons, not a drag system.
-
-const KIND_LABEL: Record<LayerKind, string> = {
-  volume: "Volume",
-  slice: "Slice",
-  fieldlines: "Lines",
-  particles: "Particles",
-};
 
 const RAIL_FALLBACK_LEFT_PX = 52; // left anchor when the rail isn't mounted (headless tests)
 
@@ -80,7 +74,7 @@ export function installLayersPanel(
     const kind = makeEl(doc, "span", "webpic-layers_kind");
     kind.innerHTML = LAYER_KIND_ICON[layer.kind];
     const name = makeEl(doc, "span", "webpic-layers_name");
-    name.textContent = `${KIND_LABEL[layer.kind]} ${layer.field}`;
+    name.textContent = `${LAYER_KINDS[layer.kind].shortLabel} ${layer.field}`;
     main.append(kind, name);
     main.addEventListener("click", () => getState().selectLayer(layer.id));
 
@@ -164,14 +158,8 @@ export function installLayersPanel(
     signal,
   });
 
-  // The Layers shortcut (DESIGN default "L"); ignored while typing or with modifiers held.
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
-      return;
-    if (isTypingTarget(event.target)) return;
-    if (event.key.toLowerCase() === "l") uiStore.getState().toggleLayersPanel();
-  };
-  doc.addEventListener("keydown", onKeyDown, { signal });
+  // The Layers shortcut (DESIGN default "L").
+  createShortcutRegistry(doc, signal).register("l", () => uiStore.getState().toggleLayersPanel());
   doc.defaultView?.addEventListener(
     "resize",
     () => {
@@ -182,21 +170,21 @@ export function installLayersPanel(
 
   applyVisible();
 
-  const unsubs = [
-    store.subscribe(
-      (s) => s.layers,
-      () => {
-        if (!root.hidden) render();
-      },
-    ),
-    store.subscribe((s) => s.selectedLayerId, applySelection),
-    uiStore.subscribe((s) => s.isLayersPanelOpen, applyVisible),
-    uiStore.subscribe((s) => s.isUiVisible, applyVisible),
-  ];
+  const subs = createSubscriptions();
+  subs.on(
+    store,
+    (s) => s.layers,
+    () => {
+      if (!root.hidden) render();
+    },
+  );
+  subs.on(store, (s) => s.selectedLayerId, applySelection);
+  subs.on(uiStore, (s) => s.isLayersPanelOpen, applyVisible);
+  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
 
   return () => {
     ac.abort();
-    for (const unsub of unsubs) unsub();
+    subs.dispose();
     root.remove();
   };
 }

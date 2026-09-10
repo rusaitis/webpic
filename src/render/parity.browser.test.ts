@@ -7,12 +7,6 @@
 import { describe, expect, it } from "vitest";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "./messages.ts";
 
-const hasRealGpu =
-  typeof navigator !== "undefined" &&
-  "gpu" in navigator &&
-  typeof Worker !== "undefined" &&
-  typeof OffscreenCanvas !== "undefined";
-
 const SIZE = 64;
 
 async function mainThreadPixels(): Promise<Uint8Array> {
@@ -56,6 +50,7 @@ function workerPixels(): Promise<Uint8Array> {
         case "pickResult":
         case "layerCompiled":
         case "screenshot":
+        case "disposed":
           return; // telemetry / unrequested replies — the deterministic readback is the `frame` reply
         case "error":
         case "gpuRecoveryFailed":
@@ -82,19 +77,15 @@ function workerPixels(): Promise<Uint8Array> {
 }
 
 describe("worker vs main frame parity", () => {
-  // Skipped on the Node PR gate (no real WebGPU); runs on a real-GPU runner.
-  it.skipIf(!hasRealGpu)(
-    "worker frame matches the main-thread frame within 1 px/channel",
-    async () => {
-      const [main, worker] = await Promise.all([mainThreadPixels(), workerPixels()]);
-      expect(worker.length).toBe(main.length);
-      let maxDelta = 0;
-      for (let i = 0; i < main.length; i += 1) {
-        maxDelta = Math.max(maxDelta, Math.abs((main[i] ?? 0) - (worker[i] ?? 0)));
-      }
-      expect(maxDelta).toBeLessThanOrEqual(1);
-    },
-  );
+  it("worker frame matches the main-thread frame within 1 px/channel", async () => {
+    const [main, worker] = await Promise.all([mainThreadPixels(), workerPixels()]);
+    expect(worker.length).toBe(main.length);
+    let maxDelta = 0;
+    for (let i = 0; i < main.length; i += 1) {
+      maxDelta = Math.max(maxDelta, Math.abs((main[i] ?? 0) - (worker[i] ?? 0)));
+    }
+    expect(maxDelta).toBeLessThanOrEqual(1);
+  });
 });
 
 // Drive the *live swapchain present* path the readback parity test never touches: enter continuous
@@ -144,6 +135,7 @@ function workerSustainsSwapchain(): Promise<{ frames: number; errors: string[] }
         case "pickResult":
         case "layerCompiled":
         case "screenshot":
+        case "disposed":
           return;
         case "error":
         case "gpuRecoveryFailed":
@@ -169,12 +161,9 @@ function workerSustainsSwapchain(): Promise<{ frames: number; errors: string[] }
 }
 
 describe("worker swapchain present loop", () => {
-  it.skipIf(!hasRealGpu)(
-    "sustains rendering under streamed pose updates without losing the device",
-    async () => {
-      const { frames, errors } = await workerSustainsSwapchain();
-      expect(errors).toEqual([]); // no device-lost / validation error on the present pass
-      expect(frames).toBeGreaterThan(5); // the loop kept rendering past frame 1
-    },
-  );
+  it("sustains rendering under streamed pose updates without losing the device", async () => {
+    const { frames, errors } = await workerSustainsSwapchain();
+    expect(errors).toEqual([]); // no device-lost / validation error on the present pass
+    expect(frames).toBeGreaterThan(5); // the loop kept rendering past frame 1
+  });
 });

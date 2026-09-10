@@ -1,5 +1,5 @@
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
-import { createSimulationStore } from "@store";
+import { createPerfStore, createSimulationStore } from "@store";
 import { describe, expect, it } from "vitest";
 import { installRenderWorkerSync } from "./renderWorkerSync.ts";
 
@@ -10,26 +10,27 @@ function harness(ready: boolean) {
   } as unknown as Worker;
   let isReady = ready;
   const store = createSimulationStore();
-  const sync = installRenderWorkerSync({ store, worker, isReady: () => isReady });
-  return { store, posts, sync, setReady: (v: boolean) => (isReady = v) };
+  const perfStore = createPerfStore();
+  const sync = installRenderWorkerSync({ store, perfStore, worker, isReady: () => isReady });
+  return { store, perfStore, posts, sync, setReady: (v: boolean) => (isReady = v) };
 }
 
 describe("installRenderWorkerSync", () => {
   it("stays silent until the worker is ready", () => {
-    const { store, posts } = harness(false);
+    const { store, perfStore, posts } = harness(false);
     store.getState().setCameraPose({ ...store.getState().cameraPose });
     store.getState().setProjection("orthographic");
     store.getState().setCameraMotion("gesture");
-    store.getState().setMeasuringContinuous(true);
+    perfStore.getState().setMeasuringContinuous(true);
     expect(posts).toHaveLength(0);
   });
 
   it("posts pose / projection / motion / continuous on change while ready", () => {
-    const { store, posts } = harness(true);
+    const { store, perfStore, posts } = harness(true);
     store.getState().setCameraPose({ ...store.getState().cameraPose });
     store.getState().setProjection("orthographic");
     store.getState().setCameraMotion("gesture");
-    store.getState().setMeasuringContinuous(true);
+    perfStore.getState().setMeasuringContinuous(true);
     expect(posts.map((p) => p.kind)).toEqual([
       "setCameraPose",
       "setProjection",

@@ -1,5 +1,6 @@
 import { BOOT_PHASE_KEY, type LoadingPhase, type UiStore } from "@store";
 import type { Disposer } from "./controls/index.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 
 // Cold-start reveal (the magviz `body.app-loading` pattern): the chrome mounts under
 // `webpic-booting` — held at opacity 0 / visibility hidden by styles.ts — and fades in
@@ -17,17 +18,19 @@ export function installBootReveal(parent: HTMLElement, uiStore: UiStore): Dispos
 
   parent.classList.add(BOOTING_CLASS);
   const reveal = (): void => parent.classList.remove(BOOTING_CLASS);
-  const unsubscribe = uiStore.subscribe(
+  const subs = createSubscriptions();
+  subs.on(
+    uiStore,
     (state) => state.loadingPhases,
     (phases) => {
       if (!isBooting(phases)) {
         reveal();
-        unsubscribe();
+        subs.dispose(); // one-shot: the reveal never re-arms
       }
     },
   );
   return () => {
-    unsubscribe();
+    subs.dispose();
     reveal();
   };
 }

@@ -1,3 +1,6 @@
+// STAGED: dormant — no caller passes `plan` to createStreamRing yet; activates with the first slow real
+// reader once ring capacity is raised to ≥ MAX_COUNT + 2 (data.worker.ts owns that wiring).
+//
 // Directional scrub predictor — a stateful, pure twin of the ring's symmetric ±1 prefetch
 // (data/stream.ts). It watches the cursor's recent motion and biases the prefetch window in the
 // direction of travel, so a fast directional scrub reads *ahead* instead of spending a symmetric

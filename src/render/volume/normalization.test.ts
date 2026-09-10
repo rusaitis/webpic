@@ -1,6 +1,6 @@
-import { LOG_DECADES, logWindowFloor } from "@schema/colormap.ts";
+import { fullRangeWindow, LOG_DECADES, logWindowFloor } from "@schema/colormap.ts";
 import { describe, expect, it } from "vitest";
-import { createNormalization, fullRangeWindow, safeWidth, windowedT } from "./normalization.ts";
+import { createNormalization, safeWidth, windowedT } from "./normalization.ts";
 
 describe("safeWidth", () => {
   it("floors a collapsed window so the in-shader divide stays finite", () => {
@@ -19,7 +19,7 @@ describe("safeWidth", () => {
 
 describe("fullRangeWindow", () => {
   it("centers the field's extent and spans its full range", () => {
-    expect(fullRangeWindow(-2, 6)).toEqual({ center: 2, width: 8 });
+    expect(fullRangeWindow({ min: -2, max: 6 })).toEqual({ center: 2, width: 8 });
   });
 });
 

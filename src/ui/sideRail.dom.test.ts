@@ -75,7 +75,7 @@ describe("installSideRail", () => {
     expect(uiStore.getState().isLayersPanelOpen).toBe(false);
   });
 
-  it("the Diagnostics button toggles the Developer panel flag", () => {
+  it("the Developer button toggles the Developer panel flag", () => {
     const { uiStore, button } = setup();
     const diag = button("diagnostics");
     expect(diag.getAttribute("aria-pressed")).toBe("false"); // a dev instrument — closed on boot

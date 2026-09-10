@@ -12,6 +12,25 @@ import { GESTURE_THRESHOLD_PX, VIEWPORT_MARGIN_PX } from "../layout.ts";
 
 export type PaneEdge = "left" | "right" | "top" | "bottom";
 
+// A key per literal, so widening PaneEdge without extending the guard is a type error.
+const PANE_EDGES: Readonly<Record<PaneEdge, true>> = {
+  left: true,
+  right: true,
+  top: true,
+  bottom: true,
+};
+
+function isPaneEdge(value: string): value is PaneEdge {
+  return Object.hasOwn(PANE_EDGES, value);
+}
+
+/** The dock edge held in `data-edge` — written here on snap, seeded by the owner — or undefined when
+ *  unset. Validated against the literal set, so every reader gets a typed edge without a cast. */
+export function readEdge(el: HTMLElement): PaneEdge | undefined {
+  const edge = el.dataset.edge;
+  return edge !== undefined && isPaneEdge(edge) ? edge : undefined;
+}
+
 export interface Box {
   readonly left: number;
   readonly top: number;
@@ -467,7 +486,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
       setAnchors("left", "top", left, top, r.width, r.height, vp);
       return;
     }
-    const prevEdge = el.dataset.edge as PaneEdge | undefined;
+    const prevEdge = readEdge(el);
     const placement = chooseEdge(box(r.left, r.top, r.width, r.height), vp, prevEdge);
     writeOffset(0, 0);
     el.dataset.docked = placement.docked ? "true" : "false";
@@ -500,7 +519,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
       setAnchors("left", "top", left, top, r.width, r.height, vp);
       return;
     }
-    const edge = (el.dataset.edge as PaneEdge | undefined) ?? "bottom";
+    const edge = readEdge(el) ?? "bottom";
     const docked = el.dataset.docked !== "false";
     const maxLeft = Math.max(VIEWPORT_MARGIN_PX, vp.width - r.width - VIEWPORT_MARGIN_PX);
     const maxTop = Math.max(VIEWPORT_MARGIN_PX, vp.height - r.height - VIEWPORT_MARGIN_PX);

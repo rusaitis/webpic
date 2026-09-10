@@ -1,11 +1,14 @@
+import type { FrameClock } from "@schema/timing.ts";
 import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
 
-// Dev-mode performance HUD state, isolated from the simulation/ui stores so its ≤5 Hz sample
-// churn never wakes panel/shell subscribers, and so the whole slice tree-shakes out of the
-// default prod bundle (the bridge + HUD are dynamic-imported only under dev or ?perf). The
-// `ui` layer reads this and dispatches visibility intents; app/perfBridge writes the samples
-// + topology fed from the workers and the main-thread metric pumps.
+export type { FrameClock };
+
+// Render timing + the dev performance HUD state, isolated from the simulation/ui stores so their
+// per-frame churn never wakes panel/shell subscribers. The timing panel reads the frame timing
+// (the app forwards the worker's frameTiming replies here) and owns the "Measure" toggle; the HUD
+// bridge + overlay are dynamic-imported only under dev or ?perf. The `ui` layer reads this and
+// dispatches intents; app/perfBridge writes the samples + topology fed from the workers.
 
 /** Per-frame render metrics posted by the render worker (≤5 Hz while the HUD is open). All
  *  wall-clock — `frameWallMs` is NaN on ticks where the throttled GPU sync didn't run, and
@@ -50,6 +53,11 @@ export interface MainPerfMetrics {
 }
 
 export interface PerfState {
+  // The latest GPU frame time + its clock (`null` until the first frame), and the timing
+  // panel's explicit "Measure" toggle that drives the worker's continuous-repaint mode.
+  readonly frameTimeMs: number | null;
+  readonly frameTimeClock: FrameClock | null;
+  readonly isMeasuringContinuous: boolean;
   readonly isPerfHudVisible: boolean;
   readonly isPerfDetailOpen: boolean;
   readonly sample: PerfSample | null;
@@ -63,6 +71,8 @@ export interface PerfState {
   setSample(sample: PerfSample): void;
   setTopology(topology: readonly PerfWorker[]): void;
   setMainMetrics(metrics: MainPerfMetrics): void;
+  setFrameTiming(ms: number, clock: FrameClock): void;
+  setMeasuringContinuous(on: boolean): void;
 }
 
 // Inferred from the factory so the `subscribeWithSelector` overload survives — mirrors
@@ -72,6 +82,9 @@ export type PerfStore = ReturnType<typeof createPerfStore>;
 export function createPerfStore() {
   return createStore<PerfState>()(
     subscribeWithSelector((set, get) => ({
+      frameTimeMs: null,
+      frameTimeClock: null,
+      isMeasuringContinuous: false,
       isPerfHudVisible: false,
       isPerfDetailOpen: false,
       sample: null,
@@ -98,6 +111,15 @@ export function createPerfStore() {
       // page memory ~0.04 Hz, LoAF on jank), so absent keys must keep their prior value.
       setMainMetrics(metrics) {
         set(metrics);
+      },
+      setFrameTiming(ms, clock) {
+        const { frameTimeMs, frameTimeClock } = get();
+        if (frameTimeMs === ms && frameTimeClock === clock) return; // identical sample → no fire
+        set({ frameTimeMs: ms, frameTimeClock: clock });
+      },
+      setMeasuringContinuous(on) {
+        if (get().isMeasuringContinuous === on) return;
+        set({ isMeasuringContinuous: on });
       },
     })),
   );

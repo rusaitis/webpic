@@ -28,13 +28,11 @@ interface GoldenFixture {
 // Vite types a JSON import structurally (literal keys); assert the generated fixture's contract.
 const golden = goldenJson as unknown as GoldenFixture;
 
-const hasRealGpu = typeof navigator !== "undefined" && "gpu" in navigator;
-
 let installed = false;
 let dispose: (() => void) | undefined;
 
 beforeAll(async () => {
-  if (!hasRealGpu || hasDevice()) return; // a sibling suite may already hold the singleton
+  if (hasDevice()) return; // a sibling suite may already hold the singleton
   const handle = await installGpu();
   dispose = handle.dispose;
   installed = true;
@@ -50,7 +48,7 @@ describe("ts vs webgpu backend equivalence", () => {
   const { dataset } = smoothVectorField();
 
   for (const testCase of CROSS_BACKEND_CASES) {
-    it.skipIf(!hasRealGpu)(`agrees on ${testCase.label}`, async () => {
+    it(`agrees on ${testCase.label}`, async () => {
       await assertBackendsAgree(tsBackend, webgpuBackend, dataset, testCase);
     });
   }
@@ -73,7 +71,7 @@ describe("webgpu backend vs pypic goldens", () => {
   );
 
   for (const testCase of CROSS_BACKEND_CASES) {
-    it.skipIf(!hasRealGpu)(`matches pypic on ${testCase.label}`, async () => {
+    it(`matches pypic on ${testCase.label}`, async () => {
       const expected = golden.goldens[testCase.recipe];
       expect(expected, `fixture missing golden for ${testCase.recipe}`).toBeDefined();
       if (expected === undefined) return;
@@ -101,7 +99,7 @@ describe("ts vs webgpu — synthetic MHD fields", () => {
       { grid: gridOf(field.shape, spacing) },
     );
     for (const testCase of CROSS_BACKEND_CASES) {
-      it.skipIf(!hasRealGpu)(`${field.name}: agrees on ${testCase.label}`, async () => {
+      it(`${field.name}: agrees on ${testCase.label}`, async () => {
         await assertBackendsAgree(tsBackend, webgpuBackend, dataset, testCase);
       });
     }

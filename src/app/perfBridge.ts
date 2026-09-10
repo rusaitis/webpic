@@ -85,7 +85,7 @@ export function installPerf(opts: PerfBridgeOptions): PerfBridge {
         measureUserAgentSpecificMemory?: () => Promise<{ readonly bytes: number }>;
       }
     ).measureUserAgentSpecificMemory;
-    const isolated = (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated === true;
+    const isolated = globalThis.crossOriginIsolated === true; // undefined on engines predating it
     if (typeof measure !== "function" || !isolated) return;
     void measure.call(performance).then(
       (result) => perfStore.getState().setMainMetrics({ pageMemoryBytes: result.bytes }),

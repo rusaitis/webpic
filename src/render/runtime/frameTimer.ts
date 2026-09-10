@@ -1,3 +1,5 @@
+import type { FrameClock } from "@schema/timing.ts";
+
 // Per-frame GPU timing for the diagnostics panel, render-local (like raymarchScene.ts) — NOT the
 // gpu/profiler.ts path, which times an *owned* compute pass and can't reach three's internally
 // managed render encoder.
@@ -8,7 +10,7 @@
 // Metal. The measurement is coarser (includes JS/queue latency), so the panel labels it distinctly
 // and never reads it as pure GPU time.
 
-export type FrameClock = "wallclock";
+export type { FrameClock };
 
 export interface FrameTimer {
   readonly mode: FrameClock;

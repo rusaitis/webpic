@@ -6,6 +6,7 @@ import {
   type RenderWorkerRequest,
   type RenderWorkerResponse,
 } from "@render/messages.ts";
+import { logError, rejectionLogger } from "@schema/log.ts";
 import type { Theme } from "@schema/theme.ts";
 import {
   BOOT_PHASE_KEY,
@@ -38,6 +39,9 @@ import { installThemeBridge, type ThemeBridge } from "./themeBridge.ts";
 import { currentDevicePixelRatio, installViewportTracking } from "./viewportTracking.ts";
 
 const DEFAULT_SIZE = 256;
+// The worker's orderly teardown normally acks in a few ms; terminate regardless after this so a wedged
+// worker can't hold the page's own teardown hostage.
+export const DISPOSE_GRACE_MS = 250;
 
 // Seams default to the real DOM/Worker; the handshake test injects fakes so
 // bootstrap runs headless in Node.
@@ -178,9 +182,14 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const layerSync = installLayerSync({ store, uiStore, worker, isReady });
   const sceneSync = installSceneSync({ store, worker, isReady, ...theme });
   const pickerSync = installPickerSync({ store, worker, isReady, ...theme });
-  const renderSync = installRenderWorkerSync({ store, worker, isReady });
+  const perfStore = createPerfStore(); // render timing for the timing panel + the dev HUD
+  const renderSync = installRenderWorkerSync({ store, perfStore, worker, isReady });
   const screenshotBridge = installScreenshotBridge({ store, uiStore, worker, isReady });
   const viewport = installViewportTracking({ canvas, worker, isReady, logicalSize });
+
+  // Withdraws every store load bootstrap started (the boot seed, a dataset switch) when it's disposed
+  // mid-flight, so no compute lands on a torn-down app.
+  const bootAbort = new AbortController();
 
   // Dataset switch (the dropdown): the store records `datasetId`; rebuild the dataset here (the app
   // owns the catalog — store/ui can't reach `data`), seed it on the main thread for an instant frame,
@@ -195,7 +204,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
       // and re-open the stream onto the new handle once that lands.
       void store
         .getState()
-        .setDataset(entry.makeDataset())
+        .setDataset(entry.makeDataset(), bootAbort.signal)
         .then(() => {
           const state = store.getState();
           // Every field-drawing layer, not just the selected one — a field-lines layer is selected by
@@ -208,7 +217,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
               state.setBindingScale(layer.colormapBindingId, entry.defaultScale);
           }
           streaming?.reopen(entry.streamSource);
-        });
+        })
+        .catch(rejectionLogger("app", "dataset switch failed"));
     },
   );
 
@@ -227,38 +237,65 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     options.onFirstFrame?.();
   };
 
+  // Teardown handshake: dispose() posts `dispose`, the worker acks `disposed`, then terminate — or the
+  // grace timer terminates first.
+  let disposeTimer: ReturnType<typeof setTimeout> | undefined;
+  const terminateWorker = (): void => {
+    if (disposeTimer !== undefined) clearTimeout(disposeTimer);
+    disposeTimer = undefined;
+    worker.terminate();
+  };
+
   worker.onmessage = (event: MessageEvent<RenderWorkerResponse>) => {
     const message = event.data;
-    if (message.kind === "ready") {
-      workerReady = true;
-      onWorkerReady();
-    } else if (message.kind === "frameTiming") {
-      store.getState().setFrameTiming(message.gpuTimeMs, message.clock);
-    } else if (message.kind === "perfSample") {
-      perfBridge?.ingestRenderSample(message);
-    } else if (message.kind === "pickResult") {
-      renderSync.handlePickResult(message);
-    } else if (message.kind === "layerCompiled") {
-      layerSync.handleCompiled(); // the layer's pipeline is warm → drop the render-loading pill
-    } else if (message.kind === "screenshot") {
-      screenshotBridge.handleScreenshot(message);
-    } else if (message.kind === "error") {
-      console.error("[render worker]", message.message);
-      // Pre-first-frame it is fatal (no adapter, no device, pipeline failure): the status pill
-      // auto-clears, so without a banner the user is left staring at an empty canvas.
-      if (!workerReady) {
-        uiStore.getState().endLoading(BOOT_PHASE_KEY);
-        showBlockingBanner("webpic could not start the WebGPU renderer.", {
-          detail: message.message,
+    switch (message.kind) {
+      case "ready":
+        workerReady = true;
+        onWorkerReady();
+        return;
+      case "frame":
+        return; // the readback reply of the headless render path — screenshots ride `screenshot`
+      case "frameTiming":
+        perfStore.getState().setFrameTiming(message.gpuTimeMs, message.clock);
+        return;
+      case "perfSample":
+        perfBridge?.ingestRenderSample(message);
+        return;
+      case "pickResult":
+        renderSync.handlePickResult(message);
+        return;
+      case "layerCompiled":
+        layerSync.handleCompiled(); // the layer's pipeline is warm → drop the render-loading pill
+        return;
+      case "screenshot":
+        screenshotBridge.handleScreenshot(message);
+        return;
+      case "error":
+        logError("render worker", message.message);
+        // Pre-first-frame it is fatal (no adapter, no device, pipeline failure): the status pill
+        // auto-clears, so without a banner the user is left staring at an empty canvas.
+        if (!workerReady) {
+          uiStore.getState().endLoading(BOOT_PHASE_KEY);
+          showBlockingBanner("webpic could not start the WebGPU renderer.", {
+            detail: message.message,
+            reload: true,
+          });
+        }
+        return;
+      case "gpuRecoveryFailed":
+        logError("render worker", `GPU unrecoverable (${message.reason}): ${message.message}`);
+        uiStore.getState().endLoading(BOOT_PHASE_KEY); // no spinner behind the terminal banner
+        showBlockingBanner(`GPU device lost and could not recover. ${message.message}`, {
           reload: true,
         });
+        return;
+      case "disposed":
+        terminateWorker();
+        return;
+      default: {
+        const unreachable: never = message;
+        logError("render worker", "unknown response", unreachable);
       }
-    } else if (message.kind === "gpuRecoveryFailed") {
-      console.error(`[render worker] GPU unrecoverable (${message.reason}):`, message.message);
-      uiStore.getState().endLoading(BOOT_PHASE_KEY); // no spinner behind the terminal banner
-      showBlockingBanner(`GPU device lost and could not recover. ${message.message}`, {
-        reload: true,
-      });
     }
   };
 
@@ -282,24 +319,20 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     if (options.fieldlines === true) store.getState().addFieldlinesLayer();
   };
   const dataset = options.dataset ?? createSyntheticDataset();
-  if (streaming !== undefined) {
-    void store
-      .getState()
-      .setDataset(dataset)
-      .then(() => {
-        streaming?.open();
-        seedFieldlines();
-      });
-  } else {
-    void store.getState().setDataset(dataset).then(seedFieldlines);
-  }
+  const seeded = store.getState().setDataset(dataset, bootAbort.signal);
+  void seeded
+    .then(() => {
+      streaming?.open(); // no-op without a stream source
+      seedFieldlines();
+    })
+    .catch(rejectionLogger("app", "dataset seed failed"));
 
   // Mount the UI after the dataset so the field selector sees the computed availableFields. Skipped
   // headless (no DOM) — the overlay is a sibling to the canvas, not in the render path.
   const uiParent =
     options.uiParent ?? (typeof document !== "undefined" ? document.body : undefined);
   const disposeUi = uiParent
-    ? installUi({ parent: uiParent, simulationStore: store, uiStore, ...theme })
+    ? installUi({ parent: uiParent, simulationStore: store, perfStore, uiStore, ...theme })
     : undefined;
 
   // Runtime theme switcher: the rail button cycles the catalog; every switch re-applies the CSS
@@ -328,19 +361,20 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // Dev performance HUD (Shift+P): the HUD overlay + worker sampling, dynamic-imported so the feature
   // is absent from the default prod bundle. Needs a DOM parent; skipped headless.
   if (options.perf === true && uiParent !== undefined) {
-    const perfStore = createPerfStore();
-    void import("./perfBridge.ts").then(({ installPerf }) => {
-      if (perfDisposed) return; // bootstrap disposed before the chunk loaded
-      perfBridge = installPerf({
-        perfStore,
-        uiStore,
-        uiParent,
-        renderWorker: worker,
-        setDataPerfActive: (active) => streaming?.setPerfActive(active),
-        isRenderReady: () => workerReady,
-        isDataPresent: () => streaming !== undefined,
-      });
-    });
+    void import("./perfBridge.ts")
+      .then(({ installPerf }) => {
+        if (perfDisposed) return; // bootstrap disposed before the chunk loaded
+        perfBridge = installPerf({
+          perfStore,
+          uiStore,
+          uiParent,
+          renderWorker: worker,
+          setDataPerfActive: (active) => streaming?.setPerfActive(active),
+          isRenderReady: () => workerReady,
+          isDataPresent: () => streaming !== undefined,
+        });
+      })
+      .catch(rejectionLogger("app", "perf HUD chunk failed to load"));
   }
 
   // Dev-only shader HMR: forward an edited raymarch WGSL/TSL to the worker (rebuildShader) instead of
@@ -349,13 +383,16 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   let disposeShaderHmr: (() => void) | undefined;
   let shaderHmrDisposed = false;
   if (import.meta.hot) {
-    void import("./shaderHmr.ts").then(({ installShaderHmr }) => {
-      if (shaderHmrDisposed) return; // bootstrap disposed before the chunk loaded
-      disposeShaderHmr = installShaderHmr(worker);
-    });
+    void import("./shaderHmr.ts")
+      .then(({ installShaderHmr }) => {
+        if (shaderHmrDisposed) return; // bootstrap disposed before the chunk loaded
+        disposeShaderHmr = installShaderHmr(worker);
+      })
+      .catch(rejectionLogger("app", "shader HMR chunk failed to load"));
   }
 
   return () => {
+    bootAbort.abort();
     perfDisposed = true;
     perfBridge?.dispose();
     themeBridge?.dispose();
@@ -373,6 +410,10 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     screenshotBridge.dispose();
     unsubscribeDatasetId();
     streaming?.dispose();
-    worker.terminate();
+    worker.postMessage({
+      kind: "dispose",
+      requestId: REQUEST_IDS.dispose,
+    } satisfies RenderWorkerRequest);
+    disposeTimer = setTimeout(terminateWorker, DISPOSE_GRACE_MS);
   };
 }

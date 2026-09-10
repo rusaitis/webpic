@@ -1,5 +1,6 @@
 import type { DataHandle, DataStreamRequest, DataStreamResponse } from "@data";
 import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
+import { logError } from "@schema/log.ts";
 import type { SimulationStore, UiStore } from "@store";
 
 // Owns the streaming data worker (app-only glue). The worker reads + computes each scrubbed step
@@ -46,20 +47,29 @@ export function installStreamingBridge(opts: StreamingBridgeOptions): StreamingB
 
   dataWorker.onmessage = (event: MessageEvent<DataStreamResponse>) => {
     const message = event.data;
-    if (message.kind === "opened") {
-      store.getState().setAvailableSteps(message.steps); // override the 1-element seed
-      uiStore.getState().endLoading("open");
-    } else if (message.kind === "stepLoaded") {
-      // Only the ack for the *current* cursor ends the phase — a stale ack in transit from a
-      // scrubbed-past step must not clear the newer load's pill.
-      if (message.step === store.getState().currentStep) uiStore.getState().endLoading("step");
-    } else if (message.kind === "streamError") {
-      console.error("[data worker]", message.message);
-      uiStore.getState().endLoading("open");
-      uiStore.getState().endLoading("step");
-      uiStore.getState().flashError(message.message);
-    } else if (message.kind === "perfSample") {
-      opts.onPerfSample?.({ heapBytes: message.heapBytes, lastReadMs: message.lastReadMs });
+    switch (message.kind) {
+      case "opened":
+        store.getState().setAvailableSteps(message.steps); // override the 1-element seed
+        uiStore.getState().endLoading("open");
+        return;
+      case "stepLoaded":
+        // Only the ack for the *current* cursor ends the phase — a stale ack in transit from a
+        // scrubbed-past step must not clear the newer load's pill.
+        if (message.step === store.getState().currentStep) uiStore.getState().endLoading("step");
+        return;
+      case "streamError":
+        logError("data worker", message.message);
+        uiStore.getState().endLoading("open");
+        uiStore.getState().endLoading("step");
+        uiStore.getState().flashError(message.message);
+        return;
+      case "perfSample":
+        opts.onPerfSample?.({ heapBytes: message.heapBytes, lastReadMs: message.lastReadMs });
+        return;
+      default: {
+        const unreachable: never = message;
+        logError("data worker", "unknown response", unreachable);
+      }
     }
   };
 

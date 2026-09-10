@@ -191,6 +191,12 @@ export function onDeviceRestored(listener: DeviceRestoredListener): Unsubscribe 
   };
 }
 
+// gpu/ is a dependency-free leaf, so its own failure path writes to the console directly: a listener
+// that throws inside device-loss handling must surface, not vanish as an unhandled rejection.
+function reportUnhandled(error: unknown): void {
+  console.error("[webpic:gpu] device-loss handling failed", error);
+}
+
 function adopt(adapter: GPUAdapter, device: GPUDevice, options?: GpuRequestOptions): GpuSingleton {
   const singleton: GpuSingleton = {
     adapter,
@@ -199,7 +205,7 @@ function adopt(adapter: GPUAdapter, device: GPUDevice, options?: GpuRequestOptio
     settled: false,
   };
   current = singleton;
-  void watchForLoss(singleton, options);
+  void watchForLoss(singleton, options).catch(reportUnhandled);
   return singleton;
 }
 
@@ -212,7 +218,7 @@ async function watchForLoss(singleton: GpuSingleton, options?: GpuRequestOptions
   // Recover only if the caller opted in AND the breaker hasn't tripped. A tripped breaker is terminal.
   const reacquire = (options?.reacquireOnLoss ?? true) && recordLossAndAllowRecovery();
   emitLost({ kind, message: info.message, terminal: !reacquire });
-  if (reacquire) void recover(options);
+  if (reacquire) void recover(options).catch(reportUnhandled);
 }
 
 async function recover(options?: GpuRequestOptions): Promise<void> {

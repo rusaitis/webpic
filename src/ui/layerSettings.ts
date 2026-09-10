@@ -1,5 +1,6 @@
 import type { FieldName } from "@schema/types.ts";
 import {
+  LAYER_KINDS,
   type Layer,
   type SimulationStore,
   type SliceAxis,
@@ -19,6 +20,7 @@ import {
 } from "./controls/index.ts";
 import { createFloatingWindow } from "./floating/floatingWindow.ts";
 import { ICON_CARET_DOWN, ICON_CARET_UP } from "./layerIcons.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 
 // The per-layer settings window (DESIGN §"Layers & navigation"): ONE component, opened from two entry
 // points (the Layers-panel gear, the rail's "Add new") so a layer is never configured in two places.
@@ -26,13 +28,6 @@ import { ICON_CARET_DOWN, ICON_CARET_UP } from "./layerIcons.ts";
 // colormap/scale/window section reuse installColormapControls verbatim (it is already selected-layer-
 // bound). The rest is the field/opacity/visibility/draw-order/remove form plus kind-specific controls
 // (volume: Phong; slice: axis + position; field lines: seed count + click-to-place). ui → store only.
-
-const KIND_TITLE: Record<Layer["kind"], string> = {
-  volume: "Volume",
-  slice: "Slice",
-  fieldlines: "Field lines",
-  particles: "Particles",
-};
 
 const SLICE_AXES: ReadonlyArray<{ value: SliceAxis; label: string }> = [
   { value: "x", label: "x" },
@@ -206,10 +201,10 @@ export function installLayerSettings(
       return;
     }
     built = { layerId: layer.id, kind: layer.kind };
-    win.setTitle(`${KIND_TITLE[layer.kind]} · ${layer.field}`);
+    win.setTitle(`${LAYER_KINDS[layer.kind].label} · ${layer.field}`);
 
     pane = createPane({ parent: paneHost });
-    const folder = pane.addFolder({ title: KIND_TITLE[layer.kind] });
+    const folder = pane.addFolder({ title: LAYER_KINDS[layer.kind].label });
 
     // The field control retargets the selected layer (= this layer); selectField repoints it + recomputes.
     fieldControl = folder.addSelect<FieldName>({
@@ -232,45 +227,50 @@ export function installLayerSettings(
       onChange: (value) => getState().setLayerVisible(layer.id, value),
     });
 
-    if (layer.kind === "volume") {
-      shadedControl = folder.addCheckbox({
-        label: "Phong shading",
-        value: layer.shaded,
-        onChange: (value) => getState().setLayerShading(layer.id, value),
-      });
-    } else if (layer.kind === "slice") {
-      axisControl = folder.addSegmented<SliceAxis>({
-        label: "Axis",
-        value: layer.axis,
-        options: SLICE_AXES,
-        onChange: (axis) => getState().setSliceAxis(layer.id, axis),
-      });
-      positionControl = folder.addSlider({
-        label: "Position",
-        value: layer.position,
-        min: 0,
-        max: 1,
-        step: 0.005,
-        onChange: (value) => getState().setSlicePosition(layer.id, value),
-      });
-    } else if (layer.kind === "fieldlines") {
-      seedCountControl = folder.addSlider({
-        label: "Seed count",
-        value: Math.min(Math.max(layer.seeds.length, MIN_SEEDS), MAX_SEEDS),
-        min: MIN_SEEDS,
-        max: MAX_SEEDS,
-        step: 1,
-        onChange: (count) => getState().setFieldlineSeedCount(layer.id, Math.round(count)),
-      });
-      placeControl = folder.addCheckbox({
-        label: "Place seeds",
-        value: getState().seedPlacementLayerId === layer.id,
-        onChange: (on) => getState().setSeedPlacement(on ? layer.id : null),
-      });
-      seedNote = folder.addNote("");
-      applySeedNote(seedNote, layer, getState().traceNotices[layer.id]);
-    } else {
-      folder.addNote("Particles render in v0.2.");
+    switch (layer.kind) {
+      case "volume": {
+        shadedControl = folder.addCheckbox({
+          label: "Phong shading",
+          value: layer.shaded,
+          onChange: (value) => getState().setLayerShading(layer.id, value),
+        });
+        break;
+      }
+      case "slice": {
+        axisControl = folder.addSegmented<SliceAxis>({
+          label: "Axis",
+          value: layer.axis,
+          options: SLICE_AXES,
+          onChange: (axis) => getState().setSliceAxis(layer.id, axis),
+        });
+        positionControl = folder.addSlider({
+          label: "Position",
+          value: layer.position,
+          min: 0,
+          max: 1,
+          step: 0.005,
+          onChange: (value) => getState().setSlicePosition(layer.id, value),
+        });
+        break;
+      }
+      case "fieldlines": {
+        seedCountControl = folder.addSlider({
+          label: "Seed count",
+          value: Math.min(Math.max(layer.seeds.length, MIN_SEEDS), MAX_SEEDS),
+          min: MIN_SEEDS,
+          max: MAX_SEEDS,
+          step: 1,
+          onChange: (count) => getState().setFieldlineSeedCount(layer.id, Math.round(count)),
+        });
+        placeControl = folder.addCheckbox({
+          label: "Place seeds",
+          value: getState().seedPlacementLayerId === layer.id,
+          onChange: (on) => getState().setSeedPlacement(on ? layer.id : null),
+        });
+        seedNote = folder.addNote("");
+        applySeedNote(seedNote, layer, getState().traceNotices[layer.id]);
+        break;
+      }
     }
 
     buildActions(layer);
@@ -289,18 +289,23 @@ export function installLayerSettings(
       rebuild();
       return;
     }
-    win.setTitle(`${KIND_TITLE[layer.kind]} · ${layer.field}`);
+    win.setTitle(`${LAYER_KINDS[layer.kind].label} · ${layer.field}`);
     fieldControl?.set(layer.field);
     opacityControl?.set(layer.opacity);
     visibleControl?.set(layer.visible);
-    if (layer.kind === "volume") shadedControl?.set(layer.shaded);
-    else if (layer.kind === "slice") {
-      axisControl?.set(layer.axis);
-      positionControl?.set(layer.position);
-    } else if (layer.kind === "fieldlines") {
-      seedCountControl?.set(Math.min(Math.max(layer.seeds.length, MIN_SEEDS), MAX_SEEDS));
-      placeControl?.set(getState().seedPlacementLayerId === layer.id);
-      applySeedNote(seedNote, layer, getState().traceNotices[layer.id]);
+    switch (layer.kind) {
+      case "volume":
+        shadedControl?.set(layer.shaded);
+        break;
+      case "slice":
+        axisControl?.set(layer.axis);
+        positionControl?.set(layer.position);
+        break;
+      case "fieldlines":
+        seedCountControl?.set(Math.min(Math.max(layer.seeds.length, MIN_SEEDS), MAX_SEEDS));
+        placeControl?.set(getState().seedPlacementLayerId === layer.id);
+        applySeedNote(seedNote, layer, getState().traceNotices[layer.id]);
+        break;
     }
     updateReorder();
   };
@@ -321,18 +326,17 @@ export function installLayerSettings(
   rebuild();
   applyVisible();
 
-  const unsubs = [
-    store.subscribe((s) => s.selectedLayerId, rebuild),
-    store.subscribe((s) => s.availableFields, rebuild), // new dataset → new field options
-    store.subscribe((s) => s.layers, sync),
-    store.subscribe((s) => s.seedPlacementLayerId, syncPlacement),
-    store.subscribe((s) => s.traceNotices, sync), // the seed note reports what the last retrace did
-    uiStore.subscribe((s) => s.isUiVisible, applyVisible),
-    uiStore.subscribe((s) => s.isLayerSettingsOpen, applyVisible),
-  ];
+  const subs = createSubscriptions();
+  subs.on(store, (s) => s.selectedLayerId, rebuild);
+  subs.on(store, (s) => s.availableFields, rebuild); // new dataset → new field options
+  subs.on(store, (s) => s.layers, sync);
+  subs.on(store, (s) => s.seedPlacementLayerId, syncPlacement);
+  subs.on(store, (s) => s.traceNotices, sync); // the seed note reports what the last retrace did
+  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subs.on(uiStore, (s) => s.isLayerSettingsOpen, applyVisible);
 
   return () => {
-    for (const unsub of unsubs) unsub();
+    subs.dispose();
     teardown();
     disposeColormap();
     win.dispose();

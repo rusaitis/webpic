@@ -1,8 +1,8 @@
 import type { UiStore } from "@store";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
-import { isTypingTarget } from "./keyboard.ts";
-import { SHORTCUTS } from "./shortcuts.ts";
+import { createShortcutRegistry, SHORTCUTS } from "./shortcuts.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 
 // Keyboard cheat-sheet: a centered modal toggled with `?` (Shift+/) or `H`, Escape or a backdrop
 // click to close. install*() => Disposer. Visibility rides the ui store's help flag so a future
@@ -41,26 +41,29 @@ export function installHelpOverlay(parent: HTMLElement, uiStore: UiStore): Dispo
   overlay.appendChild(panel);
   parent.appendChild(overlay);
 
-  const apply = (visible: boolean): void => {
-    overlay.hidden = !visible;
-  };
-  apply(uiStore.getState().isHelpVisible);
-  const unsub = uiStore.subscribe((s) => s.isHelpVisible, apply);
+  const subs = createSubscriptions();
+  subs.on(
+    uiStore,
+    (s) => s.isHelpVisible,
+    (visible) => {
+      overlay.hidden = !visible;
+    },
+    { fireNow: true },
+  );
 
   // Backdrop click closes; the panel swallows its own clicks so a click inside doesn't dismiss.
   overlay.addEventListener("click", () => uiStore.getState().setHelpVisible(false));
   panel.addEventListener("click", (event) => event.stopPropagation());
 
+  // `?` is Shift+/ (layout-dependent key, stable code); `H` toggles with or without Shift. The
+  // registry fires one binding per event, so a shifted "/" never toggles twice.
+  const toggle = (): void => uiStore.getState().toggleHelp();
+  const shortcuts = createShortcutRegistry(doc);
+  shortcuts.register("KeyH", toggle, { modifiers: "any" });
+  shortcuts.register("?", toggle, { modifiers: "shift" });
+  shortcuts.register("Slash", toggle, { modifiers: "shift" });
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (isTypingTarget(event.target)) return;
-    // `?` is Shift+/ (layout-dependent key, stable code); `H` toggles with or without Shift.
-    const isToggle =
-      event.code === "KeyH" || (event.shiftKey && (event.key === "?" || event.code === "Slash"));
-    if (isToggle) {
-      event.preventDefault();
-      uiStore.getState().toggleHelp();
-    } else if (event.key === "Escape" && uiStore.getState().isHelpVisible) {
+    if (event.key === "Escape" && uiStore.getState().isHelpVisible) {
       uiStore.getState().setHelpVisible(false);
     }
   };
@@ -68,7 +71,8 @@ export function installHelpOverlay(parent: HTMLElement, uiStore: UiStore): Dispo
 
   return () => {
     doc.removeEventListener("keydown", onKeyDown);
-    unsub();
+    shortcuts.dispose();
+    subs.dispose();
     overlay.remove();
   };
 }

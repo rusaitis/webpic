@@ -1,5 +1,6 @@
 import { type SimulationStore, selectActiveLayer } from "@store";
 import { createPane, type Disposer } from "../controls/index.ts";
+import { createSubscriptions } from "../subscriptions.ts";
 
 // The Developer tool's contents — the volume-only Phong shading toggle (peeled off the colormap panel
 // when color mapping moved to the floating colorbar). Built into a host (the floating Developer
@@ -28,15 +29,19 @@ export function installDevPanel(host: HTMLElement, store: SimulationStore): Disp
 
   syncShading();
 
-  const unsubSelected = store.subscribe((s) => s.selectedLayerId, syncShading);
-  const unsubLayers = store.subscribe((s) => {
-    const layer = selectActiveLayer(s);
-    return layer?.kind === "volume" ? layer.shaded : null; // reflect an external shaded flip
-  }, syncShading);
+  const subs = createSubscriptions();
+  subs.on(store, (s) => s.selectedLayerId, syncShading);
+  subs.on(
+    store,
+    (s) => {
+      const layer = selectActiveLayer(s);
+      return layer?.kind === "volume" ? layer.shaded : null; // reflect an external shaded flip
+    },
+    syncShading,
+  );
 
   return () => {
-    unsubLayers();
-    unsubSelected();
+    subs.dispose();
     pane.dispose(); // cascades to the shading checkbox
   };
 }

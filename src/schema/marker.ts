@@ -29,18 +29,18 @@ export const HANDLE_KNOB_SCALE = 2.7;
 
 // Zoom-aware sizing: scale the core per frame by a damped function of camera distance, so it doesn't
 // read huge up close and a speck far out. ZOOM_DAMP 0 = world-fixed, 1 = constant on-screen.
-export const ZOOM_DAMP = 0.7;
+const ZOOM_DAMP = 0.7;
 export const ZOOM_SCALE_MIN = 0.5;
 export const ZOOM_SCALE_MAX = 3.5;
 export const REFERENCE_VIEW_DISTANCE = DEFAULT_POSE.distance;
 
 // Drag-axis gating by camera elevation θ above the equatorial (xy) plane (0° edge-on, 90° top-down).
 // Vertical (z) drag degenerates near 90°; the free xy-plane drag degenerates near 0°.
-export const VERTICAL_MAX_ELEV_DEG = 60; // above this, the ↕ handle fades out (vertical disabled)
-export const HORIZONTAL_MIN_ELEV_DEG = 15; // below this, the free xy-plane gives way to the ↔ axis
+const VERTICAL_MAX_ELEV_DEG = 60; // above this, the ↕ handle fades out (vertical disabled)
+const HORIZONTAL_MIN_ELEV_DEG = 15; // below this, the free xy-plane gives way to the ↔ axis
 // When the view azimuth is within this many degrees of a world axis the *other* horizontal axis is
 // cleanly cross-screen; the ~45° diagonal beyond this is ambiguous (no ↔ handle).
-export const AZIMUTH_ALIGN_MAX_DEG = 40;
+const AZIMUTH_ALIGN_MAX_DEG = 40;
 
 const DEG_PER_RAD = 180 / Math.PI;
 

@@ -1,7 +1,7 @@
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import { intersectRayBox } from "@schema/rayBox.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { intersectRayBox } from "./rayBox.ts";
 import { windowedT } from "./volume/normalization.ts";
 import type { ScalarField } from "./volume/volumeTexture.ts";
 

@@ -58,3 +58,43 @@ describe("perfStore", () => {
     expect(state.pageMemoryBytes).toBe(5000);
   });
 });
+
+describe("perfStore render timing", () => {
+  it("starts with no frame timing and continuous measurement off", () => {
+    const { frameTimeMs, frameTimeClock, isMeasuringContinuous } = createPerfStore().getState();
+    expect(frameTimeMs).toBeNull();
+    expect(frameTimeClock).toBeNull();
+    expect(isMeasuringContinuous).toBe(false);
+  });
+
+  it("setFrameTiming records the latest sample + clock and identity-skips an unchanged one", () => {
+    const store = createPerfStore();
+    let fires = 0;
+    const unsub = store.subscribe(
+      (s) => s.frameTimeMs,
+      () => fires++,
+    );
+    store.getState().setFrameTiming(6.5, "timestamp");
+    expect(store.getState()).toMatchObject({ frameTimeMs: 6.5, frameTimeClock: "timestamp" });
+    store.getState().setFrameTiming(6.5, "timestamp"); // identical → no fire
+    store.getState().setFrameTiming(7.25, "timestamp");
+    unsub();
+    expect(fires).toBe(2);
+    expect(store.getState().frameTimeMs).toBe(7.25);
+  });
+
+  it("setMeasuringContinuous toggles and identity-skips a no-op", () => {
+    const store = createPerfStore();
+    let fires = 0;
+    const unsub = store.subscribe(
+      (s) => s.isMeasuringContinuous,
+      () => fires++,
+    );
+    store.getState().setMeasuringContinuous(true);
+    store.getState().setMeasuringContinuous(true); // unchanged → no fire
+    store.getState().setMeasuringContinuous(false);
+    unsub();
+    expect(fires).toBe(2);
+    expect(store.getState().isMeasuringContinuous).toBe(false);
+  });
+});

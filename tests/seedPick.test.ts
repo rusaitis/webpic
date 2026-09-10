@@ -1,9 +1,10 @@
 import { displayTraceSteps, traceFields } from "@compute";
+import { worldHalfExtentForGrid } from "@containers";
 import { dipoleStep, syntheticStep } from "@data/readers/synthetic.ts";
 import { interpolatorFromDataset } from "@numerics/interp.ts";
 import { traceFieldLinesAdaptive } from "@numerics/tracing.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { defaultSeedRake, seedFromSlice, seedFromVolume, worldHalfExtentForGrid } from "@store";
+import { defaultSeedRake, seedFromSlice, seedFromVolume } from "@store";
 import { describe, expect, it } from "vitest";
 
 // Cross-layer guard for M4.4: a picked seed (store/seedPick, world → physical grid coords) must land

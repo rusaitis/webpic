@@ -1,6 +1,66 @@
-// Single source of truth for the keyboard cheat-sheet (ui/helpOverlay). The bindings themselves
-// still live as logic in ui/pointerCamera + ui/install; keep this list in step until the
-// theme-shortcut system (schema/theme.ts) drives both. Grouped for display only.
+import type { Disposer } from "./controls/index.ts";
+import { isTypingTarget } from "./keyboard.ts";
+
+// Bare-key shortcuts: one registry implementation with the single guard set every binding shares —
+// a typing surface keeps its keystrokes, a Meta/Ctrl/Alt chord is never a shortcut, an already-
+// handled event (defaultPrevented) stays handled. Each subsystem creates its own registry on the
+// document (ui/install, ui/pointerCamera, the panels); a matched key is claimed (preventDefault) so
+// the page gets no quick-find / scroll side effect. SHORTCUTS below is the cheat-sheet the help
+// overlay renders — keep it in step with the registrations until the theme-shortcut system
+// (schema/theme.ts) drives both.
+
+export interface ShortcutOptions {
+  /** Shift requirement: "none" (default) fires only unshifted, "shift" only shifted, "any" ignores it. */
+  readonly modifiers?: "none" | "shift" | "any";
+}
+
+export interface ShortcutRegistry {
+  /** `key` names the physical key (event.code — "KeyC", "Digit1", "Slash") or the layout key
+   *  (event.key, case-insensitive — "f", "?", "Escape"). The first registration to match wins. */
+  register(key: string, handler: (event: KeyboardEvent) => void, options?: ShortcutOptions): void;
+  dispose(): void;
+}
+
+interface Binding {
+  readonly code: string;
+  readonly key: string; // lower-cased event.key form
+  readonly modifiers: "none" | "shift" | "any";
+  readonly handler: (event: KeyboardEvent) => void;
+}
+
+export function createShortcutRegistry(doc: Document, signal?: AbortSignal): ShortcutRegistry {
+  const bindings: Binding[] = [];
+  // Signal-bound only (no removeEventListener): a caller's signal and dispose() both tear it down.
+  const ac = new AbortController();
+  const teardown = signal === undefined ? ac.signal : AbortSignal.any([signal, ac.signal]);
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (isTypingTarget(event.target)) return;
+    const key = event.key.toLowerCase();
+    for (const binding of bindings) {
+      if (binding.code !== event.code && binding.key !== key) continue;
+      if (binding.modifiers === "none" && event.shiftKey) continue;
+      if (binding.modifiers === "shift" && !event.shiftKey) continue;
+      event.preventDefault();
+      binding.handler(event);
+      return;
+    }
+  };
+  doc.addEventListener("keydown", onKeyDown, { signal: teardown });
+  const dispose: Disposer = () => ac.abort();
+
+  return {
+    register(key, handler, options) {
+      bindings.push({
+        code: key,
+        key: key.toLowerCase(),
+        modifiers: options?.modifiers ?? "none",
+        handler,
+      });
+    },
+    dispose,
+  };
+}
 
 export interface Shortcut {
   readonly keys: string;

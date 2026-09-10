@@ -44,7 +44,11 @@ export function createSwatchSelect<V extends string>(
     anchor: button,
     getItems: () => items,
     getSelected: () => current,
-    onSelect: (v) => onChange(v as V),
+    onSelect: (v) => {
+      // The popover reports a plain string; the row list is the V-typed source, so recover V there.
+      const hit = items.find((o) => o.value === v);
+      if (hit !== undefined) onChange(hit.value);
+    },
     className: "is-swatches",
     renderRow: (rowDoc, item) => {
       const wrap = makeEl(rowDoc, "div", "webpic-popover_swatch");

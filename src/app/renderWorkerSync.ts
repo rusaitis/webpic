@@ -8,19 +8,22 @@ import {
   type CameraProjection,
   cursorRay,
   focusPoseOnPoint,
+  type PerfStore,
   type SimulationStore,
   unitBoxChordMidpoint,
 } from "@store";
 import { createStoreBridge } from "./storeBridge.ts";
 
 // The cheap store→render-worker control channel (app-only glue: store and render can't import each
-// other). Pose, projection, camera-motion, and the diagnostics continuous-measure toggle each ride a
+// other). Pose, projection, camera-motion, and the timing panel's continuous-measure toggle each ride a
 // guarded one-line post; a pick request marches a cursor ray (with a pre-ready geometric fallback) and
 // its reply (handlePickResult) places the marker + retargets a focus fly. Gated on `workerReady` via
 // the shared store bridge; pose/projection get a ready-time catch-up via flushAll, mirroring layerSync.
 
 export interface RenderWorkerSyncOptions {
   readonly store: SimulationStore;
+  /** Owns the timing panel's "Measure" toggle the worker's continuous-repaint mode follows. */
+  readonly perfStore: PerfStore;
   readonly worker: Pick<Worker, "postMessage">;
   /** Reads the bootstrap `workerReady` flag — nothing is posted until the worker is live. */
   readonly isReady: () => boolean;
@@ -37,7 +40,7 @@ export interface RenderWorkerSync {
 }
 
 export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWorkerSync {
-  const { store, worker, isReady } = opts;
+  const { store, perfStore, worker, isReady } = opts;
   const bridge = createStoreBridge(store, isReady);
 
   const postPose = (pose: CameraPose): void => {
@@ -74,10 +77,12 @@ export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWo
     },
   );
 
-  // Diagnostics "Measure" toggle → the worker's continuous-repaint mode for sustained GPU timing.
-  bridge.subscribeWhenReady(
+  // The timing panel's "Measure" toggle → the worker's continuous-repaint mode for sustained GPU timing.
+  // Lives on the perf store, so it's a direct subscription with the same ready gate as the bridge.
+  const unsubscribeContinuous = perfStore.subscribe(
     (state) => state.isMeasuringContinuous,
     (continuous) => {
+      if (!isReady()) return;
       worker.postMessage({
         kind: "setContinuous",
         requestId: REQUEST_IDS.continuous,
@@ -153,6 +158,7 @@ export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWo
       }
     },
     dispose() {
+      unsubscribeContinuous();
       bridge.dispose();
     },
   };

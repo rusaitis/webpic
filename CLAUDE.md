@@ -12,11 +12,12 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 ## Architecture
 
 - **Hard layer boundaries (pypic-mirrored).** Layers: `schema`, `containers`, `coordinates`, `numerics`, `reductions`, `derived`, `diagnostics`, `gpu`, `shaders`, `compute`, `data`, `remote`, `render`, `store`, `ui`, `app`, `workers`, `embed`. Full dependency DAG in `docs/DESIGN.md`. Rule of thumb: `schema` depends on nothing (root + canonical-name authority + shared scalar/geometry primitives — `@schema/math`'s `clamp`, `vec3`, `UNIT_BOX_HALF_EXTENT`); the math layers (`coordinates`/`numerics`/`reductions`/`derived`/`diagnostics`) are pure leaves; `ui` → `store` → `render`, and `ui` never imports `render` or calls `scene.add(...)` — it dispatches typed store intents. Boundary violations are CI errors (`scripts/check-boundaries.ts`, ts-morph).
-- **Built vs reserved layers.** Live today: `schema`, `containers`, `coordinates` (curl/div/grad), `numerics` (DP5(4) + interp + tracer), `derived` (magnitudes), `gpu`, `shaders` (WGSL field-ops + streamline kernels), `compute` (TS + WebGPU backends, trace facade), `data` (readers + writers), `render`, `store`, `ui`, `app`, `workers`, `embed` (public re-export facade, M6.6). Reserved stubs — `export {}` until their milestone, file header says which — `reductions`, `diagnostics`, `remote`. The DAG is wired for all 18; the empty ones just have no impl yet.
+- **Built vs reserved layers.** Live today: `schema`, `containers`, `coordinates` (curl/div/grad), `numerics` (DP5(4) + interp + tracer), `derived` (magnitudes), `gpu`, `shaders` (WGSL field-ops + streamline kernels), `compute` (TS + WebGPU backends, trace facade), `data` (readers + writers), `render`, `store`, `ui`, `app`, `workers`, `embed` (public re-export facade, M6.6), `reductions` (finite-range extrema; histograms/means land with the analyzer leg). Reserved stubs — `export {}` until their milestone, file header says which — `diagnostics`, `remote`. The DAG is wired for all 18; the empty ones just have no impl yet.
 - **v0.1 packaging: one package, `src/<layer>/` folders.** The 18-package pnpm-workspace split is deferred (DESIGN §Package shape, M2 checkpoint). Use path aliases (`@schema/*`, `@compute/*`, …), not deep relatives — they pre-stage the eventual `@webpic/<layer>` specifiers.
 - **The math layers are pure.** Typed arrays in, typed arrays out. No `THREE.*`, no DOM, no `GPUDevice`. One TS reference impl per operator lives in `coordinates/` (e.g. `curl`); `compute/backends/ts` delegates to it, and cross-backend tests compare the WGSL kernel against it — never a duplicate.
 - **Canonical names everywhere.** `B_1`, `B_2`, `B_3`, `|B|`, `beta`, `v_A`, `omega_p_s0` — same keys as `pypic.compute.RECIPES`. Aliases (`B_mag`, `plasma_beta`) resolve at boundaries only. Field component labels are **1-indexed**; array indices **0-indexed** (`B_1` ↔ component=0). `grep B_1` works across pypic, magviz, webpic.
 - **Workers own their domain.** Each worker owns reads, compute, or trace — main thread orchestrates only. WebGPU compute runs inline on main (`GPUDevice` can't transfer); data reads + scrub-path scalar compute run in the data worker, and `ts`/`wasm` compute joins a `comlink` pool once ops get heavy (v0.1's TS ops — the magnitude family + curl/div — stay on main outside the scrub path). Every subsystem owns its cleanup, in one of two shapes: **`install*(...)`** wires subscriptions/side-effects into the world and returns a disposer (`() => void`, or a small controller whose `.dispose()` is the teardown) — the UI panels, pointer handlers, app sync bridges; **`create*(host)`** constructs a stateful manager you drive and returns an object with lifecycle methods + `dispose()`, injected with a typed `host` of worker callbacks — the render managers (`layerRegistry`, `renderLoop`, `deviceRecovery`, `qualityController`, …). Either way teardown is deterministic; no globals.
+- **Diagnostics go through `@schema/log`** (`logWarn`/`logError`/`rejectionLogger`, one swappable sink for embedders); raw `console.warn/error` only in the dependency-free `gpu/` leaf. Every fire-and-forget promise ends in `.catch(rejectionLogger(...))` — Biome's `noFloatingPromises` is on. Built-but-unwired code carries a `// STAGED:` header (see §Comments).
 - **No math deps outside render.** `coordinates`/`numerics` shipped dependency-free typed-array code — the planned `gl-matrix` adoption proved unnecessary; don't add it without a demonstrated need. No `THREE.Vector3` outside `render/`. `Vec3 = readonly [number, number, number]`.
 
 ## TypeScript
@@ -63,7 +64,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 - No `// --- Section ---` blocks. Use module structure or named functions.
 - No plan/task references in code (e.g. "for Stage 4"). The git log is the audit trail.
 - **Cite `docs/DESIGN.md` by section name, not line number.** `§Caching`, `§Worker message protocol` — never `§443`; the doc moves and numeric pins rot silently.
-- Mark deprecations: `// DEPRECATED: <short reason>`.
+- Mark deprecations: `// DEPRECATED: <short reason>`. Mark built-but-unwired code at the file header: `// STAGED: <what activates it>` — a tested subsystem waiting on its trigger reads as staged, not dead, without a milestone reference.
 - JSDoc only on public API (future `@webpic/embed` exports). Skip on internal helpers — the type signature is the spec.
 
 ## Testing
@@ -84,10 +85,14 @@ Don't add without justification matching `docs/DESIGN.md`. *Shipped:* `three` (`
 npm run dev         # Vite dev server
 npm run dev:lan     # HTTPS + LAN-exposed (iPad testing; certs via scripts/setup-lan-certs.sh)
 npm run build       # production build
-npm run typecheck   # app + worker tsconfigs
+npm run typecheck   # app + worker + node tsconfigs
 npm run lint        # Biome check
 npm run test        # Vitest (node + dom projects)
 npm run test:gpu    # real-GPU suites in headed system Chrome (local-only)
+npm run test:coverage # Vitest + v8 coverage (report only, no gate)
+npm run test:parity # schema + writer parity vs live pypic (WEBPIC_PYPIC_PARITY=1)
+npm run perf:gate   # M0/M2 acceptance numbers (local-only)
+npm run docs:api    # TypeDoc, treatWarningsAsErrors — a CI gate
 npm run format      # Biome format --write
 ```
 

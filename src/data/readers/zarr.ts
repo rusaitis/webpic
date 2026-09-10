@@ -6,6 +6,7 @@ import type {
   PhysicsParams,
 } from "@containers/field_dataset.ts";
 import { destaggerToColocated } from "@data/stagger.ts";
+import { logWarn } from "@schema/log.ts";
 import type { FieldName } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import * as zarr from "zarrita";
@@ -183,7 +184,9 @@ async function openPypicStore(
     );
   } catch (error) {
     if (error instanceof zarr.NotFoundError) {
-      throw new Error(`${source}: schema.version declared but no /fields group present`);
+      throw new Error(`${source}: schema.version declared but no /fields group present`, {
+        cause: error,
+      });
     }
     throw error;
   }
@@ -304,7 +307,7 @@ function partitionFields(
 
 function warnSkipped(skipped: readonly string[]): void {
   if (skipped.length > 0) {
-    console.warn(`zarr reader: skipping unrecognized fields: ${skipped.join(", ")}`);
+    logWarn("zarr", `skipping unrecognized fields: ${skipped.join(", ")}`);
   }
 }
 
@@ -415,17 +418,19 @@ export function createZarrReader(
 // Cheap probe for the reader registry: a pypic store iff schema.version matches and a
 // /fields group exists (metadata-only, no chunk reads). Injectable for testing.
 export function createZarrConfidence(openStore: StoreOpener = defaultOpenStore): ConfidenceFn {
-  return async (handle) => {
+  return async (handle, signal) => {
+    const openOptions =
+      signal === undefined ? { kind: "group" as const } : { kind: "group" as const, signal };
     try {
       const store = await openStore(handle);
-      const root = await zarr.open(store, { kind: "group" });
+      const root = await zarr.open(store, openOptions);
       // zarrita types attrs as opaque; read the schema-version discriminator structurally.
       const schema = (root.attrs as { schema?: { version?: unknown } }).schema;
       if (schema?.version !== SCHEMA_VERSION) return 0;
-      await zarr.open(root.resolve("fields"), { kind: "group" });
+      await zarr.open(root.resolve("fields"), openOptions);
       return 1;
     } catch {
-      return 0;
+      return 0; // not a pypic store (or unreachable/aborted) — the registry reports 0 either way
     }
   };
 }

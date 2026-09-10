@@ -9,4 +9,5 @@ export type {
   ReductionSpec,
   StaggerInfo,
 } from "./field_dataset.ts";
+export { axisPhysicalSpan, hasUsableSpacing, worldHalfExtentForGrid } from "./grid.ts";
 export { readHeapBytes } from "./perf_probe.ts";

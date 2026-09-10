@@ -94,8 +94,9 @@ remote      ──►  schema, containers, data,    pypic.server client (v0.2);
                  reductions                   ReductionSpec wire type
 render      ──►  schema, containers,          Three.js WebGPURenderer + WGSL passes
                  coordinates, numerics,
-                 compute, data, gpu
-store       ──►  schema, containers, compute  reactive state; canonical names as keys
+                 reductions, compute, data, gpu
+store       ──►  schema, containers,          reactive state; canonical names as keys
+                 reductions, compute
 ui          ──►  schema, containers, store,   no direct render imports; theming is
                  remote                        @schema/theme + ui/theme/ (not a layer)
 app         ──►  everything (composition root only)
@@ -451,23 +452,12 @@ await computeField('|B|', dataset, ctx?);
 
 The render wire lives in `src/render/messages.ts` — two discriminated unions, each carrying `requestId` for response correlation (and to pre-stage cancellation):
 
-- **`RenderWorkerRequest`** (main → render worker) — `init` · `renderFrame` · `resize` · `upsertLayer`/`removeLayer`/`setComposite` (the instance-first layer channel) · `setLayerColormap`/`setLayerShading` (live per-layer appearance) · `setCameraPose` (high-frequency, delta-only via Zustand `subscribeWithSelector`) · `setContinuous` (the sustained-measurement toggle).
-- **`RenderWorkerResponse`** (render worker → main) — `ready` · `frame` (RGBA8 readback) · `frameTiming` (timestamp-query / wall-clock) · `error` · `gpuRecoveryFailed`.
+- **`RenderWorkerRequest`** (main → render worker) — `init` · `renderFrame` · `resize` · `upsertLayer`/`upsertFieldlines`/`removeLayer`/`setComposite` (the instance-first layer channel) · `setLayerColormap`/`setLayerShading`/`setSliceParams` (live per-layer appearance) · `setCameraPose`/`setProjection`/`setCameraMotion` (high-frequency, delta-only via Zustand `subscribeWithSelector`) · `setSceneOverlay`/`setMarker`/`setPickerPoint`/`pickRay` · `setContinuous`/`setPerfActive` (timing + the dev HUD) · `pair` (the streaming port) · `screenshot` · `rebuildShader` (dev HMR) · `dispose` (orderly teardown before `terminate()`).
+- **`RenderWorkerResponse`** (render worker → main) — `ready` · `frame` (RGBA8 readback) · `frameTiming` · `perfSample` · `pickResult` · `layerCompiled` (the pipeline-warm ack that drops the loading pill) · `screenshot` · `error` · `gpuRecoveryFailed` · `disposed`.
 
-Field array buffers ride `upsertLayer` as transferred `ArrayBuffer`s. The conceptual `StoreToRender` / `RenderToStore` / `DataToRender` groupings survive only as comment labels on these kinds — there is no separate wire type, and v0.1 routes everything through the main thread (the render worker is the only worker that owns a scene).
+Both sides are exhaustive: the worker's `handle()` and the app's response router each end in a `never` arm, so an added kind is a compile error until routed. `upsertLayer` carries its kind-specific build params nested as `params: FieldLayerParams` (discriminated on `layerKind`: a slice's axis + plane, a volume's march/look/box aspect) — a slice never sees volume fields and vice versa. Field array buffers ride `upsertLayer` as transferred `ArrayBuffer`s; the transfer detaches the store's copy, which is why `app/layerSync` — not the store — decides when a later layer needs a `recomputeField`.
 
-**Worker-to-worker pairing (unbuilt — M2.10 streaming design).** When time-series streaming lands, `app/main.ts` will pair the data and render workers so decoded field buffers flow data → render with no main-thread hop:
-
-```ts
-const dataWorker = new Worker(/* ... */);
-const renderWorker = new Worker(/* ... */);
-const ch = new MessageChannel();
-dataWorker.postMessage({ kind: 'pair', port: ch.port1 }, [ch.port1]);
-renderWorker.postMessage({ kind: 'pair', port: ch.port2 }, [ch.port2]);
-// field data flows data → render with no main-thread hop
-```
-
-Each worker's `onmessage` would handle `'pair'` once, storing the port; a worker-init integration test asserts the pairing succeeds and a synthetic field round-trips. Today `app/main.ts` spawns only the render worker — there is no `data.worker.ts` pairing yet.
+**Worker-to-worker pairing (built — M2.10).** `app/streamingBridge.ts` pairs the data and render workers over a `MessageChannel`: the data-side port rides the `open` request, the render-side port rides `pair` on the render worker's `ready`, and each scrubbed timestep's scalar flows data → render with no main-thread hop (`data/streamMessages.ts` is that wire). Main relays only the timestep domain and drives the cursor + active field. `render/worker.streaming.test.ts` covers the ping-pong swap; `data/cache.browser.test.ts` the OPFS side.
 
 ---
 
@@ -671,13 +661,15 @@ The `SubscribeRequest` JSON shape (mirror in `remote/protocol.ts` field-for-fiel
 
 ## State management
 
-**Zustand** with `subscribeWithSelector` middleware. Two stores + the pull-based `compute/recipes` registry:
+**Zustand** (vanilla, `subscribeWithSelector`) — three stores, no React:
 
-- `simulationStore` — datasets, current timestep, active fields, normalization, comparison targets. Validated by schema in dev builds. The store's `normalization: 'pic' | 'mhd' | 'si'` maps to the remote wire's `units: 'code' | 'si'` — both `'pic'` and `'mhd'` serialize to `'code'`.
-- `uiStore` — panel open/closed, focus, hover, selection, palette state. Cleared on dataset switch.
-- `compute/recipes` — recipe registry + memoized derived quantities. Pull-based. Store mutations bump an invalidation counter; recipe recomputes on next `recipes.get(...)`. This solves the magviz `ViewerContext` ambiguity at the dependency level (`compute` depends on `derived`, not the other way around — mirrors pypic).
+- `simulationStore` (`store/simulation.ts`) — ONE store composed from per-concern slices, each a `create*Slice(ctx)` in its own file owning its state + intents: `dataSlice` (dataset, active field, the `field` lifecycle, time cursor), `layersSlice` (the instance-first layer list, selection, traces, seed placement), `bindingsSlice` (ColormapBindings), `cameraSlice`, `pickerSlice`, `overlaySlice`. The shape lives in `store/state.ts`; subscribers read dataset + layers + camera off the single object. The active field is a discriminated `FieldState` (`empty` | `ready` {computed, dataRange} | `error` {message}) — an illegal combination cannot be represented; `selectComputed`/`selectDataRange` (`store/selectors.ts`) are the stable-reference reads. Per-kind layer facts (label, defaults, draws-field, traces-lines) are one registration in `store/layerKinds.ts`, a complete `Record<LayerKind, …>` so a new kind is a compile error until described.
+- The two async passes that span slices — the field compute (`store/fieldCompute.ts`) and the field-line retrace (`store/fieldTrace.ts`) — are `createSupersedingTask` instances: every call aborts the previous run's signal and discards its pending commit, so only the newest result lands (the pull-based invalidation counter in its v0.1 shape). `setDataset`/`selectField` accept an `AbortSignal` for the caller's own withdrawal (bootstrap disposed mid-load).
+- `perfStore` (`store/perf.ts`) — render timing (frame time + clock, the "Measure" toggle) and the dev perf HUD samples/topology, isolated so per-frame churn never wakes panel subscribers.
+- `uiStore` — panel open/closed, visibility, loading phases, selection chrome.
+- `compute/recipes` — recipe registry + backend dispatch; `computableFields` derives the selector's options from RECIPES × backend support.
 
-**Intent dispatching.** UI calls typed methods on the store. Render layer subscribes selectively. UI never touches the scene graph directly.
+**Intent dispatching.** UI calls typed methods on the stores. The app's bridges subscribe selectively and forward to the render worker; `app/layerSync` owns the field transfer and asks the store to `recomputeField` when a later layer needs data it already handed over. UI never touches the scene graph directly.
 
 ---
 
@@ -810,7 +802,8 @@ Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirr
 - **TypeScript:** `target: "ES2022"`, `module: "ESNext"`, `moduleResolution: "bundler"`, `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true`, `verbatimModuleSyntax: true`. Project references per package.
 - **Workers:** Vite `?worker` syntax. The compute pool is designed around `comlink` (~5 KB) for RPC + a 20-line round-robin pool over `new Worker(new URL(...), { type: 'module' })`, sized to `Math.min(navigator.hardwareConcurrency - 1, 8)` (not `tinypool` — Node-only). **v0.1 reality:** only `data.worker.ts` exists, using raw `postMessage`; `comlink` is added when the compute pool lands (M3+).
 - **Lint + format:** **Biome** (single binary, integrated formatter — replaces ESLint + Prettier). Layer enforcement is not a Biome plugin; see §Layered dependency DAG.
-- **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. A `happy-dom` project (devDep) runs the `ui` facade smoke tests (`*.dom.test.ts`) — node mode can't construct DOM, and these are deterministic DOM-unit tests, not visual ones. Browser mode (`@vitest/browser-playwright`) runs the `*.browser.test.ts` real-GPU suites in headed system Chrome via `npm run test:gpu` — local-only (WebGPU on macOS/Metal is unreliable headless), env-gated out of plain `vitest`/CI. Playwright for 2–3 E2E flows.
+- **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. A `happy-dom` project (devDep) runs the `ui` DOM-unit tests (`*.dom.test.ts`) — node mode can't construct DOM, and these are deterministic, not visual. Browser mode (`@vitest/browser-playwright`) runs the `*.browser.test.ts` real-GPU suites in headed system Chrome via `npm run test:gpu` — local-only (WebGPU on macOS/Metal is unreliable headless), env-gated out of plain `vitest`/CI. Coverage via `@vitest/coverage-v8` (`npm run test:coverage`) is reported, not gated. Playwright E2E flows are deferred (see §Testing strategy).
+- **Git hooks:** `lefthook` (installed by `npm run prepare`) — Biome on staged files at commit, typecheck + tests at push. Mirrors CI so a red build is caught locally first.
 - **Docs:** TypeDoc from public exports.
 - **Bundle size:** `size-limit` with 1.0 MB ceiling on `@webpic/embed`, 1.6 MB on `@webpic/app` (gzipped).
 - **Shader validation:** `tint` validator in CI (planned, from M2 — when the first standalone WGSL kernels land).
@@ -829,11 +822,15 @@ Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirr
 5. **Cross-backend equivalence** — every kernel in `ts` vs `webgpu` (and `wasm` when wired).
 6. **Data adapters** — Zarr readers against pypic-written stores.
 7. **TOML round-trip parity** — `smol-toml` vs Python `tomllib`.
-8. **Multi-tab cache safety** — two concurrent tabs writing to OPFS; assert no corruption.
-9. **Migration** — `tests/migration.test.ts` exercises every schema-version transition.
-10. **OffscreenCanvas worker render parity** — frame from worker matches main-thread frame within 1 pixel diff.
-11. **Prefetch fuzz** — `tests/prefetch.test.ts` exercises EWMA direction detection with random scrub patterns.
-12. **One smoke E2E** — load Zarr URL, render volume, scrub timestep, no crashes.
+8. **OffscreenCanvas worker render parity** — frame from worker matches main-thread frame within 1 pixel diff (`render/parity.browser.test.ts`, `test:gpu`, local-only).
+9. **Prefetch fuzz** — `tests/prefetch.test.ts` exercises EWMA direction detection with seeded random scrub patterns.
+10. **Render-worker integration** — the `render/worker.*.test.ts` suites drive the real message loop against mocked scenes (quality tiers, device recovery, streaming ping-pong, shader HMR).
+11. **Meta-guards** — `tests/embed.test.ts` (star-export ambiguity on the public facade), `ui/panels/themeCoverage.dom.test.ts` (every synced theme's `default-panels` is registered), `tests/tolerances.test.ts` (the tolerance ladder stays monotone), `tests/boundaries.test.ts` + `tests/aliases.test.ts` (layer DAG + alias parity).
+
+**Planned, not yet written** (listed here so the gap is visible, not implied):
+- **Multi-tab cache safety** — two concurrent tabs writing to OPFS; assert no corruption. Needs a two-context browser test.
+- **Migration** — a `tests/migration.test.ts` exercising schema-version transitions, once a second schema version ships (item 3 covers additive compatibility today).
+- **One smoke E2E** — load Zarr URL, render volume, scrub timestep, no crashes. The closest live check is `scripts/verify-streaming-render.ts` (manual, headed Chrome).
 
 **Tolerance table (`tests/tolerances.ts`).** Honest per-kernel × per-precision; bare operator keys, `{rtol, atol}` cells (the atol floor is what keeps curl/div honest at their zero-crossings — magnitude needs none):
 
@@ -852,8 +849,8 @@ Header marks each cell measured vs derived: magnitude/curl/div @ `webgpu_f32` me
 **Not tested**
 - Three.js scene state, materials, render output (visual regressions flaky).
 - Zustand mechanics (library).
-- UI components beyond one smoke per panel binding canonical names correctly.
-- Worker plumbing beyond pairing integration test.
+- Visual output of UI chrome; the `*.dom.test.ts` suites assert structure, bindings, and dispatched intents only.
+- Data-worker plumbing beyond the OPFS round-trip (`data/cache.browser.test.ts`, local-only).
 
 **Fixture generation.** `scripts/gen-fixtures.ts` invokes pypic in dev; outputs checked into `tests/fixtures/v{N}/`. `scripts/gen-synthetic.ts` generates analytical fields (no pypic dep). CI does not require pypic.
 
@@ -861,11 +858,11 @@ Header marks each cell measured vs derived: magnitude/curl/div @ `webgpu_f32` me
 
 ## CI infrastructure
 
-- **Linux runners (free GitHub Actions):** Playwright Chromium headless with `--enable-unsafe-webgpu --use-vulkan=swiftshader`. Runs unit tests, schema tests, TS-backend kernel tests, boundary check, Biome. Cross-backend equivalence (TS vs WebGPU) runs **only on macOS/M2-Pro runners** with real WebGPU — SwiftShader is technically functional but too slow and too unrepresentative of consumer GPUs to gate PRs on.
-- **macOS or self-hosted M2 Pro runner:** perf gate (M2 acceptance), real-WebGPU integration tests, OffscreenCanvas worker smoke test.
-- **Conditional skips:** `test.skip(!hasTimestampQuery())` for timing tests; `test.skip(!hasShaderF16())` for f16 paths.
-- **Browser matrix:** Chrome stable + Chrome Canary every PR; Safari TP nightly via BrowserStack or equivalent.
-- **Artifacts:** screenshots on render-test failures, `timestamp-query` profile dumps on perf regressions.
+**What runs (`.github/workflows/ci.yml`, one `ubuntu-latest` job, Node 24):** `typecheck` → `check:boundaries` → `gen:check` → `gen:themes:check` → `lint:ci` → `test:coverage` (node + dom projects; the coverage report uploads as an artifact) → `build` → `build:embed` → `docs:api` (TypeDoc with `treatWarningsAsErrors`) → `size`. `pages.yml` deploys `dist/` plus the API reference under `/api/` on every push to `main`, queued rather than cancelled.
+
+**Local-only tiers** (need a real GPU or a pypic checkout; never in CI): `test:gpu` (cross-backend parity, streamlines, composite, pick, worker frame parity — headed system Chrome), `perf:gate` (M0/M2 acceptance numbers), `test:parity` (`WEBPIC_PYPIC_PARITY=1`, schema + writer parity against live pypic). The pre-push lefthook runs `typecheck` + `test` so the CI-shaped failures surface before a push.
+
+**Deferred (was the original CI design; nothing here exists yet):** a Linux SwiftShader WebGPU tier (`--enable-unsafe-webgpu --use-vulkan=swiftshader` — functional but too slow and unrepresentative to gate on), a macOS/M2-Pro runner for the perf gate and real-WebGPU suites, a Chrome stable + Canary matrix with Safari TP nightly, and screenshot/`timestamp-query` artifacts on render failures. Revisit when a self-hosted Apple-silicon runner is available; until then the GPU tier is a documented manual step before any render-touching merge.
 
 ---
 

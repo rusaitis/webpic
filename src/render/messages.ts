@@ -1,9 +1,10 @@
 import type { CameraMotion, CameraPose, CameraProjection } from "@schema/camera.ts";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
+import type { FieldLayerKind, LayerKind, SliceAxis } from "@schema/layers.ts";
 import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
 import type { Rgba01 } from "@schema/theme.ts";
+import type { FrameClock } from "@schema/timing.ts";
 import type { Vec3 } from "@schema/types.ts";
-import type { SliceAxis } from "./volume/sliceScene.ts";
 
 export type { CameraMotion, CameraPose, CameraProjection, MarkerPart, PickPurpose, WindowLevel };
 
@@ -39,6 +40,7 @@ export const REQUEST_IDS = {
   perf: 13,
   shaderHmr: 14,
   screenshot: 15,
+  dispose: 16,
 } as const;
 
 // A computed scalar field, serialized for transfer to the worker: the typed array can't
@@ -50,14 +52,26 @@ export interface SliceFieldPayload {
   readonly shape: readonly number[];
 }
 
-// The renderable kind of a layer (picks the scene factory + the composite camera). The single home
-// for the render-side discriminant; the store mirrors it structurally as `Layer["kind"]` (the DAG
-// keeps the two layers from importing each other — they agree by validation at the message boundary).
-// Field layers carry a 3D scalar texture (slice/volume, one upsert path); field lines carry packed
-// polylines (a separate upsert + scene), so the field-only upsertLayer message can't be handed a
-// fieldlines kind. LayerKind still names every renderable layer (the composite camera picks by it).
-export type FieldLayerKind = "slice" | "volume";
-export type LayerKind = FieldLayerKind | "fieldlines";
+// The layer discriminants (@schema/layers) — one home for store, wire, and render. Field layers carry
+// a 3D scalar texture (slice/volume, one upsert path); field lines carry packed polylines (a separate
+// upsert + scene), so the field-only upsertLayer message can't be handed a fieldlines kind. LayerKind
+// still names every renderable layer (the composite camera picks by it).
+export type { FieldLayerKind, LayerKind, SliceAxis };
+
+// The per-kind build params of a field layer — what a slice needs (its held axis + plane) and what
+// a volume needs (march + look + box aspect), each only on its own kind. Omitted volume params fall
+// back to the scene factory defaults.
+export type FieldLayerParams =
+  | { readonly layerKind: "slice"; readonly axis: SliceAxis; readonly position: number }
+  | {
+      readonly layerKind: "volume";
+      readonly steps?: number;
+      readonly density?: number;
+      readonly shaded?: boolean; // Phong toggle
+      // Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (unit cube). Scales the
+      // volume mesh to the dataset's physical aspect (non-cubic grids).
+      readonly worldHalfExtent?: Vec3;
+    };
 
 // One field axis's physical extent + sample count + name, for the scene overlay's labeled grid/axes.
 // FIELD-axis order (0/1/2 = pypic GridInfo). `bounds` are inclusive [min, max] in code units (the app
@@ -123,27 +137,18 @@ export type RenderWorkerRequest =
       readonly height: number;
       readonly devicePixelRatio: number;
     }
-  // Build or rebuild one layer's scene (instance-first composite). Transfers the field buffer;
-  // `layerKind` is the renderable kind (the message `kind` is the discriminant). Kind-specific
-  // params are optional — omitted ones fall back to the scene factory defaults.
+  // Build or rebuild one layer's scene (instance-first composite). Transfers the field buffer; the
+  // kind-specific build params ride `params`, discriminated on the renderable kind.
   | {
       readonly kind: "upsertLayer";
       readonly requestId: number;
       readonly id: string;
-      readonly layerKind: FieldLayerKind;
       readonly field: SliceFieldPayload;
       readonly colormap: string;
       readonly scale: ColorScale;
       readonly opacity: number;
       readonly windowLevel?: WindowLevel;
-      readonly axis?: SliceAxis;
-      readonly position?: number;
-      readonly steps?: number;
-      readonly density?: number;
-      readonly shaded?: boolean; // volume-only Phong toggle
-      // Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (unit cube). Scales the
-      // volume mesh to the dataset's physical aspect (non-cubic grids). Volume-only.
-      readonly worldHalfExtent?: Vec3;
+      readonly params: FieldLayerParams;
     }
   // Build or rebuild a field-line layer's scene from packed world-space polylines. Transfers both
   // buffers: `positions` is flat f32 xyz for every vertex of every line concatenated in line order,
@@ -212,7 +217,7 @@ export type RenderWorkerRequest =
       readonly requestId: number;
       readonly projection: CameraProjection;
     }
-  // Diagnostics: force sustained every-frame repaints so the GPU timer yields a live stream (the
+  // Render timing: force sustained every-frame repaints so the GPU timer yields a live stream (the
   // exit-gate workload). Off by default — timing is sampled only while continuous, so on-demand
   // interactive frames skip the per-frame GPU sync.
   | { readonly kind: "setContinuous"; readonly requestId: number; readonly continuous: boolean }
@@ -278,7 +283,11 @@ export type RenderWorkerRequest =
   // Data3DTexture + live uniforms (look) + pose are all preserved (no 64 MiB re-upload, no reload).
   // Never sent in production (gated behind `import.meta.hot` on the sender, `import.meta.env.DEV` on
   // the worker), so it costs the prod bundle nothing.
-  | { readonly kind: "rebuildShader"; readonly requestId: number; readonly timestamp: number };
+  | { readonly kind: "rebuildShader"; readonly requestId: number; readonly timestamp: number }
+  // Orderly teardown before the main thread terminates the worker: every manager's dispose() runs,
+  // the stream port closes, the renderer + GPU device go. Acked with `disposed`; main terminates on
+  // the ack (or after a short grace period, so a wedged worker can't block the page's own teardown).
+  | { readonly kind: "dispose"; readonly requestId: number };
 
 // Why a terminal GPU loss could not be recovered: re-acquisition found no adapter, or the recovery
 // circuit-breaker tripped on repeated rapid losses.
@@ -298,7 +307,7 @@ export type RenderWorkerResponse =
   | {
       readonly kind: "frameTiming";
       readonly gpuTimeMs: number;
-      readonly clock: "timestamp" | "wallclock";
+      readonly clock: FrameClock;
     }
   // Dev-mode perf HUD sample (≤5 Hz while active). All wall-clock: `cpuEncodeMs` brackets
   // renderComposite (encode+submit); `frameWallMs` is the onSubmittedWorkDone bracket (NaN on
@@ -357,4 +366,5 @@ export type RenderWorkerResponse =
       readonly requestId: number;
       readonly reason: GpuRecoveryReason;
       readonly message: string;
-    };
+    }
+  | { readonly kind: "disposed"; readonly requestId: number };

@@ -1,70 +1,16 @@
 // Render-side device-loss recovery: when gpu/ re-acquires the device after a loss and fires
 // onDeviceRestored, the worker must rebuild the renderer on the new device and rebuild every layer
-// scene from its retained CPU source (no main↔worker reseed). three/webgpu can't load in node, so
-// the renderer + scene factories + the gpu seam are mocked; camera.ts / frameTimer.ts / messages.ts
-// are the real (pure-three / pure-JS) modules. One stateful flow: init → upsert → loss → restore.
+// scene from its retained CPU source (no main↔worker reseed). Mocks come from testing/workerHarness.ts;
+// camera.ts / frameTimer.ts / messages.ts are the real (pure-three / pure-JS) modules. One stateful flow: init → upsert → loss → restore.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type { RenderWorkerRequest } from "./messages.ts";
 
-const h = vi.hoisted(() => {
-  const lostCbs: Array<(e: { kind: string; message: string; terminal: boolean }) => void> = [];
-  const restoredCbs: Array<(d: unknown) => void> = [];
-  const renderers: Array<{
-    renderComposite: ReturnType<typeof vi.fn>;
-    compileComposite: ReturnType<typeof vi.fn>;
-    dispose: ReturnType<typeof vi.fn>;
-  }> = [];
-  const makeScene = () => ({
-    scene: {},
-    setWindowLevel: vi.fn(),
-    setColormap: vi.fn(),
-    setScale: vi.fn(),
-    setOpacity: vi.fn(),
-    setStepScale: vi.fn(),
-    setProjection: vi.fn(),
-    dispose: vi.fn(),
-  });
-  return {
-    lostCbs,
-    restoredCbs,
-    renderers,
-    makeScene,
-    installRenderer: vi.fn(async (_opts: { device?: unknown }) => {
-      const r = {
-        renderer: {},
-        renderComposite: vi.fn(),
-        compileComposite: vi.fn(async () => {}),
-        readCompositePixels: vi.fn(),
-        readPixels: vi.fn(),
-        setSize: vi.fn(),
-        setRenderScale: vi.fn(),
-        dispose: vi.fn(),
-      };
-      h.renderers.push(r);
-      return r;
-    }),
-    createRaymarchScene: vi.fn(() => h.makeScene()),
-    createSliceScene: vi.fn(() => h.makeScene()),
-    createTestScene: vi.fn(() => ({ scene: {}, dispose: vi.fn() })),
-  };
-});
+const h = await vi.hoisted(() =>
+  import("./testing/workerHarness.ts").then((m) => m.createWorkerHarness()),
+);
 
-vi.mock("@gpu", () => ({
-  installGpu: vi.fn(async () => ({ dispose: vi.fn() })),
-  getDevice: vi.fn(() => ({ queue: { onSubmittedWorkDone: async () => undefined } })),
-  getCapabilities: vi.fn(() => ({ hasTimestampQuery: false, hasFloat32Filterable: false })),
-  onDeviceLost: (cb: (e: { kind: string; message: string; terminal: boolean }) => void) => {
-    h.lostCbs.push(cb);
-    return () => {};
-  },
-  onDeviceRestored: (cb: (d: unknown) => void) => {
-    h.restoredCbs.push(cb);
-    return () => {};
-  },
-  resetLedger: vi.fn(),
-  vramSnapshot: vi.fn(() => ({ totalBytes: 0, byKey: [] })),
-}));
+vi.mock("@gpu", () => h.gpu);
 vi.mock("./runtime/renderer.ts", () => ({ installRenderer: h.installRenderer }));
 vi.mock("./volume/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
 vi.mock("./volume/sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
@@ -102,7 +48,7 @@ it("rebuilds the renderer + every layer scene on the new device when the device 
       kind: "upsertLayer",
       requestId: 2,
       id: "layer-0",
-      layerKind: "volume",
+      params: { layerKind: "volume" },
       field: { buffer: new Float32Array([5]).buffer, dtype: "f32", shape: [1, 1, 1] },
       colormap: "inferno",
       scale: "linear",

@@ -1,6 +1,6 @@
-import { createSimulationStore } from "@store";
+import { createPerfStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
-import { installDiagnosticsPanel, rollingMean } from "./diagnosticsPanel.ts";
+import { installTimingPanel, rollingMean } from "./timingPanel.ts";
 
 function readoutText(host: HTMLElement): string {
   return host.querySelector(".webpic-placeholder")?.textContent ?? "";
@@ -27,12 +27,12 @@ describe("rollingMean", () => {
   });
 });
 
-describe("diagnostics panel", () => {
+describe("frame timing panel", () => {
   it("starts awaiting a frame, then shows a rolling readout against the 8 ms gate", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
-    const store = createSimulationStore();
-    const dispose = installDiagnosticsPanel(host, store);
+    const store = createPerfStore();
+    const dispose = installTimingPanel(host, store);
 
     expect(readoutText(host)).toContain("awaiting first frame");
 
@@ -53,8 +53,8 @@ describe("diagnostics panel", () => {
   it("labels the wall-clock fallback distinctly from timestamp-query", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
-    const store = createSimulationStore();
-    const dispose = installDiagnosticsPanel(host, store);
+    const store = createPerfStore();
+    const dispose = installTimingPanel(host, store);
     store.getState().setFrameTiming(3, "wallclock");
     expect(readoutText(host)).toContain("wall-clock");
     expect(readoutText(host)).not.toContain("timestamp-query");
@@ -64,8 +64,8 @@ describe("diagnostics panel", () => {
   it("the Measure checkbox toggles isMeasuringContinuous and resets it on dispose", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
-    const store = createSimulationStore();
-    const dispose = installDiagnosticsPanel(host, store);
+    const store = createPerfStore();
+    const dispose = installTimingPanel(host, store);
 
     expect(store.getState().isMeasuringContinuous).toBe(false);
     const checkbox = measureCheckbox(host);
@@ -80,8 +80,8 @@ describe("diagnostics panel", () => {
   it("reflects an external continuous toggle into the checkbox without a feedback loop", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
-    const store = createSimulationStore();
-    const dispose = installDiagnosticsPanel(host, store);
+    const store = createPerfStore();
+    const dispose = installTimingPanel(host, store);
 
     store.getState().setMeasuringContinuous(true);
     expect(measureCheckbox(host).checked).toBe(true);

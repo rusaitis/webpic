@@ -16,7 +16,7 @@ const FALLBACK_ACCENT: Rgba01 = [1, 0.78, 0.25, 1];
 const GUIDE_MIN_OPACITY = 0.55;
 
 /** Resolve the marker's build config from a theme — accent core + grid-derived guide color. Pure. */
-export function buildMarkerConfig(theme?: Theme): MarkerConfig {
+function buildMarkerConfig(theme?: Theme): MarkerConfig {
   const grid = resolveOverlayColors(theme).grid;
   return {
     coreColor: theme?.colors.accent ?? FALLBACK_ACCENT,

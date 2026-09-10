@@ -1,3 +1,4 @@
+import { logWarn } from "@schema/log.ts";
 import type { ConfidenceFn, DataHandle, SimulationReader } from "./_protocols.ts";
 
 // Confidence-ranked reader dispatch (mirrors pypic.readers._registry.open_simulation): every
@@ -19,11 +20,11 @@ export interface ReaderRegistry {
   // warns (mirrors pypic), so the disposer only removes the entry it actually installed.
   register(reader: SimulationReader, confidence: ConfidenceFn): () => void;
   // Probe every registered reader in parallel. Never throws — a probe that rejects becomes a
-  // confidence-0 ProbeResult carrying its message.
-  probe(handle: DataHandle): Promise<ProbeResult[]>;
+  // confidence-0 ProbeResult carrying its message (an aborted probe reads as confidence 0 too).
+  probe(handle: DataHandle, signal?: AbortSignal): Promise<ProbeResult[]>;
   // Highest-confidence reader for the handle. Throws an actionable Error when the registry is empty
-  // or no reader recognizes the handle.
-  open(handle: DataHandle): Promise<SimulationReader>;
+  // or no reader recognizes the handle; rethrows the signal's reason when aborted.
+  open(handle: DataHandle, signal?: AbortSignal): Promise<SimulationReader>;
   // Registered reader ids, in registration order.
   ids(): string[];
   clear(): void;
@@ -46,24 +47,25 @@ export function createReaderRegistry(): ReaderRegistry {
     id: string,
     entry: ReaderEntry,
     handle: DataHandle,
+    signal: AbortSignal | undefined,
   ): Promise<ProbeResult> {
     try {
-      return { id, confidence: await entry.confidence(handle), error: null };
+      return { id, confidence: await entry.confidence(handle, signal), error: null };
     } catch (error) {
       return { id, confidence: 0, error: errorMessage(error) };
     }
   }
 
   // Closure-level so open() doesn't depend on `this` (a destructured open() must still work).
-  function probeAll(handle: DataHandle): Promise<ProbeResult[]> {
-    return Promise.all([...entries].map(([id, entry]) => probeEntry(id, entry, handle)));
+  function probeAll(handle: DataHandle, signal: AbortSignal | undefined): Promise<ProbeResult[]> {
+    return Promise.all([...entries].map(([id, entry]) => probeEntry(id, entry, handle, signal)));
   }
 
   return {
     register(reader, confidence) {
       const id = reader.id;
       if (entries.has(id)) {
-        console.warn(`reader registry: overwriting existing reader "${id}"`);
+        logWarn("readers", `overwriting existing reader "${id}"`);
       }
       const entry: ReaderEntry = { reader, confidence };
       entries.set(id, entry);
@@ -74,11 +76,11 @@ export function createReaderRegistry(): ReaderRegistry {
       };
     },
 
-    probe(handle) {
-      return probeAll(handle);
+    probe(handle, signal) {
+      return probeAll(handle, signal);
     },
 
-    async open(handle) {
+    async open(handle, signal) {
       if (entries.size === 0) {
         throw new Error(
           "reader registry: no readers registered. Call registerBuiltinReaders() (the app/embed " +
@@ -86,7 +88,8 @@ export function createReaderRegistry(): ReaderRegistry {
         );
       }
 
-      const probes = await probeAll(handle);
+      const probes = await probeAll(handle, signal);
+      signal?.throwIfAborted(); // every probe read as 0 under abort — surface the abort, not "no reader"
       const candidates = probes.filter((p) => p.confidence > 0);
 
       if (candidates.length === 0) {
@@ -101,11 +104,14 @@ export function createReaderRegistry(): ReaderRegistry {
         );
       }
 
-      // Highest confidence wins; alphabetical id tiebreak for determinism (mirrors pypic).
-      candidates.sort((a, b) => b.confidence - a.confidence || a.id.localeCompare(b.id));
-      const winner = candidates[0];
-      // candidates is non-empty (checked above), but noUncheckedIndexedAccess can't see that.
-      if (winner === undefined) throw new Error("reader registry: unreachable empty candidate set");
+      // Highest confidence wins; alphabetical id tiebreak for determinism (mirrors pypic). A reduce
+      // over the non-empty list yields a definite winner without an index the checker can't prove.
+      const winner = candidates.reduce((best, candidate) =>
+        candidate.confidence > best.confidence ||
+        (candidate.confidence === best.confidence && candidate.id.localeCompare(best.id) < 0)
+          ? candidate
+          : best,
+      );
       const entry = entries.get(winner.id);
       if (entry === undefined)
         throw new Error(`reader registry: reader "${winner.id}" vanished mid-open`);
@@ -134,10 +140,13 @@ export function registerReader(reader: SimulationReader, confidence: ConfidenceF
   return defaultRegistry.register(reader, confidence);
 }
 
-export function openSimulation(handle: DataHandle): Promise<SimulationReader> {
-  return defaultRegistry.open(handle);
+export function openSimulation(
+  handle: DataHandle,
+  signal?: AbortSignal,
+): Promise<SimulationReader> {
+  return defaultRegistry.open(handle, signal);
 }
 
-export function probeReaders(handle: DataHandle): Promise<ProbeResult[]> {
-  return defaultRegistry.probe(handle);
+export function probeReaders(handle: DataHandle, signal?: AbortSignal): Promise<ProbeResult[]> {
+  return defaultRegistry.probe(handle, signal);
 }

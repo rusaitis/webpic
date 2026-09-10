@@ -1,4 +1,5 @@
 import { releaseAlloc, trackAlloc } from "@gpu/vramLedger.ts";
+import { finiteMin, finiteRange, type ValueRange } from "@reductions";
 import type { FloatArray } from "@schema/types.ts";
 import {
   ClampToEdgeWrapping,
@@ -53,35 +54,10 @@ interface PingPongBuffer {
   readonly array: Float32Array | Uint16Array; // the texture's CPU image, rewritten in place on swap
 }
 
-// Finite-only range in one pass; non-finite samples are excluded. Constant/empty fields are widened
-// so the normalization divide stays finite. Mirrors the pack-time NaN→min fill below. Exported for
-// the worker's pickRay fallback window (a layer source with no windowLevel — the defensive path).
-export function finiteRange(data: FloatArray): { readonly min: number; readonly max: number } {
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
-  for (let i = 0; i < data.length; i++) {
-    const v = data[i];
-    if (v === undefined || !Number.isFinite(v)) continue;
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-  if (min > max) return { min: 0, max: 1 }; // no finite samples at all
-  if (min === max) return { min, max: min + 1 }; // constant field — keep the divide finite
-  return { min, max };
-}
-
-// Finite-only minimum in one pass — the setField fill value (NaN→this step's floor; see packInto).
-// Matches finiteRange's no-finite-samples case (0) so the streamed fill stays identical to the
-// construction-time fill, without scanning for the max setField never reads (a per-scrub-step path).
-function finiteMin(data: FloatArray): number {
-  let min = Number.POSITIVE_INFINITY;
-  for (let i = 0; i < data.length; i++) {
-    const v = data[i];
-    if (v === undefined || !Number.isFinite(v)) continue;
-    if (v < min) min = v;
-  }
-  return min === Number.POSITIVE_INFINITY ? 0 : min; // no finite samples → 0, as finiteRange returns
-}
+// The upload's range when no sample is finite (an all-NaN step): a unit range keeps the normalization
+// divide finite, and its min (0) is the NaN fill packInto substitutes — so the construction-time and
+// streamed fills stay identical. Exported for the worker's pickRay fallback window.
+export const NO_FINITE_RANGE: ValueRange = { min: 0, max: 1 };
 
 // Pack a field into `out` (R32F float | R16F half), replacing non-finite samples with `fill` so a
 // stray NaN/inf can't poison a trilinear-filtered neighborhood. Array-type branch hoisted out of the
@@ -119,7 +95,7 @@ export function createVolumeTexture(
   const [depth, height, width] = shape as readonly [number, number, number]; // length checked above
   const voxels = width * height * depth;
 
-  const { min, max } = finiteRange(field.data);
+  const { min, max } = finiteRange(field.data) ?? NO_FINITE_RANGE;
   const bytesPerVoxel = float32Filterable ? 4 : 2; // R32F vs R16F
 
   const makeBuffer = (data: FloatArray, fill: number, slot: number): PingPongBuffer => {
@@ -157,7 +133,7 @@ export function createVolumeTexture(
       const [d, h, w] = next.shape as readonly [number, number, number]; // length checked above
       if (w !== width || h !== height || d !== depth) return false; // shape change → caller rebuilds
       // NaN→this step's own floor (a local pack detail); the window/level normalization is unchanged.
-      const fill = finiteMin(next.data);
+      const fill = finiteMin(next.data) ?? NO_FINITE_RANGE.min;
       const slot = active ^ 1; // the inactive buffer
       let target = buffers[slot];
       if (target === undefined) {

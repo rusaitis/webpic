@@ -1,5 +1,6 @@
 import {
   type ColorScale,
+  fullRangeWindow,
   LOG_DECADES,
   logWindowFloor,
   type WindowLevel,
@@ -21,12 +22,6 @@ const LOG_EPS = 1e-30; // floors log inputs so a non-positive lo/raw yields a fi
 /** Floor a window width's magnitude so the in-shader divide stays finite. */
 export function safeWidth(width: number): number {
   return Math.max(Math.abs(width), MIN_WIDTH);
-}
-
-/** The full-range window over [vmin, vmax] — centered, spanning the whole interval (matplotlib's
- *  Normalize default, where vmin/vmax are the data limits). Mirrors the store's fullRangeWindow. */
-export function fullRangeWindow(vmin: number, vmax: number): WindowLevel {
-  return { center: (vmin + vmax) / 2, width: vmax - vmin };
 }
 
 // linear 0, log 1, symlog 2 — the in-shader uScaleMode value the TSL branches select on.
@@ -87,7 +82,7 @@ export function createNormalization(
   wl?: WindowLevel,
   scale: ColorScale = "linear",
 ): Normalization {
-  const window = wl ?? fullRangeWindow(vmin, vmax);
+  const window = wl ?? fullRangeWindow({ min: vmin, max: vmax });
   const uCenter = uniform(window.center);
   const uWidth = uniform(safeWidth(window.width));
   const uScaleMode = uniform(scaleMode(scale));

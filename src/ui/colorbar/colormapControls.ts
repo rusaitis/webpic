@@ -12,6 +12,7 @@ import {
   type SimulationStore,
   selectActiveBinding,
   selectActiveLayer,
+  selectDataRange,
 } from "@store";
 import {
   type ControlHandle,
@@ -22,6 +23,7 @@ import {
   type SelectHandle,
   windowToInterval,
 } from "../controls/index.ts";
+import { createSubscriptions } from "../subscriptions.ts";
 import { formatValue, paintGradient } from "./colorbarGradient.ts";
 
 // The colormap controls — colormap / value→color scale / window-level — for the *selected layer's*
@@ -66,7 +68,7 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
     if (bindingId === null) return null;
     const binding = state.colormapBindings[bindingId];
     if (binding === undefined) return null;
-    return { id: bindingId, binding, bounds: state.dataRange };
+    return { id: bindingId, binding, bounds: selectDataRange(state) };
   };
 
   const dispatchColormap = (colormap: ColormapId): void => {
@@ -158,14 +160,13 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
 
   rebuild();
 
-  const unsubSelected = store.subscribe((s) => s.selectedLayerId, rebuild);
-  const unsubRange = store.subscribe((s) => s.dataRange, rebuild); // new extent → re-bake the track
-  const unsubBindings = store.subscribe(selectActiveBinding, sync);
+  const subs = createSubscriptions();
+  subs.on(store, (s) => s.selectedLayerId, rebuild);
+  subs.on(store, selectDataRange, rebuild); // new extent → re-bake the track
+  subs.on(store, selectActiveBinding, sync);
 
   return () => {
-    unsubBindings();
-    unsubRange();
-    unsubSelected();
+    subs.dispose();
     windowControl?.dispose();
     scaleControl?.dispose();
     colormapControl?.dispose();

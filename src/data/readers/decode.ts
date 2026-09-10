@@ -154,7 +154,7 @@ function formatZodError(error: z.ZodError): string {
 function parseBlock<T>(schema: z.ZodType<T>, value: unknown, label: string): T {
   const result = schema.safeParse(value);
   if (!result.success) {
-    throw new Error(`${label}: ${formatZodError(result.error)}`);
+    throw new Error(`${label}: ${formatZodError(result.error)}`, { cause: result.error });
   }
   return result.data;
 }
@@ -163,7 +163,12 @@ function parseBlock<T>(schema: z.ZodType<T>, value: unknown, label: string): T {
 export function assertPypicSchema(rootAttrs: Record<string, unknown>, source: string): void {
   const parsed = SchemaDiscriminatorSchema.safeParse(rootAttrs.schema);
   if (!parsed.success) {
-    throw new Error(`${source}: no pypic metadata found (expected a schema.version discriminator)`);
+    throw new Error(
+      `${source}: no pypic metadata found (expected a schema.version discriminator)`,
+      {
+        cause: parsed.error,
+      },
+    );
   }
   if (parsed.data.version !== SCHEMA_VERSION) {
     throw new Error(

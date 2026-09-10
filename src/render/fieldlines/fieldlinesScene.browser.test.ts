@@ -4,14 +4,12 @@
 // headed-Chrome `gpu` vitest project (`npm run test:gpu`) — local-only, not CI.
 
 import { describe, expect, it } from "vitest";
-
-const hasRealGpu =
-  typeof navigator !== "undefined" && "gpu" in navigator && typeof OffscreenCanvas !== "undefined";
+import { flushAsync } from "../../../tests/helpers.ts";
 
 const SIZE = 96;
 
 describe("fieldlines scene", () => {
-  it.skipIf(!hasRealGpu)("renders batched polylines to the canvas", async () => {
+  it("renders batched polylines to the canvas", async () => {
     const { installRenderer } = await import("../runtime/renderer.ts");
     const { createOrthographicCamera } = await import("../camera/camera.ts");
     const { createFieldlinesScene } = await import("./fieldlinesScene.ts");
@@ -33,7 +31,7 @@ describe("fieldlines scene", () => {
     const camera = createOrthographicCamera();
     try {
       renderer.renderComposite([{ scene: lines.scene, camera }]);
-      await new Promise((resolve) => setTimeout(resolve)); // let the frame present
+      await flushAsync(); // let the frame present
       const bitmap = await createImageBitmap(await canvas.convertToBlob());
       const probe = new OffscreenCanvas(SIZE, SIZE);
       const ctx = probe.getContext("2d");

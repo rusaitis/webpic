@@ -14,13 +14,13 @@ export const PANEL_REGISTRY: Readonly<Record<string, PanelInstaller>> = {
 
 // Panels a theme may still name that another surface owns — the instance-first UI moved most of the
 // docked shell into floating chrome, but theme schema v1 `default-panels` predates that. Docking
-// these anyway renders the surface twice (a second colorbar; a second Diagnostics pane that makes a
+// these anyway renders the surface twice (a second colorbar; a second frame-timing pane that makes a
 // bare `.webpic-pane` locator ambiguous under Playwright strict mode). They are relocated, not
 // missing, so the shell drops them rather than placeholdering. Drop entries as the schema bumps.
 export const SERVED_ELSEWHERE: ReadonlySet<string> = new Set([
   "colormap", // ui/colorbar/ — colormap controls live in the colorbar popover
   "layers", // ui/colorbar/ — the instance-first layer list
-  "diagnostics", // ui/panels/devWindow.ts — the floating Developer window
+  "diagnostics", // the theme's name for the timing panel (ui/panels/timingPanel.ts, in the Developer window)
   "dataset", // top bar
   "time", // top bar
   "scene", // left tool rail (installScenePanel, mounted directly — not via mountPanel)

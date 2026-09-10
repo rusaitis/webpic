@@ -6,7 +6,7 @@ import type { LayerKind } from "@store";
 // dots opt back in locally). Kept out of ui/icons.ts, which is scoped to cross-cutting affordances.
 
 // One mark per renderable primitive — the verb-as-add rail buttons and the panel rows share these.
-export const LAYER_KIND_ICON: Record<LayerKind, string> = {
+export const LAYER_KIND_ICON: Readonly<Record<LayerKind, string>> = {
   // An isometric cube — the volume.
   volume: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2l5 2.6v6.4L8 13.8l-5-2.6V4.8z"/><path d="M3 4.8l5 2.6 5-2.6M8 7.4v6.4"/></svg>`,
   // A tilted parallelogram — a single cutting plane.
@@ -14,7 +14,6 @@ export const LAYER_KIND_ICON: Record<LayerKind, string> = {
   // Two flowing curves — traced streamlines.
   fieldlines: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 11c3-1 3-7 6-7s3 6 6 5"/><path d="M2 8c3-1 3-5 6-5"/></svg>`,
   // Scattered filled dots — a particle cloud.
-  particles: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="11.2" cy="4" r="1.3" fill="currentColor" stroke="none"/><circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="10.2" r="1.3" fill="currentColor" stroke="none"/></svg>`,
 };
 
 // Visibility toggle: open eye vs. struck-through eye.
@@ -30,3 +29,6 @@ export const ICON_PLUS = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M
 // Reorder chevrons — move a layer row up/down the draw order.
 export const ICON_CARET_UP = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg>`;
 export const ICON_CARET_DOWN = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>`;
+
+// The rail's disabled "Particles — v0.2" placeholder; not a LayerKind until the particle scene lands.
+export const PARTICLES_PLACEHOLDER_ICON = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="11.2" cy="4" r="1.3" fill="currentColor" stroke="none"/><circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="10.2" r="1.3" fill="currentColor" stroke="none"/></svg>`;

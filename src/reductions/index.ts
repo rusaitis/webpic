@@ -1,3 +1,3 @@
-// Reserved layer (pypic-mirrored DAG): field reductions (min/max/mean, histograms, timeseries).
-// Pure leaf — typed arrays in/out. Lands with the analyzer leg; see docs/DESIGN.md.
-export {};
+// Field reductions — pure leaf, typed arrays in/out (mirrors pypic.reductions). Value-range extrema
+// live here today; histograms/means/timeseries land with the analyzer leg (docs/DESIGN.md).
+export * from "./range.ts";

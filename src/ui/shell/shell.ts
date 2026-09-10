@@ -1,4 +1,5 @@
 import type { UiStore } from "@store";
+import { createSubscriptions } from "../subscriptions.ts";
 
 // Docked, hideable panel container: one host element per panel name. `isUiVisible` hides
 // the whole shell, per-panel visibility hides individual hosts. Reads `uiStore` only —
@@ -41,12 +42,9 @@ export function createShell(opts: ShellOptions): Shell {
     for (const [name, host] of hosts) host.hidden = !(panels[name] ?? true);
   };
 
-  const initial = opts.uiStore.getState();
-  applyVisible(initial.isUiVisible);
-  applyPanels(initial.panels);
-
-  const unsubVisible = opts.uiStore.subscribe((s) => s.isUiVisible, applyVisible);
-  const unsubPanels = opts.uiStore.subscribe((s) => s.panels, applyPanels);
+  const subs = createSubscriptions();
+  subs.on(opts.uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
+  subs.on(opts.uiStore, (s) => s.panels, applyPanels, { fireNow: true });
 
   return {
     root,
@@ -56,8 +54,7 @@ export function createShell(opts: ShellOptions): Shell {
       return host;
     },
     dispose() {
-      unsubVisible();
-      unsubPanels();
+      subs.dispose();
       root.remove();
     },
   };

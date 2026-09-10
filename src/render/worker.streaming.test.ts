@@ -2,52 +2,17 @@
 // posts streamStep messages over it; the worker routes them through swapLayerField — an in-place
 // ping-pong upload onto the existing scene (scene.setField), keeping its retained look and avoiding a
 // pipeline rebuild. When setField declines (shape change / skip-grid volume) it falls back to a full
-// rebuild. three/webgpu can't load in node, so the renderer + scene factories + the gpu seam are
-// mocked (same pattern as worker.recovery.test.ts). Flow: init → upsert layer-0 → pair → streamStep.
+// rebuild. Mocks come from testing/workerHarness.ts. Flow: init → upsert layer-0 → pair → streamStep.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
-const h = vi.hoisted(() => {
-  // setField returns true by default (in-place swap accepted); a test overrides it to force the
-  // rebuild fallback. The mock is per-scene so each created scene carries its own spy.
-  const makeScene = () => ({
-    scene: {},
-    setWindowLevel: vi.fn(),
-    setColormap: vi.fn(),
-    setScale: vi.fn(),
-    setShading: vi.fn(),
-    setOpacity: vi.fn(),
-    setStepScale: vi.fn(),
-    setProjection: vi.fn(),
-    setField: vi.fn(() => true),
-    dispose: vi.fn(),
-  });
-  return {
-    makeScene,
-    installRenderer: vi.fn(async () => ({
-      renderer: {},
-      renderComposite: vi.fn(),
-      compileComposite: vi.fn(async () => {}),
-      readCompositePixels: vi.fn(),
-      setSize: vi.fn(),
-      setRenderScale: vi.fn(),
-      dispose: vi.fn(),
-    })),
-    createRaymarchScene: vi.fn((_opts: unknown) => makeScene()),
-    createSliceScene: vi.fn((_opts: unknown) => makeScene()),
-    createTestScene: vi.fn(() => ({ scene: {}, dispose: vi.fn() })),
-  };
-});
+const h = await vi.hoisted(() =>
+  import("./testing/workerHarness.ts").then((m) => m.createWorkerHarness()),
+);
 
-vi.mock("@gpu", () => ({
-  installGpu: vi.fn(async () => ({ dispose: vi.fn() })),
-  getDevice: vi.fn(() => ({ queue: { onSubmittedWorkDone: async () => undefined } })),
-  getCapabilities: vi.fn(() => ({ hasTimestampQuery: false, hasFloat32Filterable: false })),
-  onDeviceLost: () => () => {},
-  onDeviceRestored: () => () => {},
-}));
+vi.mock("@gpu", () => h.gpu);
 vi.mock("./runtime/renderer.ts", () => ({ installRenderer: h.installRenderer }));
 vi.mock("./volume/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
 vi.mock("./volume/sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
@@ -84,7 +49,7 @@ it("applies a streamStep in place via scene.setField (no scene rebuild)", async 
       kind: "upsertLayer",
       requestId: 2,
       id: "layer-0",
-      layerKind: "volume",
+      params: { layerKind: "volume" },
       field: { buffer: new Float32Array([5]).buffer, dtype: "f32", shape: [1, 1, 1] },
       colormap: "inferno",
       scale: "linear",
@@ -125,7 +90,7 @@ it("falls back to a scene rebuild when setField declines the in-place swap", asy
       kind: "upsertLayer",
       requestId: 5,
       id: "layer-1",
-      layerKind: "volume",
+      params: { layerKind: "volume" },
       field: { buffer: new Float32Array([7]).buffer, dtype: "f32", shape: [1, 1, 1] },
       colormap: "viridis",
       scale: "linear",
@@ -195,19 +160,34 @@ it("setProjection flips every volume scene's ray generation (uniform, no rebuild
 
 it("ignores a streamStep for an unknown layer (heals on the next upsert)", async () => {
   const before = h.createRaymarchScene.mock.calls.length;
+  const scene = h.createRaymarchScene.mock.results[0]?.value as {
+    setField: ReturnType<typeof vi.fn>;
+  };
+  const swapsBefore = scene.setField.mock.calls.length;
   const channel = new MessageChannel();
   onmessage({ data: { kind: "pair", requestId: 4, port: channel.port2 } });
-  const buffer = new Float32Array([9]).buffer;
+  const missing = new Float32Array([9]).buffer;
   channel.port1.postMessage(
     {
       kind: "streamStep",
       id: "missing",
       step: 1,
-      field: { buffer, dtype: "f32", shape: [1, 1, 1] },
+      field: { buffer: missing, dtype: "f32", shape: [1, 1, 1] },
     },
-    [buffer],
+    [missing],
   );
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  // The port delivers in order: a follow-up step for layer-0 landing proves the missing one drained.
+  const sentinel = new Float32Array([1]).buffer;
+  channel.port1.postMessage(
+    {
+      kind: "streamStep",
+      id: "layer-0",
+      step: 2,
+      field: { buffer: sentinel, dtype: "f32", shape: [1, 1, 1] },
+    },
+    [sentinel],
+  );
+  await vi.waitFor(() => expect(scene.setField).toHaveBeenCalledTimes(swapsBefore + 1));
   expect(h.createRaymarchScene).toHaveBeenCalledTimes(before); // no rebuild for a missing layer
   channel.port1.close();
 });

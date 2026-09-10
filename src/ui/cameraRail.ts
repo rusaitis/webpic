@@ -9,7 +9,8 @@ import {
   GEOMETRY_LABEL,
   gridInfoRows,
 } from "./coordsInfo.ts";
-import { isTypingTarget } from "./keyboard.ts";
+import { createShortcutRegistry } from "./shortcuts.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 
 // Centered bottom button rail (magviz's bottom-cluster, cleaned up to webpic's structure): subtle
 // icon controls for the gnomon, orbit/fly mode, projection, and a momentary fit-to-view (the one
@@ -196,19 +197,11 @@ export function installCameraRail(
   applyInfoVisible(uiStore.getState().isCoordsInfoVisible);
   applyVisible(uiStore.getState().isUiVisible);
 
-  // Escape closes; bare `C` toggles (skipped while typing / under a modifier — Cmd+C stays copy);
-  // an outside pointer-down dismisses (shared installOutsideClickDismiss, like the side-rail flyout).
+  // Bare `C` toggles (Cmd+C stays copy — the registry's guard); Escape closes; an outside
+  // pointer-down dismisses (shared installOutsideClickDismiss, like the side-rail flyout).
+  createShortcutRegistry(doc, signal).register("KeyC", () => uiStore.getState().toggleCoordsInfo());
   const onDocKeyDown = (event: KeyboardEvent): void => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (isTypingTarget(event.target)) return;
-    if (event.key === "Escape") {
-      if (isOpen()) uiStore.getState().setCoordsInfoVisible(false);
-      return;
-    }
-    if (event.code === "KeyC" && !event.shiftKey) {
-      event.preventDefault();
-      uiStore.getState().toggleCoordsInfo();
-    }
+    if (event.key === "Escape" && isOpen()) uiStore.getState().setCoordsInfoVisible(false);
   };
   doc.addEventListener("keydown", onDocKeyDown, { signal });
   const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
@@ -225,37 +218,39 @@ export function installCameraRail(
     if (isOpen()) updateViewRow();
   };
 
-  const unsubs = [
-    store.subscribe((s) => s.overlay.showGnomon, applyGnomon),
-    // Re-apply the inset when the responsive suppression flips (gnomon hidden/shown without a
-    // preference change), so the cluster reclaims / yields the corner footprint.
-    uiStore.subscribe(
-      (s) => s.isGnomonSuppressed,
-      () => applyGnomon(store.getState().overlay.showGnomon),
-    ),
-    store.subscribe((s) => s.isFlyMode, applyFly),
-    store.subscribe(
-      (s) => s.projection,
-      (projection) => {
-        applyProjection(projection);
-        updateViewIfOpen(); // the View row's ortho suffix follows
-      },
-    ),
-    store.subscribe(
-      (s) => s.dataset,
-      () => {
-        applyCoordsLabel();
-        renderRowsIfOpen();
-      },
-    ),
-    store.subscribe((s) => s.cameraPose, updateViewIfOpen),
-    uiStore.subscribe((s) => s.isUiVisible, applyVisible),
-    uiStore.subscribe((s) => s.isCoordsInfoVisible, applyInfoVisible),
-  ];
+  const subs = createSubscriptions();
+  subs.on(store, (s) => s.overlay.showGnomon, applyGnomon);
+  // Re-apply the inset when the responsive suppression flips (gnomon hidden/shown without a
+  // preference change), so the cluster reclaims / yields the corner footprint.
+  subs.on(
+    uiStore,
+    (s) => s.isGnomonSuppressed,
+    () => applyGnomon(store.getState().overlay.showGnomon),
+  );
+  subs.on(store, (s) => s.isFlyMode, applyFly);
+  subs.on(
+    store,
+    (s) => s.projection,
+    (projection) => {
+      applyProjection(projection);
+      updateViewIfOpen(); // the View row's ortho suffix follows
+    },
+  );
+  subs.on(
+    store,
+    (s) => s.dataset,
+    () => {
+      applyCoordsLabel();
+      renderRowsIfOpen();
+    },
+  );
+  subs.on(store, (s) => s.cameraPose, updateViewIfOpen);
+  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subs.on(uiStore, (s) => s.isCoordsInfoVisible, applyInfoVisible);
 
   return () => {
     ac.abort();
-    for (const unsub of unsubs) unsub();
+    subs.dispose();
     disposeOutsideDismiss();
     container.remove();
     card.remove();

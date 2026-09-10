@@ -1,5 +1,6 @@
 import { CAMERA_HALF_FOV_TAN, type CameraPose } from "@schema/camera.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import { intersectCenteredBox } from "@schema/rayBox.ts";
 import type { Vec3 } from "@schema/types.ts";
 import {
   cameraPosition,
@@ -47,33 +48,18 @@ export function cursorRay(
   return { origin: camera, dir: [dx / len, dy / len, dz / len] };
 }
 
-// Slab test for one axis of the box [-half, half]; null = the ray misses this slab entirely.
-function axisSlab(o: number, d: number, half: number): readonly [number, number] | null {
-  if (d === 0) {
-    return o < -half || o > half ? null : [Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY];
-  }
-  const a = (-half - o) / d;
-  const b = (half - o) / d;
-  return a <= b ? [a, b] : [b, a];
-}
-
 // Midpoint of the ray's chord through the render box, or null on a miss. `halfExtent` is the per-axis
 // world half-size — the unit box [-0.5, 0.5]³ for a cubic dataset, anisotropic for a non-cubic one
-// (store `worldHalfExtent`). Restates render/rayBox.ts's slab test, which ui's synchronous miss
-// test can't reach (store can't import render).
+// (store `worldHalfExtent`). Shares the schema slab test with render/pickRay so ui's synchronous
+// miss test and the worker's pick agree on the box.
 export function unitBoxChordMidpoint(
   origin: Vec3,
   dir: Vec3,
   halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT,
 ): Vec3 | null {
-  const sx = axisSlab(origin[0], dir[0], halfExtent[0]);
-  const sy = axisSlab(origin[1], dir[1], halfExtent[1]);
-  const sz = axisSlab(origin[2], dir[2], halfExtent[2]);
-  if (sx === null || sy === null || sz === null) return null;
-  const tNear = Math.max(sx[0], sy[0], sz[0]);
-  const tFar = Math.min(sx[1], sy[1], sz[1]);
-  if (tNear > tFar || tFar < 0) return null;
-  const t = (Math.max(tNear, 0) + tFar) / 2;
+  const hit = intersectCenteredBox(origin, dir, halfExtent);
+  if (hit === null) return null;
+  const t = (Math.max(hit.tNear, 0) + hit.tFar) / 2;
   return [origin[0] + t * dir[0], origin[1] + t * dir[1], origin[2] + t * dir[2]];
 }
 

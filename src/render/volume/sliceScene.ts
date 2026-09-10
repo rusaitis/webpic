@@ -1,4 +1,5 @@
 import type { ColorScale } from "@schema/colormap.ts";
+import type { SliceAxis } from "@schema/layers.ts";
 import { Mesh, PlaneGeometry, Scene } from "three";
 import { texture, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
@@ -10,7 +11,7 @@ import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 // One orthogonal slice sampling the shared `uVolume` 3D texture (the raymarcher and further
 // slices sample the same texture).
 
-export type SliceAxis = "x" | "y" | "z";
+export type { SliceAxis };
 
 export interface SliceSceneOptions {
   readonly field: ScalarField;

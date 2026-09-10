@@ -15,7 +15,7 @@ import {
   setSliceAxis,
   setSlicePosition,
 } from "./layers.ts";
-import { createSimulationStore } from "./simulation.ts";
+import { createSimulationStore, selectComputed } from "./simulation.ts";
 
 // A 4³ uniform B = (0,0,1) field: the default rake traces straight lines the tracer resolves, so the
 // fieldlines intents (seed count / append / placement) have something real to re-trace.
@@ -215,10 +215,11 @@ describe("simulationStore layers", () => {
     const store = createSimulationStore();
     store.getState().setDataset(beDataset());
     await flushAsync();
-    const before = store.getState().computed;
+    const before = selectComputed(store.getState());
     store.getState().selectField("|E|");
     await flushAsync();
-    const { layers, computed, activeField } = store.getState();
+    const { layers, activeField } = store.getState();
+    const computed = selectComputed(store.getState());
     expect(activeField).toBe("|E|");
     expect(layers[0]?.field).toBe("|E|");
     expect(computed).not.toBe(before);
@@ -400,7 +401,7 @@ describe("simulationStore layers", () => {
     await flushAsync();
     await store.getState().selectField("div_E"); // a scalar diagnostic — no vector family to follow
     await flushAsync();
-    expect(store.getState().status).toBe("ready"); // the switch really happened
+    expect(store.getState().field.kind).toBe("ready"); // the switch really happened
     expect(store.getState().traceNotices["layer-1"]?.fieldName).toBe("B");
   });
 

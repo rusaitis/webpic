@@ -1,17 +1,17 @@
 import { DEFAULT_WEBPIC_CONFIG, type Theme } from "@schema/theme.ts";
-import type { SimulationStore, UiStore } from "@store";
+import type { PerfStore, SimulationStore, UiStore } from "@store";
 import { installBootReveal } from "./bootReveal.ts";
 import { installCameraChrome } from "./cameraChrome.ts";
 import { installCameraRail } from "./cameraRail.ts";
 import { installColorbar } from "./colorbar/colorbar.ts";
 import type { Disposer } from "./controls/index.ts";
 import { installHelpOverlay } from "./helpOverlay.ts";
-import { isTypingTarget } from "./keyboard.ts";
 import { installLayerSettings } from "./layerSettings.ts";
 import { installLayersPanel } from "./layersPanel.ts";
 import { installDevWindow } from "./panels/devWindow.ts";
 import { isDockable, mountPanel } from "./panels/registry.ts";
 import { createShell } from "./shell/shell.ts";
+import { createShortcutRegistry } from "./shortcuts.ts";
 import { installSideRail } from "./sideRail.ts";
 import { installStatusPill } from "./statusPill.ts";
 import { applyControlStyles } from "./theme/styles.ts";
@@ -24,6 +24,8 @@ import { installTopBar } from "./topBar.ts";
 export interface InstallUiOptions {
   readonly parent: HTMLElement;
   readonly simulationStore: SimulationStore;
+  /** Render timing for the Developer window's frame-timing panel (+ the dev HUD when enabled). */
+  readonly perfStore: PerfStore;
   readonly uiStore: UiStore;
   readonly theme?: Theme;
 }
@@ -89,7 +91,7 @@ export function installUi(opts: InstallUiOptions): () => void {
 
   // The Developer tool — a small, free-floating, resizable window (replaces the old docked panel).
   // Outside the shell on a free-floating layer, UI-toggle-hidden, like the colorbar.
-  disposers.push(installDevWindow(opts.parent, opts.simulationStore, opts.uiStore));
+  disposers.push(installDevWindow(opts.parent, opts.simulationStore, opts.perfStore, opts.uiStore));
 
   // Loading/error feedback; unlike the chrome it ignores the global UI toggle — status, not chrome.
   disposers.push(installStatusPill(opts.parent, opts.uiStore));
@@ -97,20 +99,14 @@ export function installUi(opts: InstallUiOptions): () => void {
   // Keyboard cheat-sheet modal (? / H). Its own keydown listener — independent of the UI toggle.
   disposers.push(installHelpOverlay(opts.parent, opts.uiStore));
 
-  // Global bare-key shortcuts: the theme's UI toggle (default "F") + the PNG screenshot ("P");
-  // ignored while typing in a control and when modifiers are held (Shift+P is the perf HUD).
-  const toggleKey = shortcuts.toggleUi.toLowerCase();
-  const doc = opts.parent.ownerDocument;
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
-      return;
-    if (isTypingTarget(event.target)) return;
-    const key = event.key.toLowerCase();
-    if (key === toggleKey) opts.uiStore.getState().toggleUi();
-    else if (key === "p") opts.uiStore.getState().requestScreenshot();
-  };
-  doc.addEventListener("keydown", onKeyDown);
-  disposers.push(() => doc.removeEventListener("keydown", onKeyDown));
+  // Global bare-key shortcuts: the theme's UI toggle (default "F"), the PNG screenshot ("P"), and
+  // the add-field-lines layer intent ("T", DESIGN §Shortcuts). Unshifted only — Shift+P is the perf
+  // HUD's. The camera's view keys and the panels' toggles register on their own registries.
+  const registry = createShortcutRegistry(opts.parent.ownerDocument);
+  registry.register(shortcuts.toggleUi, () => opts.uiStore.getState().toggleUi());
+  registry.register("p", () => opts.uiStore.getState().requestScreenshot());
+  registry.register("t", () => opts.simulationStore.getState().addFieldlinesLayer());
+  disposers.push(() => registry.dispose());
 
   // LIFO teardown: shortcut → panels → shell → styles, mirroring install order. Snapshot
   // so a defensive double-dispose can't re-reverse the live array.

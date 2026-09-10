@@ -10,7 +10,7 @@ import {
   worldToScreen,
 } from "@store";
 import type { Disposer } from "./controls/index.ts";
-import { isTypingTarget } from "./keyboard.ts";
+import { createHeldKeys } from "./heldKeys.ts";
 import { clientToNdc, frameDt } from "./pointerMath.ts";
 
 // Point-picker pointer input on the main-thread canvas. Capture-phase, so it runs before
@@ -36,7 +36,12 @@ import { clientToNdc, frameDt } from "./pointerMath.ts";
 const MIN_HIT_PX = 26;
 const HIT_RADIUS_FACTOR = 2;
 const MARKER_KEY_SPEED = 0.5; // marker slide speed while an arrow is held, box units / s
-const ARROW_CODES = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+const ARROW_CODES: ReadonlySet<string> = new Set([
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+]);
 
 interface ClientPoint {
   readonly x: number;
@@ -217,19 +222,32 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
 
   // Held arrows integrate in a rAF loop (dt-scaled, constant speed). pickerActive rides the hold:
   // the marker shows its grab affordance, and the move reads as a drag, not a stream of placements
-  // (markerScene re-pulses on a point that moves while inactive).
-  const heldArrows = new Set<string>();
-  let shiftHeld = false;
+  // (markerScene re-pulses on a point that moves while inactive). Unclaimed while the marker is
+  // hidden, so the page keeps its arrows.
   let arrowRafId: number | undefined;
   let lastArrowMs: number | undefined;
 
-  const releaseArrows = (): void => {
-    heldArrows.clear();
+  const stopSlide = (): void => {
     if (arrowRafId !== undefined) cancelAnimationFrame(arrowRafId);
     arrowRafId = undefined;
     lastArrowMs = undefined;
     if (drag === undefined) store.getState().setPickerActive(false);
   };
+
+  const arrows = createHeldKeys(target.ownerDocument, ARROW_CODES, {
+    signal,
+    claims: () => {
+      const { overlay, pickerPoint } = store.getState();
+      return overlay.showPicker && pickerPoint !== null;
+    },
+    onPress: () => {
+      if (drag === undefined) store.getState().setPickerActive(true);
+      if (arrowRafId === undefined) arrowRafId = requestAnimationFrame(arrowStep);
+    },
+    onRelease: () => {
+      if (arrows.codes.size === 0) stopSlide();
+    },
+  });
 
   const arrowStep = (nowMs: number): void => {
     arrowRafId = undefined;
@@ -238,17 +256,19 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     const state = store.getState();
     const point = state.pickerPoint;
     if (!state.overlay.showPicker || point === null) {
-      releaseArrows(); // the marker vanished mid-hold (toggle) — stop, don't drive a ghost
+      arrows.drop(); // the marker vanished mid-hold (toggle) — stop, don't drive a ghost
       return;
     }
-    const lr = (heldArrows.has("ArrowRight") ? 1 : 0) - (heldArrows.has("ArrowLeft") ? 1 : 0);
-    const ud = (heldArrows.has("ArrowUp") ? 1 : 0) - (heldArrows.has("ArrowDown") ? 1 : 0);
+    const held = arrows.codes;
+    const shift = arrows.isShiftHeld;
+    const lr = (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
+    const ud = (held.has("ArrowUp") ? 1 : 0) - (held.has("ArrowDown") ? 1 : 0);
     const sa = Math.sin(state.cameraPose.azimuth);
     const ca = Math.cos(state.cameraPose.azimuth);
     // screenRight = (−sa, ca, 0) — worldToScreen's basis; into-screen horizontal = (−ca, −sa, 0).
-    const dx = lr * -sa + (shiftHeld ? 0 : ud * -ca);
-    const dy = lr * ca + (shiftHeld ? 0 : ud * -sa);
-    const dz = shiftHeld ? ud : 0;
+    const dx = lr * -sa + (shift ? 0 : ud * -ca);
+    const dy = lr * ca + (shift ? 0 : ud * -sa);
+    const dz = shift ? ud : 0;
     const len = Math.hypot(dx, dy, dz);
     if (len > 0) {
       const step = (MARKER_KEY_SPEED * dtMs) / 1000 / len; // unit direction — diagonals same speed
@@ -261,34 +281,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       // Re-assert after a concurrent pointer-drag release cleared it mid-hold (store dedupes).
       if (drag === undefined) state.setPickerActive(true);
     }
-    if (heldArrows.size > 0) arrowRafId = requestAnimationFrame(arrowStep);
-  };
-
-  const onDocKeyDown = (event: KeyboardEvent): void => {
-    shiftHeld = event.shiftKey;
-    if (event.metaKey || event.ctrlKey || event.altKey) {
-      // macOS swallows keyups released under a held Meta — a chord drops the set (hard stop).
-      if (heldArrows.size > 0) releaseArrows();
-      return;
-    }
-    if (event.defaultPrevented || isTypingTarget(event.target)) return;
-    if (!ARROW_CODES.has(event.code)) return;
-    const { overlay, pickerPoint } = store.getState();
-    if (!overlay.showPicker || pickerPoint === null) return; // unclaimed — let the page have it
-    event.preventDefault(); // claimed — arrows must not scroll the page
-    heldArrows.add(event.code); // Set-idempotent, so OS key-repeat keydowns are harmless
-    if (drag === undefined) store.getState().setPickerActive(true);
-    if (arrowRafId === undefined) arrowRafId = requestAnimationFrame(arrowStep);
-  };
-
-  const onDocKeyUp = (event: KeyboardEvent): void => {
-    shiftHeld = event.shiftKey;
-    if (heldArrows.delete(event.code) && heldArrows.size === 0) releaseArrows();
-  };
-
-  // A key released outside the page (tab switch, cmd-tab) never sends keyup — drop the whole set.
-  const onWindowBlur = (): void => {
-    if (heldArrows.size > 0) releaseArrows();
+    if (held.size > 0) arrowRafId = requestAnimationFrame(arrowStep);
   };
 
   // Capture phase so these run before pointerCamera's bubble-phase listeners on the same element.
@@ -297,16 +290,11 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   target.addEventListener("pointerup", onPointerUp, { signal, capture: true });
   target.addEventListener("pointercancel", onPointerCancel, { signal, capture: true });
   target.addEventListener("lostpointercapture", onPointerCancel, { signal, capture: true });
-  const doc = target.ownerDocument;
-  doc.addEventListener("keydown", onDocKeyDown, { signal });
-  doc.addEventListener("keyup", onDocKeyUp, { signal });
-  doc.defaultView?.addEventListener("blur", onWindowBlur, { signal });
 
   return () => {
     ac.abort();
     if (drag !== undefined) target.releasePointerCapture?.(drag.pointerId);
     drag = undefined;
-    heldArrows.clear();
     if (arrowRafId !== undefined) cancelAnimationFrame(arrowRafId);
     arrowRafId = undefined;
     store.getState().setPickerActive(false);

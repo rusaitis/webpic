@@ -1,4 +1,4 @@
-import { createSimulationStore, createUiStore } from "@store";
+import { createPerfStore, createSimulationStore, createUiStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
 import { vectorTriple } from "../../tests/fixtures.ts";
 import { installUi } from "./install.ts";
@@ -15,7 +15,7 @@ describe("installUi", () => {
     simulationStore.getState().setDataset(vectorTriple("B", { array: Float32Array }));
     const uiStore = createUiStore();
 
-    const dispose = installUi({ parent, simulationStore, uiStore });
+    const dispose = installUi({ parent, simulationStore, perfStore: createPerfStore(), uiStore });
     // The default config docks no panels, so the shell stays unrendered; the Developer tool is a
     // floating window instead — use it as the UI-toggle-hidden chrome probe.
     expect(parent.querySelector(".webpic-shell")).toBeNull();
@@ -28,6 +28,14 @@ describe("installUi", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "f" }));
     expect(uiStore.getState().isUiVisible).toBe(false);
     expect(win.hidden).toBe(true);
+
+    // "T" adds a field-lines layer (owned here, not by the camera); Shift+T is nobody's.
+    const layerCount = simulationStore.getState().layers.length;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "T", shiftKey: true }));
+    expect(simulationStore.getState().layers).toHaveLength(layerCount);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
+    expect(simulationStore.getState().layers).toHaveLength(layerCount + 1);
+    expect(simulationStore.getState().layers.at(-1)?.kind).toBe("fieldlines");
 
     dispose();
     expect(parent.querySelector(".webpic-window")).toBeNull();

@@ -1,4 +1,6 @@
+import { logWarn } from "@schema/log.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
+import { z } from "zod";
 import { isNotFound, resolveDir } from "../opfs.ts";
 
 // Theme preference persisted in OPFS (`settings/theme.json`), schemaVersion-tagged like every
@@ -10,10 +12,8 @@ import { isNotFound, resolveDir } from "../opfs.ts";
 const SETTINGS_DIR = ["settings"] as const;
 const THEME_FILE = "theme.json";
 
-interface ThemePref {
-  readonly schemaVersion: string;
-  readonly name: string;
-}
+const ThemePrefSchema = z.object({ schemaVersion: z.literal(SCHEMA_VERSION), name: z.string() });
+type ThemePref = Readonly<z.infer<typeof ThemePrefSchema>>;
 
 function hasOpfs(): boolean {
   return typeof navigator !== "undefined" && typeof navigator.storage?.getDirectory === "function";
@@ -27,12 +27,11 @@ export async function readThemePref(): Promise<string | null> {
     if (dir === undefined) return null;
     const handle = await dir.getFileHandle(THEME_FILE);
     const text = await (await handle.getFile()).text();
-    const pref = JSON.parse(text) as Partial<ThemePref>;
-    if (pref.schemaVersion !== SCHEMA_VERSION || typeof pref.name !== "string") return null;
-    return pref.name;
+    const pref = ThemePrefSchema.safeParse(JSON.parse(text));
+    return pref.success ? pref.data.name : null; // foreign schema / shape reads as unset, not an error
   } catch (error) {
     if (isNotFound(error)) return null;
-    console.warn("theme pref: unreadable, falling back to default", error);
+    logWarn("theme", "pref unreadable, falling back to default", error);
     return null;
   }
 }
@@ -50,6 +49,6 @@ export async function writeThemePref(name: string): Promise<void> {
     await writable.write(JSON.stringify(pref));
     await writable.close();
   } catch (error) {
-    console.warn("theme pref: write failed", error);
+    logWarn("theme", "pref write failed", error);
   }
 }

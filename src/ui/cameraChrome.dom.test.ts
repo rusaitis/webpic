@@ -135,6 +135,45 @@ describe("gnomonTransform", () => {
     expect(dot(c1, c2)).toBeCloseTo(0, 4);
   });
 
+  // The transforms format a shared scratch matrix — pin them to the plain array/map/join reference
+  // so the allocation-free path can never drift, and prove calling one doesn't corrupt the other.
+  it("matches the array reference string-for-string across poses, in any call order", () => {
+    const reference = (m: readonly number[]): string =>
+      `matrix3d(${m.map((v) => v.toFixed(5)).join(", ")})`;
+    const angles = [
+      [0, 0],
+      [0.7, 0.4],
+      [-2.1, -1.2],
+      [3.1, 1.5],
+    ] as const;
+    for (const [azimuth, elevation] of angles) {
+      const pose = { target: [0, 0, 0] as const, azimuth, elevation, distance: 2, roll: 0 };
+      const sa = Math.sin(azimuth);
+      const ca = Math.cos(azimuth);
+      const se = Math.sin(elevation);
+      const ce = Math.cos(elevation);
+      const forward = reference(
+        [
+          [-sa, se * ca, ce * ca, 0],
+          [0, ce, -se, 0],
+          [-ca, -se * sa, -ce * sa, 0],
+          [0, 0, 0, 1],
+        ].flat(),
+      );
+      const counter = reference(
+        [
+          [-sa, 0, -ca, 0],
+          [se * ca, ce, -se * sa, 0],
+          [ce * ca, -se, -ce * sa, 0],
+          [0, 0, 0, 1],
+        ].flat(),
+      );
+      expect(gnomonTransform(pose)).toBe(forward);
+      expect(gnomonCounterTransform(pose)).toBe(counter);
+      expect(gnomonTransform(pose)).toBe(forward); // the counter call left no residue
+    }
+  });
+
   it("gnomonCounterTransform is its exact inverse (R·R⁻¹ = I on the 3×3 block)", () => {
     const pose = { target: [0, 0, 0] as const, azimuth: 0.7, elevation: 0.4, distance: 2, roll: 0 };
     const parse = (s: string): number[] =>

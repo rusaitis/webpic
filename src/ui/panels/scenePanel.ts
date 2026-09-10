@@ -6,6 +6,7 @@ import {
   type SimulationStore,
 } from "@store";
 import { type ControlHandle, createPane, type Disposer } from "../controls/index.ts";
+import { createSubscriptions } from "../subscriptions.ts";
 
 // The Scene panel: toggles for the in-scene axes + grid overlay (per-plane), tick labels, and the
 // grid density — the reference-frame chrome. Dispatches store intents only (ui → store; never render)
@@ -63,33 +64,37 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
   // Reflect external changes (set()-in never re-fires onChange). Per-leaf selectors so a change to
   // one overlay field updates only its control — a Density drag no longer re-asserts every checkbox
   // each frame, it just moves the slider.
-  const overlayUnsubs: Disposer[] = [
-    store.subscribe(
-      (s) => s.overlay.showGrid,
-      (on) => grid.set(on),
-    ),
-    store.subscribe(
-      (s) => s.overlay.showAxes,
-      (on) => axes.set(on),
-    ),
-    store.subscribe(
-      (s) => s.overlay.showLabels,
-      (on) => labels.set(on),
-    ),
-    store.subscribe(
-      (s) => s.overlay.gridDivisions,
-      (n) => density.set(n),
-    ),
-    ...planes.map(({ plane, handle }) =>
-      store.subscribe(
-        (s) => s.overlay.planes[plane],
-        (on) => handle.set(on),
-      ),
-    ),
-  ];
+  const subs = createSubscriptions();
+  subs.on(
+    store,
+    (s) => s.overlay.showGrid,
+    (on) => grid.set(on),
+  );
+  subs.on(
+    store,
+    (s) => s.overlay.showAxes,
+    (on) => axes.set(on),
+  );
+  subs.on(
+    store,
+    (s) => s.overlay.showLabels,
+    (on) => labels.set(on),
+  );
+  subs.on(
+    store,
+    (s) => s.overlay.gridDivisions,
+    (n) => density.set(n),
+  );
+  for (const { plane, handle } of planes) {
+    subs.on(
+      store,
+      (s) => s.overlay.planes[plane],
+      (on) => handle.set(on),
+    );
+  }
 
   return () => {
-    for (const unsub of overlayUnsubs) unsub();
+    subs.dispose();
     pane.dispose(); // disposes every control the folder tracked — no per-handle teardown needed
   };
 }

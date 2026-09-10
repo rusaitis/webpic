@@ -1,6 +1,7 @@
 import { createScrubPredictor } from "@data/prefetch.ts";
 import { createStreamRing } from "@data/stream.ts";
 import { describe, expect, it } from "vitest";
+import { seededRandom } from "./helpers.ts";
 
 // The directional predictor (data/prefetch.ts) is pure with injected time, so motion is scripted by
 // (step, nowMs) pairs and `plan()` inspected directly — no clock, no flake. The fuzz scrubber proves
@@ -11,17 +12,6 @@ const tick = (): Promise<void> => new Promise<void>((resolve) => setTimeout(reso
 const sorted = (xs: readonly number[]): number[] => [...xs].sort((a, b) => a - b);
 const range = (n: number): number[] => Array.from({ length: n }, (_, i) => i);
 const clampToDomain = (x: number, n: number): number => Math.max(0, Math.min(n - 1, x));
-
-// Deterministic Park–Miller minimal-standard LCG — the project's no-Math.random fuzz seed (mirrors
-// coordinates/conservation.test.ts), so the scrubber can't flake on a bad bit.
-function lcg(seed: number): () => number {
-  let state = seed % 2147483647;
-  if (state <= 0) state += 2147483646;
-  return () => {
-    state = (state * 16807) % 2147483647;
-    return state / 2147483647; // (0, 1)
-  };
-}
 
 describe("createScrubPredictor", () => {
   it("starts stationary → symmetric ±1 (identical to the dumb policy)", () => {
@@ -143,7 +133,7 @@ describe("createScrubPredictor", () => {
       const steps = range(64);
       const domain = new Set(steps);
       for (let seed = 1; seed <= 40; seed++) {
-        const rand = lcg(seed);
+        const rand = seededRandom(seed);
         const p = createScrubPredictor({ steps });
         let t = 0;
         let cur = Math.floor(rand() * 64);
@@ -165,7 +155,7 @@ describe("createScrubPredictor", () => {
     it("a fuzzed scrub still displays the settled cursor with no errors (scrub without stalls)", async () => {
       const steps = range(40);
       const domain = new Set(steps);
-      const rand = lcg(7);
+      const rand = seededRandom(7);
       const predictor = createScrubPredictor({ steps });
       const displayed: number[] = [];
       const errors: unknown[] = [];

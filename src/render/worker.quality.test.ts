@@ -1,49 +1,17 @@
 // Interaction-quality wiring through the REAL display loop: a manually pumped rAF stub (installed
 // before the worker module loads) keeps `rafId` defined, so the settle ramp takes the production
 // path — one painted frame per level — instead of the Node collapse that worker.streaming.test.ts
-// asserts. Same mock seam as worker.recovery.test.ts (three/webgpu can't load in node).
+// asserts. Mocks come from testing/workerHarness.ts (three/webgpu can't load in node).
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
-const h = vi.hoisted(() => {
-  const makeScene = () => ({
-    scene: {},
-    setWindowLevel: vi.fn(),
-    setColormap: vi.fn(),
-    setScale: vi.fn(),
-    setShading: vi.fn(),
-    setOpacity: vi.fn(),
-    setStepScale: vi.fn(),
-    setProjection: vi.fn(),
-    setField: vi.fn(() => true),
-    dispose: vi.fn(),
-  });
-  return {
-    makeScene,
-    installRenderer: vi.fn(async () => ({
-      renderer: {},
-      renderComposite: vi.fn(),
-      compileComposite: vi.fn(async () => {}),
-      readCompositePixels: vi.fn(),
-      setSize: vi.fn(),
-      setRenderScale: vi.fn(),
-      dispose: vi.fn(),
-    })),
-    createRaymarchScene: vi.fn((_opts: unknown) => makeScene()),
-    createSliceScene: vi.fn((_opts: unknown) => makeScene()),
-    createTestScene: vi.fn(() => ({ scene: {}, dispose: vi.fn() })),
-  };
-});
+const h = await vi.hoisted(() =>
+  import("./testing/workerHarness.ts").then((m) => m.createWorkerHarness()),
+);
 
-vi.mock("@gpu", () => ({
-  installGpu: vi.fn(async () => ({ dispose: vi.fn() })),
-  getDevice: vi.fn(() => ({ queue: { onSubmittedWorkDone: async () => undefined } })),
-  getCapabilities: vi.fn(() => ({ hasTimestampQuery: false, hasFloat32Filterable: false })),
-  onDeviceLost: () => () => {},
-  onDeviceRestored: () => () => {},
-}));
+vi.mock("@gpu", () => h.gpu);
 vi.mock("./runtime/renderer.ts", () => ({ installRenderer: h.installRenderer }));
 vi.mock("./volume/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
 vi.mock("./volume/sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
@@ -96,7 +64,7 @@ it("a gesture end ramps quality back over painted frames, not in one pop", async
       kind: "upsertLayer",
       requestId: 2,
       id: "layer-0",
-      layerKind: "volume",
+      params: { layerKind: "volume" },
       field: { buffer: new Float32Array([5]).buffer, dtype: "f32", shape: [1, 1, 1] },
       colormap: "inferno",
       scale: "linear",

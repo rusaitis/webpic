@@ -1,6 +1,7 @@
 import type { UiStore } from "@store";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 
 // Bottom-center status pill (spinner + message) driven by the ui store's loadingPhases /
 // statusError facts. All timing policy lives here: a show delay so cached/fast ops never
@@ -98,12 +99,12 @@ export function installStatusPill(parent: HTMLElement, uiStore: UiStore): Dispos
   render();
   parent.appendChild(container);
 
-  const unsubPhases = uiStore.subscribe((s) => s.loadingPhases, render);
-  const unsubError = uiStore.subscribe((s) => s.statusError, render);
+  const subs = createSubscriptions();
+  subs.on(uiStore, (s) => s.loadingPhases, render);
+  subs.on(uiStore, (s) => s.statusError, render);
 
   return () => {
-    unsubPhases();
-    unsubError();
+    subs.dispose();
     cancelShow();
     cancelHide();
     clearTimeout(errorTimer);

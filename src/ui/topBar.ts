@@ -5,6 +5,7 @@ import { makeCaret, makeEl, makeIconButton } from "./controls/dom.ts";
 import { createPopover, type Disposer, type RangeValue } from "./controls/index.ts";
 import { createRangeControl } from "./controls/rangeControl.ts";
 import { ICON_CARET_FLAT } from "./icons.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 import {
   datasetLabel,
   fieldButtonLabel,
@@ -331,34 +332,36 @@ export function installTopBar(
   rebuildRange();
   applyVisible(uiStore.getState().isUiVisible);
 
-  const unsubs = [
-    store.subscribe(
-      (s) => s.datasetId,
-      () => {
-        syncDatasetLabel();
-        datasetPopover.refresh();
-      },
-    ),
-    store.subscribe((s) => s.dataset, syncDatasetLabel), // run metadata lands after the id switch
-    store.subscribe((s) => s.projection, applyProjection),
-    store.subscribe(
-      (s) => s.activeField,
-      (name) => {
-        fieldLabelEl.textContent = fieldButtonLabel(name);
-        fieldPopover.refresh();
-      },
-    ),
-    store.subscribe(
-      (s) => s.availableFields,
-      () => fieldPopover.refresh(),
-    ),
-    store.subscribe((s) => s.availableSteps, rebuildRange),
-    store.subscribe((s) => s.currentStep, syncCursor),
-    uiStore.subscribe((s) => s.isUiVisible, applyVisible),
-  ];
+  const subs = createSubscriptions();
+  subs.on(
+    store,
+    (s) => s.datasetId,
+    () => {
+      syncDatasetLabel();
+      datasetPopover.refresh();
+    },
+  );
+  subs.on(store, (s) => s.dataset, syncDatasetLabel); // run metadata lands after the id switch
+  subs.on(store, (s) => s.projection, applyProjection);
+  subs.on(
+    store,
+    (s) => s.activeField,
+    (name) => {
+      fieldLabelEl.textContent = fieldButtonLabel(name);
+      fieldPopover.refresh();
+    },
+  );
+  subs.on(
+    store,
+    (s) => s.availableFields,
+    () => fieldPopover.refresh(),
+  );
+  subs.on(store, (s) => s.availableSteps, rebuildRange);
+  subs.on(store, (s) => s.currentStep, syncCursor);
+  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
 
   return () => {
-    for (const unsub of unsubs) unsub();
+    subs.dispose();
     ac.abort();
     range?.dispose();
     datasetPopover.dispose();

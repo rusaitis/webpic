@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { flushAsync } from "../../tests/helpers.ts";
 import { createStreamRing, type StreamRingOptions } from "./stream.ts";
 
 // The ring + prefetch orchestrator drives an injected async `readStep`; here a manually-resolved fake
 // stands in (the value is just the step number), so each test controls decode timing and inspects
 // residency/abort precisely — the "scrub without stalls" contract without any real I/O.
 
-const tick = (): Promise<void> => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const tick = flushAsync;
 
 interface Read {
   resolve: (value: number) => void;

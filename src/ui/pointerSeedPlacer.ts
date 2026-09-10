@@ -1,6 +1,7 @@
 import { cursorRay, type SimulationStore, seedFromVolume } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { clientToNdc } from "./pointerMath.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 
 // Click-to-place field-line seeds. While the store holds a `seedPlacementLayerId` (a fieldlines
 // layer in placement mode, toggled from its settings panel), a primary canvas click drops one seed at
@@ -61,12 +62,12 @@ export function installPointerSeedPlacer(target: HTMLElement, store: SimulationS
 
   target.addEventListener("pointerdown", onPointerDown, { signal, capture: true });
   doc.addEventListener("keydown", onKeyDown, { signal });
-  applyCursor(store.getState().seedPlacementLayerId);
-  const unsub = store.subscribe((s) => s.seedPlacementLayerId, applyCursor);
+  const subs = createSubscriptions();
+  subs.on(store, (s) => s.seedPlacementLayerId, applyCursor, { fireNow: true });
 
   return () => {
     ac.abort();
-    unsub();
+    subs.dispose();
     target.style.cursor = "";
   };
 }

@@ -1,12 +1,9 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { chromium } from "playwright-core";
-import { build, preview } from "vite";
+import { withPreviewedApp } from "./harness/browserSession.ts";
+import { waitForFirstFrame } from "./harness/pageProbes.ts";
 
 // Regenerates the README hero from the real production build: the Earth dipole, |B| volume raymarching
 // under a traced field-line rake that closes on the inner cutoff. Headed Chrome — WebGPU on
-// macOS/Metal is unreliable headless. `npx tsx scripts/shot-readme.ts [outPath]`; override the view
+// macOS/Metal is unreliable headless. `node scripts/shot-readme.ts [outPath]`; override the view
 // with WEBPIC_POSE.
 //
 // The dipole is a dropdown away rather than a URL parameter, so this drives the top bar's dataset
@@ -20,35 +17,12 @@ const WINDOW = { width: 1600, height: 900 };
 const POSE = process.env.WEBPIC_POSE ?? "1.0000,0.3000,2.0000,0,0,0,0";
 const SETTLE_MS = 3000; // trace + volume upload, then the camera settle ramp back to full render scale
 
-async function main(): Promise<void> {
-  await build({ logLevel: "warn" });
-  const server = await preview({ preview: { port: 0 } });
-  const url = server.resolvedUrls?.local?.[0];
-  if (url === undefined) throw new Error("vite preview did not resolve a local URL");
-
-  const profileDir = await mkdtemp(join(tmpdir(), "webpic-shot-"));
-  const context = await chromium.launchPersistentContext(profileDir, {
-    channel: "chrome",
-    headless: false,
-    deviceScaleFactor: 2, // retina-density PNG, so the README image stays crisp when scaled down
-    viewport: WINDOW,
-    args: [
-      "--no-first-run",
-      "--no-default-browser-check",
-      `--window-size=${WINDOW.width},${WINDOW.height + 120}`,
-    ],
-  });
-
-  try {
-    const page = await context.newPage();
+await withPreviewedApp(
+  async ({ page, baseUrl }) => {
     page.on("pageerror", (e) => console.error("[pageerror]", e.message));
 
-    await page.goto(`${url}?fieldlines&pose=${POSE}`, { waitUntil: "load" });
-    await page.waitForFunction(
-      () => performance.getEntriesByName("webpic:first-frame").length > 0,
-      undefined,
-      { timeout: 60_000 },
-    );
+    await page.goto(`${baseUrl}?fieldlines&pose=${POSE}`, { waitUntil: "load" });
+    await waitForFirstFrame(page, 60_000);
     // Switch to the dipole (no URL parameter for it — the top bar's dataset picker is the way in).
     await page.click('button[data-control="dataset"]');
     await page.click('.webpic-popover_item[data-value="dipole"]');
@@ -62,11 +36,10 @@ async function main(): Promise<void> {
     await page.waitForTimeout(SETTLE_MS);
     await page.screenshot({ path: OUT });
     console.log(`wrote ${OUT}`);
-  } finally {
-    await context.close();
-    await server.close();
-    await rm(profileDir, { recursive: true, force: true });
-  }
-}
-
-await main();
+  },
+  {
+    deviceScaleFactor: 2, // retina-density PNG, so the README image stays crisp when scaled down
+    viewport: WINDOW,
+    chromeArgs: [`--window-size=${WINDOW.width},${WINDOW.height + 120}`],
+  },
+);

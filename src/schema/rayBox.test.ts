@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { intersectRayBox } from "./rayBox.ts";
+import { intersectCenteredBox, intersectRayBox } from "./rayBox.ts";
 
 // Unit box centered at the origin — the convention raymarchScene marches in.
 const MIN = [-0.5, -0.5, -0.5] as const;
@@ -39,5 +39,45 @@ describe("intersectRayBox", () => {
     const hit = intersectRayBox([-2, 0.5, 0], [1, 0, 0], MIN, MAX);
     expect(hit?.tNear).toBeCloseTo(1.5, 12);
     expect(hit?.tFar).toBeCloseTo(2.5, 12);
+  });
+});
+
+describe("intersectCenteredBox", () => {
+  const HALF = [0.5, 0.5, 0.5] as const;
+  it("agrees with intersectRayBox on the unit box for hits, misses, and inside origins", () => {
+    const rays: ReadonlyArray<
+      readonly [readonly [number, number, number], readonly [number, number, number]]
+    > = [
+      [
+        [-2, 0, 0],
+        [1, 0, 0],
+      ],
+      [
+        [0, 0, 0],
+        [0, 0, 1],
+      ],
+      [
+        [-2, 0.7, 0],
+        [1, 0, 0],
+      ],
+      [
+        [2, 0, 0],
+        [1, 0, 0],
+      ],
+      [
+        [-2, 0.25, 0.25],
+        [0.8, 0.1, -0.2],
+      ],
+    ];
+    for (const [origin, dir] of rays) {
+      const expected = intersectRayBox(origin, dir, MIN, MAX);
+      const actual = intersectCenteredBox(origin, dir, HALF);
+      expect(actual).toEqual(expected);
+    }
+  });
+  it("respects an anisotropic half-extent", () => {
+    const hit = intersectCenteredBox([-2, 0, 0], [1, 0, 0], [0.25, 0.5, 0.5]);
+    expect(hit?.tNear).toBeCloseTo(1.75, 12);
+    expect(hit?.tFar).toBeCloseTo(2.25, 12);
   });
 });

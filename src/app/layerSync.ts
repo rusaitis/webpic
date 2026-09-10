@@ -1,10 +1,19 @@
 import type { FieldLine } from "@compute";
 import type { FieldArray } from "@containers/field_dataset.ts";
-import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
+import { type FieldLayerParams, REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import { type ColormapBinding, colormapColor, DEFAULT_COLORMAP } from "@schema/colormap.ts";
+import { rejectionLogger } from "@schema/log.ts";
 import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { gridToWorld, type Layer, type SimulationStore, type UiStore } from "@store";
+import {
+  type FieldLayer,
+  gridToWorld,
+  isFieldLayer,
+  type Layer,
+  type SimulationStore,
+  selectComputed,
+  type UiStore,
+} from "@store";
 import { createStoreBridge } from "./storeBridge.ts";
 
 // The loading pill raised while a layer upsert warms its GPU pipeline off the render path (the warm is
@@ -18,10 +27,34 @@ const RENDER_PHASE_KEY = "render";
 const FIELDLINE_COLOR_T = 0.75;
 
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
-// render can't import each other). Two channels: `computed` carries field DATA (heavy, transfers the
+// render can't import each other). Two channels: `field` carries field DATA (heavy, transfers the
 // buffer), `layers` carries STRUCTURE (removals + the cheap composite of order/visibility/opacity).
-// One layer draws the active field for now, so the single `computed` buffer is transferred once;
-// per-layer compute will generalize this.
+// The transfer detaches the store's buffer, so a layer added later gets its data by asking the store
+// to recompute (recomputeField) — this bridge, the one that transferred, owns that call; per-layer
+// compute will generalize it.
+
+// A computed field is a fresh, offset-0 ArrayBuffer (never the SharedArrayBuffer ArrayBufferLike
+// also admits), so `detached` — set by the transfer — is the honest "already handed over" check.
+function isTransferred(field: FieldArray): boolean {
+  return (field.data.buffer as ArrayBuffer).detached;
+}
+
+// The wire's per-kind build params from a store layer. `worldHalfExtent` is the dataset's volume-box
+// aspect — the worker scales the mesh to it (cubic → unit cube); slices ignore it.
+function upsertParams(layer: FieldLayer, worldHalfExtent: Vec3): FieldLayerParams {
+  switch (layer.kind) {
+    case "slice":
+      return { layerKind: "slice", axis: layer.axis, position: layer.position };
+    case "volume":
+      return {
+        layerKind: "volume",
+        shaded: layer.shaded,
+        worldHalfExtent,
+        ...(layer.steps !== null ? { steps: layer.steps } : {}),
+        ...(layer.density !== null ? { density: layer.density } : {}),
+      };
+  }
+}
 
 export interface LayerSyncOptions {
   readonly store: SimulationStore;
@@ -48,6 +81,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   let lastBindings = store.getState().colormapBindings; // snapshot for the per-binding change diff
   let lastTraces = store.getState().traces; // snapshot for the per-fieldlines-layer change diff
   let lastNotices = store.getState().traceNotices; // snapshot so one failure flashes once, not per retrace
+  const fieldUpserted = new Set<string>(); // layers whose scene has received field data
 
   // The layer's ColormapBinding, or undefined if it references none (defensive — every renderable
   // layer is seeded with one).
@@ -57,44 +91,32 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       : undefined;
 
   const sendUpsert = (layer: Layer, field: FieldArray): void => {
-    // Only slice/volume are renderable; fieldlines/particles have no scene yet.
-    if (layer.kind !== "slice" && layer.kind !== "volume") return;
+    if (!isFieldLayer(layer)) return; // field lines draw traced polylines, not the scalar texture
     const dtype = field.data instanceof Float64Array ? "f64" : "f32";
     // Freshly computed magnitude → an offset-0 ArrayBuffer (not the SharedArrayBuffer that
     // ArrayBufferLike also admits), so it transfers wholesale.
     const buffer = field.data.buffer as ArrayBuffer;
     const binding = bindingFor(layer);
-    const kindParams =
-      layer.kind === "slice"
-        ? { axis: layer.axis, position: layer.position }
-        : {
-            shaded: layer.shaded,
-            ...(layer.steps !== null ? { steps: layer.steps } : {}),
-            ...(layer.density !== null ? { density: layer.density } : {}),
-          };
     const request: RenderWorkerRequest = {
       kind: "upsertLayer",
       requestId: REQUEST_IDS.layer,
       id: layer.id,
-      layerKind: layer.kind,
       field: { buffer, dtype, shape: field.shape },
       colormap: binding?.colormap ?? DEFAULT_COLORMAP,
       scale: binding?.scale ?? "linear",
       opacity: layer.opacity,
-      // The dataset's volume-box aspect — the worker scales the mesh to it (cubic → unit cube). Volume
-      // scenes read it; slices ignore it.
-      worldHalfExtent: store.getState().worldHalfExtent,
       ...(binding !== undefined ? { windowLevel: binding.window } : {}),
-      ...kindParams,
+      params: upsertParams(layer, store.getState().worldHalfExtent),
     };
     worker.postMessage(request, [buffer]);
+    fieldUpserted.add(layer.id);
     // The warm (compileAsync) runs off the render path; hold a pill until the worker acks layerCompiled.
     uiStore.getState().beginLoading(RENDER_PHASE_KEY, "preparing render");
   };
 
   // Live per-layer color update — colormap + window/level + scale, no field transfer.
   const sendLayerColormap = (layer: Layer, binding: ColormapBinding): void => {
-    if (layer.kind !== "slice" && layer.kind !== "volume") return;
+    if (!isFieldLayer(layer)) return;
     const request: RenderWorkerRequest = {
       kind: "setLayerColormap",
       requestId: REQUEST_IDS.layer,
@@ -205,9 +227,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   // first would leave the copies reading a detached buffer.
   const upsertActiveField = (computed: FieldArray): void => {
     const { layers, activeField } = store.getState();
-    const targets = layers.filter(
-      (layer) => layer.field === activeField && (layer.kind === "slice" || layer.kind === "volume"),
-    );
+    const targets = layers.filter((layer) => layer.field === activeField && isFieldLayer(layer));
     targets.forEach((layer, index) => {
       const last = index === targets.length - 1;
       sendUpsert(layer, last ? computed : { ...computed, data: computed.data.slice() });
@@ -215,7 +235,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   };
 
   const flushAll = (): void => {
-    const { computed } = store.getState();
+    const computed = selectComputed(store.getState());
     if (computed !== null) upsertActiveField(computed);
     flushFieldlines();
     sendComposite();
@@ -224,17 +244,17 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   // Data channel — registered before the structure channel so the worker has a layer's scene
   // before any composite references it (a stray reference self-heals on the upsert repaint anyway).
   bridge.subscribe(
-    (state) => state.computed,
-    (computed) => {
-      if (!isReady() || computed === null) return;
-      upsertActiveField(computed);
+    (state) => state.field,
+    (field) => {
+      if (!isReady() || field.kind !== "ready") return;
+      upsertActiveField(field.computed);
       sendComposite();
     },
   );
 
-  // Structure channel — removals, the per-layer shading toggle, and the cheap composite. No upsert
-  // here: a new layer's field data (and its initial `shaded`) ride the same-tick `computed` change
-  // (per-layer compute will add a real upsert path).
+  // Structure channel — removals, a new layer's field data, the per-layer shading/slice edits, and
+  // the cheap composite. The seed layer's data rides the same-tick `field` change (that channel is
+  // registered first, so it has already upserted here); a layer added later needs its own supply.
   bridge.subscribe(
     (state) => state.layers,
     (layers) => {
@@ -246,6 +266,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       const liveIds = new Set(layers.map((layer) => layer.id));
       for (const prev of prevLayers) {
         if (liveIds.has(prev.id)) continue;
+        fieldUpserted.delete(prev.id);
         const request: RenderWorkerRequest = {
           kind: "removeLayer",
           requestId: REQUEST_IDS.layer,
@@ -253,9 +274,26 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
         };
         worker.postMessage(request);
       }
+      const prevById = new Map(prevLayers.map((layer) => [layer.id, layer]));
+      // A new slice/volume layer on the active field that no upsert has fed yet: if the store's
+      // buffer is still live (nothing transferred it — only field-line layers existed) upsert straight
+      // from a copy; if it was transferred, ask the store to recompute — the `field` channel then
+      // upserts every active-field layer, this one included.
+      let needsRefill = false;
+      for (const layer of layers) {
+        if (prevById.has(layer.id) || fieldUpserted.has(layer.id)) continue;
+        if (!isFieldLayer(layer)) continue;
+        const { activeField } = store.getState();
+        const computed = selectComputed(store.getState());
+        if (computed === null || layer.field !== activeField) continue;
+        if (isTransferred(computed)) needsRefill = true;
+        else sendUpsert(layer, { ...computed, data: computed.data.slice() });
+      }
+      if (needsRefill) {
+        void store.getState().recomputeField().catch(rejectionLogger("app", "field refill failed"));
+      }
       // Per-layer Phong diff: a brand-new layer's `shaded` rides the upsert, so fire only when an
       // existing volume layer's flag flipped.
-      const prevById = new Map(prevLayers.map((layer) => [layer.id, layer]));
       for (const layer of layers) {
         if (layer.kind !== "volume") continue;
         const before = prevById.get(layer.id);

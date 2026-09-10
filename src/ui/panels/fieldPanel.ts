@@ -2,6 +2,7 @@ import type { FieldName } from "@schema/types.ts";
 import type { SimulationStore } from "@store";
 import { bindControl, fieldLabel } from "../binding/index.ts";
 import { createPane, type Disposer, type SelectOption } from "../controls/index.ts";
+import { createSubscriptions } from "../subscriptions.ts";
 import { orderedFieldNames } from "../topBarInfo.ts";
 
 // The wired field selector: reads the store's computed `availableFields`, dispatches
@@ -31,9 +32,11 @@ export function installFieldPanel(host: HTMLElement, store: SimulationStore): Di
     onChange: (name) => store.getState().selectField(name),
   });
 
+  const subs = createSubscriptions();
   // A dataset switch swaps the computable fields; rebuild options, then re-assert the
   // active field as the authoritative value.
-  const unsubFields = store.subscribe(
+  subs.on(
+    store,
     (s) => s.availableFields,
     (available) => {
       const { activeField: active } = store.getState();
@@ -42,14 +45,14 @@ export function installFieldPanel(host: HTMLElement, store: SimulationStore): Di
     },
   );
   // Mirror a selectField dispatched from elsewhere.
-  const unsubActive = store.subscribe(
+  subs.on(
+    store,
     (s) => s.activeField,
     (name) => select.set(name),
   );
 
   return () => {
-    unsubActive();
-    unsubFields();
+    subs.dispose();
     pane.dispose();
   };
 }

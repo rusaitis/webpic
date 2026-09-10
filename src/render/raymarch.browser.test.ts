@@ -8,9 +8,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScalarField } from "./volume/volumeTexture.ts";
 
-const hasRealGpu =
-  typeof navigator !== "undefined" && "gpu" in navigator && typeof OffscreenCanvas !== "undefined";
-
 const SIZE = 32;
 
 // A radial blob peaked at the volume center, falling to zero by r = 0.4 (normalized).
@@ -123,7 +120,7 @@ function pixelAt(px: Uint8Array, col: number, row: number): readonly [number, nu
 }
 
 describe("raymarch scene render", () => {
-  it.skipIf(!hasRealGpu)("accumulates a bright core where the box projects", async () => {
+  it("accumulates a bright core where the box projects", async () => {
     const px = await renderVolume(blobField());
     const center = pixelAt(px, SIZE >> 1, SIZE >> 1);
     const corner = pixelAt(px, 0, 0);
@@ -136,7 +133,7 @@ describe("raymarch scene render", () => {
     expect(center[0]).toBeGreaterThan(center[2]);
   });
 
-  it.skipIf(!hasRealGpu)("maps the fastest field axis to object-z (screen-up)", async () => {
+  it("maps the fastest field axis to object-z (screen-up)", async () => {
     const px = await renderVolume(rampAlongFastestAxis(), true);
     const col = SIZE >> 1;
     // Rows inside the projected cube (it spans ~the central 60% of the frame); row 0 is the top.
@@ -150,43 +147,37 @@ describe("raymarch scene render", () => {
     expect(upper[0]).toBeGreaterThan(upper[2]); // warm (inferno), not greyscale
   });
 
-  it.skipIf(!hasRealGpu)(
-    "orthographic projection renders the same bright core at matched framing",
-    async () => {
-      const persp = await renderVolume(blobField());
-      const ortho = await renderVolume(blobField(), false, {}, true);
-      const center = pixelAt(ortho, SIZE >> 1, SIZE >> 1);
-      const corner = pixelAt(ortho, 0, 0);
-      // Parallel rays still accumulate the centered blob; the corner stays background.
-      expect(lum(center)).toBeGreaterThan(lum(corner) + 20);
-      expect(lum(center)).toBeGreaterThan(50);
-      // The matched frustum shows the same extent at the target plane: the center pixel marches
-      // the same chord through the blob either way, so the core brightness is close.
-      const perspCenter = pixelAt(persp, SIZE >> 1, SIZE >> 1);
-      expect(Math.abs(lum(center) - lum(perspCenter))).toBeLessThan(40);
-    },
-  );
+  it("orthographic projection renders the same bright core at matched framing", async () => {
+    const persp = await renderVolume(blobField());
+    const ortho = await renderVolume(blobField(), false, {}, true);
+    const center = pixelAt(ortho, SIZE >> 1, SIZE >> 1);
+    const corner = pixelAt(ortho, 0, 0);
+    // Parallel rays still accumulate the centered blob; the corner stays background.
+    expect(lum(center)).toBeGreaterThan(lum(corner) + 20);
+    expect(lum(center)).toBeGreaterThan(50);
+    // The matched frustum shows the same extent at the target plane: the center pixel marches
+    // the same chord through the blob either way, so the core brightness is close.
+    const perspCenter = pixelAt(persp, SIZE >> 1, SIZE >> 1);
+    expect(Math.abs(lum(center) - lum(perspCenter))).toBeLessThan(40);
+  });
 
-  it.skipIf(!hasRealGpu)(
-    "empty-space skipping matches the fixed march pixel-for-pixel",
-    async () => {
-      const field = centralBallField(32, 0.18); // most of the 32³ volume is empty around the ball
-      const skipped = await renderVolume(field, false, { skipEmptySpace: true, brickSize: 4 });
-      const fixed = await renderVolume(field, false, {}); // default fixed march — the reference
+  it("empty-space skipping matches the fixed march pixel-for-pixel", async () => {
+    const field = centralBallField(32, 0.18); // most of the 32³ volume is empty around the ball
+    const skipped = await renderVolume(field, false, { skipEmptySpace: true, brickSize: 4 });
+    const fixed = await renderVolume(field, false, {}); // default fixed march — the reference
 
-      expect(skipped.length).toBe(fixed.length);
-      // Snapping keeps occupied samples on the same lattice and the exterior is exactly 0, so the two
-      // accumulate the identical non-zero sequence — equal within byte rounding, not merely close.
-      let maxDiff = 0;
-      let nonBackground = 0;
-      for (let i = 0; i < fixed.length; i += 4) {
-        for (let c = 0; c < 3; c++) {
-          maxDiff = Math.max(maxDiff, Math.abs((skipped[i + c] ?? 0) - (fixed[i + c] ?? 0)));
-        }
-        if ((fixed[i] ?? 0) > 40) nonBackground++; // the ball must actually render, else parity is vacuous
+    expect(skipped.length).toBe(fixed.length);
+    // Snapping keeps occupied samples on the same lattice and the exterior is exactly 0, so the two
+    // accumulate the identical non-zero sequence — equal within byte rounding, not merely close.
+    let maxDiff = 0;
+    let nonBackground = 0;
+    for (let i = 0; i < fixed.length; i += 4) {
+      for (let c = 0; c < 3; c++) {
+        maxDiff = Math.max(maxDiff, Math.abs((skipped[i + c] ?? 0) - (fixed[i + c] ?? 0)));
       }
-      expect(nonBackground).toBeGreaterThan(20);
-      expect(maxDiff).toBeLessThanOrEqual(2);
-    },
-  );
+      if ((fixed[i] ?? 0) > 40) nonBackground++; // the ball must actually render, else parity is vacuous
+    }
+    expect(nonBackground).toBeGreaterThan(20);
+    expect(maxDiff).toBeLessThanOrEqual(2);
+  });
 });

@@ -37,4 +37,4 @@ export interface FieldListingReader {
 
 // Registry-side dispatch (registerReader/openSimulation) lives in _registry.ts;
 // the probe type is defined here so readers can export a confidence function now.
-export type ConfidenceFn = (handle: DataHandle) => Promise<number>;
+export type ConfidenceFn = (handle: DataHandle, signal?: AbortSignal) => Promise<number>;

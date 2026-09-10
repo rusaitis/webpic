@@ -1,4 +1,5 @@
 export * from "./camera.ts";
+export * from "./layerKinds.ts";
 export * from "./layers.ts";
 export * from "./marker.ts";
 export * from "./overlay.ts";

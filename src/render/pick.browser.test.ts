@@ -6,9 +6,6 @@
 import { describe, expect, it } from "vitest";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "./messages.ts";
 
-const hasRealGpu =
-  typeof navigator !== "undefined" && "gpu" in navigator && typeof OffscreenCanvas !== "undefined";
-
 const SIZE = 64;
 const N = 16;
 
@@ -58,13 +55,12 @@ function pickPoints(): Promise<{ persp: readonly number[]; ortho: readonly numbe
               kind: "upsertLayer",
               requestId: 2,
               id: "vol",
-              layerKind: "volume",
               field: { buffer, dtype: "f32", shape: [N, N, N] },
               colormap: "inferno",
               scale: "linear",
               opacity: 1,
               windowLevel: { center: 0.5, width: 1 },
-              density: 4,
+              params: { layerKind: "volume", density: 4 },
             } satisfies RenderWorkerRequest,
             [buffer],
           );
@@ -114,6 +110,7 @@ function pickPoints(): Promise<{ persp: readonly number[]; ortho: readonly numbe
         case "perfSample":
         case "layerCompiled":
         case "screenshot":
+        case "disposed":
           return;
         case "error":
         case "gpuRecoveryFailed":
@@ -140,19 +137,16 @@ function pickPoints(): Promise<{ persp: readonly number[]; ortho: readonly numbe
 }
 
 describe("worker pickRay", () => {
-  it.skipIf(!hasRealGpu)(
-    "picks the off-center ball through the live camera, perspective and ortho alike",
-    async () => {
-      const { persp, ortho } = await pickPoints();
-      // The median-depth point lands inside the ball (x ≈ 0.25 ± its radius), on the ray axis.
-      expect(persp[0]).toBeGreaterThan(0.08);
-      expect(persp[0]).toBeLessThan(0.42);
-      expect(Math.abs(persp[1] ?? 1)).toBeLessThan(0.05);
-      expect(Math.abs(persp[2] ?? 1)).toBeLessThan(0.05);
-      // The centered ortho ray is the same line — the pick must agree.
-      expect(Math.abs((ortho[0] ?? 1) - (persp[0] ?? 0))).toBeLessThan(0.1);
-      expect(Math.abs(ortho[1] ?? 1)).toBeLessThan(0.05);
-      expect(Math.abs(ortho[2] ?? 1)).toBeLessThan(0.05);
-    },
-  );
+  it("picks the off-center ball through the live camera, perspective and ortho alike", async () => {
+    const { persp, ortho } = await pickPoints();
+    // The median-depth point lands inside the ball (x ≈ 0.25 ± its radius), on the ray axis.
+    expect(persp[0]).toBeGreaterThan(0.08);
+    expect(persp[0]).toBeLessThan(0.42);
+    expect(Math.abs(persp[1] ?? 1)).toBeLessThan(0.05);
+    expect(Math.abs(persp[2] ?? 1)).toBeLessThan(0.05);
+    // The centered ortho ray is the same line — the pick must agree.
+    expect(Math.abs((ortho[0] ?? 1) - (persp[0] ?? 0))).toBeLessThan(0.1);
+    expect(Math.abs(ortho[1] ?? 1)).toBeLessThan(0.05);
+    expect(Math.abs(ortho[2] ?? 1)).toBeLessThan(0.05);
+  });
 });

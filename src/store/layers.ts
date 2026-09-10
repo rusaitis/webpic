@@ -1,15 +1,17 @@
+import type { GridInfo } from "@containers/field_dataset.ts";
+import type { LayerKind, SliceAxis } from "@schema/layers.ts";
 import { clamp } from "@schema/math.ts";
 import type { FieldName, Vec3 } from "@schema/types.ts";
+import { LAYER_KINDS } from "./layerKinds.ts";
+import { defaultSeedRake, isSeedInDomain } from "./seedPick.ts";
+
+export type { LayerKind, SliceAxis };
 
 // The instance-first layer registry (DESIGN §"Layers & navigation"): the scene is a flat,
 // ordered list of renderable instances, each owning its kind, field, visibility, opacity, and
 // a ColormapBinding. The store owns the list; the app diffs it to the render worker, which
 // composites the visible layers by draw order. These are pure list ops — node-testable, framework-
 // free, fresh-object-per-change for `subscribeWithSelector`, identity-preserving on no-ops.
-
-// Restated, not shared, with render/sliceScene.ts's SliceAxis (store can't import render). Members
-// are identical, so the app re-narrows store SliceAxis → render SliceAxis on the wire.
-export type SliceAxis = "x" | "y" | "z";
 
 interface LayerBase {
   readonly id: string;
@@ -37,30 +39,18 @@ export type Layer =
       // Trace seeds in the grid's *physical* coords (store/seedPick), one field line per seed. The app
       // traces them (compute/traceField) and bridges the lines to the render worker.
       readonly seeds: ReadonlyArray<Vec3>;
-    })
-  | (LayerBase & { readonly kind: "particles" });
-
-export type LayerKind = Layer["kind"];
+    });
 
 // Distribute over the union so each member keeps its own kind-specific keys — a plain
 // `Omit<Layer, "id">` would collapse the discriminant correlation.
 type DistributeOmitId<T> = T extends unknown ? Omit<T, "id"> : never;
 export type LayerSpec = DistributeOmitId<Layer>;
 
-// The kind's full default (visible, opaque, no binding). Slice defaults reproduce the legacy
-// app slice (axis z, mid-plane); volume defaults defer steps/density to the render-side defaults.
+// The kind's full default (visible, opaque, no binding, no seeds) — the descriptor table's spec
+// with an id stamped on.
 export function makeDefaultLayer(id: string, field: FieldName, kind: LayerKind): Layer {
-  const base = { id, field, colormapBindingId: null, visible: true, opacity: 1 } as const;
-  switch (kind) {
-    case "slice":
-      return { ...base, kind, axis: "z", position: 0.5 };
-    case "volume":
-      return { ...base, kind, steps: null, density: null, shaded: false };
-    case "fieldlines":
-      return { ...base, kind, seeds: [] };
-    case "particles":
-      return { ...base, kind };
-  }
+  // The spec is the union member sans id; stamping the id reconstructs it.
+  return { ...LAYER_KINDS[kind].makeDefaultSpec(field, null), id } as Layer;
 }
 
 export function addLayer(list: readonly Layer[], layer: Layer): readonly Layer[] {
@@ -179,4 +169,19 @@ export function setFieldlineSeeds(
     return { ...layer, seeds };
   });
   return changed ? next : list;
+}
+
+// Seeds are physical coordinates, so a rake laid on one dataset is meaningless on another (the flux
+// rope spans [0,n], the dipole x∈[-10,5]). When every seed of a layer misses the new grid it is a
+// stale rake, not a placed set — re-rake it at the same count so the layer keeps drawing. A partial
+// miss is left alone: the per-seed skip drops the strays and keeps the user's placed seeds.
+export function rerakeStaleSeeds(layers: readonly Layer[], grid: GridInfo): readonly Layer[] {
+  let changed = false;
+  const next = layers.map((layer) => {
+    if (layer.kind !== "fieldlines" || layer.seeds.length === 0) return layer;
+    if (layer.seeds.some((seed) => isSeedInDomain(seed, grid))) return layer;
+    changed = true;
+    return { ...layer, seeds: defaultSeedRake(grid, layer.seeds.length) };
+  });
+  return changed ? next : layers;
 }

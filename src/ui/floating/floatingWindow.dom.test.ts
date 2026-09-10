@@ -46,9 +46,9 @@ describe("createFloatingWindow", () => {
 
   it("retitles via setTitle (text + aria-label)", () => {
     const win = createFloatingWindow({ parent: document.body, title: "Developer" });
-    win.setTitle("Diagnostics");
-    expect(el(document.body, ".webpic-window_title").textContent).toBe("Diagnostics");
-    expect(win.element.getAttribute("aria-label")).toBe("Diagnostics");
+    win.setTitle("Frame timing");
+    expect(el(document.body, ".webpic-window_title").textContent).toBe("Frame timing");
+    expect(win.element.getAttribute("aria-label")).toBe("Frame timing");
     win.dispose();
   });
 

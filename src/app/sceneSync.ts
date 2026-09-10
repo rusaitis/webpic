@@ -1,4 +1,5 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
+import { axisPhysicalSpan, hasUsableSpacing, worldHalfExtentForGrid } from "@containers/grid.ts";
 import {
   type OverlayAxis,
   REQUEST_IDS,
@@ -7,7 +8,7 @@ import {
 } from "@render/messages.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import { FALLBACK_AXIS, type Rgba01, type Theme } from "@schema/theme.ts";
-import { type OverlayState, type SimulationStore, worldHalfExtentForGrid } from "@store";
+import type { OverlayState, SimulationStore } from "@store";
 import { createStoreBridge } from "./storeBridge.ts";
 
 // Bridges the store's scene-overlay flags + the dataset GridInfo + the resolved theme palette to the
@@ -47,15 +48,11 @@ export function resolveOverlayColors(theme?: Theme): ResolvedOverlayColors {
 // One field axis → its physical extent (code units) or, when the grid lacks usable spacing, voxel
 // indices [0, dim]. Lower-rank grids pad to a degenerate unit axis so the 3-tuple is always complete.
 function buildAxis(grid: GridInfo | null, index: number): OverlayAxis {
-  const dim = grid?.dimensions[index] ?? 1;
-  const spacing = grid?.spacing[index];
-  const origin = grid?.origin[index] ?? 0;
   const label = grid?.axisLabels[index] ?? AXIS_NAMES[index] ?? `axis${index}`;
-  const usePhysical = spacing !== undefined && Number.isFinite(spacing) && spacing > 0;
-  return {
-    bounds: usePhysical ? [origin, origin + spacing * dim] : [0, dim],
-    label,
-  };
+  if (grid === null) return { bounds: [0, 1], label };
+  const span = axisPhysicalSpan(grid, index);
+  const origin = grid.origin[index] ?? 0;
+  return { bounds: hasUsableSpacing(grid, index) ? [origin, origin + span] : [0, span], label };
 }
 
 /** Assemble the worker overlay config from the store flags, the dataset grid, and resolved colors.

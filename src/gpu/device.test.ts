@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { flushAsync } from "../../tests/helpers.ts";
 import {
   getCapabilities,
   getDevice,
@@ -69,7 +70,7 @@ function makeFakeGpu(features: readonly string[] = []): FakeGpu {
 const lostInfo = (reason: GPUDeviceLostReason, message = ""): GPUDeviceLostInfo =>
   ({ reason, message }) as unknown as GPUDeviceLostInfo;
 
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const flush = flushAsync;
 
 let dispose: (() => void) | undefined;
 

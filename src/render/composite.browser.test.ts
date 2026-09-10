@@ -7,9 +7,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScalarField } from "./volume/volumeTexture.ts";
 
-const hasRealGpu =
-  typeof navigator !== "undefined" && "gpu" in navigator && typeof OffscreenCanvas !== "undefined";
-
 const SIZE = 32;
 
 // Pinned box-centered pose, not DEFAULT_POSE: the tests read the center pixel, and the app
@@ -54,7 +51,7 @@ function dist(a: readonly [number, number, number], b: readonly [number, number,
 }
 
 describe("layer compositor", () => {
-  it.skipIf(!hasRealGpu)("blends by per-layer opacity", async () => {
+  it("blends by per-layer opacity", async () => {
     const { installRenderer } = await import("./runtime/renderer.ts");
     const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
     const { applyPose, createPerspectiveCamera } = await import("./camera/camera.ts");
@@ -101,7 +98,7 @@ describe("layer compositor", () => {
     }
   });
 
-  it.skipIf(!hasRealGpu)("blends by draw order", async () => {
+  it("blends by draw order", async () => {
     const { installRenderer } = await import("./runtime/renderer.ts");
     const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
     const { applyPose, createPerspectiveCamera } = await import("./camera/camera.ts");

@@ -4,7 +4,7 @@
 // pairwise at every grid point, edges included. Mirrors pypic tests/test_invariants. The gold tests.
 
 import { describe, it } from "vitest";
-import { assertAllclose } from "../../tests/helpers.ts";
+import { assertAllclose, seededRandom } from "../../tests/helpers.ts";
 import { curl, divergence, gradient } from "./operators.ts";
 
 type Shape3 = readonly [number, number, number];
@@ -29,17 +29,12 @@ function sample(
   return out;
 }
 
-// Deterministic pseudo-random field in [-1, 1] (Park–Miller minimal-standard LCG) — the identity is
-// point-wise, so a noisy field proves it holds for *any* input, not just smooth ones. Deterministic
-// (no Math.random) so the bit-level tolerance can't flake.
+// Seeded pseudo-random field in [-1, 1] — the identity is point-wise, so a noisy field proves it
+// holds for *any* input, not just smooth ones.
 function pseudoRandomField(length: number, seed: number): Float64Array {
+  const random = seededRandom(seed);
   const out = new Float64Array(length);
-  let state = seed % 2147483647;
-  if (state <= 0) state += 2147483646;
-  for (let i = 0; i < length; i++) {
-    state = (state * 16807) % 2147483647;
-    out[i] = (state / 2147483647) * 2 - 1;
-  }
+  for (let i = 0; i < length; i++) out[i] = random() * 2 - 1;
   return out;
 }
 

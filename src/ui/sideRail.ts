@@ -1,21 +1,22 @@
-import type { LayerKind, SimulationStore, UiStore } from "@store";
+import { LAYER_KIND_ORDER, LAYER_KINDS, type SimulationStore, type UiStore } from "@store";
 import { installOutsideClickDismiss, makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import { ICON_CLOSE } from "./icons.ts";
-import { isTypingTarget } from "./keyboard.ts";
-import { LAYER_KIND_ICON } from "./layerIcons.ts";
+import { LAYER_KIND_ICON, PARTICLES_PLACEHOLDER_ICON } from "./layerIcons.ts";
 import { positionArrowFlyout } from "./layout.ts";
 import { installScenePanel } from "./panels/scenePanel.ts";
 import { installRailMenu, type RailMenuHandle, type RailMenuItem } from "./railMenu.ts";
+import { createShortcutRegistry } from "./shortcuts.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 
 // The left tool rail (the instance-first rail). Three groups on the operations axis: a Layers toggle,
 // the layer add-buttons (+Volume/+Slice/+Field lines — each opens a click-menu of existing instances
-// plus "Add new"), and tool buttons (Axes & grid, Probe, Diagnostics, + reserved Reductions/
+// plus "Add new"), and tool buttons (Axes & grid, Probe, Developer, + reserved Reductions/
 // Selections/Theme). ui → store only; hides with the global UI toggle.
 //
 //   • Axes & grid — opens a flyout beside the tab hosting the reference-frame (Scene) controls.
 //   • Probe — toggles the draggable value-probe marker.
-//   • Diagnostics — opens the Developer window (the panels.dev flag the window subscribes).
+//   • Developer — opens the Developer window (frame timing + dev toggles; the panels.dev flag).
 //
 // Layer settings live in the Layers panel + colorbar, not here — these are tools, not layers.
 
@@ -32,20 +33,11 @@ const ICON = {
   reductions: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11l-4 5v4l-3 1.5V8.5z"/></svg>`,
   // Marquee corners — selections (reserved).
   selections: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h2.5M10.5 3.5H13M3 12.5h2.5M10.5 12.5H13M3 3.5v2.5M3 10v2.5M13 3.5v2.5M13 10v2.5"/></svg>`,
-  // An ECG pulse — diagnostics.
-  diagnostics: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h3l1.8-4.5L9 12.5l1.8-4.5h3.7"/></svg>`,
+  // An ECG pulse — the Developer window's frame timing.
+  developer: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h3l1.8-4.5L9 12.5l1.8-4.5h3.7"/></svg>`,
   // A half-filled disc — theme (reserved).
   theme: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 010 11z" fill="currentColor" stroke="none"/></svg>`,
 } as const;
-
-// The kinds with an add-button + instance menu (particle rendering hasn't landed, so its button is disabled).
-const ADD_KINDS: readonly LayerKind[] = ["volume", "slice", "fieldlines"];
-const ADD_LABEL: Record<LayerKind, string> = {
-  volume: "Volume",
-  slice: "Slice",
-  fieldlines: "Field lines",
-  particles: "Particles",
-};
 
 export function installSideRail(
   parent: HTMLElement,
@@ -76,15 +68,16 @@ export function installSideRail(
 
   // Add-button group — one per renderable primitive, each opening an instance menu.
   const menus: RailMenuHandle[] = [];
-  for (const kind of ADD_KINDS) {
+  for (const kind of LAYER_KIND_ORDER) {
+    const label = LAYER_KINDS[kind].label;
     const btn = makeButton(`add-${kind}`, LAYER_KIND_ICON[kind]);
-    btn.setAttribute("aria-label", `${ADD_LABEL[kind]} layers`);
+    btn.setAttribute("aria-label", `${label} layers`);
     btn.setAttribute("aria-haspopup", "menu");
     container.append(btn);
     const menu = installRailMenu({
       anchor: btn,
       parent,
-      title: `${ADD_LABEL[kind]} layers`,
+      title: `${label} layers`,
       getItems: (): readonly RailMenuItem[] =>
         store
           .getState()
@@ -96,14 +89,14 @@ export function installSideRail(
         uiStore.getState().setLayersPanelVisible(true);
       },
       onAddNew: () => {
-        addLayerOfKind(store, kind); // add* selects the new layer; open settings on it
+        store.getState().addLayerOfKind(kind); // selects the new layer; open settings on it
         uiStore.getState().setLayerSettingsVisible(true);
       },
     });
     menus.push(menu);
   }
   // Particle rendering hasn't landed — present but disabled so the rail reads complete.
-  const particlesBtn = makeButton("add-particles", LAYER_KIND_ICON.particles);
+  const particlesBtn = makeButton("add-particles", PARTICLES_PLACEHOLDER_ICON);
   particlesBtn.setAttribute("aria-label", "Particles — v0.2");
   particlesBtn.disabled = true;
   container.append(particlesBtn);
@@ -115,10 +108,11 @@ export function installSideRail(
   viewBtn.setAttribute("aria-haspopup", "dialog");
   viewBtn.setAttribute("aria-expanded", "false");
   const probeBtn = makeButton("probe", ICON.probe);
-  const diagBtn = makeButton("diagnostics", ICON.diagnostics);
-  diagBtn.setAttribute("aria-label", "Developer / diagnostics");
-  diagBtn.setAttribute("aria-pressed", "false");
-  diagBtn.addEventListener("click", () => uiStore.getState().togglePanel("dev"), { signal });
+  // data-control stays "diagnostics": scripts/harness/pageProbes.ts drives the perf gate through it.
+  const devBtn = makeButton("diagnostics", ICON.developer);
+  devBtn.setAttribute("aria-label", "Developer / frame timing");
+  devBtn.setAttribute("aria-pressed", "false");
+  devBtn.addEventListener("click", () => uiStore.getState().togglePanel("dev"), { signal });
   const reductionsBtn = makeButton("reductions", ICON.reductions);
   reductionsBtn.setAttribute("aria-label", "Reductions — v0.2");
   reductionsBtn.disabled = true;
@@ -130,7 +124,7 @@ export function installSideRail(
   const themeBtn = makeButton("theme", ICON.theme);
   themeBtn.setAttribute("aria-label", "Cycle theme");
   themeBtn.addEventListener("click", () => uiStore.getState().requestThemeCycle(), { signal });
-  container.append(viewBtn, probeBtn, diagBtn, reductionsBtn, selectionsBtn, themeBtn);
+  container.append(viewBtn, probeBtn, devBtn, reductionsBtn, selectionsBtn, themeBtn);
   parent.appendChild(container);
 
   // The Axes & grid flyout (unchanged): a panel opening to the right of the View tab, tail pointing
@@ -199,15 +193,11 @@ export function installSideRail(
     onDismiss: () => setOpen(false),
   });
 
-  // The Add-volume shortcut (DESIGN default "V"); ignored while typing or with modifiers held. ("S"
-  // is intentionally unbound — it collides with the W/S dolly; +Slice is rail-only.)
-  const onAddKeyDown = (event: KeyboardEvent): void => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
-      return;
-    if (isTypingTarget(event.target)) return;
-    if (event.key.toLowerCase() === "v") addLayerOfKind(store, "volume");
-  };
-  doc.addEventListener("keydown", onAddKeyDown, { signal });
+  // The Add-volume shortcut (DESIGN default "V"). ("S" is intentionally unbound — it collides with
+  // the W/S dolly; +Slice is rail-only.)
+  createShortcutRegistry(doc, signal).register("v", () =>
+    store.getState().addLayerOfKind("volume"),
+  );
 
   const onResize = (): void => {
     if (isOpen) position();
@@ -224,8 +214,8 @@ export function installSideRail(
   const applyLayersPressed = (open: boolean): void => {
     layersBtn.setAttribute("aria-pressed", String(open));
   };
-  const applyDiagPressed = (open: boolean): void => {
-    diagBtn.setAttribute("aria-pressed", String(open));
+  const applyDevPressed = (open: boolean): void => {
+    devBtn.setAttribute("aria-pressed", String(open));
   };
   const applyThemeName = (name: string | null): void => {
     themeBtn.disabled = name === null;
@@ -242,50 +232,31 @@ export function installSideRail(
   setOpen(false);
   applyProbe(store.getState().overlay.showPicker);
   applyLayersPressed(uiStore.getState().isLayersPanelOpen);
-  applyDiagPressed(uiStore.getState().panels.dev ?? false);
+  applyDevPressed(uiStore.getState().panels.dev ?? false);
   applyThemeName(uiStore.getState().themeName);
   applyVisible(uiStore.getState().isUiVisible);
 
-  const unsubs = [
-    store.subscribe((s) => s.overlay.showPicker, applyProbe),
-    store.subscribe(
-      (s) => s.layers,
-      () => {
-        for (const menu of menus) menu.refresh();
-      },
-    ),
-    uiStore.subscribe((s) => s.isLayersPanelOpen, applyLayersPressed),
-    uiStore.subscribe((s) => s.panels.dev ?? false, applyDiagPressed),
-    uiStore.subscribe((s) => s.themeName, applyThemeName),
-    uiStore.subscribe((s) => s.isUiVisible, applyVisible),
-  ];
+  const subs = createSubscriptions();
+  subs.on(store, (s) => s.overlay.showPicker, applyProbe);
+  subs.on(
+    store,
+    (s) => s.layers,
+    () => {
+      for (const menu of menus) menu.refresh();
+    },
+  );
+  subs.on(uiStore, (s) => s.isLayersPanelOpen, applyLayersPressed);
+  subs.on(uiStore, (s) => s.panels.dev ?? false, applyDevPressed);
+  subs.on(uiStore, (s) => s.themeName, applyThemeName);
+  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
 
   return () => {
     ac.abort();
-    for (const unsub of unsubs) unsub();
+    subs.dispose();
     for (const menu of menus) menu.dispose();
     disposeOutsideDismiss();
     sceneDispose();
     flyout.remove();
     container.remove();
   };
-}
-
-// Dispatch the add-intent matching a kind. Volume/slice/fieldlines have dedicated store intents
-// (each recomputes/traces so the new layer gets data); particles have no render path yet.
-function addLayerOfKind(store: SimulationStore, kind: LayerKind): void {
-  const state = store.getState();
-  switch (kind) {
-    case "volume":
-      state.addVolumeLayer();
-      return;
-    case "slice":
-      state.addSliceLayer();
-      return;
-    case "fieldlines":
-      state.addFieldlinesLayer();
-      return;
-    case "particles":
-      return; // no render scene in v0.1
-  }
 }

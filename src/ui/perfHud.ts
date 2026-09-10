@@ -1,7 +1,8 @@
 import type { PerfSample, PerfStore, PerfWorker, UiStore } from "@store";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
-import { isTypingTarget } from "./keyboard.ts";
+import { createShortcutRegistry } from "./shortcuts.ts";
+import { createSubscriptions, type Subscriptions } from "./subscriptions.ts";
 import { FALLBACK_BG, FALLBACK_BORDER, FALLBACK_FG } from "./theme/styles.ts";
 
 // Dev-mode performance HUD: a magviz-style corner meter (top-left, Shift+P) showing FPS + a CPU/frame
@@ -333,16 +334,15 @@ export function installPerfHud(
   // Event-driven, not a 60 Hz rAF: while visible, redraw on each new sample + main-heap change, plus a
   // slow timer for the idle flip and detail refresh. `active` holds the visible-only subscriptions,
   // torn down on hide; `idleTimer` doubles as the "am I running?" flag.
-  const active: Disposer[] = [];
+  let active: Subscriptions | null = null;
   let idleTimer: number | undefined;
 
   const startActive = (win: Window): void => {
     lastSeenSample = null; // a re-open re-detects the first sample (idle until one arrives)
     render();
-    active.push(
-      perfStore.subscribe((s) => s.sample, render),
-      perfStore.subscribe((s) => s.mainHeapBytes, render), // heap row would freeze without this
-    );
+    active = createSubscriptions();
+    active.on(perfStore, (s) => s.sample, render);
+    active.on(perfStore, (s) => s.mainHeapBytes, render); // heap row would freeze without this
     idleTimer = win.setInterval(() => {
       render(); // re-evaluates the idle → "idle (on-demand)" flip after the last sample
       if (!detail.hidden) renderDetail();
@@ -350,7 +350,8 @@ export function installPerfHud(
   };
 
   const stopActive = (): void => {
-    for (const dispose of active.splice(0).reverse()) dispose();
+    active?.dispose();
+    active = null;
     if (idleTimer !== undefined) {
       view?.clearInterval(idleTimer);
       idleTimer = undefined;
@@ -371,28 +372,20 @@ export function installPerfHud(
   };
   applyDetail(perfStore.getState().isPerfDetailOpen);
 
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (isTypingTarget(event.target)) return;
-    if (event.metaKey || event.ctrlKey || event.altKey) return;
-    // Shift+P — matches magviz; the bare-modifier UI toggle (F) bails on Shift, so no conflict.
-    if (event.shiftKey && event.key.toLowerCase() === "p") {
-      event.preventDefault();
-      perfStore.getState().togglePerfHud();
-    }
-  };
+  // Shift+P — matches magviz; the unshifted "P" is ui/install's screenshot, so no conflict.
+  const shortcuts = createShortcutRegistry(doc);
+  shortcuts.register("p", () => perfStore.getState().togglePerfHud(), { modifiers: "shift" });
 
   applyVisible();
-  doc.addEventListener("keydown", onKeyDown);
-  const unsubUi = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
-  const unsubVisible = perfStore.subscribe((s) => s.isPerfHudVisible, applyVisible);
-  const unsubDetail = perfStore.subscribe((s) => s.isPerfDetailOpen, applyDetail);
+  const subs = createSubscriptions();
+  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subs.on(perfStore, (s) => s.isPerfHudVisible, applyVisible);
+  subs.on(perfStore, (s) => s.isPerfDetailOpen, applyDetail);
 
   return () => {
     stopActive();
-    unsubUi();
-    unsubVisible();
-    unsubDetail();
-    doc.removeEventListener("keydown", onKeyDown);
+    subs.dispose();
+    shortcuts.dispose();
     container.remove();
     disposeStyles();
   };

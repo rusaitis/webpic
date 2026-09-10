@@ -23,3 +23,14 @@ export function assertAllclose(
     expect(Math.abs(a - e)).toBeLessThanOrEqual(atol + rtol * Math.abs(e));
   }
 }
+
+// Park–Miller minimal-standard LCG in (0, 1). Deterministic (no Math.random) so the bit-level
+// tolerances the fuzz and conservation suites assert can't flake on a bad draw.
+export function seededRandom(seed: number): () => number {
+  let state = seed % 2147483647;
+  if (state <= 0) state += 2147483646;
+  return () => {
+    state = (state * 16807) % 2147483647;
+    return state / 2147483647;
+  };
+}

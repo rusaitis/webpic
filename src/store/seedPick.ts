@@ -1,7 +1,9 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
+import { axisPhysicalSpan } from "@containers/grid.ts";
+import type { SliceAxis } from "@schema/layers.ts";
 import { clamp, UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import { intersectCenteredBox } from "@schema/rayBox.ts";
 import type { Vec3 } from "@schema/types.ts";
-import type { SliceAxis } from "./layers.ts";
 
 // Raycast seed picking for field-line tracing: turn a cursor ray into a seed point in the grid's
 // *physical* (code-unit) coordinates — the space numerics/tracing + the WGSL streamline kernel
@@ -13,9 +15,8 @@ import type { SliceAxis } from "./layers.ts";
 // invariant: get it wrong and traces silently diverge from pypic.
 //
 // Pure, store-layer (parallels store/pick + store/marker): Vec3 tuples, no THREE/DOM/GPU, imports only
-// @containers (GridInfo) + @schema. The caller builds the ray with store/pick.cursorRay; this restates
-// the ray↔box slab test (render/rayBox), which the store can't import — the same pattern as
-// store/pick.unitBoxChordMidpoint.
+// @containers (grid geometry) + @schema (the shared ray↔box slab test). The caller builds the ray with
+// store/pick.cursorRay.
 
 // A slice's held axis ("x" holds world/field axis 0, …) → its index. SliceAxis is store/layers' (the
 // in-layer single source); the hold mapping matches render/sliceScene.
@@ -28,14 +29,6 @@ export type VolumeDepth = "entry" | "midpoint";
 
 const EPS = 1e-9;
 
-// Physical span of an axis: spacing·dim, with a voxel-index fallback (dim) when spacing is unusable —
-// mirrors store/simulation.worldHalfExtentForGrid so the unit box and these coords stay consistent.
-function axisSpan(grid: GridInfo, i: number): number {
-  const dim = grid.dimensions[i] ?? 1;
-  const dx = grid.spacing[i];
-  return dx !== undefined && Number.isFinite(dx) && dx > 0 ? dx * dim : dim;
-}
-
 /** World point (unit box) → physical grid coordinate. Pure bijection with `gridToWorld`; does NOT
  *  clamp to the traceable domain (see `clampSeedToDomain`). */
 export function worldToGrid(
@@ -46,7 +39,7 @@ export function worldToGrid(
   const map = (i: 0 | 1 | 2): number => {
     const h = halfExtent[i] || 0.5; // unit-box half-size on this axis (guard a degenerate 0)
     const t01 = (world[i] + h) / (2 * h); // [-h, h] → [0, 1]
-    return (grid.origin[i] ?? 0) + t01 * axisSpan(grid, i); // [0, 1] → [origin, origin + dim·dx]
+    return (grid.origin[i] ?? 0) + t01 * axisPhysicalSpan(grid, i); // [0, 1] → [origin, origin + dim·dx]
   };
   return [map(0), map(1), map(2)];
 }
@@ -59,7 +52,7 @@ export function gridToWorld(
   halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT,
 ): Vec3 {
   const map = (i: 0 | 1 | 2): number => {
-    const span = axisSpan(grid, i) || 1;
+    const span = axisPhysicalSpan(grid, i) || 1;
     const t01 = (physical[i] - (grid.origin[i] ?? 0)) / span; // [origin, origin + span] → [0, 1]
     const h = halfExtent[i] || 0.5;
     return t01 * (2 * h) - h; // [0, 1] → [-h, h]
@@ -99,10 +92,11 @@ export function isSeedInDomain(physical: Vec3, grid: GridInfo): boolean {
 export function defaultSeedRake(grid: GridInfo, count = 8): Vec3[] {
   const n = Math.max(2, count);
   let axis = 0; // the longest physical axis carries the rake; the other two sit at domain center
-  for (let i = 1; i < 3; i++) if (axisSpan(grid, i) > axisSpan(grid, axis)) axis = i;
+  for (let i = 1; i < 3; i++)
+    if (axisPhysicalSpan(grid, i) > axisPhysicalSpan(grid, axis)) axis = i;
   const lo = grid.origin[axis] ?? 0;
-  const span = axisSpan(grid, axis);
-  const center = (i: number): number => (grid.origin[i] ?? 0) + 0.5 * axisSpan(grid, i);
+  const span = axisPhysicalSpan(grid, axis);
+  const center = (i: number): number => (grid.origin[i] ?? 0) + 0.5 * axisPhysicalSpan(grid, i);
   const seeds: Vec3[] = [];
   for (let k = 0; k < n; k++) {
     const along = lo + ((k + 0.5) / n) * span; // evenly spaced, inset from the faces
@@ -116,35 +110,6 @@ export function defaultSeedRake(grid: GridInfo, count = 8): Vec3[] {
   return seeds;
 }
 
-interface BoxHit {
-  readonly tNear: number;
-  readonly tFar: number;
-}
-
-// Ray-slab clip against the box [-h, h]³ — restates render/rayBox.intersectRayBox (store can't import
-// render), like store/pick.unitBoxChordMidpoint's axisSlab. null when the ray misses the box.
-function clipRayToBox(origin: Vec3, dir: Vec3, halfExtent: Vec3): BoxHit | null {
-  let tNear = Number.NEGATIVE_INFINITY;
-  let tFar = Number.POSITIVE_INFINITY;
-  for (let i = 0; i < 3; i++) {
-    const h = halfExtent[i] ?? 0.5;
-    const o = origin[i] ?? 0;
-    const d = dir[i] ?? 0;
-    if (Math.abs(d) < EPS) {
-      if (o < -h || o > h) return null; // parallel and outside this slab
-      continue;
-    }
-    const a = (-h - o) / d;
-    const b = (h - o) / d;
-    const lo = Math.min(a, b);
-    const hi = Math.max(a, b);
-    if (lo > tNear) tNear = lo;
-    if (hi < tFar) tFar = hi;
-    if (tNear > tFar) return null;
-  }
-  return { tNear, tFar };
-}
-
 /** Ray ∩ volume box → seed (grid coords, clamped to the traceable domain), or null on a miss. `depth`
  *  picks the box-chord point; "entry" is the predictable default. The pure geometric pick "against the
  *  volume bounds" — opacity-weighted depth (the dominant structure) stays the app's render/pickRay
@@ -156,7 +121,7 @@ export function seedFromVolume(
   halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT,
   depth: VolumeDepth = "entry",
 ): Vec3 | null {
-  const hit = clipRayToBox(origin, dir, halfExtent);
+  const hit = intersectCenteredBox(origin, dir, halfExtent);
   if (hit === null) return null;
   const tEntry = Math.max(hit.tNear, 0); // camera inside the box → start at the camera
   if (hit.tFar < tEntry) return null; // box entirely behind the camera

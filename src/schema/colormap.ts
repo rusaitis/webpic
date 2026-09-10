@@ -37,6 +37,16 @@ export interface WindowLevel {
   readonly width: number;
 }
 
+/** The full-range window over a value range — centered, spanning the whole interval (matplotlib's
+ *  Normalize default with vmin/vmax at the data limits). The store's default binding window and the
+ *  render worker's pick fallback both derive from it. */
+export function fullRangeWindow(range: {
+  readonly min: number;
+  readonly max: number;
+}): WindowLevel {
+  return { center: (range.min + range.max) / 2, width: range.max - range.min };
+}
+
 export interface ColormapBinding {
   readonly id: string;
   readonly field: FieldName;

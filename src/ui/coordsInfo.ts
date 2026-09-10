@@ -10,7 +10,7 @@ const RAD_TO_DEG = 180 / Math.PI;
 // Banking under ~0.5° reads as 0° and clutters the readout; hide it until the view is actually rolled.
 const ROLL_READOUT_EPSILON = 0.0087;
 
-export const GEOMETRY_LABEL: Record<GeometryType, string> = {
+export const GEOMETRY_LABEL: Readonly<Record<GeometryType, string>> = {
   cartesian: "Cartesian",
   spherical: "Spherical",
   cylindrical: "Cylindrical",

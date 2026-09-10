@@ -150,6 +150,12 @@ pypic.server foundations already shipped (HTTP discovery + WS Arrow-IPC stream) 
 - [ ] Offline service-worker (needs a real data source first)
 - [x] PWA manifest + icons + iOS standalone meta — guarded by `tests/manifest.test.ts`
 
+## Code health — 2026-09 review
+Full findings + sequencing: the review plan (session 2026-09-09). Coverage baseline at review time: **75.4% statements / 76.4% lines**; after the three tiers **77.1% / 78.2%** (1240 → 1288 tests) (`npm run test:coverage`, report only — no gate until the number has a history).
+- [x] A. Guardrails — v8 coverage, lefthook, `gen:themes:check` + `docs:api` in CI, Biome `useExhaustiveSwitchCases`/`noFloatingPromises`/`noMisusedPromises`/`noConsole`/`noParameterAssign`, `lib: ES2024`, `erasableSyntaxOnly` for scripts, `engines >=22.18` + `.nvmrc` + dependabot, app size budget 1.6 MB → 550 kB, DESIGN §Testing/§CI brought back to reality
+- [x] B. Hygiene — exhaustive response routers, `logError` seam + `.catch` at every fire-and-forget, per-frame allocs out of `cameraChrome` + composite assembly, `AbortSignal` on reader probe + `setDataset`, one `intersectRayBox`/`axisSpan`/`finiteRange` (stands up `reductions/`), render-worker `dispose` message, `Error.cause`, `// STAGED:` marker for built-not-wired code, test + scripts harness dedupe
+- [x] C. Structure — shared types to `schema/`, split `store/simulation.ts` (+ discriminated field state, timing → `store/perf.ts`), `LAYER_KINDS` descriptor table + nested `upsertLayer` params, de-globalize `render/worker.ts`, `ui` subscription bridge, `colorbar`/`pointerCamera` splits, worker tsconfig, render "diagnostics" → "timing"
+
 ## Post-v1.0
 - [ ] **Spherical/cylindrical raymarcher** — unlocks non-Cartesian sims (global magnetosphere, tokamak) the reader currently rejects outright; native curvilinear marching avoids the resampling smear that lands exactly where the physics concentrates (axes, poles, separatrices).
 - [ ] **WebTransport** (when pypic.server adopts) — QUIC's independent streams end WebSocket head-of-line blocking, so one slow field can't stall the rest; matters when streaming from an HPC center over long or lossy links.

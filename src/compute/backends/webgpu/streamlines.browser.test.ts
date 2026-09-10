@@ -21,13 +21,11 @@ import {
 } from "../../../../tests/traceFixtures.ts";
 import { traceFieldLinesWebgpu } from "./streamlines.ts";
 
-const hasRealGpu = typeof navigator !== "undefined" && "gpu" in navigator;
-
 let installed = false;
 let dispose: (() => void) | undefined;
 
 beforeAll(async () => {
-  if (!hasRealGpu || hasDevice()) return; // a sibling suite may already hold the singleton
+  if (hasDevice()) return; // a sibling suite may already hold the singleton
   const handle = await installGpu();
   dispose = handle.dispose;
   installed = true;
@@ -93,7 +91,7 @@ function hausdorff(a: ArrayLike<number>, na: number, b: ArrayLike<number>, nb: n
 const seedsOf = (fix: TraceFixture): ReadonlyArray<readonly number[]> => fix.seeds;
 
 describe("webgpu streamline parity vs the CPU tracer + pypic goldens", () => {
-  it.skipIf(!hasRealGpu)("uniform: exact counts + points (flip-free constant field)", async () => {
+  it("uniform: exact counts + points (flip-free constant field)", async () => {
     const fix = TRACE_FIXTURES.uniform;
     const data = datasetFromFixture(fix);
     const golden = fix.traces[0];
@@ -109,7 +107,7 @@ describe("webgpu streamline parity vs the CPU tracer + pypic goldens", () => {
     assertAllclose(gpu.points, golden.points, { rtol: 1e-5, atol: 1e-5 });
   });
 
-  it.skipIf(!hasRealGpu)("smooth: GPU matches the CPU twin + golden curve", async () => {
+  it("smooth: GPU matches the CPU twin + golden curve", async () => {
     const fix = TRACE_FIXTURES.smooth;
     const data = datasetFromFixture(fix);
     const golden = fix.traces[0];
@@ -128,7 +126,7 @@ describe("webgpu streamline parity vs the CPU tracer + pypic goldens", () => {
     expect(hausdorff(gpu.points, gpu.nPoints, golden.points, golden.nPoints)).toBeLessThan(1e-5);
   });
 
-  it.skipIf(!hasRealGpu)("rotational: closes the loop on the analytic circle", async () => {
+  it("rotational: closes the loop on the analytic circle", async () => {
     const fix = TRACE_FIXTURES.rotational;
     const data = datasetFromFixture(fix);
     const golden = fix.traces[0];

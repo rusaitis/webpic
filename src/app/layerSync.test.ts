@@ -76,7 +76,7 @@ describe("installLayerSync", () => {
     if (upsert === undefined || upsert.message.kind !== "upsertLayer") {
       throw new Error("expected an upsertLayer");
     }
-    expect(upsert.message.layerKind).toBe("volume");
+    expect(upsert.message.params.layerKind).toBe("volume");
     expect(upsert.message.field.dtype).toBe("f32");
     expect(upsert.transfer).toEqual([upsert.message.field.buffer]); // transferred, not cloned
     // Colormap/window/scale come from the seeded binding — not the old hardcoded inferno/global.
@@ -154,7 +154,9 @@ describe("installLayerSync", () => {
     if (upsert === undefined || upsert.message.kind !== "upsertLayer") {
       throw new Error("expected an upsertLayer");
     }
-    expect(upsert.message.shaded).toBe(false);
+    expect(
+      upsert.message.params.layerKind === "volume" ? upsert.message.params.shaded : undefined,
+    ).toBe(false);
   });
 
   it("posts setLayerShading when an existing volume layer is toggled (no field re-transfer)", async () => {
@@ -237,15 +239,15 @@ describe("installLayerSync", () => {
     expect(remove.message.id).toBe("layer-1");
   });
 
-  it("upserts a scene for a newly added volume layer (addVolumeLayer recomputes)", async () => {
+  it("upserts a scene for a newly added volume layer (the bridge refills the transferred field)", async () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset()); // seeds layer-0
     await flushAsync();
     posts.length = 0; // ignore the seed traffic
-    store.getState().addVolumeLayer(); // adds layer-1 + recomputes (the detached-buffer fix)
+    store.getState().addVolumeLayer(); // adds layer-1; the seed's buffer was transferred above
     await flushAsync();
-    // recompute refills `computed` → the computed channel upserts every active-field layer; the new
-    // layer-1 must be among them (a bare addLayer would leave it composited but never drawn).
+    // The bridge sees a new field layer whose buffer was transferred → recomputeField → the field
+    // channel upserts every active-field layer; layer-1 must be among them.
     const newUpsert = posts.find(
       (p) => p.message.kind === "upsertLayer" && p.message.id === "layer-1",
     );

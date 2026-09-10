@@ -134,7 +134,7 @@ function upsert(
     kind: "upsertLayer",
     requestId: 1,
     id,
-    layerKind,
+    params: layerKind === "slice" ? { layerKind, axis: "z", position: 0.5 } : { layerKind },
     field: field(shape),
     colormap: "viridis",
     scale: "linear",
@@ -227,7 +227,7 @@ describe("createLayerRegistry", () => {
 
   it("setSliceParams writes position in place (uniform) but rebuilds on an axis change", async () => {
     const { registry, created } = harness();
-    await registry.upsert({ ...upsert("sl", "slice"), axis: "z", position: 0.5 });
+    await registry.upsert(upsert("sl", "slice"));
     const scene = created[0];
     if (scene === undefined) throw new Error("expected a built slice");
 

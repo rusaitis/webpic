@@ -1,7 +1,11 @@
 import type { GpuAdapterSummary } from "@gpu";
+import { logWarn } from "@schema/log.ts";
 import { z } from "zod";
 import { BACKEND_IDS, type BackendId } from "./backend.ts";
 
+// STAGED: not installed — field.ts picks backends first-wins until a second dispatcher backend
+// (WASM) gives these scores something to rank; see docs/DESIGN.md §Compute dispatcher.
+//
 // Background backend microbench + calibration cache. On install: warm-start from cached
 // per-adapter scores, else seed hardcoded heuristics so the dispatcher has scores immediately
 // while a background bench refines and writes them back. See docs/DESIGN.md §Caching.
@@ -10,7 +14,7 @@ import { BACKEND_IDS, type BackendId } from "./backend.ts";
 // (CalibrationCache) — the real @data Cache is assignable; the app wires it.
 
 export const CALIBRATION_VERSION = "1"; // bump on kernel/bench change → silent invalidation
-export const CALIBRATION_NAMESPACE = "calibration";
+const CALIBRATION_NAMESPACE = "calibration";
 
 export interface CalibrationScores {
   readonly calibrationVersion: string;
@@ -59,7 +63,7 @@ export function adapterKey(adapter: GpuAdapterSummary): string {
   return `${sanitize(adapter.vendor)}/${sanitize(adapter.architecture)}`;
 }
 
-export function calibrationKey(adapter: GpuAdapterSummary): CalibrationCacheKey {
+function calibrationKey(adapter: GpuAdapterSummary): CalibrationCacheKey {
   return {
     namespace: CALIBRATION_NAMESPACE,
     parts: [adapter.vendor, adapter.architecture, CALIBRATION_VERSION],
@@ -140,7 +144,7 @@ function syntheticMagnitudeProbe(): BenchKernel {
   };
 }
 
-export const DEFAULT_BENCH_PROBES: readonly BenchKernel[] = [syntheticMagnitudeProbe()];
+const DEFAULT_BENCH_PROBES: readonly BenchKernel[] = [syntheticMagnitudeProbe()];
 
 const DEFAULT_SIZES = [1 << 14, 1 << 18, 1 << 20] as const;
 
@@ -257,7 +261,9 @@ export async function installCalibration(
   const { cache, adapter } = options;
   const probes = options.probes ?? DEFAULT_BENCH_PROBES;
   const runInBackground = options.runInBackground ?? true;
-  const reportError = options.onError ?? ((error: unknown) => console.warn("[calibration]", error));
+  const reportError =
+    options.onError ??
+    ((error: unknown) => logWarn("calibration", "background bench failed", error));
 
   options.signal?.throwIfAborted();
 

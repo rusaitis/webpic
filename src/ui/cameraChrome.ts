@@ -7,10 +7,19 @@ import {
 } from "@store";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
+import { createSubscriptions } from "./subscriptions.ts";
 
-// Format a column-major 4×4 (16-element) matrix as a CSS matrix3d() string.
-function matrix3d(m: readonly number[]): string {
-  return `matrix3d(${m.map((v) => v.toFixed(5)).join(", ")})`;
+// One column-major 4×4 scratch shared by both transforms below — each fills its rotation block and
+// formats the string before returning, so they never interleave. Reused per pose (gesture rate): no
+// array literal, no map/join closure. The affine row/column never changes and is prefilled once.
+const MATRIX_SCRATCH = new Float64Array(16);
+MATRIX_SCRATCH[15] = 1;
+
+// Format the scratch as a CSS matrix3d() string, every entry at 5 decimals.
+function matrix3d(m: Float64Array): string {
+  let out = "matrix3d(";
+  for (let i = 0; i < 16; i++) out += `${i === 0 ? "" : ", "}${(m[i] ?? 0).toFixed(5)}`;
+  return `${out})`;
 }
 
 // Always-on camera gnomon pinned bottom-left: a CSS-3D axis triad driven straight from the store
@@ -33,7 +42,16 @@ export function gnomonTransform(pose: CameraPose): string {
   const ce = Math.cos(pose.elevation);
   // Column-major (det +1, a proper rotation): col1 = world-x dir, −col3 = world-y dir, −col2 = world-z
   // dir, all in CSS coords. screenRight=(−sa,ca,0), screenUp=(−se·ca,−se·sa,ce), screenBack toward viewer.
-  const m = [-sa, se * ca, ce * ca, 0, 0, ce, -se, 0, -ca, -se * sa, -ce * sa, 0, 0, 0, 0, 1];
+  const m = MATRIX_SCRATCH;
+  m[0] = -sa;
+  m[1] = se * ca;
+  m[2] = ce * ca;
+  m[4] = 0;
+  m[5] = ce;
+  m[6] = -se;
+  m[8] = -ca;
+  m[9] = -se * sa;
+  m[10] = -ce * sa;
   return matrix3d(m);
 }
 
@@ -45,7 +63,16 @@ export function gnomonCounterTransform(pose: CameraPose): string {
   const ca = Math.cos(pose.azimuth);
   const se = Math.sin(pose.elevation);
   const ce = Math.cos(pose.elevation);
-  const m = [-sa, 0, -ca, 0, se * ca, ce, -se * sa, 0, ce * ca, -se, -ce * sa, 0, 0, 0, 0, 1];
+  const m = MATRIX_SCRATCH;
+  m[0] = -sa;
+  m[1] = 0;
+  m[2] = -ca;
+  m[4] = se * ca;
+  m[5] = ce;
+  m[6] = -se * sa;
+  m[8] = ce * ca;
+  m[9] = -se;
+  m[10] = -ce * sa;
   return matrix3d(m);
 }
 
@@ -112,15 +139,14 @@ export function installCameraChrome(
       tip.el.style.transform = `translate3d(${x}px, ${y}px, ${z}px) ${counter}`;
     }
   };
-  render(store.getState().cameraPose);
-  const unsubPose = store.subscribe((s) => s.cameraPose, render);
+  const subs = createSubscriptions();
+  subs.on(store, (s) => s.cameraPose, render, { fireNow: true });
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
     if (visible) render(store.getState().cameraPose); // catch up — the pose moved while hidden
   };
-  applyVisible(uiStore.getState().isUiVisible);
-  const unsubUi = uiStore.subscribe((s) => s.isUiVisible, applyVisible);
+  subs.on(uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
 
   // The gnomon is independently toggleable (the bottom rail's "Gnomon" control) so it can be hidden
   // once the in-scene 3D axes suffice. Effective visibility = that preference AND not responsively
@@ -132,14 +158,11 @@ export function installCameraChrome(
     if (show) render(store.getState().cameraPose); // catch up — the pose moved while hidden
   };
   applyGnomon();
-  const unsubGnomon = store.subscribe((s) => s.overlay.showGnomon, applyGnomon);
-  const unsubSuppressed = uiStore.subscribe((s) => s.isGnomonSuppressed, applyGnomon);
+  subs.on(store, (s) => s.overlay.showGnomon, applyGnomon);
+  subs.on(uiStore, (s) => s.isGnomonSuppressed, applyGnomon);
 
   return () => {
-    unsubPose();
-    unsubUi();
-    unsubGnomon();
-    unsubSuppressed();
+    subs.dispose();
     container.remove();
   };
 }

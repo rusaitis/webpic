@@ -1,4 +1,4 @@
-import { createSimulationStore, createUiStore } from "@store";
+import { createPerfStore, createSimulationStore, createUiStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
 import { fieldArray, makeDataset } from "../../../tests/fixtures.ts";
 import { flushAsync } from "../../../tests/helpers.ts";
@@ -18,7 +18,7 @@ function el<T extends HTMLElement>(root: ParentNode, sel: string): T {
   return found;
 }
 
-// The window hosts more than one checkbox now (Diagnostics "Measure" + Shading "Phong"), so target a
+// The window hosts more than one checkbox now (Frame timing "Measure" + Shading "Phong"), so target a
 // control by its row label rather than the first match.
 function rowInput(root: ParentNode, label: string): HTMLInputElement {
   const row = [...root.querySelectorAll<HTMLElement>(".webpic-row")].find(
@@ -33,11 +33,11 @@ afterEach(() => {
 });
 
 describe("developer window", () => {
-  it("mounts a titled floating window hosting the Diagnostics + Phong controls", async () => {
+  it("mounts a titled floating window hosting the frame-timing + Phong controls", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());
     await flushAsync();
-    const dispose = installDevWindow(document.body, store, createUiStore());
+    const dispose = installDevWindow(document.body, store, createPerfStore(), createUiStore());
 
     const win = el(document.body, ".webpic-window");
     expect(el(win, ".webpic-window_title").textContent).toBe("Developer");
@@ -51,7 +51,7 @@ describe("developer window", () => {
   it("dismisses via the header close button", () => {
     const store = createSimulationStore();
     const uiStore = createUiStore();
-    const dispose = installDevWindow(document.body, store, uiStore);
+    const dispose = installDevWindow(document.body, store, createPerfStore(), uiStore);
     const win = el(document.body, ".webpic-window");
     expect(win.hidden).toBe(true); // closed on boot
     uiStore.getState().setPanelVisible("dev", true);
@@ -66,7 +66,7 @@ describe("developer window", () => {
   it("hides with the global UI toggle", () => {
     const store = createSimulationStore();
     const uiStore = createUiStore();
-    const dispose = installDevWindow(document.body, store, uiStore);
+    const dispose = installDevWindow(document.body, store, createPerfStore(), uiStore);
     const win = el(document.body, ".webpic-window");
     uiStore.getState().setPanelVisible("dev", true); // the UI toggle only matters once opened
     expect(win.hidden).toBe(false);
