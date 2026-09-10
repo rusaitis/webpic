@@ -858,7 +858,7 @@ Header marks each cell measured vs derived: magnitude/curl/div @ `webgpu_f32` me
 
 ## CI infrastructure
 
-**What runs (`.github/workflows/ci.yml`, one `ubuntu-latest` job, Node 24):** `typecheck` → `check:boundaries` → `gen:check` → `gen:themes:check` → `lint:ci` → `test:coverage` (node + dom projects; the coverage report uploads as an artifact) → `build` → `build:embed` → `docs:api` (TypeDoc with `treatWarningsAsErrors`) → `size`. `pages.yml` deploys `dist/` plus the API reference under `/api/` on every push to `main`, queued rather than cancelled.
+**What runs (`.github/workflows/ci.yml`, one `ubuntu-latest` job, Node 24):** `typecheck` → `check:boundaries` → `gen:check` → `lint:ci` → `test:coverage` (node + dom projects; the coverage report uploads as an artifact) → `build` → `build:embed` → `docs:api` (TypeDoc with `treatWarningsAsErrors`) → `size`. `pages.yml` deploys `dist/` plus the API reference under `/api/` on every push to `main`, queued rather than cancelled. `gen:themes:check` and `test:parity` need the `../pypic` sibling checkout, so they stay local-only guards.
 
 **Local-only tiers** (need a real GPU or a pypic checkout; never in CI): `test:gpu` (cross-backend parity, streamlines, composite, pick, worker frame parity — headed system Chrome), `perf:gate` (M0/M2 acceptance numbers), `test:parity` (`WEBPIC_PYPIC_PARITY=1`, schema + writer parity against live pypic). The pre-push lefthook runs `typecheck` + `test` so the CI-shaped failures surface before a push.
 

@@ -1,8 +1,9 @@
 // Copies pypic's bundled theme TOMLs into the webpic tree verbatim, so the build is
 // self-contained (no sibling-repo path dependency at build/deploy time). Run via
-// `npm run gen:themes`; `gen:themes:check` guards drift in CI. pypic owns the format
-// and the `[webpic]` block — webpic is a consumer. Copied byte-for-byte so the check
-// diffs exactly. Mirrors the schema-codegen pattern in scripts/codegen/.
+// `npm run gen:themes`; `gen:themes:check` diffs the vendored copies against the
+// `../pypic` sibling, so it is a local-only guard (CI has no sibling checkout — unlike
+// `gen:check`, whose input bundle is vendored). pypic owns the format and the `[webpic]`
+// block — webpic is a consumer. Copied byte-for-byte so the check diffs exactly.
 
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";

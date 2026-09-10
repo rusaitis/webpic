@@ -107,7 +107,7 @@ npm run test:coverage    # Vitest + v8 coverage report (coverage/)
 npm run test:parity      # cross-language parity vs a live pypic checkout (WEBPIC_PYPIC_PARITY=1)
 npm run perf:gate        # M0/M2 acceptance numbers, headed Chrome (local only)
 npm run gen              # regenerate schema/recipe codegen from pypic (needs uv + ../pypic)
-npm run gen:themes       # re-vendor pypic's theme TOMLs (gen:themes:check guards drift in CI)
+npm run gen:themes       # re-vendor pypic's theme TOMLs (gen:themes:check diffs against ../pypic — local-only, like test:parity)
 npm run docs:api         # TypeDoc for @webpic/embed → docs/api (published under /api/ on Pages)
 npm run size             # size-limit budgets (needs build + build:embed first)
 ```
