@@ -45,6 +45,9 @@ function formatReadout(meanMs: number, clock: FrameClock | null): string {
 
 export function installTimingPanel(host: HTMLElement, store: PerfStore): Disposer {
   const pane = createPane({ parent: host, title: "Frame timing" });
+  // A stable hook for the local-only render instruments (scripts/harness/pageProbes.ts). They used to
+  // locate this pane by its title, which made a retitle break them in silence.
+  pane.element.dataset.pane = "timing";
   const folder = pane.addFolder({ title: "GPU frame time" });
 
   const samples: number[] = []; // ring of the last WINDOW valid frame times

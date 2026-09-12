@@ -74,20 +74,20 @@ export async function readDrawingSurface(page: Page): Promise<DrawingSurface> {
 }
 
 /**
- * Opens the Developer window and ticks the Diagnostics "Measure (continuous)" toggle, forcing the
+ * Opens the Developer window and ticks the frame-timing "Measure (continuous)" toggle, forcing the
  * sustained-timing loop; returns the readout locator once it shows a real `<n>.<nn> ms` line.
  */
 export async function armContinuousTiming(page: Page): Promise<Locator> {
   // The Developer window is closed on boot (it is a dev instrument, not chrome), so open it from
-  // the rail before locating its Diagnostics pane.
+  // the rail before locating its frame-timing pane.
   await page.locator('.webpic-siderail [data-control="diagnostics"]').click();
 
   // force: the styled SVG box overlays the real <input>; checking the input directly still fires its
-  // change handler. Scoped to the Developer window — a docked Diagnostics pane can coexist and makes
-  // a bare pane locator ambiguous under strict mode.
+  // change handler. Scoped to the Developer window — a docked copy can coexist and makes a bare pane
+  // locator ambiguous under strict mode. By data hook, not by title: titles are copy.
   const diagnostics = page
     .getByLabel("Developer", { exact: true })
-    .locator(".webpic-pane", { hasText: "Diagnostics" });
+    .locator('.webpic-pane[data-pane="timing"]');
   await diagnostics.locator(".webpic-checkbox_input").check({ force: true });
 
   const readout = diagnostics.locator(".webpic-placeholder");
