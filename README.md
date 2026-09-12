@@ -129,7 +129,7 @@ and field-line rendering over Zarr v3, with time-series scrub and export. Known 
 - The remote client for `pypic.server` (Arrow IPC over WebSocket) is designed but not built.
 - Particle rendering, LIC, and oblique slices are v0.2.
 
-The embed bundle is budget-gated in CI (539 kB of 1 MB gzipped; app 407 kB of 1.6 MB).
+The embed bundle is budget-gated in CI (540 kB of 1 MB gzipped; app 411 kB of 550 kB).
 See [TASKS.md](TASKS.md) for the full roadmap.
 
 ## Citing

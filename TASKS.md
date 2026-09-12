@@ -4,7 +4,7 @@ Check off `[ ]` → `[x]` as steps land. The `/tasks` skill summarizes progress;
 Full rationale for every step: **`docs/DESIGN.md`** (read on demand — not auto-loaded).
 Completed items are summarized to the load-bearing decisions; the git log is the full audit trail.
 
-**v0.1 COMPLETE** (M0–M4 + M6, all gates met — 2026-07-03). Traces GPU≡CPU≡pypic on real M2; volume + slice + field lines co-display as managed layers; Zarr write + reduction/run-metadata round-trips proven against live pypic; embed documented (TypeDoc) and budget-gated in CI (538.6 kB / 1 MB embed, 396.7 kB / 1.6 MB app, gzip).
+**v0.1 COMPLETE** (M0–M4 + M6, all gates met — 2026-07-03). Traces GPU≡CPU≡pypic on real M2; volume + slice + field lines co-display as managed layers; Zarr write + reduction/run-metadata round-trips proven against live pypic; embed documented (TypeDoc) and budget-gated in CI (538.6 kB / 1 MB embed, 396.7 kB app against the then-1.6 MB budget, gzip; app tightened to 550 kB in A below).
 
 **v0.2 renumbers the backlog:** M5 = UI polish *(next up)*, M6 = Particles, M7 = HDF5 + LIC + oblique, M8 = Remote client, M9 = WASM (contingent). v0.1 had skipped its own M5 (particles) and jumped M4 → M6; the completed **"M6 — Writers + export"** below keeps that historical label, and `M<N>.<i>` anchors cited by DESIGN.md and session memory use v0.1 numbering.
 

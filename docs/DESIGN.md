@@ -159,7 +159,7 @@ webpic/
   package.json                    # workspace root (target: pnpm workspace; today: single package)
   pnpm-workspace.yaml
   tsconfig.base.json
-  biome.json                      # lint + format config
+  biome.jsonc                     # lint + format config (jsonc: the ratchet ceilings carry their WHY)
   vite.config.ts                  # COOP/COEP headers; OffscreenCanvas plumbing (vite-plugin-wesl deferred — see §Build)
   vitest.config.ts
   index.html
@@ -309,7 +309,9 @@ webpic/
     bench.ts                      #   v0.2 — per-kernel benchmarking
 ```
 
-**Public library export** (`@webpic/embed`): `schema/*`, `containers/*`, `coordinates/*`, `numerics/*`, `reductions/*`, `compute/{dispatcher,recipes,compute_field,trace_field}`, `derived/*`, `diagnostics/*`, `data/{readers,writers}` (writers joined the surface with the M6 Zarr writer — a headless analyzer persists derived fields). Does **not** export `render`, `ui`, `app`, `store`, `remote/client` — a downstream Jupyter widget imports the math + data layers without dragging in Three.js. The facade is `src/embed/index.ts` (star-exports over the layer barrels / curated modules; `tests/embed.test.ts` guards against ES's silent ambiguous-star-export drops); TypeDoc (`npm run docs:api`, `treatWarningsAsErrors`) documents exactly this surface. Bundle budgets enforced by `size-limit` (see §Deferred but tracked).
+#### Public library export
+
+The `@webpic/embed` surface: `schema/*`, `containers/*`, `coordinates/*`, `numerics/*`, `reductions/*`, `compute/{dispatcher,recipes,compute_field,trace_field}`, `derived/*`, `diagnostics/*`, `data/{readers,writers}` (writers joined the surface with the M6 Zarr writer — a headless analyzer persists derived fields). Does **not** export `render`, `ui`, `app`, `store`, `remote/client` — a downstream Jupyter widget imports the math + data layers without dragging in Three.js. The facade is `src/embed/index.ts` (star-exports over the layer barrels / curated modules; `tests/embed.test.ts` guards against ES's silent ambiguous-star-export drops); TypeDoc (`npm run docs:api`, `treatWarningsAsErrors`) documents exactly this surface. Bundle budgets enforced by `size-limit` (see §Deferred but tracked).
 
 ---
 
@@ -330,7 +332,9 @@ webpic/
 
 **Schema versioning.** `SCHEMA_VERSION = "1.0"` is the single truth (pypic v1.x additive-only; breaking → v2.0). Every persisted artifact (OPFS field cache, calibration cache, exported Zarr, saved themes) carries a `schemaVersion` tag; loader has an explicit `migrate(oldVersion, newVersion)` hook (no-op for additive, code for breaking).
 
-**Run metadata: `attrs.run` over `attrs.simulation_toml`** (Zarr root carries both; schema.md §4.2):
+### Run metadata
+
+**`attrs.run` over `attrs.simulation_toml`** (Zarr root carries both; schema.md §4.2):
 - **Prefer `attrs.run`** — JSON-mode `Run.model_dump`, typed fields (`name`, `doi`, `license`, `authors`, `git_sha`, `host`, `funding`, `embargo`, `resources`, `ensemble`, …) — for everything the FieldDataset boundary preserves.
 - **Fall back to `attrs.simulation_toml`** (verbatim source TOML, re-parsed smol-toml → same Zod) only for sections that don't survive that boundary: `[bodies]`, `[drivers]`, `[output.*]`, `[restart]`, `[[probes]]`, `[[collisions]]`, `[phase_space]`, `x-<code>`. Heavier path — reach for it only when those orphan sections are needed.
 
@@ -687,7 +691,9 @@ The `SubscribeRequest` JSON shape (mirror in `remote/protocol.ts` field-for-fiel
 
 **Layout — "the visualization is the product."** Full-bleed 3D canvas with thin, translucent floating overlays over a fixed icon rail — never a docked frame that steals canvas area. *magviz's skin, instance-first bones*: keep magviz's full-bleed look (left icon rail, draggable floating colorbar, bottom gnomon/coords) and borrow only the instance-first *data model* (below) from napari — explicitly **not** napari's layout, whose layer dock + controls consume ~half the viewport (disqualifying under this philosophy). Overlays are translucent and content-sized, not window-sized. **Embed** degrades by hiding/toggling overlays — same components, fewer of them (`[webpic.embed]`) — not by reflowing; panels are container-agnostic (`install(host) → Disposer`, intents out), so a docked container for very cramped embeds is a possible v0.2 fallback. **v0.1 reality (M2.2):** today's `shell` is a *docked* hideable container — the scaffold, not the target. The rail + Layers panel + instance-first layer model land across M2.5a (model + render composite) and M4 (the UI); from M4 the overlays are **fixed-position translucent** (the immersive *look*, cheap — no window manager), and only user **drag/resize/persist/focus** (magviz's `windowManager` + `draggablePanels`) defers to M5/v0.2. Until M4 lands, panels mount in the docked scaffold.
 
-**Layers & navigation (instance-first).** The scene is a flat, ordered list of *renderable instances* — each volume, slice, fieldline set, or particle cloud is one layer carrying its own visibility, opacity, `ColormapBinding`, and draw order. You navigate by instance ("the things on screen"), not by type ("the volume pane") — the one idea worth taking from napari.
+### Layers & navigation
+
+**Instance-first.** The scene is a flat, ordered list of *renderable instances* — each volume, slice, fieldline set, or particle cloud is one layer carrying its own visibility, opacity, `ColormapBinding`, and draw order. You navigate by instance ("the things on screen"), not by type ("the volume pane") — the one idea worth taking from napari.
 
 - **Rail** (left, fixed, translucent): magviz's per-primitive buttons, verb shifted to *add*. `+Volume`/`+Slice`/`+Field lines`/`+Particles` open a **hover-preview, click-to-pin** panel (tap-pin on touch) that lists existing instances of that type as quick-jumps **plus** "Add new" — create and navigate from one seam. Tool buttons below (`Reductions`, `Selections`, `Diagnostics`, `Theme`) open their own overlays — *operations/instruments, never layers*. A dedicated **Layers** button toggles the Layers overlay.
 - **Layers panel**: a *collapsible* floating overlay (rail-toggled — not an always-open dock, which would betray the full-bleed philosophy). One row per layer with an **eye** (show/hide) and a **gear**; the gear opens a *separate* small floating settings panel for that layer — the rail create-panel's controls **plus** opacity, draw order, remove. Create-panel and gear-panel are **one settings component, two entry points** (create vs. edit existing), so a layer is never configured in two places — closing the seam magviz had between its visibility checklist and its typed panes.
@@ -787,7 +793,9 @@ default-controls-visible = true
 
 Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirror pypic's set (7): `dark`, `light`, `catppuccin-mocha`, `lcars`, `synthwave`, `andromeda`, `anuppuccin-light`.
 
-**Shortcuts.** Hand-rolled registry (`ui/shortcuts.ts` is the cheat-sheet authority; OPFS remapping rides the M5 shortcuts UI). Shipped defaults: `V`/`T` add volume/field-lines — `S` is **deliberately unbound** (collides with the W/S dolly; slices add via the rail) and `P` went to the PNG screenshot, so particles get a binding at M6 — `L` toggle Layers, `F` toggle UI, `O` projection, `R`/`Z` reset/fit, digits axis-snap, `?`/`H` shortcut overlay, `Cmd+K` palette (v0.2). Stepping rides the top bar's scrub chip + prev/next buttons (no `[`/`]` binding shipped).
+### Shortcuts
+
+Hand-rolled registry (`ui/shortcuts.ts` is the cheat-sheet authority; OPFS remapping rides the M5 shortcuts UI). Shipped defaults: `V`/`T` add volume/field-lines — `S` is **deliberately unbound** (collides with the W/S dolly; slices add via the rail) and `P` went to the PNG screenshot, so particles get a binding at M6 — `L` toggle Layers, `F` toggle UI, `O` projection, `R`/`Z` reset/fit, digits axis-snap, `?`/`H` shortcut overlay, `Cmd+K` palette (v0.2). Stepping rides the top bar's scrub chip + prev/next buttons (no `[`/`]` binding shipped).
 
 **Accessibility.** Tab order, focus rings, palette keyboard nav, ARIA roles. High-contrast theme to v0.2.
 
@@ -799,14 +807,14 @@ Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirr
 
 - **Vite 8** (`vite.config.ts`); `vite-plugin-wasm` + `vite-plugin-top-level-await` are deferred with the WASM backend (M9-contingent), not present deps today. Vite dev config sets COOP/COEP headers for SharedArrayBuffer. *(Deferred with the WESL toolchain: a custom `vite-plugin-wesl` `handleHotUpdate` that recompiles `.wesl` → WGSL over `import.meta.hot` and rebuilds the affected `GPUShaderModule` without page reload; v0.1 ships WGSL strings and HMRs them directly.)*
 - **WESL toolchain (deferred):** `wesl-js`/`wesl-rs` are a pre-1.0 (`2026_pre`) community WGSL superset. v0.1 ships **standalone WGSL** instead — WGSL is a strict subset of WESL, so kernels migrate for free. Adoption is gated on rustpic publishing compute kernels to share across the Rust + TS paths (see §Shader sharing), *not* on f16 (TS templating covers that). Pin an exact `wesl-js` version on adoption so `2026_pre` churn can't surprise the build.
-- **TypeScript:** `target: "ES2022"`, `module: "ESNext"`, `moduleResolution: "bundler"`, `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true`, `verbatimModuleSyntax: true`. Project references per package.
+- **TypeScript:** `target: "ES2022"`, `module: "ESNext"`, `moduleResolution: "bundler"`, `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true`, `verbatimModuleSyntax: true`, `noUnusedLocals`/`noUnusedParameters`. Three tsconfigs — app, worker (`WebWorker` lib), node (scripts + tests) — not project references.
 - **Workers:** Vite `?worker` syntax. The compute pool is designed around `comlink` (~5 KB) for RPC + a 20-line round-robin pool over `new Worker(new URL(...), { type: 'module' })`, sized to `Math.min(navigator.hardwareConcurrency - 1, 8)` (not `tinypool` — Node-only). **v0.1 reality:** only `data.worker.ts` exists, using raw `postMessage`; `comlink` is added when the compute pool lands (M3+).
 - **Lint + format:** **Biome** (single binary, integrated formatter — replaces ESLint + Prettier). Layer enforcement is not a Biome plugin; see §Layered dependency DAG.
 - **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. A `happy-dom` project (devDep) runs the `ui` DOM-unit tests (`*.dom.test.ts`) — node mode can't construct DOM, and these are deterministic, not visual. Browser mode (`@vitest/browser-playwright`) runs the `*.browser.test.ts` real-GPU suites in headed system Chrome via `npm run test:gpu` — local-only (WebGPU on macOS/Metal is unreliable headless), env-gated out of plain `vitest`/CI. Coverage via `@vitest/coverage-v8` (`npm run test:coverage`) is reported, not gated. Playwright E2E flows are deferred (see §Testing strategy).
 - **Git hooks:** `lefthook` (installed by `npm run prepare`) — Biome on staged files at commit, typecheck + tests at push. Mirrors CI so a red build is caught locally first.
 - **Docs:** TypeDoc from public exports.
-- **Bundle size:** `size-limit` with 1.0 MB ceiling on `@webpic/embed`, 1.6 MB on `@webpic/app` (gzipped).
-- **Shader validation:** `tint` validator in CI (planned, from M2 — when the first standalone WGSL kernels land).
+- **Bundle size:** `size-limit` with 1.0 MB ceiling on `@webpic/embed`, 550 kB on `@webpic/app` (gzipped).
+- **Shader validation:** `tests/wgsl.test.ts` parses the assembled WGSL with `wgsl_reflect` and pins each kernel's binding layout, workgroup size and `Params`/`TraceMeta` byte lengths against the `gpu/` runners that duplicate them. Parse-level only: CI proves the kernels compile, `test:gpu` proves they run (a `tint` CLI tier was considered and dropped — `wgsl_reflect` is in-process and needs no toolchain).
 
 **Key dependencies.** *Shipped in v0.1:* `three` (exact pin carrying #31607, not a floating range), `zarrita`, `zod` (app), `smol-toml`, `zustand`. *Adopted when their layer lands:* `comlink` (with the compute worker pool, M3+), `zod/v4-mini` (the embed build), `xxhash-wasm` (only if FNV-1a proves insufficient — it currently doesn't), `wesl-js` (gated on rustpic shared kernels). `gl-matrix` was planned here for `coordinates`/`numerics` but both shipped dependency-free — don't add it without a demonstrated need. Control widgets are owned, not a dependency — see §UI (magviz dropped `tweakpane` + `@tweakpane/plugin-essentials` once its `ui/controls` primitives landed).
 
@@ -896,7 +904,7 @@ Scope per §Versioning scheme; M9 contingent on rustpic shipping plasma-wasm. Ea
 | **M2 — Volume + perf gate** | single-pass TSL raymarcher (NodeMaterial + `wgslFn`), single-scalar volume; transfer-function texture + window/level (owned RangeControl); interactive camera (render loop + store-owned pose; orbit/turntable); min-max mipmap empty-space skipping; gradient + Phong shading; `timestamp-query` diagnostics; time-series prefetcher (EWMA + debounce); eager `compileAsync`; shader HMR | **Perf gate:** 256³ × 256-step dataset @ 8 ms per-frame raymarch on M2 Pro by end of M2, scrubbed without stalls. 512³ deferred to v0.2 if missed |
 | **M3 — WebGPU compute + parity** | WebGPU backend for `field.{magnitude,curl,divergence}`; cross-backend equivalence (TS vs WebGPU) at per-precision tolerances; pypic fixture suite checked in; Orszag-Tang, Harris, GEM synthetic fixtures. WASM backend deferred to M9 | Cross-backend parity within tolerance against pypic goldens |
 | **M4 — Field lines + instance-first UI** | WGSL streamline compute (Dormand-Prince 5(4) + I step control) as a standalone `shaders/` kernel shared w/ rustpic; raycast seed picking against slice/volume bounds; Line2 indirect-draw render; `AbortSignal`-cancellable mid-trace; plus the instance-first UI (rail + Layers panel + per-layer settings + colorbar) | Cancellable traces match pypic golden traces; volume + slice + field lines co-display as managed layers |
-| **M6 — Writers + export** | Zarr v3 writer for derived fields; PNG screenshot (`canvas.toBlob`); `simulation.toml` round-trip; reduction-provenance round-trip (see §Data layer › Reduction provenance round-trip); theme switcher; TypeDoc from public exports; `size-limit` CI gate; top bar (dataset/run name · timestep scrubber · projection · export — see §UI) | 1.0 MB embed / 1.6 MB app (gzipped); reduction round-trip preserved |
+| **M6 — Writers + export** | Zarr v3 writer for derived fields; PNG screenshot (`canvas.toBlob`); `simulation.toml` round-trip; reduction-provenance round-trip (see §Data layer › Reduction provenance round-trip); theme switcher; TypeDoc from public exports; `size-limit` CI gate; top bar (dataset/run name · timestep scrubber · projection · export — see §UI) | 1.0 MB embed / 550 kB app (gzipped); reduction round-trip preserved |
 
 **M0 detail.**
 - **Codegen** (per §Schema sharing): `validators.generated.ts`; `aliases.generated.ts` (from `pypic.aliases.{COMPUTE_ALIASES,GROUP_ALIASES,SPECIES_SUFFIX_RE}` — the regex powers per-species runtime expansion); `recipes.generated.ts` stubs (from `pypic.compute.RECIPES`; `Recipe` dataclass for field types; `SPECIES_TEMPLATES` codegened separately; recipe bodies hand-written in `@webpic/derived`).
@@ -964,7 +972,7 @@ Cross-cutting concerns and explicitly deferred items. Milestone-bound work lives
 
 | Concern                       | Status   | Notes                                                |
 |-------------------------------|----------|------------------------------------------------------|
-| Bundle size budget            | v0.1     | `size-limit` 1.0 MB embed / 1.6 MB app gzipped       |
+| Bundle size budget            | v0.1     | `size-limit` 1.0 MB embed / 550 kB app gzipped       |
 | TypeDoc API docs              | v0.1     | M6                                                   |
 | Crash telemetry (opt-in)      | v0.2     | Sentry-compatible endpoint, off by default           |
 | Accessibility (keyboard nav)  | v0.1     | Tab order, focus rings; command palette is v0.2      |
