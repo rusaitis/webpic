@@ -1,6 +1,6 @@
 # Local gates mirroring .github/workflows/ci.yml, sized to their cost: lint is ~200 ms so it
-# runs on every commit; typecheck + tests are ~10 s so they run on push. Skip once with
-# LEFTHOOK=0 or `git commit --no-verify`.
+# runs on every commit; the boundary/type/test gates are ~12 s so they run on push. Skip once with
+# LEFTHOOK=0 or `git commit --no-verify`. The full gate is `npm run check`.
 pre-commit:
   commands:
     biome:
@@ -13,5 +13,9 @@ pre-push:
   commands:
     typecheck:
       run: npm run typecheck
+    boundaries:
+      run: npm run check:boundaries
+    lint:
+      run: npm run lint:ci
     test:
       run: npm run test

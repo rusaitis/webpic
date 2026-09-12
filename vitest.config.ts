@@ -1,8 +1,18 @@
+import { join } from "node:path";
 import { playwright } from "@vitest/browser-playwright";
 import { configDefaults, defineConfig } from "vitest/config";
 import { layerAliases } from "./scripts/aliases.ts";
 
-const alias = layerAliases(import.meta.dirname);
+// wgsl_reflect ships CJS at `main` and ESM at `module`, with no `exports` map; the node resolver
+// takes `main` and then evaluates it as ESM ("exports is not defined"). Pin the ESM build so
+// tests/wgsl.test.ts can import the package by name and keep its published types.
+const alias = [
+  ...layerAliases(import.meta.dirname),
+  {
+    find: "wgsl_reflect",
+    replacement: join(import.meta.dirname, "node_modules/wgsl_reflect/wgsl_reflect.module.js"),
+  },
+];
 
 // Real-GPU suites (`*.browser.test.ts`) run in headed system Chrome via `npm run test:gpu`.
 // Env-gated so plain `vitest`/CI never pops a browser window or requires Chrome to exist.

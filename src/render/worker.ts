@@ -44,6 +44,7 @@ type Request<K extends RenderWorkerRequest["kind"]> = Extract<RenderWorkerReques
 
 // Everything the render worker owns — GPU handles, cameras, the managed subsystems and the message
 // handlers over them — built once per worker so no state lives at module scope.
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: the body is the worker's state
 function createWorkerWorld(ctx: WorkerContext): {
   handle(request: RenderWorkerRequest): Promise<void>;
 } {

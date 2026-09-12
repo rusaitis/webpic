@@ -35,12 +35,14 @@
     "build:embed": "vite build --config vite.embed.config.ts",
     "preview:lan": "vite preview --host --mode lan",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "check": "npm run typecheck && npm run check:boundaries && npm run gen:check && npm run lint:ci && npm run check:dead && npm run build && npm run build:embed && npm run test && npm run docs:api && npm run size",
     "check:boundaries": "node scripts/check-boundaries.ts",
+    "check:dead": "knip --no-config-hints --exclude exports,types",
     "docs:api": "typedoc",
     "gen:export": "uv run --project ../pypic pypic export bundle --inline-single-use-defs --include-x-extensions -o src/schema/pypic-export.generated.json",
     "gen:emit": "node scripts/codegen/emit.ts && biome format --write src/schema src/compute",
     "gen": "npm run gen:export && npm run gen:emit",
-    "gen:check": "npm run gen:emit && git diff --exit-code -- src/schema src/compute",
+    "gen:check": "npm run gen:emit && git diff --exit-code -- 'src/**/*.generated.ts'",
     "gen:themes": "node scripts/sync-themes.ts",
     "gen:themes:check": "npm run gen:themes && git diff --exit-code -- src/data/theme/themes",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
@@ -88,6 +90,7 @@
     "@webgpu/types": "^0.1.70",
     "happy-dom": "^20.9.0",
     "json-schema-to-zod": "^2.8.1",
+    "knip": "^6.35.1",
     "lefthook": "^2.1.12",
     "playwright-core": "^1.60.0",
     "size-limit": "^12.1.0",
@@ -95,7 +98,8 @@
     "typedoc": "^0.28.19",
     "typescript": "^6.0.3",
     "vite": "^8.0.14",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wgsl_reflect": "^1.6.0"
   },
   "packageManager": "npm@11.19.0"
 }

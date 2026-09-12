@@ -19,13 +19,15 @@ jobs:
       - run: npm run check:boundaries
       - run: npm run gen:check
       - run: npm run lint:ci
+      - run: npm run check:dead
+      # Build first: tests/embed-bundle.test.ts inspects dist-embed and skips when it is absent.
+      - run: npm run build
+      - run: npm run build:embed
       - run: npm run test:coverage
       - uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage/
           retention-days: 14
-      - run: npm run build
-      - run: npm run build:embed
       - run: npm run docs:api
       - run: npm run size

@@ -1,15 +1,13 @@
-import { resolve } from "node:path";
 import { Project } from "ts-morph";
 import { describe, expect, it } from "vitest";
 import {
+  createSourceProject,
   findViolations,
   gatherEdges,
   layerOfPath,
   specifierToLayer,
 } from "../scripts/check-boundaries.ts";
 import { canImport } from "../scripts/layers.ts";
-
-const ROOT = resolve(import.meta.dirname, "..");
 
 describe("layer DAG (canImport)", () => {
   it("permits allowed edges and same-layer imports", () => {
@@ -24,6 +22,7 @@ describe("layer DAG (canImport)", () => {
     expect(canImport("schema", "containers")).toBe(false);
     expect(canImport("ui", "render")).toBe(false);
     expect(canImport("embed", "render")).toBe(false);
+    expect(canImport("workers", "ui")).toBe(false);
   });
 });
 
@@ -64,6 +63,7 @@ describe("gatherEdges + findViolations (in-memory project)", () => {
     );
     project.createSourceFile("/src/store/s.ts", 'export const p = import("@ui");\n');
     project.createSourceFile("/src/data/d.ts", 'export { x } from "@render";\n');
+    project.createSourceFile("/src/workers/data.worker.ts", 'import "@ui/panel";\n');
     project.createSourceFile(
       "/src/coordinates/c.ts",
       'import { y } from "@containers";\nexport const z = y;\n',
@@ -73,7 +73,7 @@ describe("gatherEdges + findViolations (in-memory project)", () => {
     const violations = findViolations(edges);
     const signatures = new Set(violations.map((v) => `${v.fromLayer}->${v.toLayer}`));
 
-    expect(signatures).toEqual(new Set(["ui->render", "store->ui", "data->render"]));
+    expect(signatures).toEqual(new Set(["ui->render", "store->ui", "data->render", "workers->ui"]));
     // the legal edge is gathered but not a violation
     expect(edges.some((e) => e.fromLayer === "coordinates" && e.toLayer === "containers")).toBe(
       true,
@@ -86,7 +86,11 @@ describe("real source tree", () => {
   // The ts-morph whole-project load scales with the tree and runs beside the rest of the suite —
   // it drifts past the 5 s vitest default under parallel load without being unhealthy.
   it("has no layer-boundary violations", { timeout: 60_000 }, () => {
-    const project = new Project({ tsConfigFilePath: resolve(ROOT, "tsconfig.json") });
-    expect(findViolations(gatherEdges(project))).toEqual([]);
+    expect(findViolations(gatherEdges(createSourceProject()))).toEqual([]);
+  });
+
+  it("sees the worker sources tsconfig.json excludes", { timeout: 60_000 }, () => {
+    const edges = gatherEdges(createSourceProject());
+    expect(edges.some((e) => e.fromLayer === "workers")).toBe(true);
   });
 });

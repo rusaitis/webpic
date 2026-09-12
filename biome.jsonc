@@ -18,10 +18,24 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      // Ratchets: each ceiling sits at today's worst value, so nothing new may be worse than the
+      // worst thing already here. They only ever fall — lower them in the commit that splits the
+      // offender. Targets: complexity 20, lines 150 (CLAUDE.md §Lifecycle & shape).
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": { "maxAllowedComplexity": 62 }
+        },
+        "noExcessiveLinesPerFunction": { "level": "error", "options": { "maxLines": 311 } }
+      },
       "nursery": {
         "noFloatingPromises": "error",
         "noMisusedPromises": "error",
         "useExhaustiveSwitchCases": "error"
+      },
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error"
       },
       "suspicious": {
         "noConsole": {
@@ -66,8 +80,14 @@
       "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
     },
     {
+      // A test body is linear and reads top to bottom; length there is not the smell the rule is for.
       "includes": ["scripts/**", "tests/**", "**/*.test.ts"],
-      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
+      "linter": {
+        "rules": {
+          "complexity": { "noExcessiveLinesPerFunction": "off" },
+          "suspicious": { "noConsole": "off" }
+        }
+      }
     },
     {
       "includes": ["**/*.generated.ts"],

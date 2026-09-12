@@ -62,9 +62,16 @@ export function findViolations(edges: readonly ImportEdge[]): ImportEdge[] {
   return edges.filter((edge) => !canImport(edge.fromLayer, edge.toLayer));
 }
 
-function main(): void {
+// tsconfig.json excludes src/workers (they typecheck under tsconfig.worker.json's WebWorker lib), so
+// the worker sources are added by path — without this their edges are invisible to the DAG check.
+export function createSourceProject(): Project {
   const project = new Project({ tsConfigFilePath: resolve(ROOT, "tsconfig.json") });
-  const edges = gatherEdges(project);
+  project.addSourceFilesAtPaths(resolve(ROOT, "src/workers/**/*.ts"));
+  return project;
+}
+
+function main(): void {
+  const edges = gatherEdges(createSourceProject());
   const violations = findViolations(edges);
   if (violations.length > 0) {
     for (const v of violations) {
