@@ -28,6 +28,7 @@ import {
 } from "three";
 import { finishCanvasTexture } from "../canvasTexture.ts";
 import type { MarkerConfig } from "../messages.ts";
+import { createEasedChannels } from "./easedChannels.ts";
 
 // The draggable point-picker marker scene (worker-owned, composited last with the volume camera, like
 // the grid overlay). A z-up selection marker: an accent core
@@ -70,12 +71,6 @@ const PULSE_SCALE = 0.35; // extra ring scale at the click-pulse peak
 const ACTIVE_HOLD_FRACTION = 0.5; // held ring expansion ÷ pulse peak while dragging
 const HANDLE_HOVER_GROW = 0.25; // extra knob scale at full hover/active
 const DT_CLAMP = 0.1; // cap dt so a tab-switch stall doesn't snap the anim
-const SETTLE_EPS = 1e-3; // |value − target| below this counts as settled
-
-// Frame-rate-independent exponential approach factor for a decay rate (dt pre-clamped).
-function easeStep(dt: number, rate: number): number {
-  return 1 - Math.exp(-dt * rate);
-}
 
 function rgbColor(c: readonly [number, number, number, number]): Color {
   return new Color(c[0], c[1], c[2]);
@@ -161,6 +156,28 @@ function lineMaterial(color: Color, opacity: number): LineBasicMaterial {
 
 function planeZForPosition(position: MarkerConfig["planePosition"]): number {
   return position === "min" ? -0.5 : position === "max" ? 0.5 : 0;
+}
+
+// Both drag handles paint the same way: opacity ramps from idle to full as the handle lights up,
+// the knob grows with it, and the whole pair fades out with its gate (the pose said this axis is not
+// draggable). Only the idle opacity and the objects differ.
+function applyHandle(handle: {
+  readonly lit: number;
+  readonly gate: number;
+  readonly idleOpacity: number;
+  readonly knob: Sprite;
+  readonly knobMaterial: SpriteMaterial;
+  readonly stem: Line;
+  readonly stemMaterial: LineBasicMaterial;
+}): void {
+  const opacity = (handle.idleOpacity + (1 - handle.idleOpacity) * handle.lit) * handle.gate;
+  handle.knobMaterial.opacity = opacity;
+  handle.stemMaterial.opacity = opacity;
+  const knobScale = KNOB_BASE * (1 + HANDLE_HOVER_GROW * handle.lit);
+  handle.knob.scale.set(knobScale, knobScale, 1);
+  const isShown = handle.gate > 0.02; // fully faded reads as gone; skip the draw
+  handle.knob.visible = isShown;
+  handle.stem.visible = isShown;
 }
 
 export function createMarkerScene(config: MarkerConfig): MarkerScene {
@@ -249,23 +266,19 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   let hadPoint = false;
   let wasActive = false;
   let hAxis: HandleAxis | null = null;
-  let hover = 0;
-  let hoverT = 0;
-  let pulse = 0;
-  let active = 0;
-  let activeT = 0;
-  let hHover = 0;
-  let hHoverT = 0;
-  let hActive = 0;
-  let hActiveT = 0;
-  let vKnobHover = 0;
-  let vKnobHoverT = 0;
-  let vKnobActive = 0;
-  let vKnobActiveT = 0;
-  let vGate = 1;
-  let vGateT = 1;
-  let hGate = 0;
-  let hGateT = 0;
+  // Vertical enabled, horizontal hidden: the first updateForPose sets the live targets, so a
+  // mid-range pose shows no startup animation.
+  const eased = createEasedChannels({
+    hover: { rate: HOVER_RATE },
+    pulse: { rate: PULSE_RATE },
+    active: { rate: ACTIVE_RATE },
+    verticalKnobHover: { rate: HANDLE_RATE },
+    verticalKnobActive: { rate: HANDLE_RATE },
+    verticalGate: { rate: HANDLE_RATE, initial: 1 },
+    horizontalHover: { rate: HANDLE_RATE },
+    horizontalActive: { rate: HANDLE_RATE },
+    horizontalGate: { rate: HANDLE_RATE },
+  });
 
   const applyCoreScale = (): void => {
     if (point === null) return;
@@ -309,27 +322,27 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
         applyCoreScale();
         updateGuides();
         // A placement (point moved while not dragging) re-pulses; the first appearance does not.
-        if (!wasActive && hadPoint) pulse = 1;
+        if (!wasActive && hadPoint) eased.spike("pulse", 1);
       }
       hadPoint = true;
     },
     setState(hovered, isActive) {
-      hoverT = hovered === "core" ? 1 : 0;
-      vKnobHoverT = hovered === "vertical" ? 1 : 0;
-      hHoverT = hovered === "horizontal" ? 1 : 0;
-      activeT = isActive && hovered === "core" ? 1 : 0;
-      vKnobActiveT = isActive && hovered === "vertical" ? 1 : 0;
-      hActiveT = isActive && hovered === "horizontal" ? 1 : 0;
-      if (isActive && !wasActive) pulse = 1; // grab pulse
+      eased.setTarget("hover", hovered === "core" ? 1 : 0);
+      eased.setTarget("verticalKnobHover", hovered === "vertical" ? 1 : 0);
+      eased.setTarget("horizontalHover", hovered === "horizontal" ? 1 : 0);
+      eased.setTarget("active", isActive && hovered === "core" ? 1 : 0);
+      eased.setTarget("verticalKnobActive", isActive && hovered === "vertical" ? 1 : 0);
+      eased.setTarget("horizontalActive", isActive && hovered === "horizontal" ? 1 : 0);
+      if (isActive && !wasActive) eased.spike("pulse", 1); // grab pulse
       wasActive = isActive;
     },
     updateForPose(nextPose, ortho) {
       pose = nextPose;
       isOrthographic = ortho;
       applyCoreScale();
-      vGateT = verticalDragAllowed(pose) ? 1 : 0;
+      eased.setTarget("verticalGate", verticalDragAllowed(pose) ? 1 : 0);
       const axis = horizontalDragAllowed(pose) ? null : horizontalDragAxis(pose);
-      hGateT = axis !== null ? 1 : 0;
+      eased.setTarget("horizontalGate", axis !== null ? 1 : 0);
       if (axis !== null && axis !== hAxis) {
         const pos = hStemGeom.getAttribute("position");
         if (axis === "x") {
@@ -345,58 +358,35 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
     },
     tick(dt) {
       const dtc = Math.min(dt, DT_CLAMP);
-      const step = easeStep(dtc, HOVER_RATE);
-      const stepActive = easeStep(dtc, ACTIVE_RATE);
-      const stepPulse = easeStep(dtc, PULSE_RATE);
-      const stepHandle = easeStep(dtc, HANDLE_RATE);
-      hover += (hoverT - hover) * step;
-      pulse += (0 - pulse) * stepPulse;
-      active += (activeT - active) * stepActive;
-      vKnobHover += (vKnobHoverT - vKnobHover) * stepHandle;
-      vKnobActive += (vKnobActiveT - vKnobActive) * stepHandle;
-      vGate += (vGateT - vGate) * stepHandle;
-      hHover += (hHoverT - hHover) * stepHandle;
-      hActive += (hActiveT - hActive) * stepHandle;
-      hGate += (hGateT - hGate) * stepHandle;
+      const isMoving = eased.advance(dtc);
 
-      const expand = pulse + ACTIVE_HOLD_FRACTION * active;
+      const hover = eased.get("hover");
+      const expand = eased.get("pulse") + ACTIVE_HOLD_FRACTION * eased.get("active");
       const ringScale = RING_BASE * (1 + HOVER_SCALE * hover + PULSE_SCALE * expand);
       ring.scale.set(ringScale, ringScale, 1);
       const brighten = Math.min(1, HOVER_BRIGHTEN * hover + 0.5 * PULSE_SCALE * expand);
       coreMat.color.copy(coreBaseColor).lerp(white, brighten);
 
-      const vLit = Math.max(vKnobHover, vKnobActive);
-      const vOp = (HANDLE_IDLE_OPACITY + (1 - HANDLE_IDLE_OPACITY) * vLit) * vGate;
-      vKnobMat.opacity = vOp;
-      vStemMat.opacity = vOp;
-      const vks = KNOB_BASE * (1 + HANDLE_HOVER_GROW * vLit);
-      vKnob.scale.set(vks, vks, 1);
-      const vShown = vGate > 0.02;
-      vKnob.visible = vShown;
-      vStem.visible = vShown;
+      applyHandle({
+        lit: Math.max(eased.get("verticalKnobHover"), eased.get("verticalKnobActive")),
+        gate: eased.get("verticalGate"),
+        idleOpacity: HANDLE_IDLE_OPACITY,
+        knob: vKnob,
+        knobMaterial: vKnobMat,
+        stem: vStem,
+        stemMaterial: vStemMat,
+      });
+      applyHandle({
+        lit: Math.max(eased.get("horizontalHover"), eased.get("horizontalActive")),
+        gate: eased.get("horizontalGate"),
+        idleOpacity: HORIZONTAL_HANDLE_IDLE_OPACITY,
+        knob: hKnob,
+        knobMaterial: hKnobMat,
+        stem: hStem,
+        stemMaterial: hStemMat,
+      });
 
-      const hLit = Math.max(hHover, hActive);
-      const hOp =
-        (HORIZONTAL_HANDLE_IDLE_OPACITY + (1 - HORIZONTAL_HANDLE_IDLE_OPACITY) * hLit) * hGate;
-      hKnobMat.opacity = hOp;
-      hStemMat.opacity = hOp;
-      const hks = KNOB_BASE * (1 + HANDLE_HOVER_GROW * hLit);
-      hKnob.scale.set(hks, hks, 1);
-      const hShown = hGate > 0.02;
-      hKnob.visible = hShown;
-      hStem.visible = hShown;
-
-      return (
-        Math.abs(hoverT - hover) > SETTLE_EPS ||
-        pulse > SETTLE_EPS ||
-        Math.abs(activeT - active) > SETTLE_EPS ||
-        Math.abs(vKnobHoverT - vKnobHover) > SETTLE_EPS ||
-        Math.abs(vKnobActiveT - vKnobActive) > SETTLE_EPS ||
-        Math.abs(vGateT - vGate) > SETTLE_EPS ||
-        Math.abs(hHoverT - hHover) > SETTLE_EPS ||
-        Math.abs(hActiveT - hActive) > SETTLE_EPS ||
-        Math.abs(hGateT - hGate) > SETTLE_EPS
-      );
+      return isMoving;
     },
     dispose() {
       coreGeom.dispose();
