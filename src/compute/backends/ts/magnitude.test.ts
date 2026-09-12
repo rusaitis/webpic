@@ -37,7 +37,9 @@ describe("computeRecipeTs", () => {
       B_2: makeField("B_2", new Float64Array([4, 0]), [2]),
       B_3: makeField("B_3", new Float64Array([0]), [1]),
     });
-    expect(() => computeRecipeTs("|B|", ds)).toThrow(/mismatched shapes/);
+    expect(() => computeRecipeTs("|B|", ds)).toThrow(
+      /ts backend: recipe "\|B\|" needs one shape across inputs, got \[1\] and \[2\]/,
+    );
   });
 
   it("throws for a recipe with no TS op bound", () => {

@@ -1,9 +1,7 @@
 import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
-import { sameShape } from "@schema/math.ts";
-import { fieldInfo } from "@schema/registry.ts";
 import type { FloatArray } from "@schema/types.ts";
 import type { ComputeBackend } from "../../backend.ts";
-import type { RecipeMeta } from "../../recipe.ts";
+import { gatherRecipeInputs, type RecipeMeta, recipeFieldArray } from "../../recipe.ts";
 import { RECIPES, type RecipeKey } from "../../recipes.generated.ts";
 import { MAGNITUDE_FIELD_OPS } from "./magnitude.ts";
 import { OPERATOR_FIELD_OPS } from "./operators.ts";
@@ -55,26 +53,14 @@ export function computeRecipeTs(name: RecipeKey, dataset: FieldDataset): FieldAr
     throw new Error(`ts backend: no TS op bound for "${recipe.func}" (recipe "${name}")`);
   }
 
-  const inputs: FieldArray[] = [];
-  for (const fieldName of recipe.fields) {
-    const field = dataset.fields.get(fieldName);
-    if (field === undefined) {
-      throw new Error(`ts backend: recipe "${name}" requires field "${fieldName}", not in dataset`);
-    }
-    const first = inputs[0];
-    if (first !== undefined && !sameShape(first.shape, field.shape)) {
-      throw new Error(`ts backend: recipe "${name}" inputs have mismatched shapes`);
-    }
-    inputs.push(field);
-  }
+  const inputs = gatherRecipeInputs(recipe, name, dataset, "ts backend");
   const first = inputs[0];
   if (first === undefined) {
     throw new Error(`ts backend: recipe "${name}" has no input fields`);
   }
 
   const data = op(inputs, { shape: first.shape, grid: dataset.grid, component: recipe.component });
-  const meta = fieldInfo(name);
-  return { data, shape: first.shape, meta, units: first.units, latex: meta.latex, reduction: null };
+  return recipeFieldArray(name, data, first);
 }
 
 // The TS reference backend as a ComputeBackend: the synchronous reference ops behind the async facade.

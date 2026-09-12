@@ -1,9 +1,8 @@
 // STAGED: activates when the data worker can hand GPU compute to main (a worker holds no device).
 import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
+import { require3dVector, requireCartesian, requirePositiveSpacing } from "@coordinates/guards.ts";
 import { runFieldKernel } from "@gpu/computeKernel.ts";
 import { getDevice, hasDevice } from "@gpu/device.ts";
-import { sameShape } from "@schema/math.ts";
-import { fieldInfo } from "@schema/registry.ts";
 import {
   CURL_ENTRY,
   DIVERGENCE_ENTRY,
@@ -11,7 +10,7 @@ import {
   MAGNITUDE_ENTRY,
 } from "@shaders/kernels/fieldOps.wgsl.ts";
 import type { ComputeBackend } from "../../backend.ts";
-import type { RecipeMeta } from "../../recipe.ts";
+import { gatherRecipeInputs, type RecipeMeta, recipeFieldArray } from "../../recipe.ts";
 import { RECIPES, type RecipeKey } from "../../recipes.generated.ts";
 import { buildKernelParams, toFloat32 } from "./params.ts";
 
@@ -50,24 +49,20 @@ export function isWebgpuOp(recipe: RecipeMeta): boolean {
   );
 }
 
-// Mirror the coordinates/operators.ts guards so a grid op fails the same way on the GPU path: the
-// reference rejects non-cartesian geometry, <3D grids, <2 samples per axis (np.gradient needs the
-// neighbour), and non-positive spacing.
-function validateGridOp(shape: readonly number[], grid: GridInfo, func: string): void {
-  if (grid.geometry !== "cartesian") {
-    throw new Error(`webgpu backend: ${func} ${grid.geometry} geometry not implemented`);
+// The grid preconditions are the TS reference's own guards, called with this backend's label, so the
+// two paths refuse the same inputs. The sample count is checked here rather than in the kernel: a
+// WGSL dispatch has no way to throw, and np.gradient needs the neighbour plane on every axis.
+function validateGridOp(inputs: readonly FieldArray[], grid: GridInfo, operation: string): void {
+  const [c1, c2, c3] = inputs;
+  if (c1 === undefined || c2 === undefined || c3 === undefined) return;
+  requireCartesian(grid.geometry, operation);
+  require3dVector(c1.data, c2.data, c3.data, c1.shape, operation);
+  for (const [axis, samples] of c1.shape.entries()) {
+    if (samples < 2) {
+      throw new Error(`${operation}: axis ${axis} needs ≥2 samples (np.gradient), got ${samples}`);
+    }
   }
-  if (shape.length !== 3) {
-    throw new Error(`webgpu backend: ${func} expects a 3D grid, got ${shape.length}D`);
-  }
-  for (const dim of shape) {
-    if (dim < 2) throw new Error(`webgpu backend: ${func} needs ≥2 samples per axis (np.gradient)`);
-  }
-  for (const d of grid.spacing) {
-    // `!(d > 0)` also rejects NaN spacing — matches requirePositiveSpacing.
-    if (!(d > 0))
-      throw new Error(`webgpu backend: ${func} grid spacing must be positive, got ${d}`);
-  }
+  requirePositiveSpacing(grid.spacing, operation);
 }
 
 /**
@@ -86,20 +81,7 @@ async function computeRecipeWebgpu(
     throw new Error(`webgpu backend: no kernel bound for "${recipe.func}" (recipe "${name}")`);
   }
 
-  const inputs: FieldArray[] = [];
-  for (const fieldName of recipe.fields) {
-    const field = dataset.fields.get(fieldName);
-    if (field === undefined) {
-      throw new Error(
-        `webgpu backend: recipe "${name}" requires field "${fieldName}", not in dataset`,
-      );
-    }
-    const first = inputs[0];
-    if (first !== undefined && !sameShape(first.shape, field.shape)) {
-      throw new Error(`webgpu backend: recipe "${name}" inputs have mismatched shapes`);
-    }
-    inputs.push(field);
-  }
+  const inputs = gatherRecipeInputs(recipe, name, dataset, "webgpu backend");
   const [c1, c2, c3] = inputs;
   if (c1 === undefined || c2 === undefined || c3 === undefined) {
     throw new Error(
@@ -107,7 +89,7 @@ async function computeRecipeWebgpu(
     );
   }
 
-  if (kernel.needsGrid) validateGridOp(c1.shape, dataset.grid, recipe.func);
+  if (kernel.needsGrid) validateGridOp(inputs, dataset.grid, `webgpu backend: ${recipe.func}`);
 
   const totalElements = c1.data.length;
   const params = buildKernelParams(
@@ -126,8 +108,7 @@ async function computeRecipeWebgpu(
     signal,
   });
 
-  const meta = fieldInfo(name);
-  return { data, shape: c1.shape, meta, units: c1.units, latex: meta.latex, reduction: null };
+  return recipeFieldArray(name, data, c1);
 }
 
 // The WebGPU compute backend. `supports()` gates on a live device (false in Node and in workers,
