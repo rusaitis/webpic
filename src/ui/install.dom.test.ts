@@ -38,6 +38,8 @@ describe("installUi", () => {
     expect(simulationStore.getState().layers.at(-1)?.kind).toBe("fieldlines");
 
     dispose();
+    // Idempotent: a defensive second dispose must not re-run every surface's teardown.
+    dispose();
     expect(parent.querySelector(".webpic-window")).toBeNull();
     expect(document.getElementById("webpic-ui-styles")).toBeNull();
     expect(parent.style.getPropertyValue("--webpic-bg")).toBe("");
