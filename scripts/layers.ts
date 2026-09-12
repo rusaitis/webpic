@@ -23,42 +23,32 @@ export type LayerName = (typeof LAYERS)[number];
 
 // Layer dependency DAG: the layers each layer is allowed to import from. Enforced by
 // scripts/check-boundaries.ts. Same-layer imports are always allowed (see canImport).
+//
+// Each row is what the layer actually imports today, not what it might. A row wider than the code
+// describes an intention rather than an architecture, so a reserved edge carries the reason it is
+// held open — the same discipline the reserved layers' `STAGED:` headers follow.
 export const ALLOWED_IMPORTS: Record<LayerName, readonly LayerName[]> = {
   schema: [],
   containers: ["schema"],
-  coordinates: ["containers", "schema"],
+  coordinates: ["schema", "containers"],
   numerics: ["schema", "containers"],
-  reductions: ["schema", "containers", "coordinates"],
-  derived: ["coordinates", "numerics", "containers", "schema"],
-  diagnostics: ["coordinates", "containers"],
+  reductions: ["schema"],
+  derived: ["schema"],
+  // Reserved: the analyzer leg's diagnostics are grid operators over a dataset (DESIGN §Data layer).
+  diagnostics: ["schema", "containers", "coordinates"],
   gpu: [],
   shaders: [],
-  compute: [
-    "schema",
-    "coordinates",
-    "numerics",
-    "reductions",
-    "shaders",
-    "gpu",
-    "derived",
-    "containers",
-  ],
-  data: ["schema", "containers", "reductions"],
-  remote: ["schema", "containers", "data", "reductions"],
-  render: [
-    "schema",
-    "containers",
-    "coordinates",
-    "numerics",
-    "reductions",
-    "compute",
-    "data",
-    "gpu",
-  ],
+  compute: ["schema", "containers", "coordinates", "numerics", "derived", "shaders", "gpu"],
+  data: ["schema", "containers"],
+  // Reserved: the pypic.server client decodes into the same containers the readers produce.
+  remote: ["schema", "containers", "data"],
+  // Reserved: `compute` activates when the dispatcher can route GPU work from the render worker
+  // (compute/backends/webgpu is STAGED on the same seam).
+  render: ["schema", "containers", "reductions", "data", "gpu", "compute"],
   store: ["schema", "containers", "reductions", "compute"],
-  ui: ["schema", "containers", "store", "remote"],
+  ui: ["schema", "containers", "store"],
   app: LAYERS.filter((layer) => layer !== "app"), // composition root: imports everything
-  workers: ["schema", "coordinates", "numerics", "compute", "data", "containers"],
+  workers: ["schema", "containers", "compute", "data"],
   embed: [
     "schema",
     "containers",

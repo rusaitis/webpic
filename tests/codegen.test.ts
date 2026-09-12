@@ -38,7 +38,7 @@ describe("generated field registry", () => {
   });
 
   it("rejects unknown field names loudly", () => {
-    expect(() => fieldInfo("not_a_field")).toThrow(/Unknown field name/);
+    expect(() => fieldInfo("not_a_field")).toThrow(/fieldInfo: unknown canonical field name/);
   });
 });
 

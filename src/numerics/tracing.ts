@@ -53,7 +53,8 @@ const REASON_BY_CODE: readonly TerminationReason[] = [
 /** Decode a `REASON_CODES` integer (e.g. from the GPU `meta` buffer) back to a `TerminationReason`. */
 export function reasonFromCode(code: number): TerminationReason {
   const reason = REASON_BY_CODE[code];
-  if (reason === undefined) throw new Error(`unknown termination reason code ${code}`);
+  if (reason === undefined)
+    throw new Error(`reasonFromCode: unknown termination reason code, got ${code}`);
   return reason;
 }
 
@@ -127,15 +128,15 @@ export function makeFieldLine(args: {
 }): FieldLine {
   const { points } = args;
   if (points.length % 3 !== 0) {
-    throw new Error(`field-line points length ${points.length} is not a multiple of 3`);
+    throw new Error(`makeFieldLine: points length must be a multiple of 3, got ${points.length}`);
   }
   const nPoints = points.length / 3;
-  if (nPoints < 2) throw new Error(`field line needs ≥ 2 points, got ${nPoints}`);
+  if (nPoints < 2) throw new Error(`makeFieldLine: a field line needs ≥ 2 points, got ${nPoints}`);
   const scalars: ReadonlyMap<string, Float64Array> =
     args.scalars ?? new Map<string, Float64Array>();
   for (const [name, arr] of scalars) {
     if (arr.length !== nPoints) {
-      throw new Error(`scalar ${name} has ${arr.length} samples, expected ${nPoints}`);
+      throw new Error(`makeFieldLine: scalar ${name} needs ${nPoints} samples, got ${arr.length}`);
     }
   }
   const metadata: TraceMetadata = {
@@ -362,7 +363,8 @@ function resolveLoopKwargs(
   stepSizeInit: number,
 ): { loopTol: number | null; loopMinArclen: number } {
   if (loopTol === null) {
-    if (loopMinArclen !== null) throw new Error("loopMinArclen requires loopTol to be set");
+    if (loopMinArclen !== null)
+      throw new Error("resolveTraceParams: loopMinArclen requires loopTol to be set");
     return { loopTol: null, loopMinArclen: 0 };
   }
   if (loopTol <= 0) throw new Error(`resolveTraceParams: loopTol must be positive, got ${loopTol}`);
@@ -375,7 +377,9 @@ function resolveLoopKwargs(
 function fieldNameFromComponents(components: readonly [string, string, string]): string {
   const stripped = new Set(components.map((c) => c.replace(/_?\d+$/, "")));
   if (stripped.size !== 1) {
-    throw new Error(`components must belong to one field, got ${components.join(", ")}`);
+    throw new Error(
+      `resolveTraceParams: components must belong to one field, got ${components.join(", ")}`,
+    );
   }
   const [name] = stripped;
   return name ?? "";

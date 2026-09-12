@@ -76,7 +76,9 @@ function hashParts(parts: readonly string[]): string {
 
 function buildPath(key: CacheKeyParts): string {
   if (!NAMESPACE_PATTERN.test(key.namespace)) {
-    throw new Error(`cache namespace "${key.namespace}" must match ${NAMESPACE_PATTERN.source}`);
+    throw new Error(
+      `buildPath: namespace must match ${NAMESPACE_PATTERN.source}, got "${key.namespace}"`,
+    );
   }
   // SCHEMA_VERSION ("1.0") is one directory segment; the dot is intentional, never split.
   return `${SCHEMA_VERSION}/${key.namespace}/${hashParts(key.parts)}`;

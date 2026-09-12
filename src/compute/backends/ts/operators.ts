@@ -52,7 +52,7 @@ const curlOp: TsFieldOp = (inputs, context) => {
   const index = context.component ?? 0;
   const out = components[index];
   if (out === undefined) {
-    throw new Error(`ts backend: curl component ${index} out of range`);
+    throw new Error(`ts backend: curl component must be 0–2, got ${index}`);
   }
   return out;
 };

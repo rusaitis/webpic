@@ -12,7 +12,7 @@ export const MAGNETIC_COMPONENTS = ["B_1", "B_2", "B_3"] as const;
 export function fieldInfo(name: string): FieldMeta {
   const info = FIELD_REGISTRY[name];
   if (info === undefined) {
-    throw new Error(`Unknown field name: ${name}`);
+    throw new Error(`fieldInfo: unknown canonical field name, got "${name}"`);
   }
   return info;
 }

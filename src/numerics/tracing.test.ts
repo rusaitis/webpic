@@ -245,7 +245,7 @@ describe("makeFieldLine invariants", () => {
         points: new Float64Array([0, 0, 0, 1, 0, 0]),
         scalars: new Map([["foo", new Float64Array([1, 2, 3])]]),
       }),
-    ).toThrow(/expected 2/);
+    ).toThrow(/makeFieldLine: scalar foo needs 2 samples, got 3/);
   });
 });
 

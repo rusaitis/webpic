@@ -40,11 +40,11 @@ export function interpolatorFromDataset(
 ): VectorFieldInterpolator {
   const { grid } = data;
   if (grid.geometry !== "cartesian") {
-    throw new Error(`field-line tracing needs a cartesian grid, got ${grid.geometry}`);
+    throw new Error(`field-line tracing: needs a cartesian grid, got ${grid.geometry}`);
   }
   const dims = grid.dimensions;
   if (dims.length !== 3) {
-    throw new Error(`field-line tracing needs a 3-D grid, got ${dims.length}-D`);
+    throw new Error(`field-line tracing: needs a 3-D grid, got ${dims.length}-D`);
   }
 
   const nx = dims[0] ?? 0;
