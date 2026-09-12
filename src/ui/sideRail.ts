@@ -1,6 +1,7 @@
 import { LAYER_KIND_ORDER, LAYER_KINDS, type SimulationStore, type UiStore } from "@store";
 import { installChromeVisibility } from "./chromeVisibility.ts";
-import { installOutsideClickDismiss, makeEl, makeIconButton } from "./controls/dom.ts";
+import { installAnchoredOverlay } from "./controls/anchoredOverlay.ts";
+import { makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import { ICON_CLOSE } from "./icons.ts";
 import { LAYER_KIND_ICON, PARTICLES_PLACEHOLDER_ICON } from "./layerIcons.ts";
@@ -176,18 +177,13 @@ export function installSideRail(
     { signal },
   );
 
-  const onDocKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape" && isOpen) {
-      setOpen(false);
-      viewBtn.focus();
-    }
-  };
-  doc.addEventListener("keydown", onDocKeyDown, { signal });
-  const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
+  const disposeFlyoutDismissal = installAnchoredOverlay({
     overlay: flyout,
     trigger: viewBtn,
     isOpen: () => isOpen,
-    onDismiss: () => setOpen(false),
+    close: () => setOpen(false),
+    position,
+    signal,
   });
 
   // The Add-volume shortcut (DESIGN default "V"). ("S" is intentionally unbound — it collides with
@@ -195,11 +191,6 @@ export function installSideRail(
   createShortcutRegistry(doc, signal).register("v", () =>
     store.getState().addLayerOfKind("volume"),
   );
-
-  const onResize = (): void => {
-    if (isOpen) position();
-  };
-  doc.defaultView?.addEventListener("resize", onResize, { signal });
 
   const applyProbe = (show: boolean): void => {
     probeBtn.setAttribute("aria-pressed", String(show));
@@ -248,7 +239,7 @@ export function installSideRail(
     abortController.abort();
     subscriptions.dispose();
     for (const menu of menus) menu.dispose();
-    disposeOutsideDismiss();
+    disposeFlyoutDismissal();
     sceneDispose();
     flyout.remove();
     container.remove();

@@ -1,5 +1,6 @@
 import { clamp } from "@schema/math.ts";
-import { installOutsideClickDismiss, makeEl } from "./controls/dom.ts";
+import { installAnchoredOverlay } from "./controls/anchoredOverlay.ts";
+import { makeEl } from "./controls/dom.ts";
 import { ICON_PLUS } from "./layerIcons.ts";
 import { positionArrowFlyout } from "./layout.ts";
 
@@ -137,11 +138,6 @@ export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
     "keydown",
     (event: KeyboardEvent) => {
       switch (event.key) {
-        case "Escape":
-          event.preventDefault();
-          close();
-          anchor.focus();
-          break;
         case "ArrowDown":
           event.preventDefault();
           focusItem(focusedIndex() + 1);
@@ -165,19 +161,13 @@ export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
     { signal },
   );
 
-  doc.defaultView?.addEventListener(
-    "resize",
-    () => {
-      if (isOpen) position();
-    },
-    { signal },
-  );
-
-  const disposeOutside = installOutsideClickDismiss(doc, {
+  const disposeMenuDismissal = installAnchoredOverlay({
     overlay: panel,
     trigger: anchor,
     isOpen: () => isOpen,
-    onDismiss: () => close(),
+    close,
+    position,
+    signal,
   });
 
   return {
@@ -191,7 +181,7 @@ export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
     isOpen: () => isOpen,
     dispose: () => {
       abortController.abort();
-      disposeOutside();
+      disposeMenuDismissal();
       panel.remove();
     },
   };

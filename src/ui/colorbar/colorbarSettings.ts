@@ -1,5 +1,6 @@
 import type { SimulationStore } from "@store";
-import { installOutsideClickDismiss, makeEl } from "../controls/dom.ts";
+import { installAnchoredOverlay } from "../controls/anchoredOverlay.ts";
+import { makeEl } from "../controls/dom.ts";
 import { bringToFront, installRaise } from "../floating/zStack.ts";
 import { clampIntoViewport, POPOVER_GAP_PX } from "../layout.ts";
 import { installColormapControls } from "./colormapControls.ts";
@@ -80,24 +81,14 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
     }
   };
 
-  const onDocKeyDown = (e: KeyboardEvent): void => {
-    if (e.key === "Escape" && isOpen) {
-      setOpen(false);
-      options.anchor.focus();
-    }
-  };
-  const onResize = (): void => {
-    if (isOpen) reposition();
-  };
-  doc.addEventListener("keydown", onDocKeyDown, { signal: abortController.signal });
-  // Shared mousedown-outside dismiss: not signal-bound — its own disposer runs in dispose().
-  const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
+  const disposeDismissal = installAnchoredOverlay({
     overlay: pop,
     trigger: options.anchor,
     isOpen: () => isOpen,
-    onDismiss: () => setOpen(false),
+    close: () => setOpen(false),
+    position: reposition,
+    signal: abortController.signal,
   });
-  doc.defaultView?.addEventListener("resize", onResize, { signal: abortController.signal });
 
   return {
     toggle: () => setOpen(!isOpen),
@@ -108,7 +99,7 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
     },
     dispose() {
       abortController.abort();
-      disposeOutsideDismiss();
+      disposeDismissal();
       controlsDispose();
       pop.remove();
     },

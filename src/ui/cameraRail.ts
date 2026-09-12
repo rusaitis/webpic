@@ -1,6 +1,7 @@
 import type { CameraProjection, SimulationStore, UiStore } from "@store";
 import { installChromeVisibility } from "./chromeVisibility.ts";
-import { installOutsideClickDismiss, makeEl, makeIconButton } from "./controls/dom.ts";
+import { installAnchoredOverlay } from "./controls/anchoredOverlay.ts";
+import { makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import {
   COORDINATE_UNITS,
@@ -189,18 +190,15 @@ export function installCameraRail(
   applyCoordsLabel();
   applyInfoVisible(uiStore.getState().isCoordsInfoVisible);
 
-  // Bare `C` toggles (Cmd+C stays copy — the registry's guard); Escape closes; an outside
-  // pointer-down dismisses (shared installOutsideClickDismiss, like the side-rail flyout).
+  // Bare `C` toggles (Cmd+C stays copy — the registry's guard).
   createShortcutRegistry(doc, signal).register("KeyC", () => uiStore.getState().toggleCoordsInfo());
-  const onDocKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape" && isOpen()) uiStore.getState().setCoordsInfoVisible(false);
-  };
-  doc.addEventListener("keydown", onDocKeyDown, { signal });
-  const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
+  const disposeCardDismissal = installAnchoredOverlay({
     overlay: card,
     trigger: coordsBtn,
     isOpen,
-    onDismiss: () => uiStore.getState().setCoordsInfoVisible(false),
+    close: () => uiStore.getState().setCoordsInfoVisible(false),
+    shouldRestoreFocus: false,
+    signal,
   });
 
   const renderRowsIfOpen = (): void => {
@@ -248,7 +246,7 @@ export function installCameraRail(
   return () => {
     abortController.abort();
     subscriptions.dispose();
-    disposeOutsideDismiss();
+    disposeCardDismissal();
     container.remove();
     card.remove();
   };
