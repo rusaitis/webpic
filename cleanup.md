@@ -283,7 +283,7 @@ Deviations, each after inspection rather than by omission:
 
 ---
 
-## [ ] Part 6 — The readability pass (2026-09-12)
+## [x] Part 6 — The readability pass (2026-09-12)
 
 Parts 1–5 closed everything a tool can check. What is left is the judgement layer: duplication no
 clone detector matches because it is a *shape* rather than a string, names that parse but do not
@@ -574,6 +574,65 @@ restatement in the whole tree), and anything in memory `perf-review-non-wins`,
 7. 6e tail + CLAUDE.md (`docs:`/`refactor:`).
 8. Record outcomes + deviations here; update memory `code-health-review-2026-09.md` and
    `enforcement-ratchets.md`.
+
+### Part 6 outcome (landed 2026-09-12)
+
+Fourteen commits, `npm run check` green on each, no behavior change.
+
+**On line counts:** source went 26 057 → 26 013 — **net −44**. Roughly 700 lines were deleted and
+roughly 660 came back as named collaborators and the contracts they need. That is the honest shape
+of this part: it did not shrink the codebase, it redistributed it. The deletions are real (an
+abstraction with one caller, a dead control path, eleven copies of one setter, thirteen re-derived
+clamps) and so is what replaced them; a split trades a long body for two short ones plus a named
+seam, which costs lines and buys a place to hang a test. Tests grew 23 036 → 23 405 for 33 net new
+cases, and they run faster than before.
+
+| measure | before | after |
+|---|---|---|
+| source LOC (non-test) | 26 057 | 26 013 |
+| `npm test` execution time | 14.9 s | **9.0 s** (wall 7.4 → 6.4 s) |
+| slowest test file | 6 849 ms | **27 ms** |
+| coverage (lines / branches) | 82.55 % / 70.8 % | **84.7 % / 72.8 %** |
+| tests | 1 431 | 1 464 |
+| Biome ceilings (lines / complexity) | 310 / 52 | **258 / 49** |
+| file headers over 6 lines | 29 | **0** (the ratchet became the rule) |
+| milestone refs in comments | 27 | **0** |
+| knip, with exports re-enabled | 8 + 2 hints | **0** |
+
+Deviations, each after inspection rather than by omission:
+
+- **6a-1** — `patchLayer` nets only ~6 lines, not 45: the helpers cost what the six copies saved.
+  The win is structural (one home for the identity rule), not a line count.
+- **6a-7** — `nudgePose`'s `lookMode` default *is* exercised, by ten orbit-mode tests, and
+  `formatPoseParam` is `parsePoseParam`'s tested inverse and how a `?pose=` permalink is minted.
+  Both stay; the stale comment about a copy-link readout went instead.
+- **6a-9** — `managedDecoration`'s ternary is the typed construction, not a redundant check:
+  `warmScene` skips the callback for an undefined scene, but the check is what types `spec.warm(next)`.
+- **6a (deferred)** — `makeLayer`'s three identical switch arms **stay**: a bare spread type-checks
+  now, but the switch is what makes a fourth `LayerKind` fail to compile. Comment corrected to say so.
+- **6b** — `cursorRay` keeps its five parameters; only `dragOnPlane`/`dragAlongAxis` changed, and they
+  take the *ray* rather than a `CursorView` bag — better factored, and the caller builds it once.
+  `niceNum`'s flag was not split into two functions: the `round=false` branch had no caller anywhere,
+  so the flag and the branch are gone.
+- **6b (icons)** — the four surface-local `ICON` maps **stay**. `icons.ts`'s own header already says
+  surface-specific glyphs live with their component; that split is a rule, not drift. Only the one
+  exact duplicate glyph was real.
+- **6c** — `traceSingleDirectionAdaptive`'s complexity came from the integration loop, not the
+  parameter list: 51 → 31 after extracting `closesLoop`, not "well under 20". The rest is one
+  algorithm. `bootstrap` is 255 lines, about where it started — the win is that a new bridge can no
+  longer be silently left running, not brevity.
+- **6d** — the suite lands at 9.0 s of test time, not "under 2 s": with `pointerCamera` fixed, the
+  critical path is `boundaries.test.ts`'s ts-morph parse (2.4 s) and module transform, neither of
+  which is a test-quality problem.
+- **6d** — `worker.quality.test.ts` is **not** a duplicate of `qualityController.test.ts`: it proves
+  the worker's two entry paths reach the controller through a real rAF loop, which the unit cannot.
+  Same for the sequence assertion inside `qualityController.test.ts`, which is exact where its
+  neighbour's `toHaveBeenCalledWith` is not.
+- **6d** — most `data.worker` error paths named in the audit are unreachable from the message
+  boundary (the outer `default:` catches first, OPFS is absent in node). Tested what is reachable:
+  pre-open cursor/field messages as no-ops, a cache write that cannot land, the perf self-report.
+- **6d** — `makeFakeWorker` converted `main.test.ts` (−103 lines) and `streamingBridge`; the other
+  inline fakes are one-liners that an import would lengthen, so they stay.
 
 ### Part 6 verification
 
