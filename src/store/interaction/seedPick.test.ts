@@ -1,7 +1,7 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
-import { makeGrid } from "../../tests/fixtures.ts";
+import { makeGrid } from "../../../tests/fixtures.ts";
 import {
   clampSeedToDomain,
   defaultSeedRake,

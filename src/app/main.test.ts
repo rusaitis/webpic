@@ -328,7 +328,7 @@ describe("bootstrap pick-to-focus", () => {
     const fly = store.getState().cameraFlyRequest;
     if (fly === null || fly.target.kind !== "pose") throw new Error("expected a pose fly request");
     // The retarget re-aims from the LIVE (mid-flight) pose at the echoed gesture-time distance —
-    // the swivel math itself is pinned in store/pick.test.ts.
+    // the swivel math itself is pinned in store/interaction/picker.test.ts.
     expect(fly.target.pose).toEqual(focusPoseOnPoint(live, [0.2, -0.1, 0.3], 1.23));
     expect(fly.target.pose.distance).toBe(1.23); // no compounding against the flying pose
     dispose();

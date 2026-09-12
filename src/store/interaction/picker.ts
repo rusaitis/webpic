@@ -21,7 +21,7 @@ export interface CursorRay {
 }
 
 // The ray from the camera through an NDC point (x right, y up — dollyAt's convention). View-plane
-// displacement comes from viewPlaneOffset (store/camera.ts) — the shared z-up orbit basis.
+// displacement comes from viewPlaneOffset (store/interaction/camera.ts) — the shared z-up orbit basis.
 // Perspective rays fan out from the camera point; orthographic rays are parallel to forward, offset
 // across the matched frustum (halfH = d·tan(fov/2) — render/camera.ts's applyPoseOrtho).
 export function cursorRay(

@@ -10,12 +10,12 @@ import {
 } from "@schema/marker.ts";
 import { clamp, UNIT_BOX_HALF_EXTENT, vec3 } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
-import type { CursorRay } from "./pick.ts";
+import type { CursorRay } from "./picker.ts";
 
 // Main-thread point-picker math: project the marker / its handles to screen for hit-testing, and
 // solve the cursor ray against a drag plane or axis. Pure (no DOM, no THREE) — ui/picking/pointerPicker owns
 // the pointer state machine and feeds these. Shares the unit-box object space and the exact orbit
-// basis with store/pick.cursorRay, so a projected point round-trips with its ray (tested).
+// basis with store/interaction/picker.cursorRay, so a projected point round-trips with its ray (tested).
 
 export interface ScreenPoint {
   readonly ndcX: number;

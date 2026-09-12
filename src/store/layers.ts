@@ -2,8 +2,8 @@ import type { GridInfo } from "@containers/field_dataset.ts";
 import type { LayerKind, SliceAxis } from "@schema/layers.ts";
 import { clamp } from "@schema/math.ts";
 import type { FieldName, Vec3 } from "@schema/types.ts";
+import { defaultSeedRake, isSeedInDomain } from "./interaction/seedPick.ts";
 import { LAYER_KINDS } from "./layerKinds.ts";
-import { defaultSeedRake, isSeedInDomain } from "./seedPick.ts";
 
 export type { LayerKind, SliceAxis };
 
@@ -36,7 +36,7 @@ export type Layer =
     })
   | (LayerBase & {
       readonly kind: "fieldlines";
-      // Trace seeds in the grid's *physical* coords (store/seedPick), one field line per seed. The app
+      // Trace seeds in the grid's *physical* coords (store/interaction/seedPick), one field line per seed. The app
       // traces them (compute/traceField) and bridges the lines to the render worker.
       readonly seeds: ReadonlyArray<Vec3>;
     });

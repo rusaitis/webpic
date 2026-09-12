@@ -1,5 +1,5 @@
 import { vec3 } from "@schema/math.ts";
-import type { PickerSlice, SliceContext } from "./state.ts";
+import type { PickerSlice, SliceContext } from "../state.ts";
 
 // The point-picker marker: one-shot pick requests plus the marker's position and hover/drag state.
 

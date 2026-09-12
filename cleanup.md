@@ -157,14 +157,14 @@ Not adding: coverage gate (stays a report), `useNamingConvention`, `noBarrelFile
 
 ## [x] Part 4 — Test-suite gaps (each its own commit)
 
-1. **TOL ladder completeness.** `tests/tolerances.ts`: add `trace` and `interp` kernels with measured `ts_f64`/`ts_f32`/`webgpu_f32` cells; move `streamlines.browser.test.ts:125-154` literals onto `TOL.trace.*`; replace `parity.browser.test.ts:109,112` (`1e-3`, 3 digits) with `assertAllclose(…, TOL.magnitude.webgpu_f32)` — if it fails, widen the cell with a measured reason per the ladder's own rule. Move the 15 `Math.abs(...) < 1e-N` sites in `numerics/*.test.ts`, `store/camera.test.ts`, `render/pickRay.test.ts` onto named constants.
+1. **TOL ladder completeness.** `tests/tolerances.ts`: add `trace` and `interp` kernels with measured `ts_f64`/`ts_f32`/`webgpu_f32` cells; move `streamlines.browser.test.ts:125-154` literals onto `TOL.trace.*`; replace `parity.browser.test.ts:109,112` (`1e-3`, 3 digits) with `assertAllclose(…, TOL.magnitude.webgpu_f32)` — if it fails, widen the cell with a measured reason per the ladder's own rule. Move the 15 `Math.abs(...) < 1e-N` sites in `numerics/*.test.ts`, `store/interaction/camera.test.ts`, `render/pickRay.test.ts` onto named constants.
 2. **Bare `toBeCloseTo`**: give all 16 an explicit `n` (priority: `webgpu.test.ts:71-73` uniform packing, `managedMarker.test.ts:134`). Replace `normalization.test.ts:89-91`'s three `not.toThrow()` with assertions on the resulting window/scale.
 3. **Singleton-axis path.** `operators.test.ts`: `[8,8,1]` throws `/needs ≥2 samples/`; `compute/field.test.ts`: a reduced dataset is rejected at the dispatcher (`field.ts:40`) with the canonical message, not deep in `partialAlongAxis`. Fix `field.ts` gate accordingly.
 4. **`numerics/interp.test.ts`** (new): the five guards at `interp.ts:38-42`, the −0.5 cell-center invariant at `t=0` and `t=dim−1`, out-of-domain returns `false` with `out` untouched.
 5. **`store/supersedingTask.test.ts`** (new): superseded body resolving last sees `isCurrent() === false` and its commit never lands.
 6. **Worker malformed messages**: post `{kind:"nonsense"}` and a `dtype`/`byteLength` mismatch to `render/worker.ts` (via `render/testing/workerHarness.ts`) and `workers/data.worker.ts`; assert the never-arms throw with the payload in the message. Gives `data.worker.ts` its first coverage.
 7. **`ui/perf/hud.dom.test.ts`** (new): number formatting + `Infinity`/`NaN` sample paths, modeled on `timingPanel.dom.test.ts`. `app/perfBridge.test.ts` (new): message routing.
-8. **Fixtures consolidation**: promote `makeGrid(shape, spacing, origin?)`, `makeField(name, data, shape)`, `ballField(n, radius)` into `tests/fixtures.ts` (+ `tests/fixtures.browser.ts` for the GPU suites); delete the 8 local clones (`numerics/tracing.test.ts:21`, `data/stagger.test.ts:125-152`, `store/seedPick.test.ts:15`, `data/writers/zarr.test.ts:52-68`, `tests/writer-parity.test.ts:22-35`, `containers/grid.test.ts:5`, `store/simulation.test.ts:14`, `app/sceneSync.test.ts:9`, the 4 `ballField` copies in `render/*.browser.test.ts`).
+8. **Fixtures consolidation**: promote `makeGrid(shape, spacing, origin?)`, `makeField(name, data, shape)`, `ballField(n, radius)` into `tests/fixtures.ts` (+ `tests/fixtures.browser.ts` for the GPU suites); delete the 8 local clones (`numerics/tracing.test.ts:21`, `data/stagger.test.ts:125-152`, `store/interaction/seedPick.test.ts:15`, `data/writers/zarr.test.ts:52-68`, `tests/writer-parity.test.ts:22-35`, `containers/grid.test.ts:5`, `store/simulationStore.test.ts:14`, `app/sceneSync.test.ts:9`, the 4 `ballField` copies in `render/*.browser.test.ts`).
 9. **`theme.ts:252`**: wrap `parseToml` so a syntax error surfaces as the promised `Invalid theme in "<name>"`; test with malformed TOML + wrong-type value.
 10. **Dispose-during-in-flight** for `installGpu` and `createStreamRing` (one test each).
 
@@ -225,7 +225,7 @@ Deviations, each after inspection rather than by omission:
   62 → 52 complexity; 56 tests were added for the new collaborators.
 
 ### 5a. Dead & dormant
-- Delete `store/layersSlice.ts:71-79` `addVolumeLayer`/`addSliceLayer` + their `state.ts` declarations (`:113-116`, one of which describes a `V` shortcut that doesn't exist) + test references (switch to `addLayerOfKind`).
+- Delete `store/slices/layersSlice.ts:71-79` `addVolumeLayer`/`addSliceLayer` + their `state.ts` declarations (`:113-116`, one of which describes a `V` shortcut that doesn't exist) + test references (switch to `addLayerOfKind`).
 - Delete the empty-space-skip path: `render/volume/minMaxGrid.ts`, `brickStep.ts`, `raymarchScene.ts` `buildSkipState`/`brickAdvance`/`SkipTexture`/`skipEmptySpace` option, their tests, the `vramLedger` key, and the DESIGN/TASKS/memory (`empty-space-skipping.md` → delete) mentions. Record in DESIGN §Volume rendering one line: *"empty-space skipping was built, measured 1.7× slower on space-filling |B|, and removed (git `<sha>`)."*
 - `STAGED:` headers on `data/cache.ts` (*"activates with OPFS scrub-back caching — TASKS Unscheduled"* → phrase without the task ref: *"activates when a real reader's re-read cost justifies OPFS scrub-back"*) and `compute/backends/webgpu/streamlines.ts` (*"activates when trace dispatch moves off-main"*). Remove `traceField.ts:49-54` roadmap prose.
 - `render/testing/workerHarness.ts` imports `vitest` from `src/` — move to `tests/renderWorkerHarness.ts` (coverage exclude already handles `tests/`).
@@ -336,14 +336,14 @@ checks unused exports at all**. That exclusion is why several deletions below su
 4. **`store/overlay.ts` five identical boolean setters** (`:45,55,59,63,67`), one caller each →
    one `setFlag(state, key: OverlayFlag, on)`. ~33 lines; `overlay.test.ts` already groups four
    under a single `describe`, so the test collapses with the code.
-5. **Use `clamp` from `@schema/math`** — `render/pickRay.ts:34,35,36,82`, `store/pick.ts:72,102,106`,
+5. **Use `clamp` from `@schema/math`** — `render/pickRay.ts:34,35,36,82`, `store/interaction/picker.ts:72,102,106`,
    `store/overlay.ts:42`, `ui/layers/settings.ts:259,305` (same expression twice → one
    `seedCountFor`), `ui/layers/railMenu.ts:57`, `ui/bottomBand/band/band/dock.ts:57`, `app/viewportTracking.ts:21`.
    `pickRay.ts:82` is the one per-ray-loop site to glance at.
 6. **`render/overlay/overlayRemap.ts:17` `fieldAxisToThree` is the identity function** — 4 call sites,
    one `expect(f(0)).toBe(0)` test, and a comment carrying banned history. Delete; the invariant is
    already in the file header.
-7. **`store/camera.ts`** — five pose builders (`:58,73,126,168,182`) spell out all five
+7. **`store/interaction/camera.ts`** — five pose builders (`:58,73,126,168,182`) spell out all five
    `CameraPose` fields where `{ ...pose, … }` would do (and `axisViewPose:463` already spreads);
    `rollPose` is 7 lines that should be 1. `nudgePose`'s `lookMode = false` default is never taken.
    `formatPoseParam:430` is production-dead — its comment cites a copy-link affordance that does
@@ -404,7 +404,7 @@ signatures (`orthographic` → `isOrthographic`, `shift` → `isShiftHeld`, `fir
 **Positional-parameter explosion** — 56 functions take ≥5; only five have a same-typed adjacent run
 where a swap type-checks. Fix those: `numerics/tracing.ts:213` `traceSingleDirectionAdaptive`
 (**14 params, 8 consecutive `number`** → pass the `ResolvedTraceParams` at `:452`; drops its
-complexity 51 → under 20) · `store/marker.ts:107,128` `dragOnPlane`/`dragAlongAxis` (both open with
+complexity 51 → under 20) · `store/interaction/marker.ts:107,128` `dragOnPlane`/`dragAlongAxis` (both open with
 `cursorRay`'s exact 5-param prefix → one `CursorView` across all three) ·
 `dragSnap.ts:382,410` `setAnchors`/`placeCentered` (8 params each incl. `w`, `hgt`, `h`, `v`).
 
@@ -453,7 +453,7 @@ Checked clean: 0 `handleX`, 0 `cfg`/`tmp`/`msg`/`evt`, no exported one-word `Opt
    does twice) → `oneShotPipeline` + `readBack`. **Schedule where a real GPU run is available.**
 
 **Not splitting:** `render/worker.ts` (its body *is* the worker's state — keeps its sanctioned
-`biome-ignore`), `store/camera.ts`, `render/messages.ts`, `data/readers/zarr.ts`,
+`biome-ignore`), `store/interaction/camera.ts`, `render/messages.ts`, `data/readers/zarr.ts`,
 `data/readers/decode.ts`, `compute/calibration.ts`, `schema/theme.ts`. `ui/topbar/bar.ts` (327 L) is
 borderline but its five widgets share the `overlayClosers` mutual-exclusion map at `:65-69`.
 
@@ -467,7 +467,7 @@ borderline but its five widgets share the `overlayClosers` mutual-exclusion map 
   `vi.stubGlobal("requestAnimationFrame", …)` feeding a synthetic clock fast-forwards every tween
   — the pattern 8 files including `worker.quality.test.ts` already use. (`isWheelLive:101` and
   `:246` read `performance.now()`; stub that too, or add `now` to `CameraGlideHost`.) Also collapse
-  `:143-168`, which re-tests `normalizeWheelDelta` already pinned by `store/camera.test.ts:145-153`.
+  `:143-168`, which re-tests `normalizeWheelDelta` already pinned by `store/interaction/camera.test.ts:145-153`.
   **Expected: suite 7.4 s → under ~2 s.**
 - **`tests/toolchain.test.ts`** is `expect(1 + 1).toBe(2)`. Delete; 122 node test files already
   prove the node project resolves.
@@ -564,7 +564,7 @@ restatement in the whole tree), and anything in memory `perf-review-non-wins`,
 
 1. 6e config (`chore:`) — un-exclude knip first, so it reports honestly through everything below.
 2. 6a deletions (`refactor:`): `patchLayer` → `overlay.setFlag` → `ui/binding` + text control →
-   `clamp` → `fieldAxisToThree` → `store/camera` → the small duplicates.
+   `clamp` → `fieldAxisToThree` → `store/interaction/camera` → the small duplicates.
 3. 6b names (`refactor:`), four commits: misleading → `*Sync`→`*Bridge` → `ac`/`subs` →
    booleans + parameter objects.
 4. 6c shape (`refactor:`), one commit per split, each lowering the Biome ceiling in the same diff.

@@ -1,13 +1,13 @@
 import { subscribeWithSelector } from "zustand/middleware";
 import { createStore } from "zustand/vanilla";
-import { createBindingsSlice } from "./bindingsSlice.ts";
-import { createCameraSlice } from "./cameraSlice.ts";
-import { createDataSlice } from "./dataSlice.ts";
 import { createRecompute } from "./fieldCompute.ts";
 import { createRetrace } from "./fieldTrace.ts";
-import { createLayersSlice } from "./layersSlice.ts";
-import { createOverlaySlice } from "./overlaySlice.ts";
-import { createPickerSlice } from "./pickerSlice.ts";
+import { createCameraSlice } from "./slices/cameraSlice.ts";
+import { createColormapSlice } from "./slices/colormapSlice.ts";
+import { createDataSlice } from "./slices/dataSlice.ts";
+import { createLayersSlice } from "./slices/layersSlice.ts";
+import { createOverlaySlice } from "./slices/overlaySlice.ts";
+import { createPickerSlice } from "./slices/pickerSlice.ts";
 import { createSceneIds, type SimulationState, type SliceContext } from "./state.ts";
 
 export {
@@ -40,7 +40,7 @@ export function createSimulationStore() {
       return {
         ...createDataSlice({ ...context, recompute }),
         ...createLayersSlice({ ...context, ids, retrace }),
-        ...createBindingsSlice(context),
+        ...createColormapSlice(context),
         ...createCameraSlice(context),
         ...createPickerSlice(context),
         ...createOverlaySlice(context),

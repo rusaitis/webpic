@@ -7,7 +7,7 @@ import type { Vec3 } from "@schema/types.ts";
 import { defaultSeedRake, seedFromSlice, seedFromVolume } from "@store";
 import { describe, expect, it } from "vitest";
 
-// Cross-layer guard: a picked seed (store/seedPick, world → physical grid coords) must land
+// Cross-layer guard: a picked seed (store/interaction/seedPick, world → physical grid coords) must land
 // inside the tracer's interpolator domain and actually trace. This is the load-bearing −0.5
 // cell-centered invariant checked against the REAL numerics/interp + numerics/tracing — a store-layer
 // unit test can't import numerics (DAG), so it lives here (top-level tests/ is exempt). If seedPick's

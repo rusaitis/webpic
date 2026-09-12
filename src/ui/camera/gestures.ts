@@ -19,7 +19,7 @@ import type { CameraGlide } from "./glide.ts";
 
 // Pointer/wheel/touch input on the main-thread canvas → camera-pose intents. The OffscreenCanvas is
 // transferred to the worker, but the <canvas> still receives DOM events here: read the live pose from
-// the store, nudge it via the pure helpers (store/camera), dispatch setCameraPose. Damped motions
+// the store, nudge it via the pure helpers (store/interaction/camera), dispatch setCameraPose. Damped motions
 // (drag orbit/pan, two-finger pan) ride the glide's momentum; immediate ones (wheel / pinch dolly,
 // twist roll) write the pose directly. Deltas normalize to viewport-height fractions — OrbitControls'
 // unit, so the feel is identical at any canvas size. No render import — ui → store only.

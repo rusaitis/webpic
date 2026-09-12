@@ -1,5 +1,5 @@
-import { DEFAULT_POSE } from "./camera.ts";
-import type { CameraSlice, SliceContext } from "./state.ts";
+import { DEFAULT_POSE } from "../interaction/camera.ts";
+import type { CameraSlice, SliceContext } from "../state.ts";
 
 // The orbit camera: pose, motion liveness, projection, fly mode, and one-shot fly requests.
 

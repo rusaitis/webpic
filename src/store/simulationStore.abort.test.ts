@@ -26,7 +26,7 @@ vi.mock("@compute", async (importOriginal) => {
 
 // Imported after the mock is registered (vi.mock hoists above imports), so it binds the spy.
 import { selectComputed } from "./selectors.ts";
-import { createSimulationStore } from "./simulation.ts";
+import { createSimulationStore } from "./simulationStore.ts";
 
 const bDataset = () => vectorTriple("B", { array: Float32Array });
 

@@ -9,7 +9,7 @@ import {
   selectComputed,
   selectDataRange,
   selectVisibleBindings,
-} from "./simulation.ts";
+} from "./simulationStore.ts";
 
 const bDataset = () => vectorTriple("B", { array: Float32Array });
 

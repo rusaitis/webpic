@@ -35,7 +35,7 @@ import { createEasedChannels } from "./easedChannels.ts";
 // ↔ (x|y) drag-handle knobs gated on camera elevation, and a guide to the equatorial plane. The core
 // scales by the zoom-aware factor so its apparent size holds at any dolly; the guides stay
 // world-fixed. Geometry constants + gating live in @schema/marker, so the main-thread hit-test
-// (store/marker) projects exactly these positions.
+// (store/interaction/marker) projects exactly these positions.
 
 export interface MarkerScene {
   readonly scene: Scene;

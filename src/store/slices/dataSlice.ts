@@ -3,9 +3,9 @@ import { worldHalfExtentForGrid } from "@containers/grid.ts";
 import { DEFAULT_DATASET_ID } from "@schema/datasets.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { FieldName } from "@schema/types.ts";
-import { EMPTY_FIELD, type Recompute } from "./fieldCompute.ts";
-import { rerakeStaleSeeds } from "./layers.ts";
-import type { DataSlice, SliceContext } from "./state.ts";
+import { EMPTY_FIELD, type Recompute } from "../fieldCompute.ts";
+import { rerakeStaleSeeds } from "../layers.ts";
+import type { DataSlice, SliceContext } from "../state.ts";
 
 // The loaded dataset, the active field and its computed value, and the time cursor.
 

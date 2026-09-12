@@ -18,7 +18,7 @@ import { clientToNdc, frameDt, ndcToClient } from "../pointerMath.ts";
 // pointerCamera's bubble-phase handlers on the same element: a pointerdown that grabs the marker (or
 // a handle) calls stopImmediatePropagation so the camera never orbits; everything else falls through
 // to pointerCamera unchanged. The marker lives in the worker, so the hit test projects its world
-// position (store/marker.worldToScreen) and drags solve against the pure pose-driven ray math, then
+// position (store/interaction/marker.worldToScreen) and drags solve against the pure pose-driven ray math, then
 // dispatch store intents. ui → store only — no render import. Gestures: DESIGN §Point-picker gestures.
 
 // Hover/grab target: 2× the marker's projected core radius — tracking the rendered size across

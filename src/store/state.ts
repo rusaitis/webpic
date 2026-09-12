@@ -5,7 +5,12 @@ import type { ColormapBinding, ColormapId, ColorScale } from "@schema/colormap.t
 import type { LayerKind, SliceAxis } from "@schema/layers.ts";
 import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
 import type { FieldName, Vec3 } from "@schema/types.ts";
-import type { CameraFlyTarget, CameraMotion, CameraPose, CameraProjection } from "./camera.ts";
+import type {
+  CameraFlyTarget,
+  CameraMotion,
+  CameraPose,
+  CameraProjection,
+} from "./interaction/camera.ts";
 import type { Layer, LayerSpec } from "./layers.ts";
 import type { GridPlane, OverlayState } from "./overlay.ts";
 
@@ -130,7 +135,7 @@ export interface LayersSlice {
   setSeedPlacement(id: string | null): void;
 }
 
-export interface BindingsSlice {
+export interface ColormapSlice {
   // The ColormapBinding registry (DESIGN §Store schema additions): the color-mapping layers reference
   // by id, owning colormap + window/level + scale. Layers share or split bindings; GC/merge wait for
   // the multi-layer UI.
@@ -201,7 +206,7 @@ export interface OverlaySlice {
 
 export type SimulationState = DataSlice &
   LayersSlice &
-  BindingsSlice &
+  ColormapSlice &
   CameraSlice &
   PickerSlice &
   OverlaySlice;

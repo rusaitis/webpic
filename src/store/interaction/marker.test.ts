@@ -8,7 +8,7 @@ import {
   markerEdgePoint,
   worldToScreen,
 } from "./marker.ts";
-import { cursorRay } from "./pick.ts";
+import { cursorRay } from "./picker.ts";
 
 const THREE_QUARTER: CameraPose = {
   target: [0.1, -0.05, 0.0],

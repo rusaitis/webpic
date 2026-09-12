@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CameraPose } from "./camera.ts";
 import { DISTANCE_MAX, DISTANCE_MIN } from "./camera.ts";
-import { cursorRay, focusDistance, focusPoseOnPoint, unitBoxChordMidpoint } from "./pick.ts";
+import { cursorRay, focusDistance, focusPoseOnPoint, unitBoxChordMidpoint } from "./picker.ts";
 
 // Level straight-on view: camera at (+2, 0, 0) looking down −x, screenRight = +y, screenUp = +z.
 const STRAIGHT_ON: CameraPose = {

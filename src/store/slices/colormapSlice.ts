@@ -1,9 +1,9 @@
-import * as colormapOps from "./colormap.ts";
-import { type BindingsSlice, identityUpdater, type SliceContext } from "./state.ts";
+import * as colormapOps from "../colormap.ts";
+import { type ColormapSlice, identityUpdater, type SliceContext } from "../state.ts";
 
 // The ColormapBinding registry — every setter runs a pure op and commits only a real change.
 
-export function createBindingsSlice(context: SliceContext): BindingsSlice {
+export function createColormapSlice(context: SliceContext): ColormapSlice {
   const update = identityUpdater(context, "colormapBindings");
   return {
     colormapBindings: {},
