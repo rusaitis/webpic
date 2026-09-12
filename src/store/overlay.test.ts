@@ -4,11 +4,8 @@ import {
   GRID_DIVISIONS_MAX,
   GRID_DIVISIONS_MIN,
   setGridDivisions,
+  setOverlayFlag,
   setPlane,
-  setShowAxes,
-  setShowGnomon,
-  setShowGrid,
-  setShowLabels,
 } from "./overlay.ts";
 
 describe("DEFAULT_OVERLAY", () => {
@@ -23,18 +20,18 @@ describe("DEFAULT_OVERLAY", () => {
 
 describe("identity-skip on no-ops", () => {
   it("returns the same reference when nothing changes", () => {
-    expect(setShowGrid(DEFAULT_OVERLAY, true)).toBe(DEFAULT_OVERLAY);
-    expect(setShowAxes(DEFAULT_OVERLAY, true)).toBe(DEFAULT_OVERLAY);
-    expect(setShowLabels(DEFAULT_OVERLAY, true)).toBe(DEFAULT_OVERLAY);
-    expect(setShowGnomon(DEFAULT_OVERLAY, true)).toBe(DEFAULT_OVERLAY);
+    expect(setOverlayFlag(DEFAULT_OVERLAY, "showGrid", true)).toBe(DEFAULT_OVERLAY);
+    expect(setOverlayFlag(DEFAULT_OVERLAY, "showAxes", true)).toBe(DEFAULT_OVERLAY);
+    expect(setOverlayFlag(DEFAULT_OVERLAY, "showLabels", true)).toBe(DEFAULT_OVERLAY);
+    expect(setOverlayFlag(DEFAULT_OVERLAY, "showGnomon", true)).toBe(DEFAULT_OVERLAY);
     expect(setPlane(DEFAULT_OVERLAY, "xy", true)).toBe(DEFAULT_OVERLAY);
     expect(setGridDivisions(DEFAULT_OVERLAY, DEFAULT_OVERLAY.gridDivisions)).toBe(DEFAULT_OVERLAY);
   });
 });
 
-describe("setShowGrid / setShowAxes / setShowLabels / setShowGnomon", () => {
+describe("setOverlayFlag", () => {
   it("returns a fresh object on a real change without mutating the input", () => {
-    const next = setShowGrid(DEFAULT_OVERLAY, false);
+    const next = setOverlayFlag(DEFAULT_OVERLAY, "showGrid", false);
     expect(next).not.toBe(DEFAULT_OVERLAY);
     expect(next.showGrid).toBe(false);
     expect(DEFAULT_OVERLAY.showGrid).toBe(true); // input untouched

@@ -14,22 +14,22 @@ export function createOverlaySlice({ get, set }: SliceContext): OverlaySlice {
   return {
     overlay: DEFAULT_OVERLAY,
     setOverlayShowGrid(on) {
-      update((o) => overlayOps.setShowGrid(o, on));
+      update((o) => overlayOps.setOverlayFlag(o, "showGrid", on));
     },
     setOverlayPlane(plane, on) {
       update((o) => overlayOps.setPlane(o, plane, on));
     },
     setOverlayShowAxes(on) {
-      update((o) => overlayOps.setShowAxes(o, on));
+      update((o) => overlayOps.setOverlayFlag(o, "showAxes", on));
     },
     setOverlayShowLabels(on) {
-      update((o) => overlayOps.setShowLabels(o, on));
+      update((o) => overlayOps.setOverlayFlag(o, "showLabels", on));
     },
     setOverlayShowGnomon(on) {
-      update((o) => overlayOps.setShowGnomon(o, on));
+      update((o) => overlayOps.setOverlayFlag(o, "showGnomon", on));
     },
     setOverlayShowPicker(on) {
-      update((o) => overlayOps.setShowPicker(o, on));
+      update((o) => overlayOps.setOverlayFlag(o, "showPicker", on));
     },
     setGridDivisions(n) {
       update((o) => overlayOps.setGridDivisions(o, n));

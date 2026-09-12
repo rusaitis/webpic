@@ -42,30 +42,19 @@ function clampDivisions(n: number): number {
   return Math.max(GRID_DIVISIONS_MIN, Math.min(GRID_DIVISIONS_MAX, Math.round(n)));
 }
 
-export function setShowGrid(state: OverlayState, on: boolean): OverlayState {
-  return state.showGrid === on ? state : { ...state, showGrid: on };
+// The five visibility flags share one setter keyed by field name, so the identity-on-no-op rule
+// lives in one place. Keyed rather than five functions: the slice, the panel checkboxes and the
+// theme all address a flag by name anyway.
+export type OverlayFlag = "showGrid" | "showAxes" | "showLabels" | "showGnomon" | "showPicker";
+
+export function setOverlayFlag(state: OverlayState, flag: OverlayFlag, on: boolean): OverlayState {
+  return state[flag] === on ? state : { ...state, [flag]: on };
 }
 
 export function setPlane(state: OverlayState, plane: GridPlane, on: boolean): OverlayState {
   return state.planes[plane] === on
     ? state
     : { ...state, planes: { ...state.planes, [plane]: on } };
-}
-
-export function setShowAxes(state: OverlayState, on: boolean): OverlayState {
-  return state.showAxes === on ? state : { ...state, showAxes: on };
-}
-
-export function setShowLabels(state: OverlayState, on: boolean): OverlayState {
-  return state.showLabels === on ? state : { ...state, showLabels: on };
-}
-
-export function setShowGnomon(state: OverlayState, on: boolean): OverlayState {
-  return state.showGnomon === on ? state : { ...state, showGnomon: on };
-}
-
-export function setShowPicker(state: OverlayState, on: boolean): OverlayState {
-  return state.showPicker === on ? state : { ...state, showPicker: on };
 }
 
 export function setGridDivisions(state: OverlayState, n: number): OverlayState {

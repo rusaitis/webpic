@@ -46,9 +46,9 @@ export type Layer =
 type DistributeOmitId<T> = T extends unknown ? Omit<T, "id"> : never;
 export type LayerSpec = DistributeOmitId<Layer>;
 
-// Re-attach the id and the minted binding to a spec. The switch is what removes the cast a bare
-// spread would need: spreading the LayerSpec union widens away the discriminant correlation, while
-// spreading inside a narrowed arm reconstructs that exact member. A new kind fails to compile here.
+// Re-attach the id and the minted binding to a spec. A bare spread now type-checks too; the switch
+// stays as the exhaustiveness gate — a fourth LayerKind falls through to no return and fails the
+// declared `Layer`, so it cannot ship undescribed.
 export function makeLayer(spec: LayerSpec, id: string, colormapBindingId: string | null): Layer {
   switch (spec.kind) {
     case "slice":
@@ -91,18 +91,39 @@ export function reorderLayer(
   return next;
 }
 
+// The shared setter skeleton: a `patch` returning null — no match, wrong kind, or an unchanged
+// value — leaves the list identical, so a no-op never fires a subscriber. Every setter below is
+// this one rule. (`store/colormap.ts` holds the record-shaped twin, `patchBinding`.)
+function patchEachLayer(
+  list: readonly Layer[],
+  patch: (layer: Layer) => Layer | null,
+): readonly Layer[] {
+  let changed = false;
+  const next = list.map((layer) => {
+    const patched = patch(layer);
+    if (patched === null) return layer;
+    changed = true;
+    return patched;
+  });
+  return changed ? next : list;
+}
+
+function patchLayer(
+  list: readonly Layer[],
+  id: string,
+  patch: (layer: Layer) => Layer | null,
+): readonly Layer[] {
+  return patchEachLayer(list, (layer) => (layer.id === id ? patch(layer) : null));
+}
+
 export function setLayerVisible(
   list: readonly Layer[],
   id: string,
   visible: boolean,
 ): readonly Layer[] {
-  let changed = false;
-  const next = list.map((layer) => {
-    if (layer.id !== id || layer.visible === visible) return layer;
-    changed = true;
-    return { ...layer, visible };
-  });
-  return changed ? next : list;
+  return patchLayer(list, id, (layer) =>
+    layer.visible === visible ? null : { ...layer, visible },
+  );
 }
 
 export function setLayerOpacity(
@@ -111,77 +132,53 @@ export function setLayerOpacity(
   opacity: number,
 ): readonly Layer[] {
   const clamped = clamp(opacity, 0, 1);
-  let changed = false;
-  const next = list.map((layer) => {
-    if (layer.id !== id || layer.opacity === clamped) return layer;
-    changed = true;
-    return { ...layer, opacity: clamped };
-  });
-  return changed ? next : list;
+  return patchLayer(list, id, (layer) =>
+    layer.opacity === clamped ? null : { ...layer, opacity: clamped },
+  );
 }
 
-// Toggle Phong shading on a volume layer. A no-op (identity) for a missing id, a non-volume kind
-// (only volumes carry a shading normal), or an unchanged flag — so no spurious subscriber fire.
+// Only volumes carry a shading normal, so a non-volume kind is a no-op rather than an error.
 export function setLayerShading(
   list: readonly Layer[],
   id: string,
   shaded: boolean,
 ): readonly Layer[] {
-  let changed = false;
-  const next = list.map((layer) => {
-    if (layer.id !== id || layer.kind !== "volume" || layer.shaded === shaded) return layer;
-    changed = true;
-    return { ...layer, shaded };
-  });
-  return changed ? next : list;
+  return patchLayer(list, id, (layer) =>
+    layer.kind !== "volume" || layer.shaded === shaded ? null : { ...layer, shaded },
+  );
 }
 
-// Set a slice layer's held axis. Identity for a missing id, a non-slice kind, or an unchanged axis.
 export function setSliceAxis(
   list: readonly Layer[],
   id: string,
   axis: SliceAxis,
 ): readonly Layer[] {
-  let changed = false;
-  const next = list.map((layer) => {
-    if (layer.id !== id || layer.kind !== "slice" || layer.axis === axis) return layer;
-    changed = true;
-    return { ...layer, axis };
-  });
-  return changed ? next : list;
+  return patchLayer(list, id, (layer) =>
+    layer.kind !== "slice" || layer.axis === axis ? null : { ...layer, axis },
+  );
 }
 
-// Set a slice layer's position along the held axis, clamped to [0, 1]. Identity for a missing id, a
-// non-slice kind, or an unchanged position.
 export function setSlicePosition(
   list: readonly Layer[],
   id: string,
   position: number,
 ): readonly Layer[] {
   const clamped = clamp(position, 0, 1);
-  let changed = false;
-  const next = list.map((layer) => {
-    if (layer.id !== id || layer.kind !== "slice" || layer.position === clamped) return layer;
-    changed = true;
-    return { ...layer, position: clamped };
-  });
-  return changed ? next : list;
+  return patchLayer(list, id, (layer) =>
+    layer.kind !== "slice" || layer.position === clamped ? null : { ...layer, position: clamped },
+  );
 }
 
-// Replace a fieldlines layer's seed set. Identity for a missing id, a non-fieldlines kind, or the
-// same array reference (the caller mints a fresh array per edit) — so no spurious retrace.
+// Compared by reference: the caller mints a fresh array per edit, so an equal-but-new array is a
+// real edit and must retrace.
 export function setFieldlineSeeds(
   list: readonly Layer[],
   id: string,
   seeds: ReadonlyArray<Vec3>,
 ): readonly Layer[] {
-  let changed = false;
-  const next = list.map((layer) => {
-    if (layer.id !== id || layer.kind !== "fieldlines" || layer.seeds === seeds) return layer;
-    changed = true;
-    return { ...layer, seeds };
-  });
-  return changed ? next : list;
+  return patchLayer(list, id, (layer) =>
+    layer.kind !== "fieldlines" || layer.seeds === seeds ? null : { ...layer, seeds },
+  );
 }
 
 // Seeds are physical coordinates, so a rake laid on one dataset is meaningless on another (the flux
@@ -189,12 +186,9 @@ export function setFieldlineSeeds(
 // stale rake, not a placed set — re-rake it at the same count so the layer keeps drawing. A partial
 // miss is left alone: the per-seed skip drops the strays and keeps the user's placed seeds.
 export function rerakeStaleSeeds(layers: readonly Layer[], grid: GridInfo): readonly Layer[] {
-  let changed = false;
-  const next = layers.map((layer) => {
-    if (layer.kind !== "fieldlines" || layer.seeds.length === 0) return layer;
-    if (layer.seeds.some((seed) => isSeedInDomain(seed, grid))) return layer;
-    changed = true;
+  return patchEachLayer(layers, (layer) => {
+    if (layer.kind !== "fieldlines" || layer.seeds.length === 0) return null;
+    if (layer.seeds.some((seed) => isSeedInDomain(seed, grid))) return null;
     return { ...layer, seeds: defaultSeedRake(grid, layer.seeds.length) };
   });
-  return changed ? next : layers;
 }
