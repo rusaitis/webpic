@@ -20,6 +20,8 @@ import {
 } from "@store";
 import {
   applyUiVars,
+  createSubscriptions,
+  type Disposer,
   installPointerCamera,
   installPointerPicker,
   installPointerSeedPlacer,
@@ -99,6 +101,28 @@ export interface BootstrapOptions {
   readonly perf?: boolean;
 }
 
+// A dev-only feature shipped as its own chunk: load it, install it unless bootstrap was disposed
+// while the chunk was in flight, and return one disposer covering both outcomes. Two callers (the
+// perf HUD and the shader-HMR bridge) wrote this shape identically.
+function installLazy<M>(
+  load: () => Promise<M>,
+  install: (module: M) => Disposer,
+  failureMessage: string,
+): Disposer {
+  let isDisposed = false;
+  let disposeInstalled: Disposer | undefined;
+  void load()
+    .then((module) => {
+      if (isDisposed) return;
+      disposeInstalled = install(module);
+    })
+    .catch(rejectionLogger("app", failureMessage));
+  return () => {
+    isDisposed = true;
+    disposeInstalled?.();
+  };
+}
+
 export function bootstrap(options: BootstrapOptions = {}): () => void {
   const width = options.width ?? DEFAULT_SIZE;
   const height = options.height ?? DEFAULT_SIZE;
@@ -140,13 +164,15 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   if (options.initialProjection !== undefined)
     store.getState().setProjection(options.initialProjection);
   const uiStore = options.uiStore ?? createUiStore();
+  // Every teardown registers where it is created, and runs LIFO from the returned disposer — so
+  // adding a bridge cannot silently leave it running (CLAUDE.md §Lifecycle & shape).
+  const teardown = createSubscriptions();
   // "webpic" matches the index.html splash text, so the splash→pill adoption is pixel-stable.
   uiStore.getState().beginLoading(BOOT_PHASE_KEY, "webpic");
   let isWorkerReady = false;
   const isReady = (): boolean => isWorkerReady; // the bridges gate every post on this
 
   let perfBridge: PerfBridge | undefined; // set asynchronously when the perf feature is enabled
-  let perfDisposed = false; // guards the async perf chunk landing after an early dispose
 
   // Streaming data worker: spawned only when a multi-step source is given (else the scrub control
   // stays disabled and the bridges are absent — a single fixed dataset).
@@ -172,9 +198,11 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const hasPointerEvents = typeof canvas.addEventListener === "function";
   // Seed placer first: its capture-phase listener must run before the picker's so it claims the click
   // while in placement mode (a seed, not a marker grab / orbit).
-  const disposeSeedPlacer = hasPointerEvents ? installPointerSeedPlacer(canvas, store) : undefined;
-  const disposePointer = hasPointerEvents ? installPointerCamera(canvas, store) : undefined;
-  const disposePicker = hasPointerEvents ? installPointerPicker(canvas, store) : undefined;
+  if (hasPointerEvents) {
+    teardown.add(installPointerSeedPlacer(canvas, store));
+    teardown.add(installPointerCamera(canvas, store));
+    teardown.add(installPointerPicker(canvas, store));
+  }
 
   // Store→worker bridges (app-only glue: store and render can't import each other). Each gates its
   // posts on `isReady` and replays the live state via flushAll on the worker `ready`.
@@ -182,10 +210,13 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const layerBridge = installLayerBridge({ store, uiStore, worker, isReady });
   const sceneBridge = installSceneBridge({ store, worker, isReady, ...theme });
   const pickerBridge = installPickerBridge({ store, worker, isReady, ...theme });
+  for (const bridge of [layerBridge, sceneBridge, pickerBridge]) teardown.add(bridge.dispose);
   const perfStore = createPerfStore(); // render timing for the timing panel + the dev HUD
   const renderBridge = installRenderWorkerBridge({ store, perfStore, worker, isReady });
   const screenshotBridge = installScreenshotBridge({ store, uiStore, worker, isReady });
-  const disposeViewport = installViewportTracking({ canvas, worker, isReady, logicalSize });
+  teardown.add(renderBridge.dispose);
+  teardown.add(screenshotBridge.dispose);
+  teardown.add(installViewportTracking({ canvas, worker, isReady, logicalSize }));
 
   // Withdraws every store load bootstrap started (the boot seed, a dataset switch) when it's disposed
   // mid-flight, so no compute lands on a torn-down app.
@@ -195,31 +226,33 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // owns the catalog — store/ui can't reach `data`), seed it on the main thread for an instant frame,
   // reset the look to the dataset's default color scale, and re-open the stream onto the new handle.
   // Inert when no catalog was wired; `reopen` is a no-op when there's no stream.
-  const unsubscribeDatasetId = store.subscribe(
-    (state) => state.datasetId,
-    (id) => {
-      const entry = options.datasetCatalog?.get(id);
-      if (entry === undefined) return;
-      // setDataset re-seeds asynchronously; apply the dataset's default scale to the retargeted binding
-      // and re-open the stream onto the new handle once that lands.
-      void store
-        .getState()
-        .setDataset(entry.makeDataset(), bootAbort.signal)
-        .then(() => {
-          const state = store.getState();
-          // Every field-drawing layer, not just the selected one — a field-lines layer is selected by
-          // its own add, and its binding only tints a line color, so scoping the scale to the
-          // selection can leave the volume linear (all-black on the dipole). setBindingScale
-          // identity-skips, so shared bindings cost nothing.
-          for (const layer of state.layers) {
-            if (layer.kind !== "volume" && layer.kind !== "slice") continue;
-            if (layer.colormapBindingId !== null)
-              state.setBindingScale(layer.colormapBindingId, entry.defaultScale);
-          }
-          streaming?.reopen(entry.streamSource);
-        })
-        .catch(rejectionLogger("app", "dataset switch failed"));
-    },
+  teardown.add(
+    store.subscribe(
+      (state) => state.datasetId,
+      (id) => {
+        const entry = options.datasetCatalog?.get(id);
+        if (entry === undefined) return;
+        // setDataset re-seeds asynchronously; apply the dataset's default scale to the retargeted binding
+        // and re-open the stream onto the new handle once that lands.
+        void store
+          .getState()
+          .setDataset(entry.makeDataset(), bootAbort.signal)
+          .then(() => {
+            const state = store.getState();
+            // Every field-drawing layer, not just the selected one — a field-lines layer is selected by
+            // its own add, and its binding only tints a line color, so scoping the scale to the
+            // selection can leave the volume linear (all-black on the dipole). setBindingScale
+            // identity-skips, so shared bindings cost nothing.
+            for (const layer of state.layers) {
+              if (layer.kind !== "volume" && layer.kind !== "slice") continue;
+              if (layer.colormapBindingId !== null)
+                state.setBindingScale(layer.colormapBindingId, entry.defaultScale);
+            }
+            streaming?.reopen(entry.streamSource);
+          })
+          .catch(rejectionLogger("app", "dataset switch failed"));
+      },
+    ),
   );
 
   // Catch-up once the renderer is live: the gated subscriptions dropped their pre-ready posts, so push
@@ -296,85 +329,77 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // headless (no DOM) — the overlay is a sibling to the canvas, not in the render path.
   const uiParent =
     options.uiParent ?? (typeof document !== "undefined" ? document.body : undefined);
-  const disposeUi = uiParent
-    ? installUi({ parent: uiParent, simulationStore: store, perfStore, uiStore, ...theme })
-    : undefined;
+  if (uiParent)
+    teardown.add(
+      installUi({ parent: uiParent, simulationStore: store, perfStore, uiStore, ...theme }),
+    );
 
   // Runtime theme switcher: the rail button cycles the catalog; every switch re-applies the CSS
   // vars + the worker overlay/marker palettes live and persists the choice. Layout/shortcuts stay
   // from the boot theme (identical across the bundled color themes).
-  let disposeThemeBridge: (() => void) | undefined;
   const themeCatalog = options.themeCatalog;
   if (themeCatalog !== undefined && themeCatalog.size > 0 && uiParent !== undefined) {
     const firstName = themeCatalog.keys().next().value;
     const initialName = options.theme?.name ?? firstName;
     if (initialName !== undefined) {
-      disposeThemeBridge = installThemeBridge({
-        uiStore,
-        themes: themeCatalog,
-        initialName,
-        applyTheme: (next) => {
-          applyUiVars(uiParent, next);
-          sceneBridge.setTheme(next);
-          pickerBridge.setTheme(next);
-        },
-        persist: options.persistTheme ?? writeThemePref,
-      });
+      teardown.add(
+        installThemeBridge({
+          uiStore,
+          themes: themeCatalog,
+          initialName,
+          applyTheme: (next) => {
+            applyUiVars(uiParent, next);
+            sceneBridge.setTheme(next);
+            pickerBridge.setTheme(next);
+          },
+          persist: options.persistTheme ?? writeThemePref,
+        }),
+      );
     }
   }
 
   // Dev performance HUD (Shift+P): the HUD overlay + worker sampling, dynamic-imported so the feature
   // is absent from the default prod bundle. Needs a DOM parent; skipped headless.
   if (options.perf === true && uiParent !== undefined) {
-    void import("./perfBridge.ts")
-      .then(({ installPerf }) => {
-        if (perfDisposed) return; // bootstrap disposed before the chunk loaded
-        perfBridge = installPerf({
-          perfStore,
-          uiStore,
-          uiParent,
-          renderWorker: worker,
-          setDataPerfActive: (active) => streaming?.setPerfActive(active),
-          isRenderReady: () => isWorkerReady,
-          isDataPresent: () => streaming !== undefined,
-        });
-      })
-      .catch(rejectionLogger("app", "perf HUD chunk failed to load"));
+    teardown.add(
+      installLazy(
+        () => import("./perfBridge.ts"),
+        ({ installPerf }) => {
+          const bridge = installPerf({
+            perfStore,
+            uiStore,
+            uiParent,
+            renderWorker: worker,
+            setDataPerfActive: (active) => streaming?.setPerfActive(active),
+            isRenderReady: () => isWorkerReady,
+            isDataPresent: () => streaming !== undefined,
+          });
+          perfBridge = bridge; // the streaming bridge forwards its samples here
+          return () => bridge.dispose();
+        },
+        "perf HUD chunk failed to load",
+      ),
+    );
   }
 
   // Dev-only shader HMR: forward an edited raymarch WGSL/TSL to the worker (rebuildShader) instead of
   // the default full page reload, so the camera pose + uploaded volume survive an edit. Behind
   // import.meta.hot + dynamic-imported, so the bridge is absent from the prod bundle.
-  let disposeShaderHmr: (() => void) | undefined;
-  let shaderHmrDisposed = false;
   if (import.meta.hot) {
-    void import("./shaderHmr.ts")
-      .then(({ installShaderHmr }) => {
-        if (shaderHmrDisposed) return; // bootstrap disposed before the chunk loaded
-        disposeShaderHmr = installShaderHmr(worker);
-      })
-      .catch(rejectionLogger("app", "shader HMR chunk failed to load"));
+    teardown.add(
+      installLazy(
+        () => import("./shaderHmr.ts"),
+        ({ installShaderHmr }) => installShaderHmr(worker),
+        "shader HMR chunk failed to load",
+      ),
+    );
   }
 
   return () => {
-    bootAbort.abort();
-    perfDisposed = true;
-    perfBridge?.dispose();
-    disposeThemeBridge?.();
-    shaderHmrDisposed = true;
-    disposeShaderHmr?.();
-    disposeUi?.();
-    disposeSeedPlacer?.();
-    disposePointer?.();
-    disposePicker?.();
-    disposeViewport();
-    layerBridge.dispose();
-    sceneBridge.dispose();
-    pickerBridge.dispose();
-    renderBridge.dispose();
-    screenshotBridge.dispose();
-    unsubscribeDatasetId();
+    bootAbort.abort(); // first: withdraw in-flight loads before anything they'd commit into is gone
+    teardown.dispose();
     streaming?.dispose();
+    // Last: the worker frees its GPU resources on this, then gets a grace window to ack.
     worker.postMessage({
       kind: "dispose",
       requestId: REQUEST_IDS.dispose,
