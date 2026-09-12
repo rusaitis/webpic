@@ -647,3 +647,130 @@ Deviations, each after inspection rather than by omission:
 - After 6e: `comment-budget.test.ts` header ceiling flat at 6; `grep -rE "M[0-9]+\.[0-9]" src tests`
   returns only SVG path data.
 - `npm run test:parity` unchanged throughout — no schema or writer surface is touched.
+
+---
+
+## [x] Part 7 — the final sweep: layout, vocabulary, and the seams (2026-09-12)
+
+Parts 1–6 all worked *inside* files. What was left was where the files sit and what the vocabulary
+calls things — a codebase whose contents read well and whose directory listing did not. Three
+read-only audits swept all 18 layers plus the repo furniture; every sharp claim was re-verified by
+hand before it entered the plan, and the ones that did not survive are listed at the end.
+
+**Decisions taken up front:** folder reorganization in scope · the `@embed` surface not frozen
+pre-1.0 · prose in scope, recorded here.
+
+### Outcome (24 commits, `npm run check` green on each)
+
+| measure | before | after |
+|---|---|---|
+| source LOC (non-test, non-generated) | 26 013 | 26 200 |
+| CSS | one 2 759-line `ui.css` | 15 per-surface files, 2 856 lines |
+| `src/ui/` loose at the layer root | 32 of 66 | **7 of 69** |
+| tests | 175 files · 1 465 cases | **180 files · 1 478 cases** |
+| coverage (lines / branches) | 84.7 % / 72.8 % | **85.6 % / 74.0 %** |
+| Biome ceilings (lines / complexity) | 258 / 49 | **256 / 49** |
+| layer-DAG edges granted but unused | 12 | **0** (3 reserved, each with its reason) |
+| places a new `LayerKind` fails to compile | 2 of 4 real ones | **4 of 4** |
+
+Source grew by ~190 lines: the deletions are real (a dead field on five wire variants, a duplicated
+payload type, eight copies of one narrowing, four hand-rolled dismissal lifecycles, ten copies of
+one visibility AND), and so are the named collaborators that replaced them. A split trades a long
+body for two short ones plus a contract; that costs lines and buys a place to hang a test.
+
+### What it found that was actually broken
+
+- **`ui/perfSparkline.ts:37` was infinite recursion** — `const xAt = (j) => xAt(j)`, shipped by
+  Part 6's own split commit (`cbdedca`). Opening the perf HUD in a real browser was a
+  `RangeError`. The draw path had no test: its only coverage runs under happy-dom, where
+  `getContext("2d")` is null and the paint bails before the mapping is reached.
+- **The `el` → `element` sweep rewrote a display string.** The grid-info card had been reading
+  `az 45°  element 30°  d 2.50` to users since `5b68303`. The existing assertions used `toContain`.
+- **`verify-streaming-render.ts` had been broken for two days** — `073ee66` retitled the pane it
+  locates and left the probe looking for the old text. Local-only, so nothing in CI noticed. It
+  locates a `data-pane` hook now: titles are copy, a hook is a contract.
+- **`renderer.setSize` lost its device-pixel-ratio update** the moment a rename shadowed it. Biome
+  caught the self-assignment; the tests did not.
+- **A new `LayerKind` would have looked wired and done nothing** — `LAYER_KIND_ORDER` was a plain
+  array (no rail button, no error) and `layerSettings` had two `void` switches with no never-arm
+  (no controls, no sync, no error).
+
+### What changed
+
+**Truth.** `DataStreamRequest.requestId` was dead on all five variants and forced an invented
+constant at five post sites · `StreamFieldPayload` was a verbatim copy of `SliceFieldPayload` under
+a comment saying so · `gpu/profiler.ts` had zero importers while CLAUDE.md named it the live GPU
+timing path · the `@shaders` barrel re-exported eleven symbols nobody imported through it. The
+systematic cause — knip lists `src/**/*.test.ts` as an entry point, so a module only its own test
+imports is invisible — is now covered by `tests/live-modules.test.ts`, which honours `STAGED:`.
+
+**Single-sourcing.** `errorMessage` (8 re-rolls) · `formatZodError` · the anchored-overlay
+dismissal contract (4) · `isUiVisible` → `hidden` (10) · `installOutsideClickDismiss`'s own copy ·
+`ndcToClient` · `clampIntoViewport` · `INTERACTIVE_SELECTOR` · `DOUBLE_TAP_MS` · the two compute
+backends' input gather, result pack and grid guards · zarr's `openOptions` · `MAGNETIC_COMPONENTS` ·
+`identityUpdater` · `PHASE_KEYS` · `requireRenderer` · `clamp` in `iStepController`.
+
+**Layout.** `ui/` gained seven folders its filenames were already spelling (camera, layers, topbar,
+perf, picking, keys, status) plus `bottomBand/`; `shell/` joined `panels/`, which is what it hosts.
+`render/grid/` was the overlay folder and `render/volume/` held the slice, so they are
+`render/overlay/` and `render/field/`; the layer registry's four files left the root for
+`render/layer/`. `store/` grew `slices/` and `interaction/`. `app/` marks its two infrastructure
+files with the `_` prefix and names its bridges bridges. `ui.css` became 15 fragments beside the
+modules they style, assembled in an explicit cascade order — the cut is provably order-preserving
+and each fragment parses as CSS on its own.
+
+**Vocabulary.** "chrome" meant three things (the gnomon, the top bar's element factories, all
+floating UI) · "composite" meant four (the wire's order, the object holding it, the draw list, the
+renderer's accumulation) · three flags asked `isXOpen` and were set with `setXVisible` · the two
+rails were both "rail". Plus the last abbreviations and ~15 non-question booleans.
+
+**Seams.** The layer-kind compile gate (above) · the DAG tightened to what the code imports, with
+each reserved edge carrying its reason · the header cap now counts the whole header instead of the
+first unbroken run · the two reserved-layer stubs cite a real DESIGN § and carry `STAGED:`.
+
+### Deviations, each after inspection
+
+- **The `_` prefix at `render/`'s root is not applied.** Everything left there is infrastructure, so
+  marking all of it marks nothing.
+- **No `RAIL_TOOLS` table.** The audit counted six edits per rail button, but the buttons are four
+  different shapes (toggle, action, flyout, disabled placeholder), the add-group is already a loop
+  over `LAYER_KIND_ORDER`, and the flyout variant needs wiring the table cannot carry. A four-branch
+  table over fourteen buttons is the registry-with-one-entry smell wearing a bigger coat.
+- **No `SURFACES` table in `installUi`.** Eleven explicit calls, each with the reason its surface
+  mounts where it does, is what a composition root should look like; nothing iterates them, and the
+  table would buy one line per surface at the cost of eleven signature changes.
+- **`store/index.ts` stays a wholesale `export *`.** Nothing deep-imports `@store`, the interaction
+  math alone is forty-odd pure functions, and knip reports the unused ones. It says so now.
+- **No per-folder `index.ts` barrels in `ui/`.** `controls/` has one because `@ui` re-exports it;
+  nine forwarding barrels would be nine files that only forward. The rule is stated in
+  `controls/index.ts` instead. `app/perfBridge.ts` keeps its deep import of the perf HUD on purpose:
+  it is a dynamic import, and the barrel would pull the ui surface back into the eager graph.
+- **The perf HUD's CSS costs ~1 kB on the eager path** (410.8 → 412.3 kB gzipped, budget 550 kB).
+  Keeping it lazy needs a second style-injection mechanism, which is the kind of thing this sweep
+  removes.
+- **`cleanup.md` (this file) keeps the path citations it was written with** — it records what was
+  decided at the time. It moved to `docs/` and is now in CLAUDE.md's docs map.
+
+### Claims that did not survive verification
+
+The `@embed` layers are not dead weight — every one of their 17 exported symbols has a real
+consumer, and `@coordinates`/`@derived`/`@diagnostics` are barrel-imported exactly once each, by
+`src/embed/index.ts`; they *are* the published surface. `tests/` fixtures and `TOL` are correctly
+single-sourced with zero local re-rolls. Every `as X` in non-test code already carried a WHY and
+there are **zero** `!` assertions in the audited layers. The generated-file subsystem needs nothing.
+`STAGED:` marker placement is not inconsistent — each sits at the head of its own file's header
+block, and header blocks follow the imports in most of this tree. The render↔worker protocol is the
+best-built seam in the repo and was left alone.
+
+### Part 7 verification
+
+- Every commit: `npm run check` (= CI, and `check` now runs `test:coverage` like CI does).
+- After the ui and render moves, run alone: `test:gpu` 46/46 · `perf:gate` 83 ms cold paint /
+  212 ms first frame · `verify:streaming` p50 11.95 ms with steps reaching the GPU and main
+  responsive · `perf:raymarch` p50 12.28 ms — all in line with the recorded baselines.
+- Real-app smoke after each UI phase (headed Chrome, production preview): the F toggle both ways,
+  the rail flyout and coords card opening and closing on Escape, the colorbar popover dismissing on
+  an outside press, the layer-settings window opening on the volume layer with its Phong control,
+  and the sparkline painting real pixels. Zero page errors throughout.
+- Both new guards verified by planting the thing they are meant to catch: a split header, a bogus
+  `§` citation, a fourth `LayerKind`, and a `render` → `@numerics` import.
