@@ -68,6 +68,10 @@ interface GpuSingleton {
 }
 
 let current: GpuSingleton | undefined;
+// Bumped by dispose(): an in-flight recovery compares it across its await and drops a device that
+// arrived for a session the caller has already torn down (otherwise it re-installs the singleton
+// behind the caller's back, and the next installGpu() reports "already installed").
+let session = 0;
 const lostListeners = new Set<DeviceLostListener>();
 const restoredListeners = new Set<DeviceRestoredListener>();
 
@@ -222,7 +226,12 @@ async function watchForLoss(singleton: GpuSingleton, options?: GpuRequestOptions
 }
 
 async function recover(options?: GpuRequestOptions): Promise<void> {
+  const era = session;
   const support = await requestGpu(options);
+  if (session !== era) {
+    if (support.ok) support.device.destroy(); // disposed mid-re-acquire: release what just arrived
+    return;
+  }
   if (!support.ok) {
     // One attempt only; surface failure as a terminal synthetic loss so the UI banner stays
     // up. Retry policy belongs to app/, not gpu/ — never loop here.
@@ -238,6 +247,7 @@ async function recover(options?: GpuRequestOptions): Promise<void> {
 }
 
 function dispose(): void {
+  session += 1;
   recentLosses.length = 0; // a disposed session starts the breaker fresh on re-install
   const singleton = current;
   current = undefined;

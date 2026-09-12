@@ -3,6 +3,7 @@ import { flushAsync } from "../../tests/helpers.ts";
 import {
   getCapabilities,
   getDevice,
+  hasDevice,
   installGpu,
   onDeviceLost,
   onDeviceRestored,
@@ -190,6 +191,36 @@ describe("device.lost recovery", () => {
     await flush();
     expect(lost).toHaveBeenCalledTimes(1);
     expect(restored).not.toHaveBeenCalled();
+  });
+
+  it("does not resurrect the singleton when dispose lands mid-recovery", async () => {
+    // The window between a real loss and the replacement device arriving: a dispose inside it must
+    // win, or the orphaned device stays installed and the next installGpu() reports "already
+    // installed" for a session nobody holds a handle to.
+    let releaseAdapter: () => void = () => {};
+    const gpu = makeFakeGpu();
+    const handle = await install(gpu);
+    const slowGpu = {
+      requestAdapter: async () => {
+        await new Promise<void>((resolve) => {
+          releaseAdapter = resolve;
+        });
+        return gpu.navigator.gpu.requestAdapter();
+      },
+    };
+    vi.stubGlobal("navigator", { gpu: slowGpu });
+
+    gpu.resolveLost(lostInfo("unknown", "reset"));
+    await flush(); // recovery is now parked inside requestAdapter
+    handle.dispose();
+    dispose = undefined; // the afterEach disposer already ran
+    releaseAdapter();
+    await flush();
+
+    expect(hasDevice()).toBe(false);
+    vi.stubGlobal("navigator", gpu.navigator); // back to the prompt adapter
+    const fresh = await installGpu(); // a fresh session can install again
+    dispose = fresh.dispose;
   });
 
   it("stops notifying a listener after it unsubscribes", async () => {
