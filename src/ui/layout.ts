@@ -10,6 +10,26 @@ export const GESTURE_THRESHOLD_PX = 4; // pointer travel before a drag/resize ge
 export const VIEWPORT_MARGIN_PX = 8; // keep at least this much of a floating element on-screen
 export const POPOVER_GAP_PX = 10; // offset between an anchor (rail tab, colorbar) and its popover
 
+// Keep a floating element's top-left inside the viewport, leaving VIEWPORT_MARGIN_PX of it visible.
+// `Math.max` floors the upper bound at the margin so a viewport narrower than the element clamps to
+// the top-left corner instead of inverting the range.
+export function clampIntoViewport(
+  rect: {
+    readonly left: number;
+    readonly top: number;
+    readonly width: number;
+    readonly height: number;
+  },
+  viewport: { readonly width: number; readonly height: number },
+): { left: number; top: number } {
+  const maxLeft = Math.max(VIEWPORT_MARGIN_PX, viewport.width - rect.width - VIEWPORT_MARGIN_PX);
+  const maxTop = Math.max(VIEWPORT_MARGIN_PX, viewport.height - rect.height - VIEWPORT_MARGIN_PX);
+  return {
+    left: clamp(rect.left, VIEWPORT_MARGIN_PX, maxLeft),
+    top: clamp(rect.top, VIEWPORT_MARGIN_PX, maxTop),
+  };
+}
+
 export function positionArrowFlyout(
   element: HTMLElement,
   leftEdge: DOMRect, // panel opens right of this

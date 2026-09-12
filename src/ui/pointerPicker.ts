@@ -12,7 +12,7 @@ import {
 } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { createHeldKeys } from "./heldKeys.ts";
-import { clientToNdc, frameDt } from "./pointerMath.ts";
+import { clientToNdc, frameDt, ndcToClient } from "./pointerMath.ts";
 
 // Point-picker pointer input on the main-thread canvas. Capture-phase, so it runs before
 // pointerCamera's bubble-phase handlers on the same element: a pointerdown that grabs the marker (or
@@ -66,11 +66,6 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   const { signal } = abortController;
   let drag: ActiveDrag | undefined;
 
-  const clientOf = (ndcX: number, ndcY: number, rect: DOMRect): ClientPoint => ({
-    x: rect.left + ((ndcX + 1) / 2) * rect.width,
-    y: rect.top + ((1 - ndcY) / 2) * rect.height,
-  });
-
   // Which marker part (if any) the cursor is over, in screen space. Core first (the inner region is a
   // free-plane grab), then the ↕/↔ handle stems/knobs (the outer affordances).
   const markerPartAt = (clientX: number, clientY: number, rect: DOMRect): MarkerPart => {
@@ -82,7 +77,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     const aspect = rect.width / rect.height;
     const core = worldToScreen(cameraPose, pickerPoint, aspect, ortho);
     if (core.behind) return "none";
-    const corePx = clientOf(core.ndcX, core.ndcY, rect);
+    const corePx = ndcToClient(core.ndcX, core.ndcY, rect);
     const cursor: ClientPoint = { x: clientX, y: clientY };
     const edge = worldToScreen(
       cameraPose,
@@ -90,7 +85,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       aspect,
       ortho,
     );
-    const edgePx = clientOf(edge.ndcX, edge.ndcY, rect);
+    const edgePx = ndcToClient(edge.ndcX, edge.ndcY, rect);
     const hitPx = Math.max(
       MIN_HIT_PX,
       HIT_RADIUS_FACTOR * Math.hypot(edgePx.x - corePx.x, edgePx.y - corePx.y),
@@ -106,7 +101,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       if (knob === null) continue;
       const knobScreen = worldToScreen(cameraPose, knob, aspect, ortho);
       if (knobScreen.behind) continue;
-      const knobPx = clientOf(knobScreen.ndcX, knobScreen.ndcY, rect);
+      const knobPx = ndcToClient(knobScreen.ndcX, knobScreen.ndcY, rect);
       if (distanceToSegment(cursor, corePx, knobPx) <= hitPx) return part;
     }
     return "none";

@@ -1,8 +1,7 @@
-import { clamp } from "@schema/math.ts";
 import type { SimulationStore } from "@store";
 import { installOutsideClickDismiss, makeEl } from "../controls/dom.ts";
 import { bringToFront, installRaise } from "../floating/zStack.ts";
-import { POPOVER_GAP_PX, VIEWPORT_MARGIN_PX } from "../layout.ts";
+import { clampIntoViewport, POPOVER_GAP_PX } from "../layout.ts";
 import { installColormapControls } from "./colormapControls.ts";
 
 // The colorbar's settings popover: a small glass dialog hosting the colormap controls, anchored to
@@ -66,14 +65,9 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
       top = colorbarRect.top - POPOVER_GAP_PX - h; // bottom edge → open upward
       left = a.left + a.width / 2 - w / 2;
     }
-    left = clamp(
-      left,
-      VIEWPORT_MARGIN_PX,
-      Math.max(VIEWPORT_MARGIN_PX, vw - w - VIEWPORT_MARGIN_PX),
-    );
-    top = clamp(top, VIEWPORT_MARGIN_PX, Math.max(VIEWPORT_MARGIN_PX, vh - h - VIEWPORT_MARGIN_PX));
-    pop.style.left = `${Math.round(left)}px`;
-    pop.style.top = `${Math.round(top)}px`;
+    const placed = clampIntoViewport({ left, top, width: w, height: h }, { width: vw, height: vh });
+    pop.style.left = `${Math.round(placed.left)}px`;
+    pop.style.top = `${Math.round(placed.top)}px`;
   };
 
   const setOpen = (next: boolean): void => {

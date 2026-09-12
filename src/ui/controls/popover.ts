@@ -1,5 +1,5 @@
 import { ICON_CHECK } from "../icons.ts";
-import { makeEl } from "./dom.ts";
+import { installOutsideClickDismiss, makeEl } from "./dom.ts";
 
 // A lightweight anchored single-select popover (the dataset + content pickers in ui/topBar share it).
 // Content-agnostic: the caller supplies each row's body via renderRow, so one interaction shell —
@@ -120,13 +120,6 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
     panel.style.minWidth = `${Math.max(rect.width, MIN_WIDTH_PX)}px`;
   };
 
-  const onOutside = (event: Event): void => {
-    const target = event.target;
-    if (!(target instanceof Node)) return;
-    if (panel?.contains(target) || anchor.contains(target)) return;
-    close();
-  };
-
   const onKeyDown = (event: KeyboardEvent): void => {
     if (!isVisible) return;
     switch (event.key) {
@@ -172,7 +165,15 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
     openAc = new AbortController();
     const { signal } = openAc;
     if (shouldDismissOnOutside) {
-      doc.addEventListener("pointerdown", onOutside, { capture: true, signal });
+      installOutsideClickDismiss(doc, {
+        overlay: element,
+        trigger: anchor,
+        isOpen: () => isVisible,
+        onDismiss: close,
+        eventName: "pointerdown",
+        isCapturing: true,
+        signal,
+      });
     }
     doc.addEventListener("keydown", onKeyDown, { signal });
     win?.addEventListener("resize", reposition, { signal });

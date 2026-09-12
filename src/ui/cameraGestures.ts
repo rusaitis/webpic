@@ -13,7 +13,7 @@ import {
 } from "@store";
 import type { CameraGlide } from "./cameraGlide.ts";
 import type { Disposer } from "./controls/index.ts";
-import { createTapRecognizer, createTwistGate } from "./gestureRecognizers.ts";
+import { createTapRecognizer, createTwistGate, DOUBLE_TAP_MS } from "./gestureRecognizers.ts";
 import { clientToNdc } from "./pointerMath.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
@@ -29,7 +29,6 @@ const NOMINAL_VIEWPORT_PX = 800;
 
 // One focus per gesture: a touch double-tap and the native dblclick some browsers also synthesize
 // for it would otherwise both fire.
-const DBL_TAP_MS = 300;
 
 interface TrackedPointer {
   x: number; // live position, mutated per move
@@ -283,7 +282,7 @@ export function installCameraGestures(
   // for it would otherwise both fire — the window keeps the first.
   const triggerFocus = (clientX: number, clientY: number): void => {
     const now = performance.now();
-    if (now - lastFocusMs < DBL_TAP_MS) return;
+    if (now - lastFocusMs < DOUBLE_TAP_MS) return;
     lastFocusMs = now;
     focusAt(clientX, clientY);
   };

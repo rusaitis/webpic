@@ -13,6 +13,15 @@ export function clientToNdc(
   };
 }
 
+// The inverse, for placing screen affordances on a world point the renderer reported in NDC (the
+// marker handles). Same y-flip, same one place — see above.
+export function ndcToClient(ndcX: number, ndcY: number, rect: DOMRect): { x: number; y: number } {
+  return {
+    x: rect.left + ((ndcX + 1) / 2) * rect.width,
+    y: rect.top + ((1 - ndcY) / 2) * rect.height,
+  };
+}
+
 const NOMINAL_FRAME_MS = 1000 / 60;
 const MAX_FRAME_DT_MS = 100;
 

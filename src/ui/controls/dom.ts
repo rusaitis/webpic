@@ -42,10 +42,21 @@ export function makeCaret(doc: Document, className: string, svg: string): HTMLSp
   return span;
 }
 
-// Dismiss a transient overlay when a press lands outside both it and its trigger. The side-rail
-// flyout and the bottom-rail coords card share this exact shape; each keeps its own Escape binding
-// (the key handling differs). `isOpen` is read live so the listener stays installed for the
-// component's lifetime. Returns a disposer.
+// A press on one of these is the control's, not the surface's: it must not start a drag on the
+// floating chrome or toggle the colorbar's collapse. One list, so the two cannot disagree about
+// which elements count (they already did — one copy had dropped `textarea`).
+const INTERACTIVE_SELECTOR = "button, input, select, textarea, a, [data-no-drag]";
+
+export function isInteractiveTarget(event: Event): boolean {
+  const { target } = event;
+  return target instanceof Element && target.closest(INTERACTIVE_SELECTOR) !== null;
+}
+
+// Dismiss a transient overlay when a press lands outside both it and its trigger — every rail
+// flyout, menu, card and popover in the layer. Each keeps its own Escape binding (the key handling
+// differs). `isOpen` is read live, so a caller may install once for its lifetime; one that only
+// listens while open passes its open-scoped `signal` instead. The press event is the caller's:
+// the popover wants capture-phase `pointerdown` (it must win the press), the rails `mousedown`.
 export function installOutsideClickDismiss(
   doc: Document,
   options: {
@@ -53,9 +64,12 @@ export function installOutsideClickDismiss(
     trigger: HTMLElement;
     isOpen: () => boolean;
     onDismiss: () => void;
+    eventName?: "mousedown" | "pointerdown";
+    isCapturing?: boolean;
+    signal?: AbortSignal;
   },
 ): Disposer {
-  const onDown = (event: MouseEvent): void => {
+  const onPress = (event: Event): void => {
     if (!options.isOpen()) return;
     const target = event.target;
     if (
@@ -67,6 +81,13 @@ export function installOutsideClickDismiss(
     options.onDismiss();
   };
   const abortController = new AbortController();
-  doc.addEventListener("mousedown", onDown, { signal: abortController.signal });
+  const signal =
+    options.signal === undefined
+      ? abortController.signal
+      : AbortSignal.any([abortController.signal, options.signal]);
+  doc.addEventListener(options.eventName ?? "mousedown", onPress, {
+    signal,
+    capture: options.isCapturing ?? false,
+  });
   return () => abortController.abort();
 }

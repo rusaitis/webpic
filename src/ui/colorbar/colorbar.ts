@@ -8,7 +8,7 @@ import {
 } from "@store";
 import { shallow } from "zustand/vanilla/shallow";
 import { createBottomBand } from "../bottomBand.ts";
-import { makeEl, makeIconButton } from "../controls/dom.ts";
+import { isInteractiveTarget, makeEl, makeIconButton } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { installDragSnap, readEdge } from "../floating/dragSnap.ts";
 import { installRaise } from "../floating/zStack.ts";
@@ -247,8 +247,7 @@ export function installColorbar(
   // trailing click. The settings popover is body-appended, so its clicks never reach here.
   container.addEventListener("click", (e) => {
     if (drag.wasDragging()) return;
-    const target = e.target as Element | null; // EventTarget → Element narrowing for closest()
-    if (target?.closest("button, a, input, select, [data-no-drag]")) return;
+    if (isInteractiveTarget(e)) return;
     band.collapse(!isCollapsed()); // manual: the user owns collapse from here
   });
 

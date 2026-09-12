@@ -1,5 +1,5 @@
-import { clamp } from "@schema/math.ts";
-import { VIEWPORT_MARGIN_PX } from "../layout.ts";
+import { isInteractiveTarget } from "../controls/dom.ts";
+import { clampIntoViewport } from "../layout.ts";
 import { coalesceFrame } from "../pointerMath.ts";
 import { installPressDrag } from "./pressDrag.ts";
 import {
@@ -243,9 +243,6 @@ export function installDragSnap(
     }
     const edge = readEdge(element) ?? "bottom";
     const isDocked = element.dataset.docked !== "false";
-    const maxLeft = Math.max(VIEWPORT_MARGIN_PX, vp.width - r.width - VIEWPORT_MARGIN_PX);
-    const maxTop = Math.max(VIEWPORT_MARGIN_PX, vp.height - r.height - VIEWPORT_MARGIN_PX);
-
     // Re-flush a docked element to its edge; a free drop keeps its current visual position.
     let left = r.left;
     let top = r.top;
@@ -255,8 +252,7 @@ export function installDragSnap(
       if (edge === "top") top = EDGE_GAP_PX;
       if (edge === "bottom") top = vp.height - r.height - EDGE_GAP_PX;
     }
-    left = clamp(left, VIEWPORT_MARGIN_PX, maxLeft);
-    top = clamp(top, VIEWPORT_MARGIN_PX, maxTop);
+    ({ left, top } = clampIntoViewport({ left, top, width: r.width, height: r.height }, vp));
 
     if (options.centerFreeAxis) {
       const settled = apply(
@@ -289,8 +285,7 @@ export function installDragSnap(
     activeClass: "is-dragging",
     signal,
     onStart: (event) => {
-      const target = event.target as Element | null; // EventTarget → Element narrowing for closest()
-      if (target?.closest("button, input, select, textarea, a, [data-no-drag]")) return false;
+      if (isInteractiveTarget(event)) return false;
       baseX = readVar("--drag-x");
       baseY = readVar("--drag-y");
       return true;

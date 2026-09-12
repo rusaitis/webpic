@@ -40,8 +40,9 @@ export function createTwistGate(): TwistGate {
 
 const TAP_SLOP_PX = 10; // a press that travelled farther was a drag, not a tap
 const TAP_MAX_MS = 500; // a press held longer was a press-and-hold, not a tap
-const DBL_TAP_MS = 300; // two taps within this window pair into a double-tap
-const DBL_TAP_SLOP_PX = 30; // ...and landing within this distance of each other
+// Two presses within this window pair into a double-tap; cameraGestures dedupes focus against it.
+export const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_SLOP_PX = 30; // ...and landing within this distance of each other
 
 interface TapRelease {
   readonly x: number;
@@ -78,8 +79,8 @@ export function createTapRecognizer(): TapRecognizer {
         return false;
       }
       const pairsWithLast =
-        release.atMs - lastTapMs <= DBL_TAP_MS &&
-        Math.hypot(release.x - lastTapX, release.y - lastTapY) <= DBL_TAP_SLOP_PX;
+        release.atMs - lastTapMs <= DOUBLE_TAP_MS &&
+        Math.hypot(release.x - lastTapX, release.y - lastTapY) <= DOUBLE_TAP_SLOP_PX;
       if (pairsWithLast) {
         breakChain(); // consume — a third tap doesn't chain
         return true;
