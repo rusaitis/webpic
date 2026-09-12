@@ -20,10 +20,10 @@ const h = await vi.hoisted(async () => {
 
 vi.mock("@gpu", () => h.gpu);
 vi.mock("./runtime/renderer.ts", () => ({ installRenderer: h.installRenderer }));
-vi.mock("./volume/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
-vi.mock("./volume/sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
-vi.mock("./scene.ts", () => ({ createTestScene: h.createTestScene }));
-vi.mock("./volume/shaderReload.ts", () => ({
+vi.mock("./field/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
+vi.mock("./field/sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
+vi.mock("./debugTriangle.ts", () => ({ createDebugTriangle: h.createDebugTriangle }));
+vi.mock("./field/shaderReload.ts", () => ({
   loadFreshRaymarchBuilder: h.loadFreshRaymarchBuilder,
 }));
 

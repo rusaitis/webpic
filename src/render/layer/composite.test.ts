@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createLayerComposite } from "./layerComposite.ts";
-import type { FieldSource, LayerEntry } from "./layerRegistry.ts";
+import { createLayerComposite } from "./composite.ts";
+import type { FieldSource, LayerEntry } from "./registry.ts";
 
 const POSE = { name: "pose" } as unknown as Parameters<
   ReturnType<typeof createLayerComposite>["items"]

@@ -1,7 +1,7 @@
 import { createManagedDecoration, type ManagedDecoration } from "../managedDecoration.ts";
 import type { SceneOverlayConfig } from "../messages.ts";
 import type { RenderModuleContext } from "../renderModule.ts";
-import { createSceneOverlay, type SceneOverlay } from "./overlayScene.ts";
+import { createOverlayScene, type OverlayScene } from "./overlayScene.ts";
 
 // The axes + grid overlay's lifecycle: a plain managed decoration (single optional scene, retained
 // config, replayed on a device-restore rebuild), so it delegates wholesale to createManagedDecoration.
@@ -10,14 +10,14 @@ import { createSceneOverlay, type SceneOverlay } from "./overlayScene.ts";
 // compiles the *full* composite (overlay spliced in).
 export interface OverlayHost extends RenderModuleContext {
   // Compile the full prospective composite (the worker splices this overlay in via compositeItems).
-  warmComposite(prospective: SceneOverlay): Promise<unknown> | undefined;
+  warmComposite(prospective: OverlayScene): Promise<unknown> | undefined;
 }
 
-export type ManagedOverlay = ManagedDecoration<SceneOverlay, SceneOverlayConfig>;
+export type ManagedOverlay = ManagedDecoration<OverlayScene, SceneOverlayConfig>;
 
 export function createManagedOverlay(host: OverlayHost): ManagedOverlay {
-  return createManagedDecoration<SceneOverlay, SceneOverlayConfig>({
-    create: createSceneOverlay,
+  return createManagedDecoration<OverlayScene, SceneOverlayConfig>({
+    create: createOverlayScene,
     warm: (scene) => host.warmComposite(scene),
     context: host,
   });

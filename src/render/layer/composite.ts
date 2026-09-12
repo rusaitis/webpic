@@ -2,10 +2,10 @@ import type { LayerKind } from "@schema/layers.ts";
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
-import type { FieldSource, LayerEntry } from "./layerRegistry.ts";
-import type { PickLayer } from "./pickRay.ts";
-import type { CompositeDrawItem } from "./runtime/renderer.ts";
-import type { WindowLevel } from "./volume/normalization.ts";
+import type { WindowLevel } from "../field/normalization.ts";
+import type { PickLayer } from "../pickRay.ts";
+import type { CompositeDrawItem } from "../runtime/renderer.ts";
+import type { FieldSource, LayerEntry } from "./registry.ts";
 
 // The ordered visibility/opacity view of the layer stack, and the two reads that walk it: the draw
 // items the renderer composites, and the volume fields the opacity-weighted ray pick integrates.

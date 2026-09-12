@@ -1,5 +1,5 @@
-import { warmScene } from "./managedScene.ts";
 import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
+import { warmScene } from "./warmScene.ts";
 
 // The shared lifecycle skeleton behind every "single optional scene, replayed on device-restore"
 // manager — the axes/grid overlay and the point-picker marker today. It owns the committed scene, the

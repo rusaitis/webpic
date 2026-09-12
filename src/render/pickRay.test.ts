@@ -1,8 +1,8 @@
 import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
 import { ballField } from "../../tests/fixtures.ts";
+import type { ScalarField } from "./field/volumeTexture.ts";
 import { type PickLayer, pickPointOnRay } from "./pickRay.ts";
-import type { ScalarField } from "./volume/volumeTexture.ts";
 
 function layerOf(field: ScalarField, opacity = 1): PickLayer {
   return {

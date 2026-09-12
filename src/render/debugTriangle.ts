@@ -1,6 +1,6 @@
 import { BufferAttribute, BufferGeometry, Mesh, MeshBasicMaterial, Scene } from "three";
 
-export interface TestScene {
+export interface DebugTriangle {
   readonly scene: Scene;
   dispose(): void;
 }
@@ -12,7 +12,7 @@ export interface TestScene {
 const POSITIONS = new Float32Array([0.0, 0.8, 0.0, -0.8, -0.6, 0.0, 0.8, -0.6, 0.0]);
 const COLORS = new Float32Array([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
 
-export function createTestScene(): TestScene {
+export function createDebugTriangle(): DebugTriangle {
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(POSITIONS, 3));
   geometry.setAttribute("color", new BufferAttribute(COLORS, 3));

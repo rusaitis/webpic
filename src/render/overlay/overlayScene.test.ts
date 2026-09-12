@@ -1,7 +1,7 @@
 import type { Object3D } from "three";
 import { describe, expect, it, vi } from "vitest";
 import type { OverlayAxis, SceneOverlayConfig } from "../messages.ts";
-import { createSceneOverlay } from "./overlayScene.ts";
+import { createOverlayScene } from "./overlayScene.ts";
 
 // Node shape/dispose coverage only — no GPU, no pixels (the WGSL/render path is exercised by the
 // browser smoke test). Material/geometry construction is CPU-only; labels need OffscreenCanvas, which
@@ -75,15 +75,15 @@ function gridSpacings(root: Object3D): { x: number[]; y: number[] } {
   return { x: deltas(constX), y: deltas(constY) };
 }
 
-describe("createSceneOverlay", () => {
+describe("createOverlayScene", () => {
   it("builds one batched LineSegments per enabled plane plus three axis lines", () => {
-    const overlay = createSceneOverlay(config());
+    const overlay = createOverlayScene(config());
     expect(countLineSegments(overlay.scene)).toBe(1 + 3); // xz plane + x/y/z axes
     overlay.dispose();
   });
 
   it("draws no grid when show.grid is false (axes only)", () => {
-    const overlay = createSceneOverlay(
+    const overlay = createOverlayScene(
       config({ show: { grid: false, axes: true, labels: false } }),
     );
     expect(countLineSegments(overlay.scene)).toBe(3);
@@ -91,7 +91,7 @@ describe("createSceneOverlay", () => {
   });
 
   it("draws no axis lines when show.axes is false", () => {
-    const overlay = createSceneOverlay(
+    const overlay = createOverlayScene(
       config({ show: { grid: true, axes: false, labels: false } }),
     );
     expect(countLineSegments(overlay.scene)).toBe(1); // the xz plane only
@@ -99,7 +99,7 @@ describe("createSceneOverlay", () => {
   });
 
   it("draws nothing when grid is on but no planes are selected", () => {
-    const overlay = createSceneOverlay(
+    const overlay = createOverlayScene(
       config({
         planes: { xy: false, yz: false, xz: false },
         show: { grid: true, axes: false, labels: false },
@@ -110,14 +110,14 @@ describe("createSceneOverlay", () => {
   });
 
   it("sums planes: all three enabled → three grid LineSegments + three axes", () => {
-    const overlay = createSceneOverlay(config({ planes: { xy: true, yz: true, xz: true } }));
+    const overlay = createOverlayScene(config({ planes: { xy: true, yz: true, xz: true } }));
     expect(countLineSegments(overlay.scene)).toBe(3 + 3);
     overlay.dispose();
   });
 
   it("anchors the axes at the data origin (0,0,0), not the box corner, for interior bounds", () => {
     // Dipole-like non-cubic bounds: x∈[-10,5] (origin interior), y,z∈[-5,5] (origin at center).
-    const overlay = createSceneOverlay(
+    const overlay = createOverlayScene(
       config({
         axes: [axis(-10, 5, "x"), axis(-5, 5, "y"), axis(-5, 5, "z")],
         worldHalfExtent: [0.5, 1 / 3, 1 / 3],
@@ -137,7 +137,7 @@ describe("createSceneOverlay", () => {
 
   it("keeps the axes at the corner when the origin is the box minimum (cubic flux rope)", () => {
     // All-positive bounds [0,256]: physical 0 is the min face → the corner, unchanged from before.
-    const overlay = createSceneOverlay(
+    const overlay = createOverlayScene(
       config({ show: { grid: false, axes: true, labels: false } }),
     );
     const [xStart] = axisLineStarts(overlay.scene);
@@ -148,7 +148,7 @@ describe("createSceneOverlay", () => {
   it("spaces the grid equally in every direction for anisotropic bounds (the dipole)", () => {
     // Dipole bounds rendered at true aspect: x∈[-10,5] (span 15, half 0.5), y∈[-5,5] (span 10, half
     // 1/3). A shared physical step (2) → equal *world* spacing on both axes, not the per-axis 2 vs 1.
-    const overlay = createSceneOverlay(
+    const overlay = createOverlayScene(
       config({
         axes: [axis(-10, 5, "x"), axis(-5, 5, "y"), axis(-5, 5, "z")],
         worldHalfExtent: [0.5, 1 / 3, 1 / 3],
@@ -168,14 +168,14 @@ describe("createSceneOverlay", () => {
 
   it("keeps per-axis tick counts equal for cubic bounds (flux rope regression)", () => {
     // Equal spans → the shared step equals the old per-axis step → spacing unchanged.
-    const overlay = createSceneOverlay(config({ planes: { xy: true, yz: false, xz: false } }));
+    const overlay = createOverlayScene(config({ planes: { xy: true, yz: false, xz: false } }));
     const { x, y } = gridSpacings(overlay.scene);
     expect(x).toEqual(y);
     overlay.dispose();
   });
 
   it("disposes every geometry and material it created", () => {
-    const overlay = createSceneOverlay(config({ show: { grid: true, axes: true, labels: false } }));
+    const overlay = createOverlayScene(config({ show: { grid: true, axes: true, labels: false } }));
     const disposeSpies = overlay.scene.children
       .filter((child) => (child as { isLineSegments?: boolean }).isLineSegments === true)
       .flatMap((child) => {

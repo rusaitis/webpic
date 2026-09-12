@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createLayerEpochs } from "./layerEpochs.ts";
-import type { LayerEntry } from "./layerRegistry.ts";
+import { createLayerEpochs } from "./epochs.ts";
+import type { LayerEntry } from "./registry.ts";
 
 // A LayerEntry is a scene + source; only `scene.dispose` is exercised here.
 function fakeEntry(): LayerEntry & { disposed: () => number } {

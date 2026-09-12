@@ -1,6 +1,6 @@
 import type { ColorScale } from "@schema/colormap.ts";
 import type { Scene } from "three";
-import type { ScalarField } from "./volume/volumeTexture.ts";
+import type { ScalarField } from "../field/volumeTexture.ts";
 
 // The contract every renderable layer's scene satisfies, regardless of kind. The layer registry builds,
 // composites, recolors, and time-swaps layers through this face, so adding a kind (the field-line and

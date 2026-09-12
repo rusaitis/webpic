@@ -11,9 +11,9 @@ const h = await vi.hoisted(() =>
 
 vi.mock("@gpu", () => h.gpu);
 vi.mock("./runtime/renderer.ts", () => ({ installRenderer: h.installRenderer }));
-vi.mock("./volume/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
-vi.mock("./volume/sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
-vi.mock("./scene.ts", () => ({ createTestScene: h.createTestScene }));
+vi.mock("./field/raymarchScene.ts", () => ({ createRaymarchScene: h.createRaymarchScene }));
+vi.mock("./field/sliceScene.ts", () => ({ createSliceScene: h.createSliceScene }));
+vi.mock("./debugTriangle.ts", () => ({ createDebugTriangle: h.createDebugTriangle }));
 
 const postMessage = vi.fn();
 let onmessage: (event: { data: RenderWorkerRequest }) => void;

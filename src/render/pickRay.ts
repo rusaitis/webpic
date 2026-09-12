@@ -2,8 +2,8 @@ import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import { clamp, UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import { intersectRayBox } from "@schema/rayBox.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { windowedT } from "./volume/normalization.ts";
-import type { ScalarField } from "./volume/volumeTexture.ts";
+import { windowedT } from "./field/normalization.ts";
+import type { ScalarField } from "./field/volumeTexture.ts";
 
 // Pick-to-focus depth: march one ray CPU-side through the retained fields and return the world
 // point at the *median visual depth* — where accumulated opacity crosses half its final value —

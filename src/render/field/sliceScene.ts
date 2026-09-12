@@ -2,7 +2,7 @@ import type { SliceAxis } from "@schema/layers.ts";
 import { Mesh, PlaneGeometry, Scene } from "three";
 import { texture, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
-import type { LayerScene } from "../layerScene.ts";
+import type { LayerScene } from "../layer/scene.ts";
 import type { FieldSceneOptions } from "./fieldSceneOptions.ts";
 import { createNormalization } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";

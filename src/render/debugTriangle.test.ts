@@ -1,9 +1,9 @@
 import { Mesh, MeshBasicMaterial } from "three";
 import { describe, expect, it, vi } from "vitest";
-import type { TestScene } from "./scene.ts";
-import { createTestScene } from "./scene.ts";
+import type { DebugTriangle } from "./debugTriangle.ts";
+import { createDebugTriangle } from "./debugTriangle.ts";
 
-function meshOf(scene: TestScene["scene"]): Mesh {
+function meshOf(scene: DebugTriangle["scene"]): Mesh {
   const first = scene.children[0];
   if (!(first instanceof Mesh)) throw new Error("test scene has no mesh");
   return first;
@@ -16,10 +16,10 @@ function singleMaterial(mesh: Mesh): MeshBasicMaterial {
   return material;
 }
 
-describe("createTestScene", () => {
+describe("createDebugTriangle", () => {
   it("builds an identical scene each call (the main/worker parity precondition)", () => {
-    const a = createTestScene();
-    const b = createTestScene();
+    const a = createDebugTriangle();
+    const b = createDebugTriangle();
 
     expect(a.scene.children).toHaveLength(1);
     expect(b.scene.children).toHaveLength(1);
@@ -42,13 +42,13 @@ describe("createTestScene", () => {
   });
 
   it("enables vertex colors so the frame carries a non-trivial pixel spread", () => {
-    const ts = createTestScene();
+    const ts = createDebugTriangle();
     expect(singleMaterial(meshOf(ts.scene)).vertexColors).toBe(true);
     ts.dispose();
   });
 
   it("dispose() releases the geometry and material", () => {
-    const ts = createTestScene();
+    const ts = createDebugTriangle();
     const mesh = meshOf(ts.scene);
     const geometrySpy = vi.spyOn(mesh.geometry, "dispose");
     const materialSpy = vi.spyOn(singleMaterial(mesh), "dispose");

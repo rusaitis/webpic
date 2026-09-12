@@ -1,7 +1,7 @@
 import type { Vec3 } from "./types.ts";
 
 // Analytic ray vs axis-aligned box (slab method) — the CPU twin of the WGSL `hitBox` in
-// render/volume/raymarchScene.ts. The shader uses the branch-free `1/dir` form (valid when no
+// render/field/raymarchScene.ts. The shader uses the branch-free `1/dir` form (valid when no
 // direction component is exactly zero, as camera rays are); this reference also covers axis-parallel
 // rays so it backs CPU picking (render/pickRay) and seed placement (store/pick, store/seedPick) with
 // the one slab test they must agree on. `tNear` is negative when the origin is inside.

@@ -5,26 +5,26 @@ import { fullRangeWindow } from "@schema/colormap.ts";
 import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
-import { createFieldlinesScene, type FieldlinesScene } from "./fieldlines/fieldlinesScene.ts";
-import { type CompositeOrderEntry, createLayerComposite } from "./layerComposite.ts";
-import { createLayerEpochs } from "./layerEpochs.ts";
-import { warmScene } from "./managedScene.ts";
+import {
+  createRaymarchScene,
+  type RaymarchMaterialBuilder,
+  type RaymarchScene,
+} from "../field/raymarchScene.ts";
+import { createSliceScene, type SliceScene } from "../field/sliceScene.ts";
+import { NO_FINITE_RANGE, type ScalarField } from "../field/volumeTexture.ts";
+import { createFieldlinesScene, type FieldlinesScene } from "../fieldlines/fieldlinesScene.ts";
 import type {
   FieldLayerKind,
   FieldLayerParams,
   FieldPayload,
   RenderWorkerRequest,
-} from "./messages.ts";
-import type { PickLayer } from "./pickRay.ts";
-import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
-import type { CompositeDrawItem } from "./runtime/renderer.ts";
-import {
-  createRaymarchScene,
-  type RaymarchMaterialBuilder,
-  type RaymarchScene,
-} from "./volume/raymarchScene.ts";
-import { createSliceScene, type SliceScene } from "./volume/sliceScene.ts";
-import { NO_FINITE_RANGE, type ScalarField } from "./volume/volumeTexture.ts";
+} from "../messages.ts";
+import type { PickLayer } from "../pickRay.ts";
+import type { RenderModule, RenderModuleContext } from "../renderModule.ts";
+import type { CompositeDrawItem } from "../runtime/renderer.ts";
+import { warmScene } from "../warmScene.ts";
+import { type CompositeOrderEntry, createLayerComposite } from "./composite.ts";
+import { createLayerEpochs } from "./epochs.ts";
 
 // Everything needed to rebuild a field layer's scene without the main thread: the decoded field (its
 // CPU buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity

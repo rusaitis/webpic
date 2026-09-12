@@ -10,7 +10,7 @@ import { layerAliases } from "./scripts/aliases.ts";
 // (The deferred WESL toolchain replaces this with a `.wesl` → WGSL recompile step — see DESIGN
 // §Build system & tooling; v0.1 HMRs the WGSL strings directly.)
 function shaderHmr(): Plugin {
-  const RAYMARCH_FILE = "/render/volume/raymarchScene.ts";
+  const RAYMARCH_FILE = "/render/field/raymarchScene.ts";
   return {
     name: "webpic:shader-hmr",
     apply: "serve",

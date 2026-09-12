@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { warmScene } from "./managedScene.ts";
+import { warmScene } from "./warmScene.ts";
 
 const resolved = () => Promise.resolve();
 const rejected = (message: string) => () => Promise.reject(new Error(message));

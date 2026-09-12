@@ -24,7 +24,7 @@ import {
   wgslFn,
 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
-import type { VolumeLayerScene } from "../layerScene.ts";
+import type { VolumeLayerScene } from "../layer/scene.ts";
 import type { FieldSceneOptions } from "./fieldSceneOptions.ts";
 import { createNormalization, type Normalization } from "./normalization.ts";
 import { GRAD_EPS, PHONG } from "./shading.ts";

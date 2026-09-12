@@ -29,7 +29,7 @@ import {
 // and auto-billboarding Sprites for the labels (SpriteNodeMaterial faces the camera in the renderer,
 // so no per-frame reorient). Returns a disposer that frees every geometry, material, and CanvasTexture.
 
-export interface SceneOverlay {
+export interface OverlayScene {
   readonly scene: Scene;
   dispose(): void;
 }
@@ -118,7 +118,7 @@ function makeLabelTexture(
   return { texture: finishCanvasTexture(canvas), aspect: width / height };
 }
 
-export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
+export function createOverlayScene(config: SceneOverlayConfig): OverlayScene {
   const scene = new Scene(); // no background — the renderer owns the clear color
   const geometries: BufferGeometry[] = [];
   const materials: Material[] = [];

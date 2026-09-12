@@ -79,6 +79,6 @@ export function createWorkerHarness() {
     installRenderer,
     createRaymarchScene: vi.fn((_opts: unknown) => makeFakeScene()),
     createSliceScene: vi.fn((_opts: unknown) => makeFakeScene()),
-    createTestScene: vi.fn(() => ({ scene: {}, dispose: vi.fn() })),
+    createDebugTriangle: vi.fn(() => ({ scene: {}, dispose: vi.fn() })),
   };
 }

@@ -11,14 +11,14 @@ const SIZE = 64;
 
 async function mainThreadPixels(): Promise<Uint8Array> {
   const { installRenderer } = await import("./runtime/renderer.ts");
-  const { createTestScene } = await import("./scene.ts");
+  const { createDebugTriangle } = await import("./debugTriangle.ts");
   const { createOrthographicCamera } = await import("./camera/camera.ts");
   const renderer = await installRenderer({
     canvas: new OffscreenCanvas(SIZE, SIZE),
     width: SIZE,
     height: SIZE,
   });
-  const scene = createTestScene();
+  const scene = createDebugTriangle();
   // Must match the worker's boot-frame camera exactly — same factory, same FRUSTUM.
   const camera = createOrthographicCamera();
   try {

@@ -1,6 +1,6 @@
 import type { StreamStepMessage } from "@data";
 import { describe, expect, it, vi } from "vitest";
-import type { RenderWorkerRequest } from "./messages.ts";
+import type { RenderWorkerRequest } from "../messages.ts";
 
 // Mock the GPU scene factories — the registry's logic (draw order, overrides, pick filtering, the
 // in-place-vs-rebuild decision, epoch superseding) is what we isolate; the real raymarch/slice scenes
@@ -83,16 +83,16 @@ function makeFake(
   return scene;
 }
 
-vi.mock("./volume/sliceScene.ts", () => ({
+vi.mock("../field/sliceScene.ts", () => ({
   createSliceScene: (options: { opacity: number; field: { shape: readonly number[] } }) =>
     makeFake("slice", options),
 }));
-vi.mock("./volume/raymarchScene.ts", () => ({
+vi.mock("../field/raymarchScene.ts", () => ({
   createRaymarchScene: (options: { opacity: number; field: { shape: readonly number[] } }) =>
     makeFake("volume", options),
 }));
 
-const { createLayerRegistry } = await import("./layerRegistry.ts");
+const { createLayerRegistry } = await import("./registry.ts");
 
 function harness() {
   created.length = 0;

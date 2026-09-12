@@ -174,7 +174,7 @@ coverage 78.2 % → 81.3 % lines. Three production defects the tests found, fixe
 - `gpu/device.ts` — a `dispose()` landing mid-recovery let the re-acquired device re-install itself
   behind the caller's back (orphan device; next `installGpu()` threw "already installed"). Guarded
   by a `session` counter compared across the await.
-- `render/layerRegistry.ts` `decodeSliceField` — no size check, so a wrong `dtype`/`shape` silently
+- `render/layer/registry.ts` `decodeSliceField` — no size check, so a wrong `dtype`/`shape` silently
   reinterpreted the buffer (the very thing its own comment warned about). Now throws; hoisted to
   module scope so the factory stays under the Biome line ceiling.
 - `schema/theme.ts` — `parseToml` sat outside the guarded block, so malformed TOML escaped as
@@ -248,7 +248,7 @@ Deviations, each after inspection rather than by omission:
 - Split the 5 biggest factories where a collaborator is obvious: `createLayerRegistry` (364 L: epochs/pendingDispose → `createLayerEpochs`; composite cache → `createCompositeCache`), `installLayerSync` (317: `upsertParams` + refill → `layerUpserts.ts`), `bootstrap` (318: worker router → `app/workerRouter.ts`), `installTopBar` (330: menu builders), `createRangeControl` (328: tick/label math already in `rangeMath.ts`; move the DOM builders). Others get the Biome ratchet only.
 - `cornerResize.ts:72` ≡ `dragSnap.ts:572` pointer-capture preamble → one `installPressDrag(handle, {onStart,onMove,onEnd})` in `ui/floating/`.
 - `computeKernel.ts:43` ≡ `streamlineKernel.ts:65` validation-scoped upload → `gpu/uploadChecked.ts`.
-- `sliceScene.ts:17-33` / `raymarchScene.ts:50-80` 7 shared option fields → `FieldSceneOptions` in `render/volume/fieldSceneOptions.ts`; the 5 conditional spreads in `layerRegistry.ts:190-210` collapse.
+- `sliceScene.ts:17-33` / `raymarchScene.ts:50-80` 7 shared option fields → `FieldSceneOptions` in `render/field/fieldSceneOptions.ts`; the 5 conditional spreads in `layerRegistry.ts:190-210` collapse.
 - `ui/controls/popover.ts:186-189` manual `removeEventListener` → `AbortController` (and the other 8 hand-removed sites).
 - `rangeMath.ts` triple guard (`:245/:253/:272-279`) → guard once at the entry.
 
@@ -338,9 +338,9 @@ checks unused exports at all**. That exclusion is why several deletions below su
    under a single `describe`, so the test collapses with the code.
 5. **Use `clamp` from `@schema/math`** — `render/pickRay.ts:34,35,36,82`, `store/pick.ts:72,102,106`,
    `store/overlay.ts:42`, `ui/layers/settings.ts:259,305` (same expression twice → one
-   `seedCountFor`), `ui/layers/railMenu.ts:57`, `ui/bottomBand/band/dock.ts:57`, `app/viewportTracking.ts:21`.
+   `seedCountFor`), `ui/layers/railMenu.ts:57`, `ui/bottomBand/band/band/dock.ts:57`, `app/viewportTracking.ts:21`.
    `pickRay.ts:82` is the one per-ray-loop site to glance at.
-6. **`render/grid/overlayRemap.ts:17` `fieldAxisToThree` is the identity function** — 4 call sites,
+6. **`render/overlay/overlayRemap.ts:17` `fieldAxisToThree` is the identity function** — 4 call sites,
    one `expect(f(0)).toBe(0)` test, and a comment carrying banned history. Delete; the invariant is
    already in the file header.
 7. **`store/camera.ts`** — five pose builders (`:58,73,126,168,182`) spell out all five
@@ -517,7 +517,7 @@ borderline but its five widgets share the `overlayClosers` mutual-exclusion map 
   (`store/fieldTrace.ts:29`) has no supersession test at all.
 - **`dispose()` idempotence** where a real resource is held — `render/worker.dispose.test.ts` (one
   test, neither required contract), `gpu/device.ts`, `gpu/vramLedger.ts`,
-  `render/volume/volumeTexture.ts`, `render/runtime/readback.ts` (*dispose during a pending
+  `render/field/volumeTexture.ts`, `render/runtime/readback.ts` (*dispose during a pending
   `mapAsync` resumes the loop and rejects the read*). Repo-wide only 4 modules test it.
 - **The pure halves that fall out of 6c** — `createTapRecognizer`, `createTwistGate`,
   `createMarkerEasing`, `snapGeometry`, `patchLayer`. `createMarkerEasing` is what turns

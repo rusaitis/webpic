@@ -5,7 +5,7 @@
 // wherever WebGPU is absent (Node PR gate skips green); `three/webgpu` imported dynamically.
 
 import { describe, expect, it } from "vitest";
-import type { ScalarField } from "./volume/volumeTexture.ts";
+import type { ScalarField } from "./field/volumeTexture.ts";
 
 const SIZE = 32;
 
@@ -53,7 +53,7 @@ function dist(a: readonly [number, number, number], b: readonly [number, number,
 describe("layer compositor", () => {
   it("blends by per-layer opacity", async () => {
     const { installRenderer } = await import("./runtime/renderer.ts");
-    const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
+    const { createRaymarchScene } = await import("./field/raymarchScene.ts");
     const { applyPose, createPerspectiveCamera } = await import("./camera/camera.ts");
 
     const renderer = await installRenderer({
@@ -100,7 +100,7 @@ describe("layer compositor", () => {
 
   it("blends by draw order", async () => {
     const { installRenderer } = await import("./runtime/renderer.ts");
-    const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
+    const { createRaymarchScene } = await import("./field/raymarchScene.ts");
     const { applyPose, createPerspectiveCamera } = await import("./camera/camera.ts");
 
     const renderer = await installRenderer({

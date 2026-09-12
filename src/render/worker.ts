@@ -12,8 +12,8 @@ import { errorMessage } from "@schema/log.ts";
 import type { OrthographicCamera, PerspectiveCamera } from "three";
 import { DEFAULT_POSE } from "./camera/camera.ts";
 import { type CameraRig, createCameraRig } from "./camera/cameraRig.ts";
-import { createManagedOverlay } from "./grid/managedOverlay.ts";
-import { createLayerRegistry } from "./layerRegistry.ts";
+import { createDebugTriangle, type DebugTriangle } from "./debugTriangle.ts";
+import { createLayerRegistry } from "./layer/registry.ts";
 import { createManagedMarker } from "./marker/managedMarker.ts";
 import type {
   CameraMotion,
@@ -22,6 +22,7 @@ import type {
   RenderWorkerRequest,
   RenderWorkerResponse,
 } from "./messages.ts";
+import { createManagedOverlay } from "./overlay/managedOverlay.ts";
 import { pickPointOnRay } from "./pickRay.ts";
 import type { RenderModule } from "./renderModule.ts";
 import { unprojectRay } from "./runtime/cameraRay.ts";
@@ -33,7 +34,6 @@ import { createQualityController } from "./runtime/qualityController.ts";
 import { createReadback } from "./runtime/readback.ts";
 import { type InstalledRenderer, installRenderer } from "./runtime/renderer.ts";
 import { createRenderLoop } from "./runtime/renderLoop.ts";
-import { createTestScene, type TestScene } from "./scene.ts";
 
 // The dedicated-worker surface the world posts through (`self`, narrowed at the module tail).
 interface WorkerContext {
@@ -54,7 +54,7 @@ function createWorkerWorld(context: WorkerContext): {
   // The RGB test triangle as the empty frame is opt-in (`?debugScene`, the parity test): a handy
   // "renderer alive, data missing" diagnostic, but a disorienting flash as the default boot frame.
   let isDebugScene = false;
-  let testScene: TestScene | undefined;
+  let testScene: DebugTriangle | undefined;
   let rig: CameraRig | undefined; // survives a device loss: pure JS matrices, no GPU resources
   let projection: CameraProjection = "perspective";
   let pose: CameraPose = DEFAULT_POSE;
@@ -238,7 +238,7 @@ function createWorkerWorld(context: WorkerContext): {
         device,
       });
       frameTimer = createFrameTimer(device);
-      if (isDebugScene) testScene = createTestScene();
+      if (isDebugScene) testScene = createDebugTriangle();
       applyVolumePose();
       // Replay every module from its retained source on the fresh device (their GPU resources belonged
       // to the dead device); the marker re-seeds the live pose + state internally. Order = modules order.
@@ -281,7 +281,7 @@ function createWorkerWorld(context: WorkerContext): {
     rig = createCameraRig(aspect());
     applyVolumePose();
     isDebugScene = request.showDebugScene === true;
-    if (isDebugScene) testScene = createTestScene();
+    if (isDebugScene) testScene = createDebugTriangle();
     recovery.start(); // gpu/'s loss + restore signals: pause + rebuild, or halt + surface a reload state
     // Paint the boot frame synchronously (the loop isn't started yet) so "first frame" honestly means
     // a frame is on the swapchain before `ready` fires — the perf-gate contract. With no layers yet
@@ -386,7 +386,7 @@ function createWorkerWorld(context: WorkerContext): {
     if (renderer === undefined) return;
     if (!import.meta.env.DEV) return; // prod: dead branch → shaderReload never enters the bundle
     try {
-      const { loadFreshRaymarchBuilder } = await import("./volume/shaderReload.ts");
+      const { loadFreshRaymarchBuilder } = await import("./field/shaderReload.ts");
       registry.rebuildShaders(await loadFreshRaymarchBuilder(request.timestamp));
       await renderer.compileComposite(composite.paintItems());
     } catch (error) {

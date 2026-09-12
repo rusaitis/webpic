@@ -12,7 +12,7 @@ interface FakeOverlay {
 }
 
 vi.mock("./overlayScene.ts", () => ({
-  createSceneOverlay: (config: SceneOverlayConfig) => {
+  createOverlayScene: (config: SceneOverlayConfig) => {
     const fake: FakeOverlay = { scene: { config }, disposed: false };
     created.push(fake);
     return {

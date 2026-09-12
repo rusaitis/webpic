@@ -1,4 +1,4 @@
-import type { LayerEntry } from "./layerRegistry.ts";
+import type { LayerEntry } from "./registry.ts";
 
 // Who wins when two layer builds race, and when a replaced scene's GPU memory is actually freed. Both
 // answers are timing, not rendering, so they live apart from the registry's scene logic.

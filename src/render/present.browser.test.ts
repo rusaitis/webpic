@@ -15,13 +15,13 @@ type Rgb = readonly [number, number, number];
 describe("swapchain present orientation", () => {
   it("the ≥2-layer QuadMesh present keeps the image upright and unmirrored", async () => {
     const { installRenderer } = await import("./runtime/renderer.ts");
-    const { createTestScene } = await import("./scene.ts");
+    const { createDebugTriangle } = await import("./debugTriangle.ts");
     const { createOrthographicCamera } = await import("./camera/camera.ts");
     const { Scene } = await import("three");
 
     const canvas = new OffscreenCanvas(SIZE, SIZE);
     const renderer = await installRenderer({ canvas, width: SIZE, height: SIZE });
-    const testScene = createTestScene();
+    const testScene = createDebugTriangle();
     const empty = new Scene(); // second item forces the composite-target + present path
     const camera = createOrthographicCamera();
     try {

@@ -6,7 +6,7 @@
 // `three`/`three/webgpu` dynamically so Node never loads them.
 
 import { describe, expect, it } from "vitest";
-import type { ScalarField } from "./volume/volumeTexture.ts";
+import type { ScalarField } from "./field/volumeTexture.ts";
 
 const SIZE = 32;
 
@@ -53,7 +53,7 @@ async function renderVolume(
   isOrthographic = false,
 ): Promise<Uint8Array> {
   const { installRenderer } = await import("./runtime/renderer.ts");
-  const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
+  const { createRaymarchScene } = await import("./field/raymarchScene.ts");
   const { applyPose, applyPoseOrtho, createPerspectiveCamera, createVolumeOrthographicCamera } =
     await import("./camera/camera.ts");
   const renderer = await installRenderer({

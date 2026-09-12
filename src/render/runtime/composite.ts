@@ -1,8 +1,8 @@
 import type { Camera, OrthographicCamera, PerspectiveCamera } from "three";
-import type { SceneOverlay } from "../grid/overlayScene.ts";
-import type { LayerEntry } from "../layerRegistry.ts";
+import type { DebugTriangle } from "../debugTriangle.ts";
+import type { LayerEntry } from "../layer/registry.ts";
 import type { MarkerScene } from "../marker/markerScene.ts";
-import type { TestScene } from "../scene.ts";
+import type { OverlayScene } from "../overlay/overlayScene.ts";
 import type { CompositeDrawItem } from "./renderer.ts";
 
 // Composite assembly: the visible layers in draw order, each paired with the camera its projection
@@ -23,14 +23,14 @@ export interface CompositeAssemblerHost {
     override?: LayerOverride,
     into?: CompositeDrawItem[],
   ): CompositeDrawItem[];
-  overlay(): SceneOverlay | undefined;
+  overlay(): OverlayScene | undefined;
   marker(): MarkerScene | undefined;
   // The pose-driven volume camera for the live projection; undefined before init.
   volumeCamera(): PerspectiveCamera | OrthographicCamera | undefined;
   // The screen-aligned ortho camera (slices + boot); undefined before init.
   orthoCamera(): OrthographicCamera | undefined;
   // The opt-in debug triangle drawn when the composite is empty.
-  testScene(): TestScene | undefined;
+  testScene(): DebugTriangle | undefined;
 }
 
 export interface CompositeAssembler {
@@ -39,7 +39,7 @@ export interface CompositeAssembler {
   // `overlayOverride` / `markerOverride` a not-yet-committed decoration (null = none).
   compositeItems(
     layerOverride?: LayerOverride,
-    overlayOverride?: SceneOverlay | null,
+    overlayOverride?: OverlayScene | null,
     markerOverride?: MarkerScene | null,
   ): CompositeDrawItem[];
   // What the next paint draws, freshly allocated — for the async warms and readbacks.
@@ -54,7 +54,7 @@ export function createCompositeAssembler(host: CompositeAssemblerHost): Composit
 
   function assemble(
     layerOverride: LayerOverride | undefined,
-    overlayOverride: SceneOverlay | null | undefined,
+    overlayOverride: OverlayScene | null | undefined,
     markerOverride: MarkerScene | null | undefined,
     into: CompositeDrawItem[] | undefined,
   ): CompositeDrawItem[] {
