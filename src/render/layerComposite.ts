@@ -4,14 +4,14 @@ import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
 import type { FieldSource, LayerEntry } from "./layerRegistry.ts";
 import type { PickLayer } from "./pickRay.ts";
-import type { CompositeItem } from "./runtime/renderer.ts";
+import type { CompositeDrawItem } from "./runtime/renderer.ts";
 import type { WindowLevel } from "./volume/normalization.ts";
 
 // The ordered visibility/opacity view of the layer stack, and the two reads that walk it: the draw
 // items the renderer composites, and the volume fields the opacity-weighted ray pick integrates.
 // Draw order is array order. The registry owns the scenes; this owns the order.
 
-export interface CompositeEntry {
+export interface CompositeOrderEntry {
   readonly id: string;
   readonly visible: boolean;
   readonly opacity: number;
@@ -32,15 +32,15 @@ function cameraFor(kind: LayerKind, pose: Camera, ortho: Camera): Camera {
 export interface LayerComposite {
   // Re-order / re-tune. Returns the ids whose opacity actually moved, so the caller pushes a uniform
   // write to exactly those scenes (field data rides the heavier upsert).
-  setOrder(order: readonly CompositeEntry[]): readonly string[];
+  setOrder(order: readonly CompositeOrderEntry[]): readonly string[];
   opacityOf(id: string): number | undefined;
   items(
     lookup: (id: string) => LayerEntry | undefined,
     volume: Camera,
     ortho: Camera,
     override?: { readonly id: string; readonly entry: LayerEntry },
-    into?: CompositeItem[],
-  ): CompositeItem[];
+    into?: CompositeDrawItem[],
+  ): CompositeDrawItem[];
   pickLayers(
     lookup: (id: string) => LayerEntry | undefined,
     windowOf: (source: FieldSource) => WindowLevel,
@@ -48,7 +48,7 @@ export interface LayerComposite {
 }
 
 export function createLayerComposite(): LayerComposite {
-  let order: readonly CompositeEntry[] = [];
+  let order: readonly CompositeOrderEntry[] = [];
 
   return {
     setOrder(next) {

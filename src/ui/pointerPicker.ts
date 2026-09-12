@@ -72,7 +72,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
 
   // Which marker part (if any) the cursor is over, in screen space. Core first (the inner region is a
   // free-plane grab), then the ↕/↔ handle stems/knobs (the outer affordances).
-  const hitTest = (clientX: number, clientY: number, rect: DOMRect): MarkerPart => {
+  const markerPartAt = (clientX: number, clientY: number, rect: DOMRect): MarkerPart => {
     const { pickerPoint, cameraPose, projection, overlay } = store.getState();
     if (!overlay.showPicker || pickerPoint === null || rect.width <= 0 || rect.height <= 0) {
       return "none";
@@ -147,7 +147,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || !event.isPrimary) return; // primary left-button only; rest → camera
     const rect = target.getBoundingClientRect();
-    const part = hitTest(event.clientX, event.clientY, rect);
+    const part = markerPartAt(event.clientX, event.clientY, rect);
     if (part === "none") return; // not on the marker — let the event reach pointerCamera (orbit/pan)
 
     // Claim the marker interaction: the camera must not orbit. stopImmediatePropagation (not
@@ -183,7 +183,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     }
     if (event.buttons !== 0) return; // a camera drag owns the gesture — don't update hover under it
     // No marker to hover (the common picker-hidden case): mirror the "none" outcome without paying
-    // hitTest's forced-layout rect read + projections on every move. Hover drives the cursor
+    // markerPartAt's forced-layout rect read + projections on every move. Hover drives the cursor
     // (pointerCamera reads pickerHover) — no style.cursor write here.
     const { overlay, pickerPoint } = state;
     if (!overlay.showPicker || pickerPoint === null) {
@@ -191,7 +191,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       return;
     }
     const rect = target.getBoundingClientRect();
-    const part = hitTest(event.clientX, event.clientY, rect);
+    const part = markerPartAt(event.clientX, event.clientY, rect);
     state.setPickerHover(part);
   };
 

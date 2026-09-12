@@ -3,7 +3,7 @@ import type { SceneOverlay } from "../grid/overlayScene.ts";
 import type { LayerEntry } from "../layerRegistry.ts";
 import type { MarkerScene } from "../marker/markerScene.ts";
 import type { TestScene } from "../scene.ts";
-import type { CompositeItem } from "./renderer.ts";
+import type { CompositeDrawItem } from "./renderer.ts";
 
 // Composite assembly: the visible layers in draw order, each paired with the camera its projection
 // needs (perspective for volumes, orthographic for slices), the overlay + marker chrome on top. The
@@ -21,8 +21,8 @@ export interface CompositeAssemblerHost {
     volume: Camera,
     ortho: Camera,
     override?: LayerOverride,
-    into?: CompositeItem[],
-  ): CompositeItem[];
+    into?: CompositeDrawItem[],
+  ): CompositeDrawItem[];
   overlay(): SceneOverlay | undefined;
   marker(): MarkerScene | undefined;
   // The pose-driven volume camera for the live projection; undefined before init.
@@ -41,23 +41,23 @@ export interface CompositeAssembler {
     layerOverride?: LayerOverride,
     overlayOverride?: SceneOverlay | null,
     markerOverride?: MarkerScene | null,
-  ): CompositeItem[];
+  ): CompositeDrawItem[];
   // What the next paint draws, freshly allocated — for the async warms and readbacks.
-  paintItems(): CompositeItem[];
+  paintItems(): CompositeDrawItem[];
   // The same list refilled in place, for the synchronous paint path only: warms and readbacks are
   // async and would see it mutate under them, so they take the allocating paintItems().
-  scratchPaintItems(): readonly CompositeItem[];
+  scratchPaintItems(): readonly CompositeDrawItem[];
 }
 
 export function createCompositeAssembler(host: CompositeAssemblerHost): CompositeAssembler {
-  const paintScratch: CompositeItem[] = [];
+  const paintScratch: CompositeDrawItem[] = [];
 
   function assemble(
     layerOverride: LayerOverride | undefined,
     overlayOverride: SceneOverlay | null | undefined,
     markerOverride: MarkerScene | null | undefined,
-    into: CompositeItem[] | undefined,
-  ): CompositeItem[] {
+    into: CompositeDrawItem[] | undefined,
+  ): CompositeDrawItem[] {
     const volume = host.volumeCamera();
     const ortho = host.orthoCamera();
     if (volume === undefined || ortho === undefined) {
@@ -90,7 +90,7 @@ export function createCompositeAssembler(host: CompositeAssemblerHost): Composit
 
   // The composited layers, the opt-in debug triangle when empty, else nothing — renderComposite([])
   // presents the bare clear color, the flash-free boot/empty frame.
-  function paintInto(into: CompositeItem[] | undefined): CompositeItem[] {
+  function paintInto(into: CompositeDrawItem[] | undefined): CompositeDrawItem[] {
     const ortho = host.orthoCamera();
     if (ortho === undefined) {
       throw new Error("render before init");

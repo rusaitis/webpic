@@ -32,7 +32,7 @@ export function createShortcutRegistry(doc: Document, signal?: AbortSignal): Sho
   const bindings: Binding[] = [];
   // Signal-bound only (no removeEventListener): a caller's signal and dispose() both tear it down.
   const ac = new AbortController();
-  const teardown = signal === undefined ? ac.signal : AbortSignal.any([signal, ac.signal]);
+  const teardownSignal = signal === undefined ? ac.signal : AbortSignal.any([signal, ac.signal]);
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
     if (isTypingTarget(event.target)) return;
@@ -46,7 +46,7 @@ export function createShortcutRegistry(doc: Document, signal?: AbortSignal): Sho
       return;
     }
   };
-  doc.addEventListener("keydown", onKeyDown, { signal: teardown });
+  doc.addEventListener("keydown", onKeyDown, { signal: teardownSignal });
   const dispose: Disposer = () => ac.abort();
 
   return {

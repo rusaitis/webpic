@@ -56,7 +56,7 @@ const HANDLE_OFFSET = MARKER_SPHERE_RADIUS * HANDLE_OFFSET_SCALE; // stem length
 
 const HANDLE_RENDER_ORDER = 999; // draw the affordances on top, like a transform gizmo
 const HANDLE_IDLE_OPACITY = 0.4; // ↕ knob/stem opacity at rest
-const HHANDLE_IDLE_OPACITY = 0.3; // ↔ knob/stem opacity at rest (subtler)
+const HORIZONTAL_HANDLE_IDLE_OPACITY = 0.3; // ↔ knob/stem opacity at rest (subtler)
 const GUIDE_HALF = 0.04; // crosshair arm half-length, world units
 
 // Easing rates (1/s) and magnitudes for the selection feel.
@@ -206,7 +206,7 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   // ↔ (x|y) handle: stem + knob, reoriented per pose; starts along +x, hidden.
   const hStemGeom = new BufferGeometry();
   hStemGeom.setAttribute("position", new Float32BufferAttribute([0, 0, 0, HANDLE_OFFSET, 0, 0], 3));
-  const hStemMat = lineMaterial(white.clone(), HHANDLE_IDLE_OPACITY);
+  const hStemMat = lineMaterial(white.clone(), HORIZONTAL_HANDLE_IDLE_OPACITY);
   const hStem = new Line(hStemGeom, hStemMat);
   hStem.frustumCulled = false;
   hStem.renderOrder = HANDLE_RENDER_ORDER;
@@ -214,7 +214,7 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   core.add(hStem);
   const hKnobTex = paintKnobTexture(false);
   if (hKnobTex !== null) textures.push(hKnobTex);
-  const hKnobMat = spriteMaterial(hKnobTex, HHANDLE_IDLE_OPACITY);
+  const hKnobMat = spriteMaterial(hKnobTex, HORIZONTAL_HANDLE_IDLE_OPACITY);
   const hKnob = new Sprite(hKnobMat);
   hKnob.scale.set(KNOB_BASE, KNOB_BASE, 1);
   hKnob.position.set(HANDLE_OFFSET, 0, 0);
@@ -376,7 +376,8 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
       vStem.visible = vShown;
 
       const hLit = Math.max(hHover, hActive);
-      const hOp = (HHANDLE_IDLE_OPACITY + (1 - HHANDLE_IDLE_OPACITY) * hLit) * hGate;
+      const hOp =
+        (HORIZONTAL_HANDLE_IDLE_OPACITY + (1 - HORIZONTAL_HANDLE_IDLE_OPACITY) * hLit) * hGate;
       hKnobMat.opacity = hOp;
       hStemMat.opacity = hOp;
       const hks = KNOB_BASE * (1 + HANDLE_HOVER_GROW * hLit);

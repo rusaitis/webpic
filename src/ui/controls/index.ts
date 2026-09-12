@@ -7,6 +7,6 @@ export type {
   NoteHandle,
   Pane,
   RangeValue,
+  SelectChoice,
   SelectHandle,
-  SelectOption,
 } from "./types.ts";

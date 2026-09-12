@@ -1,7 +1,7 @@
 import { ICON_CARET } from "../icons.ts";
 import { makeCaret, makeEl } from "./dom.ts";
 import { createPopover } from "./popover.ts";
-import type { SelectHandle, SelectOption } from "./types.ts";
+import type { SelectChoice, SelectHandle } from "./types.ts";
 
 // A select whose trigger and rows show a painted swatch instead of plain text — the colormap picker.
 // Reuses createPopover for the list shell (lazy build, reposition, Esc / outside-click / arrow nav,
@@ -16,12 +16,12 @@ const SWATCH_H = 14;
 export function createSwatchSelect<V extends string>(
   doc: Document,
   value: V,
-  options: ReadonlyArray<SelectOption<V>>,
+  options: ReadonlyArray<SelectChoice<V>>,
   onChange: (value: V) => void,
   paintSwatch: (canvas: HTMLCanvasElement, value: V) => void,
 ): SelectHandle<V> {
   let labels = new Map(options.map((o) => [o.value, o.label]));
-  let items: ReadonlyArray<SelectOption<V>> = options;
+  let items: ReadonlyArray<SelectChoice<V>> = options;
   let current = value;
 
   const button = makeEl(doc, "button", "webpic-swatch");
@@ -40,7 +40,7 @@ export function createSwatchSelect<V extends string>(
   };
   reflectTrigger();
 
-  const popover = createPopover<SelectOption<V>>({
+  const popover = createPopover<SelectChoice<V>>({
     anchor: button,
     getItems: () => items,
     getSelected: () => current,

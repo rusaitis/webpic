@@ -16,7 +16,7 @@ export interface ControlHandle<T> {
   dispose: Disposer;
 }
 
-export interface SelectOption<V extends string = string> {
+export interface SelectChoice<V extends string = string> {
   readonly label: string;
   readonly value: V;
 }
@@ -24,7 +24,7 @@ export interface SelectOption<V extends string = string> {
 // A select's option list can change at runtime (e.g. a new dataset's fields); `setOptions`
 // rebuilds it and keeps the current value if it survives.
 export interface SelectHandle<V extends string> extends ControlHandle<V> {
-  setOptions(options: ReadonlyArray<SelectOption<V>>): void;
+  setOptions(options: ReadonlyArray<SelectChoice<V>>): void;
 }
 
 export interface SliderOptions {
@@ -40,7 +40,7 @@ export interface SliderOptions {
 export interface SelectOptions<V extends string = string> {
   readonly label: string;
   readonly value: V;
-  readonly options: ReadonlyArray<SelectOption<V>>;
+  readonly options: ReadonlyArray<SelectChoice<V>>;
   readonly onChange: (value: V) => void;
 }
 

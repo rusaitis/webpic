@@ -57,7 +57,7 @@ function createWorkerWorld(context: WorkerContext): {
   let rig: CameraRig | undefined; // survives a device loss: pure JS matrices, no GPU resources
   let projection: CameraProjection = "perspective";
   let pose: CameraPose = DEFAULT_POSE;
-  let dims = { width: 0, height: 0 };
+  let canvasSize = { width: 0, height: 0 };
   let canvas: OffscreenCanvas | undefined; // retained to rebuild the renderer on device-restore
   let devicePixelRatio = 1; // retained for the rebuild's drawing-buffer scale
   let hasFloat32Filterable = false; // R32F linear volume texture when the device supports it
@@ -97,7 +97,7 @@ function createWorkerWorld(context: WorkerContext): {
   }
 
   function aspect(): number {
-    return dims.height > 0 ? dims.width / dims.height : 1;
+    return canvasSize.height > 0 ? canvasSize.width / canvasSize.height : 1;
   }
 
   // The pose drives BOTH volume cameras (cheap — keeps the inactive one fresh so a projection flip
@@ -231,8 +231,8 @@ function createWorkerWorld(context: WorkerContext): {
       resetLedger(); // dead-device disposes may have thrown before releaseAlloc — start the ledger clean
       renderer = await installRenderer({
         canvas,
-        width: dims.width,
-        height: dims.height,
+        width: canvasSize.width,
+        height: canvasSize.height,
         devicePixelRatio,
         device,
       });
@@ -274,7 +274,7 @@ function createWorkerWorld(context: WorkerContext): {
       devicePixelRatio,
       device: getDevice(),
     });
-    dims = { width: request.width, height: request.height };
+    canvasSize = { width: request.width, height: request.height };
     hasFloat32Filterable = getCapabilities().hasFloat32Filterable;
     frameTimer = createFrameTimer(getDevice());
     rig = createCameraRig(aspect());
@@ -328,7 +328,7 @@ function createWorkerWorld(context: WorkerContext): {
 
   function resize(request: Request<"resize">): void {
     const live = liveRenderer(request.kind);
-    dims = { width: request.width, height: request.height };
+    canvasSize = { width: request.width, height: request.height };
     devicePixelRatio = request.devicePixelRatio;
     live.setSize(request.width, request.height, request.devicePixelRatio);
     applyVolumePose(); // re-applies both cameras' aspect

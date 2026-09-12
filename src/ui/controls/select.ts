@@ -1,17 +1,17 @@
 import { makeEl } from "./dom.ts";
-import type { SelectHandle, SelectOption } from "./types.ts";
+import type { SelectChoice, SelectHandle } from "./types.ts";
 
 // Native `<select>` — accessible, zero custom-popover surface.
 
 export function createSelect<V extends string>(
   doc: Document,
   value: V,
-  options: ReadonlyArray<SelectOption<V>>,
+  options: ReadonlyArray<SelectChoice<V>>,
   onChange: (value: V) => void,
 ): SelectHandle<V> {
   const select = makeEl(doc, "select", "webpic-select");
 
-  const renderOptions = (next: ReadonlyArray<SelectOption<V>>): void => {
+  const renderOptions = (next: ReadonlyArray<SelectChoice<V>>): void => {
     select.replaceChildren();
     for (const option of next) {
       const node = doc.createElement("option");

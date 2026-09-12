@@ -135,7 +135,7 @@ export function installLayerSettings(
   const fieldOptions = (): ReadonlyArray<{ value: FieldName; label: FieldName }> =>
     getState().availableFields.map((name) => ({ value: name, label: name }));
 
-  const teardown = (): void => {
+  const dispose = (): void => {
     pane?.dispose();
     pane = null;
     fieldControl = null;
@@ -196,7 +196,7 @@ export function installLayerSettings(
   };
 
   const rebuild = (): void => {
-    teardown();
+    dispose();
     const layer = selectActiveLayer(getState());
     if (layer === null) {
       built = null;
@@ -343,7 +343,7 @@ export function installLayerSettings(
 
   return () => {
     subs.dispose();
-    teardown();
+    dispose();
     disposeColormap();
     win.dispose();
   };

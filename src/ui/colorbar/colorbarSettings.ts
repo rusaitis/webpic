@@ -44,7 +44,7 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
   let isOpen = false;
 
   const reposition = (): void => {
-    const cb = options.colorbar.getBoundingClientRect();
+    const colorbarRect = options.colorbar.getBoundingClientRect();
     const a = options.anchor.getBoundingClientRect();
     const vw = doc.documentElement.clientWidth;
     const vh = doc.documentElement.clientHeight;
@@ -54,16 +54,16 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
     let left: number;
     let top: number;
     if (edge === "left") {
-      left = cb.right + POPOVER_GAP_PX;
+      left = colorbarRect.right + POPOVER_GAP_PX;
       top = a.top + a.height / 2 - h / 2;
     } else if (edge === "right") {
-      left = cb.left - POPOVER_GAP_PX - w;
+      left = colorbarRect.left - POPOVER_GAP_PX - w;
       top = a.top + a.height / 2 - h / 2;
     } else if (edge === "top") {
-      top = cb.bottom + POPOVER_GAP_PX;
+      top = colorbarRect.bottom + POPOVER_GAP_PX;
       left = a.left + a.width / 2 - w / 2;
     } else {
-      top = cb.top - POPOVER_GAP_PX - h; // bottom edge → open upward
+      top = colorbarRect.top - POPOVER_GAP_PX - h; // bottom edge → open upward
       left = a.left + a.width / 2 - w / 2;
     }
     left = clamp(

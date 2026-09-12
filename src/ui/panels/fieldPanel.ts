@@ -1,7 +1,7 @@
 import { fieldInfo } from "@schema/registry.ts";
 import type { FieldName } from "@schema/types.ts";
 import type { SimulationStore } from "@store";
-import { createPane, type Disposer, type SelectOption } from "../controls/index.ts";
+import { createPane, type Disposer, type SelectChoice } from "../controls/index.ts";
 import { createSubscriptions } from "../subscriptions.ts";
 import { orderedFieldNames } from "../topBarInfo.ts";
 
@@ -13,7 +13,7 @@ import { orderedFieldNames } from "../topBarInfo.ts";
 function buildOptions(
   available: readonly FieldName[],
   active: FieldName,
-): SelectOption<FieldName>[] {
+): SelectChoice<FieldName>[] {
   return orderedFieldNames(available, active).map((name) => ({
     value: name,
     label: fieldInfo(name).longName,

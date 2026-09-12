@@ -6,7 +6,7 @@ import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
 import { createFieldlinesScene, type FieldlinesScene } from "./fieldlines/fieldlinesScene.ts";
-import { type CompositeEntry, createLayerComposite } from "./layerComposite.ts";
+import { type CompositeOrderEntry, createLayerComposite } from "./layerComposite.ts";
 import { createLayerEpochs } from "./layerEpochs.ts";
 import { warmScene } from "./managedScene.ts";
 import type {
@@ -17,7 +17,7 @@ import type {
 } from "./messages.ts";
 import type { PickLayer } from "./pickRay.ts";
 import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
-import type { CompositeItem } from "./runtime/renderer.ts";
+import type { CompositeDrawItem } from "./runtime/renderer.ts";
 import {
   createRaymarchScene,
   type RaymarchMaterialBuilder,
@@ -92,7 +92,7 @@ export interface LayerRegistry extends RenderModule {
   ): Promise<void>;
   remove(id: string): void;
   swapField(message: StreamStepMessage): void;
-  setComposite(order: readonly CompositeEntry[]): void;
+  setComposite(order: readonly CompositeOrderEntry[]): void;
   setColormap(request: Extract<RenderWorkerRequest, { kind: "setLayerColormap" }>): void;
   setShading(request: Extract<RenderWorkerRequest, { kind: "setLayerShading" }>): void;
   setSliceParams(request: Extract<RenderWorkerRequest, { kind: "setSliceParams" }>): void;
@@ -110,8 +110,8 @@ export interface LayerRegistry extends RenderModule {
     volume: Camera,
     ortho: Camera,
     override?: { readonly id: string; readonly entry: LayerEntry },
-    into?: CompositeItem[],
-  ): CompositeItem[];
+    into?: CompositeDrawItem[],
+  ): CompositeDrawItem[];
   // The visible volume layers' CPU fields + look, for the worker's opacity-weighted ray pick.
   pickLayers(): { layers: PickLayer[]; halfExtent: Vec3 };
   // Registry-only step of the restore teardown: drop the deferred-dispose entry. The worker calls it
@@ -198,7 +198,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // the map before the old one's GPUTextures are released, and the release waits one rebuild so an
   // in-flight rAF frame never samples a destroyed texture. Used by upsert (main) and as swapField's
   // fallback when an in-place ping-pong upload can't apply.
-  async function replace(id: string, source: LayerSource): Promise<void> {
+  async function installScene(id: string, source: LayerSource): Promise<void> {
     const epoch = epochs.begin(id);
     const next = buildScene(id, source, host);
     epochs.hold(id, next);
@@ -267,7 +267,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
         ...(request.windowLevel !== undefined ? { windowLevel: request.windowLevel } : {}),
         params: request.params,
       };
-      await replace(request.id, source);
+      await installScene(request.id, source);
     },
 
     // A field-line layer: decode the transferred polyline buffers into a retained source and build the
@@ -282,14 +282,14 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
         color: request.color,
         opacity: request.opacity,
       };
-      await replace(request.id, source);
+      await installScene(request.id, source);
     },
 
     remove(id) {
       epochs.begin(id); // an in-flight warm for this id must not resurrect the removed layer
       const entry = layers.get(id);
       layers.delete(id);
-      // Same one-frame deferral as a replace — the old composite may still list this id for a tick.
+      // Same one-frame deferral as an install — the old composite may still list this id for a tick.
       if (entry !== undefined) epochs.defer(entry);
       host.requestRender();
     },
@@ -311,7 +311,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       }
       // Fire-and-forget: the stream port's onmessage can't await; a failed rebuild is reported and the
       // next streamed step retries through the same path.
-      void replace(message.id, { ...entry.source, field }).catch(host.reportFault);
+      void installScene(message.id, { ...entry.source, field }).catch(host.reportFault);
     },
 
     // Cheap reorder/visibility/opacity over the full ordered list — retune per-layer opacity uniforms
@@ -373,8 +373,8 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       if (axisChanged) {
         // Fire-and-forget rebuild from the retained field; a failed rebuild is reported and the next
         // edit retries. The position uniform was already set above and rides the rebuilt source.
-        void replace(request.id, entry.source).catch(host.reportFault);
-        return; // replace() requests its own render on commit
+        void installScene(request.id, entry.source).catch(host.reportFault);
+        return; // installScene() requests its own render on commit
       }
       host.requestRender();
     },

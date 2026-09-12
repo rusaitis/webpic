@@ -42,14 +42,14 @@ const scaleOptions = COLOR_SCALES.map((scale) => ({ value: scale, label: scale }
 // log needs a positive track minimum (makeScale throws on min ≤ 0): the data minimum when positive,
 // else the shared decades floor (@schema/colormap) the shader normalizes with — same constant on both
 // sides, so the slider track spans exactly what is drawn.
-function logTrackMin(bounds: DataRange): number {
-  return Math.max(bounds.min, logWindowFloor(bounds.max) || 1);
+function logTrackMin(dataRange: DataRange): number {
+  return Math.max(dataRange.min, logWindowFloor(dataRange.max) || 1);
 }
 
 interface ActiveBinding {
   readonly id: string;
   readonly binding: ColormapBinding;
-  readonly bounds: DataRange | null;
+  readonly dataRange: DataRange | null;
 }
 
 export function installColormapControls(host: HTMLElement, store: SimulationStore): Disposer {
@@ -68,7 +68,7 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
     if (bindingId === null) return null;
     const binding = state.colormapBindings[bindingId];
     if (binding === undefined) return null;
-    return { id: bindingId, binding, bounds: selectDataRange(state) };
+    return { id: bindingId, binding, dataRange: selectDataRange(state) };
   };
 
   const dispatchColormap = (colormap: ColormapId): void => {
@@ -87,16 +87,16 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
     store.getState().setBindingWindow(a.id, center, width);
   };
 
-  // The window control's track scale + bounds are baked at construction, so a scale or extent change
+  // The window control's track scale + range are baked at construction, so a scale or extent change
   // means a fresh control rather than a mutation. Disabled until the active field's range is known.
   const makeWindow = (a: ActiveBinding | null): void => {
     windowControl?.dispose();
-    const bounds = a?.bounds ?? { min: 0, max: 1 };
+    const dataRange = a?.dataRange ?? { min: 0, max: 1 };
     const scale = a?.binding.scale ?? "linear";
-    const trackMin = scale === "log" ? logTrackMin(bounds) : bounds.min;
+    const trackMin = scale === "log" ? logTrackMin(dataRange) : dataRange.min;
     const win = a?.binding.window ?? {
-      center: (bounds.min + bounds.max) / 2,
-      width: bounds.max - bounds.min,
+      center: (dataRange.min + dataRange.max) / 2,
+      width: dataRange.max - dataRange.min,
     };
     const [rawLo, rawHi] = windowToInterval(win);
     const lo = Math.max(rawLo, trackMin); // clamp into the (possibly log-floored) track
@@ -104,15 +104,15 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
     windowControl = folder.addRangeControl({
       label: "Window",
       min: trackMin,
-      max: bounds.max,
+      max: dataRange.max,
       range: [lo, hi],
       scale,
       format: formatValue,
-      minGap: (bounds.max - trackMin) * MIN_WINDOW_FRACTION,
+      minGap: (dataRange.max - trackMin) * MIN_WINDOW_FRACTION,
       onInput: dispatchWindow,
       onChange: dispatchWindow,
     });
-    windowControl.setDisabled(a === null || a.bounds === null);
+    windowControl.setDisabled(a === null || a.dataRange === null);
   };
 
   const rebuild = (): void => {

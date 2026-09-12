@@ -24,7 +24,7 @@ export interface RendererOptions {
 
 // One renderable layer in a composite: a root Object3D paired with the camera its projection needs
 // (perspective for volumes, orthographic for slices). Draw order = array order.
-export interface CompositeItem {
+export interface CompositeDrawItem {
   readonly scene: Object3D;
   readonly camera: Camera;
 }
@@ -33,11 +33,11 @@ export interface InstalledRenderer {
   readonly renderer: WebGPURenderer;
   readPixels(scene: Object3D, camera: Camera): Promise<Uint8Array>;
   // Composite the visible layers (draw order + per-layer material opacity) onto the swapchain.
-  renderComposite(items: readonly CompositeItem[]): void;
+  renderComposite(items: readonly CompositeDrawItem[]): void;
   // Pre-create every pipeline `renderComposite(items)` would need, off the render path.
-  compileComposite(items: readonly CompositeItem[]): Promise<void>;
+  compileComposite(items: readonly CompositeDrawItem[]): Promise<void>;
   // Deterministic readback of the composited layers — the testable compositing primitive.
-  readCompositePixels(items: readonly CompositeItem[]): Promise<Uint8Array>;
+  readCompositePixels(items: readonly CompositeDrawItem[]): Promise<Uint8Array>;
   // The readback target's physical size (logical × DPR) — the dimensions readCompositePixels fills.
   readbackSize(): { width: number; height: number };
   // Resize the swapchain + readback/composite targets to a new logical size and DPR.
@@ -144,7 +144,10 @@ export async function installRenderer(options: RendererOptions): Promise<Install
   // clear between items makes draw order (not incomparable cross-camera depths) authoritative.
   // Leaves `target` bound (callers read it back or present from it, then unbind), matching the
   // proven readPixels order; autoClear is restored so the next direct render clears as usual.
-  const compositeInto = (target: RenderTarget | null, items: readonly CompositeItem[]): void => {
+  const compositeInto = (
+    target: RenderTarget | null,
+    items: readonly CompositeDrawItem[],
+  ): void => {
     renderer.setRenderTarget(target);
     renderer.autoClear = true;
     renderer.clear();
