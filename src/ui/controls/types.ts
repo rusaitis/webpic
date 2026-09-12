@@ -92,12 +92,6 @@ export interface CheckboxOptions {
   readonly onChange: (value: boolean) => void;
 }
 
-export interface TextOptions {
-  readonly label: string;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-}
-
 // A static, value-less text row (caption / placeholder). No `set`/`setDisabled` — it only
 // renders and tears down.
 export interface NoteHandle {
@@ -118,7 +112,6 @@ export interface Folder {
   addSwatchSelect<V extends string>(options: SwatchSelectOptions<V>): SelectHandle<V>;
   addSegmented<V extends string>(options: SegmentedOptions<V>): ControlHandle<V>;
   addCheckbox(options: CheckboxOptions): ControlHandle<boolean>;
-  addText(options: TextOptions): ControlHandle<string>;
   addFolder(options: FolderOptions): Folder;
   addNote(text: string): NoteHandle;
   dispose(): void;

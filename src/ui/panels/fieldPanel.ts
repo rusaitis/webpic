@@ -1,13 +1,14 @@
+import { fieldInfo } from "@schema/registry.ts";
 import type { FieldName } from "@schema/types.ts";
 import type { SimulationStore } from "@store";
-import { bindControl, fieldLabel } from "../binding/index.ts";
 import { createPane, type Disposer, type SelectOption } from "../controls/index.ts";
 import { createSubscriptions } from "../subscriptions.ts";
 import { orderedFieldNames } from "../topBarInfo.ts";
 
 // The wired field selector: reads the store's computed `availableFields`, dispatches
 // `selectField` on change, and reflects external selections (and dataset switches) back
-// into the control. Labels resolve through `fieldLabel` (loud on an unknown canonical name).
+// into the control. Labels come from the field registry, which throws on an unknown
+// canonical name (pypic's KeyError rule) rather than rendering a mystery option.
 
 function buildOptions(
   available: readonly FieldName[],
@@ -15,7 +16,7 @@ function buildOptions(
 ): SelectOption<FieldName>[] {
   return orderedFieldNames(available, active).map((name) => ({
     value: name,
-    label: fieldLabel(name),
+    label: fieldInfo(name).longName,
   }));
 }
 
@@ -24,8 +25,7 @@ export function installFieldPanel(host: HTMLElement, store: SimulationStore): Di
   const folder = pane.addFolder({ title: "Active field" });
 
   const { activeField, availableFields } = store.getState();
-  const select = bindControl(folder, {
-    kind: "select",
+  const select = folder.addSelect<FieldName>({
     label: "Quantity",
     value: activeField,
     options: buildOptions(availableFields, activeField),

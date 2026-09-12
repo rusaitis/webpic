@@ -144,37 +144,13 @@ describe("slider control", () => {
   });
 });
 
-describe("text control", () => {
-  it("emits on change and skips set while focused", () => {
-    const pane = createPane({ parent: mount() });
-    const folder = pane.addFolder({ title: "f" });
-    const changes: string[] = [];
-    const handle = folder.addText({ label: "Name", value: "x", onChange: (v) => changes.push(v) });
-
-    const input = handle.element.querySelector<HTMLInputElement>('input[type="text"]');
-    if (input === null) throw new Error("no text input");
-
-    input.value = "hello";
-    input.dispatchEvent(new Event("change"));
-    expect(changes).toEqual(["hello"]);
-
-    input.focus();
-    handle.set("ignored"); // focused → must not clobber the user's text
-    expect(input.value).toBe("hello");
-    input.blur();
-    handle.set("synced");
-    expect(input.value).toBe("synced");
-    pane.dispose();
-  });
-});
-
 describe("pane/folder lifecycle", () => {
   it("disposing the pane removes all DOM", () => {
     const parent = mount();
     const pane = createPane({ parent, title: "Panel" });
     const folder = pane.addFolder({ title: "Group" });
     folder.addCheckbox({ label: "a", value: true, onChange: () => {} });
-    folder.addText({ label: "b", value: "", onChange: () => {} });
+    folder.addSlider({ label: "b", value: 0, min: 0, max: 1, onChange: () => {} });
     expect(parent.querySelectorAll(".webpic-row").length).toBe(2);
 
     pane.dispose();

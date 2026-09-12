@@ -4,7 +4,6 @@ export { intervalToWindow, windowToInterval } from "./rangeMath.ts";
 export type {
   ControlHandle,
   Disposer,
-  Folder,
   NoteHandle,
   Pane,
   RangeValue,

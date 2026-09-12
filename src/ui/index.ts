@@ -1,4 +1,3 @@
-export * from "./binding/index.ts";
 export * from "./controls/index.ts";
 export { installUi } from "./install.ts";
 export { installPointerCamera } from "./pointerCamera.ts";

@@ -5,7 +5,6 @@ import { createSegmented } from "./segmented.ts";
 import { createSelect } from "./select.ts";
 import { createSlider } from "./slider.ts";
 import { createSwatchSelect } from "./swatchSelect.ts";
-import { createTextInput } from "./text.ts";
 import type {
   CheckboxOptions,
   ControlHandle,
@@ -21,7 +20,6 @@ import type {
   SelectOptions,
   SliderOptions,
   SwatchSelectOptions,
-  TextOptions,
 } from "./types.ts";
 
 // Dependency-free Pane/Folder: callback-based add* (no two-way binding, no `typeof value`
@@ -125,10 +123,6 @@ function makeFolder(doc: Document, options: FolderOptions): Folder {
     addCheckbox(o: CheckboxOptions): ControlHandle<boolean> {
       const { row, valueCell } = makeRow(doc, o.label);
       return attach(row, valueCell, createCheckbox(doc, o.value, o.label, o.onChange));
-    },
-    addText(o: TextOptions): ControlHandle<string> {
-      const { row, valueCell } = makeRow(doc, o.label);
-      return attach(row, valueCell, createTextInput(doc, o.value, o.onChange));
     },
     addFolder(o: FolderOptions): Folder {
       const sub = makeFolder(doc, o);
