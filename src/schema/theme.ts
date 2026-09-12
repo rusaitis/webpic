@@ -1,5 +1,7 @@
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod";
+import { errorMessage } from "./log.ts";
+import { formatZodError } from "./zodError.ts";
 
 // Theme = the single source of visual configuration, shared with pypic via TOML.
 // pypic owns the file format and ships the `[webpic]` block in every bundled theme;
@@ -245,8 +247,9 @@ const DEFAULT_DIVERGING = "RdBu_r";
 /**
  * Parse + validate a theme TOML into a normalized {@link Theme}. Pure (no I/O) — the
  * entry point for both bundled themes and user-supplied custom themes. Throws
- * `Invalid theme in "<sourceName>": …` for malformed TOML and for a structurally invalid
- * one alike; a missing `[webpic]` block is not invalid — it yields {@link DEFAULT_WEBPIC_CONFIG}.
+ * `parseTheme: invalid theme in "<sourceName>" — …` for malformed TOML and for a structurally
+ * invalid one alike; a missing `[webpic]` block is not invalid — it yields
+ * {@link DEFAULT_WEBPIC_CONFIG}.
  */
 export function parseTheme(tomlText: string, sourceName?: string): Theme {
   const where = sourceName ? ` in "${sourceName}"` : "";
@@ -256,11 +259,11 @@ export function parseTheme(tomlText: string, sourceName?: string): Theme {
   } catch (error) {
     // smol-toml's own SyntaxError names neither the theme nor this function — a user-supplied theme
     // has to fail the same way whether it is malformed TOML or a wrong-typed key.
-    throw new Error(`Invalid theme${where}: ${error instanceof Error ? error.message : error}`);
+    throw new Error(`parseTheme: invalid theme${where} — ${errorMessage(error)}`);
   }
   const parsed = ThemeFileSchema.safeParse(document);
   if (!parsed.success) {
-    throw new Error(`Invalid theme${where}: ${parsed.error.message}`);
+    throw new Error(`parseTheme: invalid theme${where} — ${formatZodError(parsed.error)}`);
   }
   const { raw } = parsed.data;
   return {

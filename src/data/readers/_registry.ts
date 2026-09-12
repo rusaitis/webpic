@@ -1,4 +1,4 @@
-import { logWarn } from "@schema/log.ts";
+import { errorMessage, logWarn } from "@schema/log.ts";
 import type { ConfidenceFn, DataHandle, SimulationReader } from "./_protocols.ts";
 
 // Confidence-ranked reader dispatch (mirrors pypic.readers._registry.open_simulation): every
@@ -33,10 +33,6 @@ export interface ReaderRegistry {
 interface ReaderEntry {
   readonly reader: SimulationReader;
   readonly confidence: ConfidenceFn;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export function createReaderRegistry(): ReaderRegistry {

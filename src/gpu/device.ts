@@ -130,8 +130,10 @@ export async function requestGpu(options?: GpuRequestOptions): Promise<GpuSuppor
     const device = await adapter.requestDevice(descriptor);
     return { ok: true, adapter, device };
   } catch (error) {
+    // gpu/ is the dependency-free leaf (DESIGN §Layered dependency DAG), so it narrows in place
+    // rather than reaching @schema/log's errorMessage like every other seam.
     const detail = error instanceof Error ? error.message : String(error);
-    return { ok: false, reason: "no-device", message: `WebGPU device request failed: ${detail}` };
+    return { ok: false, reason: "no-device", message: `requestDevice: ${detail}` };
   }
 }
 

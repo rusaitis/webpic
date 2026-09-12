@@ -2,6 +2,7 @@ import { computeField } from "@compute";
 import { finiteRange } from "@reductions";
 import { fullRangeWindow, type WindowLevel } from "@schema/colormap.ts";
 import type { LayerKind } from "@schema/layers.ts";
+import { errorMessage } from "@schema/log.ts";
 import * as colormapOps from "./colormap.ts";
 import * as layerOps from "./layers.ts";
 import type { FieldState, SceneIds, SliceContext } from "./state.ts";
@@ -96,11 +97,11 @@ export function createRecompute(host: RecomputeHost): Recompute {
           colormapBindings,
         });
         if (layers.some((layer) => layer.kind === "fieldlines")) void retrace();
-      } catch (err) {
+      } catch (error) {
         if (!run.isCurrent()) return; // superseded — don't clobber with a stale error
         if (signal?.aborted) return; // the caller withdrew — leave the state as it was
         set({
-          field: { kind: "error", message: err instanceof Error ? err.message : String(err) },
+          field: { kind: "error", message: errorMessage(error) },
         });
       }
     },

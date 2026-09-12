@@ -1,5 +1,5 @@
 import { displayTraceSteps, type FieldLine, traceFields, vectorComponentsForField } from "@compute";
-import { logWarn } from "@schema/log.ts";
+import { errorMessage, logWarn } from "@schema/log.ts";
 import type { SliceContext, TraceNotice } from "./state.ts";
 import { createSupersedingTask } from "./supersedingTask.ts";
 
@@ -81,14 +81,11 @@ export function createRetrace({ get, set }: SliceContext): Retrace {
           fieldName,
           error: null,
         };
-      } catch (err) {
+      } catch (error) {
         if (!run.isCurrent()) return; // superseded mid-trace — the newer retrace owns the commit
-        logWarn("trace", `field-line trace failed for ${layer.id}`, err);
+        logWarn("trace", `field-line trace failed for ${layer.id}`, error);
         next[layer.id] = [];
-        notices[layer.id] = failedNotice(
-          requested,
-          err instanceof Error ? err.message : String(err),
-        );
+        notices[layer.id] = failedNotice(requested, errorMessage(error));
       }
     }
     if (!run.isCurrent()) return; // superseded between the last await and the commit

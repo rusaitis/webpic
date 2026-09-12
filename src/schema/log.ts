@@ -44,6 +44,12 @@ export function setLogSink(next: LogSink | null): void {
   sink = next ?? consoleSink;
 }
 
+// Every seam that turns a caught `unknown` into user- or wire-facing text needs this one narrowing;
+// it lives beside the sinks because those are the only consumers that exist.
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function logWarn(scope: LogScope, message: string, detail?: unknown): void {
   sink.warn(scope, message, detail);
 }

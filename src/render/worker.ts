@@ -8,6 +8,7 @@ import {
   resetLedger,
   vramSnapshot,
 } from "@gpu";
+import { errorMessage } from "@schema/log.ts";
 import type { OrthographicCamera, PerspectiveCamera } from "three";
 import { DEFAULT_POSE } from "./camera/camera.ts";
 import { type CameraRig, createCameraRig } from "./camera/cameraRig.ts";
@@ -82,7 +83,7 @@ function createWorkerWorld(context: WorkerContext): {
   }
 
   function reportFault(error: unknown): void {
-    reportError(error instanceof Error ? error.message : String(error));
+    reportError(errorMessage(error));
   }
 
   // Hoisted so every manager host can reference the loop's dirty-flag entry before `loop` exists.
@@ -492,7 +493,10 @@ const world = createWorkerWorld(context);
 context.onmessage = (event) => {
   const request = event.data;
   world.handle(request).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    context.postMessage({ kind: "error", requestId: request.requestId, message });
+    context.postMessage({
+      kind: "error",
+      requestId: request.requestId,
+      message: errorMessage(error),
+    });
   });
 };

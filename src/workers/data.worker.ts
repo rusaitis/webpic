@@ -13,6 +13,7 @@ import {
   fieldPayload,
   type StreamStepMessage,
 } from "@data/streamMessages.ts";
+import { errorMessage } from "@schema/log.ts";
 
 // The data worker owns all off-main data I/O (DESIGN §Package shape): OPFS writes and time-series
 // streaming. On `open` it resolves a reader and reports the timestep domain; on `setCursor` it drives
@@ -95,7 +96,7 @@ function streamError(error: unknown, step?: number): void {
   const where = step === undefined ? "" : `step ${step}: `;
   context.postMessage({
     kind: "streamError",
-    message: where + (error instanceof Error ? error.message : String(error)),
+    message: where + errorMessage(error),
   });
 }
 
@@ -202,7 +203,7 @@ context.onmessage = (event) => {
       applyCacheRequest(request)
         .then(() => context.postMessage({ kind: "ok", requestId: request.requestId }))
         .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : String(error);
+          const message = errorMessage(error);
           context.postMessage({ kind: "error", requestId: request.requestId, message });
         });
       return;

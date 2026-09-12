@@ -12,6 +12,7 @@ import { vec3 } from "@schema/math.ts";
 import { FIELD_REGISTRY } from "@schema/registry.generated.ts";
 import type { FieldMeta } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
+import { formatZodError } from "@schema/zodError.ts";
 import { z } from "zod";
 
 // Decodes pypic's on-disk Zarr attrs into webpic container types. Mirrors
@@ -144,12 +145,6 @@ const FieldAttrsSchema = z.object({
   unit_dimension: z.array(z.number()).nullable().optional(),
   reduction: ReductionAttrsSchema.optional(),
 });
-
-function formatZodError(error: z.ZodError): string {
-  return error.issues
-    .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
-    .join("; ");
-}
 
 function parseBlock<T>(schema: z.ZodType<T>, value: unknown, label: string): T {
   const result = schema.safeParse(value);
