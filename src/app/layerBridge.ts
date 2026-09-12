@@ -12,17 +12,12 @@ import {
 import { createStoreBridge, type RenderWorkerLink } from "./_storeBridge.ts";
 import { createLayerMessages } from "./layerMessages.ts";
 
-// The loading pill raised while a layer upsert warms its GPU pipeline off the render path (the warm is
-// async — compileAsync); the worker's layerCompiled ack drops it. A flat key (today's scene draws one volume
-// layer): a second upsert retitles the same pill, any layerCompiled drops it — like the streaming
-// bridge's flat "open"/"step" keys.
-
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
 // render can't import each other). Two channels: `field` carries field DATA (heavy, transfers the
-// buffer), `layers` carries STRUCTURE (removals + the cheap layer order of visibility/opacity).
-// The transfer detaches the store's buffer, so a layer added later gets its data by asking the store
-// to recompute (recomputeField) — this bridge, the one that transferred, owns that call; per-layer
-// compute will generalize it.
+// buffer), `layers` carries STRUCTURE (removals + the cheap layer order of visibility/opacity). The
+// transfer detaches the store's buffer, so a layer added later gets its data by asking the store to
+// recompute — this bridge, the one that transferred, owns that call. The render loading pill is
+// flat-keyed: a second upsert retitles it, and any layerCompiled ack drops it.
 
 // `detached` — set by the transfer — is the honest "already handed over" check.
 function isTransferred(field: FieldArray): boolean {

@@ -55,18 +55,26 @@ function jsdocBlocks(layer: LayerName): number {
   return count;
 }
 
-// The header is the first unbroken run of top-level `//` lines; a blank line ends it. Imports and
-// blank lines before it are skipped, so it reads the same whether it sits above or below them.
+// Every top-level `//` block before the first statement, not just the first — a blank line between
+// two blocks would otherwise hide half the header. A block sitting directly on top of a statement
+// (an import, a declaration) explains that statement rather than the file, so it does not count.
 function headerLength(source: string): number {
-  let length = 0;
+  let total = 0;
+  let run = 0;
   for (const line of source.split("\n")) {
+    const trimmed = line.trim();
     if (line.startsWith("//")) {
-      length += 1;
-    } else if (length > 0) {
-      break;
+      run += 1;
+      continue;
     }
+    const isStatement = trimmed !== "" && !/^[\s})]/.test(line) && !trimmed.startsWith("from ");
+    if (run > 0) {
+      if (!isStatement) total += run; // a blank line below it: this block is the file's
+      run = 0;
+    }
+    if (isStatement && !line.startsWith("import ")) break;
   }
-  return length;
+  return total;
 }
 
 function longestHeader(layer: LayerName): { file: string; length: number } {
