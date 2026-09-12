@@ -4,8 +4,7 @@ import { createZarrConfidence, createZarrReader, type StoreOpener } from "./zarr
 // webpic's built-in reader set. This is the ONE module that knows about concrete readers, kept
 // apart from _registry.ts on purpose: the registry mechanism stays import-free of zarrita, so a
 // consumer who imports only `openSimulation` tree-shakes the reader (and its ~heavy deps) away
-// unless they call registerBuiltinReaders here. As HDF5 (h5wasm) and Parquet (hyparquet) land in
-// they register alongside zarr in this list when they land.
+// unless they call registerBuiltinReaders here — one entry in the list below per format.
 
 export interface BuiltinReaderOptions {
   // Inject the storage backend (tests pass an in-memory store); defaults to FetchStore via zarr.ts.

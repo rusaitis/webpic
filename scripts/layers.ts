@@ -56,7 +56,6 @@ export const ALLOWED_IMPORTS: Record<LayerName, readonly LayerName[]> = {
     "gpu",
   ],
   store: ["schema", "containers", "reductions", "compute"],
-  // ui also imports the theme module; add it here once that layer/alias exists.
   ui: ["schema", "containers", "store", "remote"],
   app: LAYERS.filter((layer) => layer !== "app"), // composition root: imports everything
   workers: ["schema", "coordinates", "numerics", "compute", "data", "containers"],

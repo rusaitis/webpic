@@ -16,9 +16,6 @@ import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 // layer): a second upsert retitles the same pill, any layerCompiled drops it — like the streaming
 // bridge's flat "open"/"step" keys.
 
-// Where on the layer's colormap the solid line color is sampled — high enough to read as a bright,
-// saturated streamline over the volume.
-
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
 // render can't import each other). Two channels: `field` carries field DATA (heavy, transfers the
 // buffer), `layers` carries STRUCTURE (removals + the cheap composite of order/visibility/opacity).

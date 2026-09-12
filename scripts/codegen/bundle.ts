@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+// By path, not `@schema`: the codegen runs under bare node, which resolves no layer alias.
+import { SCHEMA_VERSION } from "../../src/schema/version.ts";
 
 export interface RecipeMetaJson {
   readonly func: string;
@@ -41,17 +43,15 @@ export interface Bundle {
   readonly fields: Record<string, FieldInfoJson>;
 }
 
-// The pypic schema version this codegen targets. A mismatch means pypic's shape moved
-// out from under the renderers — fail loudly rather than emit against a new contract.
-export const EXPECTED_SCHEMA_VERSION = "1.0";
-
 export function loadBundle(path: string): Bundle {
   // Shape is the contract emitted by `pypic export bundle`; validated downstream
   // by the renderers (and ultimately by tsc on their output).
   const bundle = JSON.parse(readFileSync(path, "utf8")) as Bundle;
-  if (bundle.schemaVersion !== EXPECTED_SCHEMA_VERSION) {
+  // A mismatch means pypic's shape moved out from under the renderers — fail rather than emit
+  // against a contract that no longer holds.
+  if (bundle.schemaVersion !== SCHEMA_VERSION) {
     throw new Error(
-      `Bundle schemaVersion ${bundle.schemaVersion} != expected ${EXPECTED_SCHEMA_VERSION}; ` +
+      `loadBundle: expected pypic schemaVersion ${SCHEMA_VERSION}, got ${bundle.schemaVersion}; ` +
         "regenerate webpic codegen for the new pypic schema.",
     );
   }
