@@ -71,8 +71,11 @@ const PLANES = [
 
 const THREE_AXES: readonly ThreeAxis[] = [0, 1, 2];
 
+// One major tick: its object-space coordinate and the physical value it labels.
+type AxisTick = { readonly obj: number; readonly value: number };
+
 type ThreeAxisData = {
-  readonly ticks: readonly { obj: number; value: number }[];
+  readonly ticks: readonly AxisTick[];
   readonly decimals: number;
   readonly label: string;
 };
@@ -198,30 +201,23 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       const p1: [number, number, number] = [0, 0, 0];
       let o = 0;
       const held = heldFor(plane.h);
-      // Lines parallel to axis b, one per tick on axis a (and vice versa). Each overhangs its
-      // labeled edge (the -half side) by the foot, pointing at its tick label.
-      for (const t of ticksA) {
-        p0[plane.a] = t.obj;
-        p0[plane.b] = -halfAt(plane.b) - GRID_LINE_FOOT;
-        p0[plane.h] = held;
-        p1[plane.a] = t.obj;
-        p1[plane.b] = halfAt(plane.b);
-        p1[plane.h] = held;
-        positions.set(p0, o);
-        positions.set(p1, o + 3);
-        o += 6;
-      }
-      for (const t of ticksB) {
-        p0[plane.b] = t.obj;
-        p0[plane.a] = -halfAt(plane.a) - GRID_LINE_FOOT;
-        p0[plane.h] = held;
-        p1[plane.b] = t.obj;
-        p1[plane.a] = halfAt(plane.a);
-        p1[plane.h] = held;
-        positions.set(p0, o);
-        positions.set(p1, o + 3);
-        o += 6;
-      }
+      // Lines parallel to `across`, one per tick on `along`. Each overhangs its labeled edge (the
+      // -half side) by the foot, pointing at its tick label. Run once per in-plane axis pair.
+      const emitGridLines = (ticks: readonly AxisTick[], along: number, across: number): void => {
+        for (const t of ticks) {
+          p0[along] = t.obj;
+          p0[across] = -halfAt(across) - GRID_LINE_FOOT;
+          p0[plane.h] = held;
+          p1[along] = t.obj;
+          p1[across] = halfAt(across);
+          p1[plane.h] = held;
+          positions.set(p0, o);
+          positions.set(p1, o + 3);
+          o += 6;
+        }
+      };
+      emitGridLines(ticksA, plane.a, plane.b);
+      emitGridLines(ticksB, plane.b, plane.a);
       const geometry = new BufferGeometry();
       geometry.setAttribute("position", new BufferAttribute(positions, 3));
       scene.add(new LineSegments(geometry, gridMaterial));
@@ -230,20 +226,21 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       // Tick-value labels along each in-plane edge, in the grid plane (billboarded). Each row fades
       // by its own tick axis — the direction the row of labels runs along.
       if (config.show.labels) {
-        for (const t of ticksA) {
-          const pos: [number, number, number] = [0, 0, 0];
-          pos[plane.a] = t.obj;
-          pos[plane.b] = -halfAt(plane.b) - LABEL_EDGE_OFFSET;
-          pos[plane.h] = held;
-          addLabel(formatTick(t.value, axisData[plane.a]?.decimals ?? 0), pos, plane.a, TICK_LABEL);
-        }
-        for (const t of ticksB) {
-          const pos: [number, number, number] = [0, 0, 0];
-          pos[plane.b] = t.obj;
-          pos[plane.a] = -halfAt(plane.a) - LABEL_EDGE_OFFSET;
-          pos[plane.h] = held;
-          addLabel(formatTick(t.value, axisData[plane.b]?.decimals ?? 0), pos, plane.b, TICK_LABEL);
-        }
+        const emitTickLabels = (
+          ticks: readonly AxisTick[],
+          along: number,
+          across: number,
+        ): void => {
+          for (const t of ticks) {
+            const pos: [number, number, number] = [0, 0, 0];
+            pos[along] = t.obj;
+            pos[across] = -halfAt(across) - LABEL_EDGE_OFFSET;
+            pos[plane.h] = held;
+            addLabel(formatTick(t.value, axisData[along]?.decimals ?? 0), pos, along, TICK_LABEL);
+          }
+        };
+        emitTickLabels(ticksA, plane.a, plane.b);
+        emitTickLabels(ticksB, plane.b, plane.a);
       }
     }
   }

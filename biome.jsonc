@@ -24,9 +24,9 @@
       "complexity": {
         "noExcessiveCognitiveComplexity": {
           "level": "error",
-          "options": { "maxAllowedComplexity": 52 }
+          "options": { "maxAllowedComplexity": 49 }
         },
-        "noExcessiveLinesPerFunction": { "level": "error", "options": { "maxLines": 310 } }
+        "noExcessiveLinesPerFunction": { "level": "error", "options": { "maxLines": 258 } }
       },
       "nursery": {
         "noFloatingPromises": "error",

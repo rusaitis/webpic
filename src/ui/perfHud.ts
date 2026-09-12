@@ -1,6 +1,15 @@
 import type { PerfSample, PerfStore, PerfWorker, UiStore } from "@store";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
+import {
+  CPU_COLOR,
+  createSparkline,
+  FRAME_30_MS,
+  FRAME_BUDGET_MS,
+  FRAME_COLOR,
+  SPARK_H,
+  SPARK_W,
+} from "./perfSparkline.ts";
 import { createShortcutRegistry } from "./shortcuts.ts";
 import { createSubscriptions, type Subscriptions } from "./subscriptions.ts";
 import { FALLBACK_BG, FALLBACK_BORDER, FALLBACK_FG } from "./theme/styles.ts";
@@ -12,22 +21,12 @@ import { FALLBACK_BG, FALLBACK_BORDER, FALLBACK_FG } from "./theme/styles.ts";
 // redraws on store changes (samples ≤5 Hz) + a slow idle timer — no per-frame rAF, so it never pins
 // the main thread and dispatches no intent the bridge forwards (on-demand stays on-demand).
 
-const SPARK_LEN = 64; // sparkline ring length (~13 s of samples at 5 Hz)
 const IDLE_MS = 400; // no new sample within this → the on-demand loop is idle, show "idle" not stale fps
 const IDLE_TICK_MS = 250; // idle-flip + detail refresh cadence while visible (replaces the per-frame rAF)
-const FRAME_BUDGET_MS = 1000 / 60; // 60 fps budget — sparkline reference line + frame-health threshold
-const FRAME_30_MS = 1000 / 30; // 30 fps — the amber/red frame-health threshold
-const SPARK_W = 196;
-const SPARK_H = 40;
-const CPU_COLOR = "#7ee08a"; // CPU-encode sparkline (green)
-const FRAME_COLOR = "#5ad1e6"; // frame wall-clock sparkline (cyan)
-const GPU_BAND = "rgba(245, 176, 80, 0.22)"; // ≈ GPU+queue band (frame − cpu), amber fill
 const GPU_KEY = "#f5b050"; // the band's legend swatch (opaque amber)
 const OK_COLOR = "#8fbf8f"; // frame within the 60 fps budget (desaturated green)
 const WARN_COLOR = "#f5b050"; // frame within 30 fps (reuses the amber warning hue)
 const BAD_COLOR = "#d98a78"; // frame over the 30 fps budget (soft terracotta)
-const WARN_BAND = "rgba(245, 176, 80, 0.13)"; // sparkline bg over 30–60 fps frames (faint amber)
-const BAD_BAND = "rgba(217, 138, 120, 0.2)"; // sparkline bg over sub-30 fps frames (faint terracotta)
 
 const HUD_CSS = `
 .webpic-perf {
@@ -120,12 +119,8 @@ export function installPerfHud(
   caret.addEventListener("click", () => perfStore.getState().toggleDetail());
   head.append(title, fpsEl, caret);
 
-  const canvas = makeEl(doc, "canvas", "webpic-perf_spark");
-  const dpr = view?.devicePixelRatio ?? 1;
-  canvas.width = Math.round(SPARK_W * dpr);
-  canvas.height = Math.round(SPARK_H * dpr);
-  const ctx2d = canvas.getContext("2d");
-  ctx2d?.scale(dpr, dpr); // draw in CSS px
+  // The frame sparkline owns its rings and its canvas; the HUD only feeds it new samples.
+  const sparkline = createSparkline(doc, view?.devicePixelRatio ?? 1);
 
   // Compact text rows (label + live value).
   const makeRow = (label: string): HTMLSpanElement => {
@@ -138,7 +133,7 @@ export function installPerfHud(
     return value;
   };
 
-  container.append(head, canvas);
+  container.append(head, sparkline.element);
 
   // Legend mapping the two sparkline series to their colors (the rows below show only numbers).
   const makeKey = (color: string, label: string, fill = false): HTMLSpanElement => {
@@ -168,10 +163,6 @@ export function installPerfHud(
   container.append(detail);
   parent.appendChild(container);
 
-  // Sparkline rings (CPU encode + frame wall-clock), pushed once per NEW sample, drawn every frame.
-  const cpuRing = new Float32Array(SPARK_LEN).fill(Number.NaN);
-  const frameRing = new Float32Array(SPARK_LEN).fill(Number.NaN);
-  let ringIndex = 0;
   let lastSeenSample: PerfSample | null = null;
   let lastSampleAtMs = 0;
 
@@ -180,101 +171,7 @@ export function installPerfHud(
     if (sample === null || sample === lastSeenSample) return;
     lastSeenSample = sample;
     lastSampleAtMs = view ? view.performance.now() : 0;
-    cpuRing[ringIndex] = sample.cpuEncodeMs;
-    frameRing[ringIndex] = sample.frameWallMs;
-    ringIndex = (ringIndex + 1) % SPARK_LEN;
-  };
-
-  const drawSeries = (ring: Float32Array, color: string, yMax: number): void => {
-    if (ctx2d === null) return;
-    ctx2d.beginPath();
-    let hasStarted = false;
-    for (let j = 0; j < SPARK_LEN; j++) {
-      const v = ring[(ringIndex + j) % SPARK_LEN];
-      if (v === undefined || !Number.isFinite(v)) {
-        hasStarted = false; // NaN gap — lift the pen
-        continue;
-      }
-      const x = (j / (SPARK_LEN - 1)) * SPARK_W;
-      const y = SPARK_H - (Math.min(v, yMax) / yMax) * SPARK_H;
-      if (hasStarted) ctx2d.lineTo(x, y);
-      else ctx2d.moveTo(x, y);
-      hasStarted = true;
-    }
-    ctx2d.strokeStyle = color;
-    ctx2d.lineWidth = 1;
-    ctx2d.stroke();
-  };
-
-  // The ≈ GPU+queue band: the area between the CPU floor and the frame wall-clock (frame − cpu). A
-  // derived estimate, not a timestamp — render-pass timestamp-query loses the Metal device, so a true
-  // GPU line isn't available (compute passes are timed separately by gpu/profiler). Per-segment fill skips NaN gaps.
-  const drawGpuBand = (yMax: number): void => {
-    if (ctx2d === null) return;
-    ctx2d.fillStyle = GPU_BAND;
-    const yOf = (v: number): number => SPARK_H - (Math.min(v, yMax) / yMax) * SPARK_H;
-    for (let j = 0; j < SPARK_LEN - 1; j++) {
-      const c0 = cpuRing[(ringIndex + j) % SPARK_LEN];
-      const w0 = frameRing[(ringIndex + j) % SPARK_LEN];
-      const c1 = cpuRing[(ringIndex + j + 1) % SPARK_LEN];
-      const w1 = frameRing[(ringIndex + j + 1) % SPARK_LEN];
-      if (c0 === undefined || w0 === undefined || c1 === undefined || w1 === undefined) continue;
-      if (!Number.isFinite(c0) || !Number.isFinite(w0)) continue;
-      if (!Number.isFinite(c1) || !Number.isFinite(w1)) continue;
-      const x0 = (j / (SPARK_LEN - 1)) * SPARK_W;
-      const x1 = ((j + 1) / (SPARK_LEN - 1)) * SPARK_W;
-      ctx2d.beginPath();
-      ctx2d.moveTo(x0, yOf(w0));
-      ctx2d.lineTo(x1, yOf(w1));
-      ctx2d.lineTo(x1, yOf(c1));
-      ctx2d.lineTo(x0, yOf(c0));
-      ctx2d.closePath();
-      ctx2d.fill();
-    }
-  };
-
-  const drawSparkline = (): void => {
-    if (ctx2d === null) return;
-    ctx2d.clearRect(0, 0, SPARK_W, SPARK_H);
-    // Y-scale to the observed peak (min 20 ms) so spikes stay visible and the budget line sits low.
-    let peak = 20;
-    let framePeak = 0; // worst frame in the window (wall-clock), for the corner label
-    for (let i = 0; i < SPARK_LEN; i++) {
-      const a = cpuRing[i];
-      const b = frameRing[i];
-      if (a !== undefined && Number.isFinite(a) && a > peak) peak = a;
-      if (b !== undefined && Number.isFinite(b)) {
-        if (b > peak) peak = b;
-        if (b > framePeak) framePeak = b;
-      }
-    }
-    // Background highlight over time-regions that missed the 60 fps budget — amber for 30–60 fps,
-    // red below 30 — so over-budget stretches read at a glance, not just the latest value.
-    const segW = SPARK_W / (SPARK_LEN - 1);
-    for (let j = 0; j < SPARK_LEN; j++) {
-      const v = frameRing[(ringIndex + j) % SPARK_LEN];
-      if (v === undefined || !Number.isFinite(v) || v <= FRAME_BUDGET_MS) continue;
-      ctx2d.fillStyle = v <= FRAME_30_MS ? WARN_BAND : BAD_BAND;
-      ctx2d.fillRect((j / (SPARK_LEN - 1)) * SPARK_W - segW / 2, 0, segW, SPARK_H);
-    }
-    // 60 fps budget reference.
-    const budgetY = SPARK_H - (FRAME_BUDGET_MS / peak) * SPARK_H;
-    ctx2d.strokeStyle = "rgba(255,255,255,0.14)";
-    ctx2d.lineWidth = 1;
-    ctx2d.beginPath();
-    ctx2d.moveTo(0, budgetY);
-    ctx2d.lineTo(SPARK_W, budgetY);
-    ctx2d.stroke();
-    drawGpuBand(peak); // ≈ GPU+queue fill, under the lines
-    drawSeries(frameRing, FRAME_COLOR, peak); // frame wall-clock (cyan)
-    drawSeries(cpuRing, CPU_COLOR, peak); // CPU encode (green)
-    if (framePeak > 0) {
-      ctx2d.fillStyle = "rgba(255,255,255,0.4)"; // matches the _clk note opacity; doubles as the y-max
-      ctx2d.font = "9px ui-monospace, monospace";
-      ctx2d.textAlign = "right";
-      ctx2d.textBaseline = "top";
-      ctx2d.fillText(`${Math.round(framePeak)}ms`, SPARK_W - 1, 1);
-    }
+    sparkline.push(sample.cpuEncodeMs, sample.frameWallMs);
   };
 
   const renderDetail = (): void => {
@@ -328,7 +225,7 @@ export function installPerfHud(
     governorValue.style.color = sample === null ? "" : governorColor(sample.governorScale);
     vramValue.textContent = sample === null ? "—" : formatBytes(sample.vramBytes);
     heapValue.textContent = formatBytes(state.mainHeapBytes);
-    drawSparkline();
+    sparkline.draw();
   };
 
   // Event-driven, not a 60 Hz rAF: while visible, redraw on each new sample + main-heap change, plus a
