@@ -1,3 +1,4 @@
+import type { LogSink } from "@schema/log.ts";
 import { expect } from "vitest";
 import { DEFAULT_TOLERANCE, type Tolerance } from "./tolerances.ts";
 
@@ -45,5 +46,21 @@ export function seededRandom(seed: number): () => number {
   return () => {
     state = (state * 16807) % 2147483647;
     return state / 2147483647;
+  };
+}
+
+export interface CapturedLog {
+  readonly level: "warn" | "error";
+  readonly scope: string;
+  readonly message: string;
+  readonly detail: unknown;
+}
+
+// A @schema/log sink that records instead of writing, so a test can assert a diagnostic actually
+// reached the log seam. Install with `setLogSink(recordingSink(captured))` and clear it in afterEach.
+export function recordingSink(into: CapturedLog[]): LogSink {
+  return {
+    warn: (scope, message, detail) => into.push({ level: "warn", scope, message, detail }),
+    error: (scope, message, detail) => into.push({ level: "error", scope, message, detail }),
   };
 }

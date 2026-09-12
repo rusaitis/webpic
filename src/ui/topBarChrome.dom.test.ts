@@ -7,7 +7,7 @@ import {
   makeTopBarIconButton,
 } from "./topBarChrome.ts";
 
-describe("top-bar chrome", () => {
+describe("installReveal", () => {
   beforeEach(() => {
     document.body.replaceChildren();
   });

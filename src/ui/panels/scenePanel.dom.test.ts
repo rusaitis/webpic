@@ -27,7 +27,7 @@ function mount() {
   return { host, store, dispose };
 }
 
-describe("scene panel", () => {
+describe("installScenePanel", () => {
   it("toggling the Grid checkbox dispatches setOverlayShowGrid", () => {
     const { host, store, dispose } = mount();
     expect(store.getState().overlay.showGrid).toBe(true);

@@ -2,36 +2,13 @@ import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from
 import type { RenderWorkerRequest } from "@render";
 import { createSimulationStore, createUiStore } from "@store";
 import { describe, expect, it, vi } from "vitest";
-import { vectorTriple } from "../../tests/fixtures.ts";
+import { makeFakeWorker, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import { installStreamingBridge } from "./streamingBridge.ts";
 
-interface DataPost {
-  readonly message: DataStreamRequest;
-  readonly transfer: Transferable[] | undefined;
-}
-interface RenderPost {
-  readonly message: RenderWorkerRequest;
-  readonly transfer: Transferable[] | undefined;
-}
-
 async function harness() {
-  const dataPosts: DataPost[] = [];
-  let terminated = 0;
-  const dataWorker = {
-    onmessage: null as ((event: MessageEvent<DataStreamResponse>) => void) | null,
-    postMessage: (message: DataStreamRequest, transfer?: Transferable[]) =>
-      dataPosts.push({ message, transfer }),
-    terminate: () => {
-      terminated += 1;
-    },
-  } as unknown as Worker;
-
-  const renderPosts: RenderPost[] = [];
-  const renderWorker = {
-    postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) =>
-      renderPosts.push({ message, transfer }),
-  } as unknown as Worker;
+  const { worker: dataWorker, posts: dataPosts, terminated } = makeFakeWorker<DataStreamRequest>();
+  const { worker: renderWorker, posts: renderPosts } = makeFakeWorker<RenderWorkerRequest>();
 
   const store = createSimulationStore();
   const uiStore = createUiStore();
@@ -53,7 +30,7 @@ async function harness() {
     dataPosts,
     renderPosts,
     emit,
-    terminated: () => terminated,
+    terminated,
   };
 }
 

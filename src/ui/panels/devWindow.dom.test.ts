@@ -32,7 +32,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("developer window", () => {
+describe("installDevWindow", () => {
   it("mounts a titled floating window hosting the frame-timing + Phong controls", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());

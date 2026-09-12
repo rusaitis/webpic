@@ -85,14 +85,17 @@ describe("installViewportTracking", () => {
     expect(obs.disconnected()).toBe(1);
   });
 
-  it("installs nothing for a canvas without addEventListener (headless)", () => {
-    const worker = { postMessage: () => {} } as unknown as Worker;
+  it("posts nothing and disposes cleanly for a canvas without addEventListener (headless)", () => {
+    const posts: RenderWorkerRequest[] = [];
+    const worker = { postMessage: (m: RenderWorkerRequest) => posts.push(m) } as unknown as Worker;
     const tracking = installViewportTracking({
       canvas: {} as unknown as HTMLCanvasElement,
       worker,
       isReady: () => true,
       logicalSize: () => ({ width: 10, height: 10 }),
     });
-    expect(() => tracking()).not.toThrow();
+    tracking();
+    tracking(); // idempotent: nothing was installed, so nothing double-removes
+    expect(posts).toHaveLength(0);
   });
 });

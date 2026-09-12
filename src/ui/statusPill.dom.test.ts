@@ -141,6 +141,6 @@ describe("installStatusPill", () => {
     uiStore.getState().beginLoading("step", "loading step 1");
     dispose();
     expect(parent.querySelector(".webpic-status")).toBeNull();
-    expect(() => vi.advanceTimersByTime(10_000)).not.toThrow();
+    expect(vi.getTimerCount()).toBe(0); // a surviving timer would fire into a detached node
   });
 });

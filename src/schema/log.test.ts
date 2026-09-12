@@ -1,19 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type LogSink, logError, logWarn, rejectionLogger, setLogSink } from "./log.ts";
-
-interface Captured {
-  readonly level: "warn" | "error";
-  readonly scope: string;
-  readonly message: string;
-  readonly detail: unknown;
-}
-
-function recordingSink(into: Captured[]): LogSink {
-  return {
-    warn: (scope, message, detail) => into.push({ level: "warn", scope, message, detail }),
-    error: (scope, message, detail) => into.push({ level: "error", scope, message, detail }),
-  };
-}
+import { type CapturedLog, recordingSink } from "../../tests/helpers.ts";
+import { logError, logWarn, rejectionLogger, setLogSink } from "./log.ts";
 
 afterEach(() => {
   setLogSink(null);
@@ -22,7 +9,7 @@ afterEach(() => {
 
 describe("setLogSink", () => {
   it("routes warnings and errors to the installed sink", () => {
-    const captured: Captured[] = [];
+    const captured: CapturedLog[] = [];
     setLogSink(recordingSink(captured));
 
     logWarn("zarr", "skipping unknown key", { key: "nope" });
@@ -35,7 +22,7 @@ describe("setLogSink", () => {
   });
 
   it("restores the console sink on null", () => {
-    const captured: Captured[] = [];
+    const captured: CapturedLog[] = [];
     setLogSink(recordingSink(captured));
     setLogSink(null);
     const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -58,7 +45,7 @@ describe("setLogSink", () => {
 
 describe("rejectionLogger", () => {
   it("reports the rejection value as the error detail", () => {
-    const captured: Captured[] = [];
+    const captured: CapturedLog[] = [];
     setLogSink(recordingSink(captured));
     const cause = new Error("nope");
 

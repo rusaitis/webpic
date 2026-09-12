@@ -60,7 +60,7 @@ describe("divergence", () => {
       shape,
       [0.1, 0.1, 0.1],
     );
-    assertAllclose(result, zeros(result.length), { atol: 1e-14, rtol: 0 });
+    assertAllclose(result, zeros(result.length), TOL.divergence.ts_f64);
   });
 
   it("is exact for the linear field F=(x,y,z) → div=3 (incl. edges)", () => {
@@ -109,9 +109,7 @@ describe("curl", () => {
       [0.1, 0.1, 0.1],
     );
     const z = zeros(c1.length);
-    assertAllclose(c1, z, { atol: 1e-14, rtol: 0 });
-    assertAllclose(c2, z, { atol: 1e-14, rtol: 0 });
-    assertAllclose(c3, z, { atol: 1e-14, rtol: 0 });
+    for (const component of [c1, c2, c3]) assertAllclose(component, z, TOL.curl.ts_f64);
   });
 
   it("is exact for rigid rotation F=(-y,x,0) → curl=(0,0,2)", () => {
@@ -124,8 +122,8 @@ describe("curl", () => {
       shape,
       spacing,
     );
-    assertAllclose(c1, zeros(c1.length), { atol: 1e-12, rtol: 0 });
-    assertAllclose(c2, zeros(c2.length), { atol: 1e-12, rtol: 0 });
+    assertAllclose(c1, zeros(c1.length), TOL.curl.ts_f64);
+    assertAllclose(c2, zeros(c2.length), TOL.curl.ts_f64);
     assertAllclose(c3, constant(shape, 2), TOL.curl.ts_f64);
   });
 });
@@ -156,7 +154,7 @@ describe("gradient", () => {
     const expect2 = sample(shape, spacing, (_x, y) => 2 * y);
     assertAllclose(interior(g1, shape), interior(expect1, shape), TOL.gradient.ts_f64);
     assertAllclose(interior(g2, shape), interior(expect2, shape), TOL.gradient.ts_f64);
-    assertAllclose(g3, zeros(g3.length), { atol: 1e-14, rtol: 0 });
+    assertAllclose(g3, zeros(g3.length), TOL.gradient.ts_f64);
   });
 });
 

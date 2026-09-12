@@ -21,7 +21,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("floating colorbar", () => {
+describe("installColorbar", () => {
   it("mounts a bottom-docked horizontal strip and captions the active field", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bTriple());

@@ -1,5 +1,7 @@
 import type { RenderWorkerResponse } from "@render/messages.ts";
+import { setLogSink } from "@schema/log.ts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { type CapturedLog, recordingSink } from "../../tests/helpers.ts";
 import { routeWorkerResponse, type WorkerRouterHost } from "./workerRouter.ts";
 
 function makeHost(overrides: Partial<WorkerRouterHost> = {}) {
@@ -76,6 +78,12 @@ describe("routeWorkerResponse", () => {
 
   it("logs an unknown kind instead of throwing at the never-arm", () => {
     const { host } = makeHost();
-    expect(() => route({ kind: "nonsense", requestId: 0 }, host)).not.toThrow();
+    const captured: CapturedLog[] = [];
+    setLogSink(recordingSink(captured));
+    route({ kind: "nonsense", requestId: 0 }, host);
+    setLogSink(null);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.level).toBe("error");
+    expect(JSON.stringify(captured[0]?.detail ?? captured[0]?.message)).toContain("nonsense");
   });
 });

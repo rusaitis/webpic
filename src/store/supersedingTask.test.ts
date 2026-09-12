@@ -41,7 +41,7 @@ describe("createSupersedingTask", () => {
     expect(committed).toEqual(["second"]);
   });
 
-  it("keeps isCurrent true for the newest run through its whole body", async () => {
+  it("keeps isCurrent true for a run nothing superseded", async () => {
     const seen: boolean[] = [];
     const task = createSupersedingTask(async (run: TaskRun) => {
       await flushAsync();
@@ -49,17 +49,8 @@ describe("createSupersedingTask", () => {
     });
 
     await task();
-    await task();
+    await task(); // sequential: each finishes before the next starts, so neither is superseded
 
     expect(seen).toEqual([true, true]);
-  });
-
-  it("forwards the call's arguments to the body", async () => {
-    const args: Array<readonly [number, string]> = [];
-    const task = createSupersedingTask(async (_run: TaskRun, step: number, field: string) => {
-      args.push([step, field]);
-    });
-    await task(3, "|B|");
-    expect(args).toEqual([[3, "|B|"]]);
   });
 });

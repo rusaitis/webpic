@@ -5,6 +5,7 @@
 
 import { describe, it } from "vitest";
 import { assertAllclose, seededRandom } from "../../tests/helpers.ts";
+import { conservationTolerance } from "../../tests/tolerances.ts";
 import { curl, divergence, gradient } from "./operators.ts";
 
 type Shape3 = readonly [number, number, number];
@@ -47,7 +48,7 @@ describe("div(curl F) = 0", () => {
     const a3 = sample(shape, spacing, (x) => Math.sin(x));
     const [c1, c2, c3] = curl(a1, a2, a3, shape, spacing);
     const result = divergence(c1, c2, c3, shape, spacing);
-    assertAllclose(result, new Float64Array(result.length), { atol: 1e-10, rtol: 0 });
+    assertAllclose(result, new Float64Array(result.length), conservationTolerance(spacing));
   });
 
   it("holds for an arbitrary (non-smooth) field to machine precision", () => {
@@ -63,9 +64,7 @@ describe("div(curl F) = 0", () => {
       spacing,
     );
     const result = divergence(c1, c2, c3, shape, spacing);
-    // Roundoff scales with the worst inverse-spacing-squared in the second derivative (pypic's bound).
-    const invDSqMax = 1 / Math.min(...spacing) ** 2;
-    assertAllclose(result, new Float64Array(len), { atol: 2e-13 * invDSqMax, rtol: 0 });
+    assertAllclose(result, new Float64Array(len), conservationTolerance(spacing));
   });
 });
 
@@ -77,8 +76,7 @@ describe("curl(grad f) = 0", () => {
     const [g1, g2, g3] = gradient(f, shape, spacing);
     const [c1, c2, c3] = curl(g1, g2, g3, shape, spacing);
     const z = new Float64Array(c1.length);
-    assertAllclose(c1, z, { atol: 1e-10, rtol: 0 });
-    assertAllclose(c2, z, { atol: 1e-10, rtol: 0 });
-    assertAllclose(c3, z, { atol: 1e-10, rtol: 0 });
+    for (const component of [c1, c2, c3])
+      assertAllclose(component, z, conservationTolerance(spacing));
   });
 });

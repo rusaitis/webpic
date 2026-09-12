@@ -86,7 +86,7 @@ describe("fieldMetaRows", () => {
   });
 });
 
-describe("timestep index ↔ value math", () => {
+describe("stepIndex — timestep index ↔ value", () => {
   const steps = [0, 5, 10, 25]; // sparse / non-contiguous
 
   it("stepIndex maps a step value to its slider index, clamping unknowns to 0", () => {

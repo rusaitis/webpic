@@ -15,7 +15,7 @@ import {
   type Viewport,
 } from "./snapGeometry.ts";
 
-export type { Box, PaneEdge, SnapPlacement, Viewport };
+export type { Box, PaneEdge, Viewport };
 
 // Pointer-driven drag for a single floating element (the colorbar, the Developer window). Movement
 // rides CSS custom properties --drag-x / --drag-y consumed by a `transform: translate(...)` in the

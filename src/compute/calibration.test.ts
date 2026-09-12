@@ -300,17 +300,18 @@ describe("installCalibration", () => {
     expect(installed.scores().throughput).toEqual(seedHeuristics(adapter).throughput);
     expect(puts).toHaveLength(0);
   });
-
-  it("a full Cache-shaped object is assignable to the narrow port", () => {
-    const full = {
-      get: (_key: CalibrationCacheKey): Promise<Uint8Array | undefined> =>
-        Promise.resolve(undefined),
-      put: (_key: CalibrationCacheKey, _bytes: Uint8Array): Promise<void> => Promise.resolve(),
-      has: (_key: CalibrationCacheKey): boolean => false,
-      delete: (_key: CalibrationCacheKey): Promise<void> => Promise.resolve(),
-      dispose: (): void => {},
-    };
-    const port: CalibrationCache = full; // compiles ⇒ real @data Cache is assignable
-    expect(typeof port.get).toBe("function");
-  });
 });
+
+// @data's full Cache carries members the narrow port does not name, and must still be assignable
+// to it or the wiring in app/ stops compiling. Widened through a variable first, because a direct
+// literal would trip the excess-property check and prove the wrong thing. tsc is the assertion —
+// a runtime `expect` on this adds nothing.
+const fullCacheShape = {
+  get: (_key: CalibrationCacheKey): Promise<Uint8Array | undefined> => Promise.resolve(undefined),
+  put: (_key: CalibrationCacheKey, _bytes: Uint8Array): Promise<void> => Promise.resolve(),
+  has: (_key: CalibrationCacheKey): boolean => false,
+  delete: (_key: CalibrationCacheKey): Promise<void> => Promise.resolve(),
+  dispose: (): void => {},
+};
+const _narrowPortAcceptsIt: CalibrationCache = fullCacheShape;
+void _narrowPortAcceptsIt;

@@ -27,7 +27,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("developer panel (shading)", () => {
+describe("installDevPanel — shading", () => {
   it("shading checkbox is disabled until a volume layer exists", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);

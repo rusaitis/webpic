@@ -1,15 +1,38 @@
 import { cameraPosition, createSimulationStore, DEFAULT_POSE, dollyPose } from "@store";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installPointerCamera } from "./pointerCamera.ts";
 
 // happy-dom: pointer/wheel events drive the orbit-pose intents. We assert the dispatched pose,
 // not pixels — the render worker is out of scope here. Drags are damped: deltas accumulate as
 // momentum a rAF glide loop releases, so drag tests pump a frame before asserting direction.
+//
+// The glide steps on the rAF timestamp and reads performance.now() for the wheel trail, so both run
+// on a synthetic clock here: `frame()` advances it and drains the queue itself. A ~450 ms tween then
+// costs 27 iterations rather than 450 ms of wall time, and no assertion can race a real timer.
+
+const FRAME_MS = 1000 / 60;
+
+let nowMs = 0;
+let pendingFrames: FrameRequestCallback[] = [];
+
+beforeEach(() => {
+  nowMs = 0;
+  pendingFrames = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    pendingFrames.push(callback);
+    return pendingFrames.length;
+  });
+  vi.stubGlobal("cancelAnimationFrame", () => {
+    pendingFrames = []; // the glide only ever has one frame in flight
+  });
+  vi.stubGlobal("performance", { ...globalThis.performance, now: () => nowMs });
+});
 
 const disposers: Array<() => void> = [];
 afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose();
   document.body.replaceChildren();
+  vi.unstubAllGlobals();
 });
 
 function setup() {
@@ -25,18 +48,19 @@ function pointer(type: string, x: number, y: number, init: PointerEventInit = {}
   return new PointerEvent(type, { pointerId: 1, button: 0, clientX: x, clientY: y, ...init });
 }
 
-// One glide frame: the loop's rAF is scheduled before this one, so it has run when this resolves.
-function frame(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+// One glide frame on the synthetic clock: advance time, then run whatever the loop had queued.
+function frame(): void {
+  nowMs += FRAME_MS;
+  const due = pendingFrames;
+  pendingFrames = [];
+  for (const callback of due) callback(nowMs);
 }
 
-// Pump glide frames until the predicate holds (tweens run on real elapsed time, ~450 ms).
-async function pumpUntil(predicate: () => boolean, maxMs = 3000): Promise<void> {
-  const deadline = Date.now() + maxMs;
-  while (!predicate()) {
-    if (Date.now() > deadline) throw new Error("pumpUntil timed out");
-    await frame();
-  }
+// Pump glide frames until the predicate holds. The cap is generous (10 s of frames) but bounded, so
+// a loop that never settles fails the test instead of hanging it.
+function pumpUntil(predicate: () => boolean, maxFrames = 600): void {
+  for (let i = 0; i < maxFrames && !predicate(); i++) frame();
+  if (!predicate()) throw new Error("pumpUntil: the glide never reached the expected state");
 }
 
 describe("installPointerCamera", () => {
@@ -46,14 +70,14 @@ describe("installPointerCamera", () => {
 
     target.dispatchEvent(pointer("pointerdown", 100, 100));
     target.dispatchEvent(pointer("pointermove", 160, 100)); // drag right
-    await frame();
+    frame();
     const afterX = store.getState().cameraPose;
     expect(afterX.azimuth).toBeLessThan(start.azimuth);
     expect(afterX.elevation).toBeCloseTo(start.elevation, 12);
     expect(afterX.target).toBe(start.target); // orbit never moves the target
 
     target.dispatchEvent(pointer("pointermove", 160, 140)); // then drag down
-    await frame();
+    frame();
     expect(store.getState().cameraPose.elevation).toBeGreaterThan(afterX.elevation); // down ⇒ rises
   });
 
@@ -62,10 +86,10 @@ describe("installPointerCamera", () => {
     target.dispatchEvent(pointer("pointerdown", 100, 100));
     target.dispatchEvent(pointer("pointermove", 220, 100));
     target.dispatchEvent(pointer("pointerup", 220, 100));
-    await frame();
+    frame();
     const early = store.getState().cameraPose;
-    await frame();
-    await frame();
+    frame();
+    frame();
     // Momentum persists past pointerup: the pose keeps moving the same way.
     expect(store.getState().cameraPose.azimuth).toBeLessThan(early.azimuth);
   });
@@ -79,8 +103,8 @@ describe("installPointerCamera", () => {
       .setCameraPose({ target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 0.3, roll: 0 });
     expect(store.getState().isFlyMode).toBe(false);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "d", code: "KeyD" }));
-    await frame();
-    await frame();
+    frame();
+    frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "d", code: "KeyD" }));
     expect(store.getState().cameraPose.azimuth).toBeGreaterThan(0); // orbit handedness: D climbs azimuth
   });
@@ -94,8 +118,8 @@ describe("installPointerCamera", () => {
     expect(store.getState().isFlyMode).toBe(true);
     const eyeBefore = cameraPosition(store.getState().cameraPose);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "d", code: "KeyD" }));
-    await frame();
-    await frame();
+    frame();
+    frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "d", code: "KeyD" }));
     const pose = store.getState().cameraPose;
     expect(pose.azimuth).toBeLessThan(0); // look handedness: D now decreases azimuth (turns right)
@@ -112,7 +136,7 @@ describe("installPointerCamera", () => {
     store.getState().setFlyMode(true);
     const start = store.getState().cameraPose.distance;
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW" }));
-    await frame();
+    frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "w", code: "KeyW" }));
     expect(store.getState().cameraPose.distance).toBeLessThan(start);
   });
@@ -123,7 +147,7 @@ describe("installPointerCamera", () => {
 
     target.dispatchEvent(pointer("pointerdown", 50, 50, { shiftKey: true }));
     target.dispatchEvent(pointer("pointermove", 90, 80, { shiftKey: true }));
-    await frame();
+    frame();
 
     const pose = store.getState().cameraPose;
     expect(pose.azimuth).toBe(start.azimuth);
@@ -218,7 +242,7 @@ describe("installPointerCamera", () => {
     const { target, store } = setup();
     const start = store.getState().cameraPose;
     target.dispatchEvent(pointer("pointermove", 200, 200));
-    await frame();
+    frame();
     expect(store.getState().cameraPose).toBe(start);
   });
 
@@ -226,13 +250,13 @@ describe("installPointerCamera", () => {
     const { target, store, dispose } = setup();
     target.dispatchEvent(pointer("pointerdown", 0, 0));
     target.dispatchEvent(pointer("pointermove", 100, 100));
-    await frame();
+    frame();
     dispose();
     const atDispose = store.getState().cameraPose;
     target.dispatchEvent(pointer("pointermove", 300, 300));
     target.dispatchEvent(new WheelEvent("wheel", { deltaY: 100 }));
-    await frame();
-    await frame();
+    frame();
+    frame();
     expect(store.getState().cameraPose).toBe(atDispose); // glide cancelled, listeners gone
   });
 
@@ -241,7 +265,7 @@ describe("installPointerCamera", () => {
     const start = store.getState().cameraPose;
     target.dispatchEvent(pointer("pointerdown", 50, 50, { button: 2 }));
     target.dispatchEvent(pointer("pointermove", 90, 80));
-    await frame();
+    frame();
     const pose = store.getState().cameraPose;
     expect(pose.azimuth).toBe(start.azimuth);
     expect(pose.target).not.toEqual(start.target);
@@ -260,7 +284,7 @@ describe("installPointerCamera", () => {
     const pinched = store.getState().cameraPose;
     expect(pinched.distance).toBeLessThan(start.distance); // dolly is immediate (wheel parity)
     expect(pinched.azimuth).toBe(start.azimuth); // a pinch never orbits
-    await frame();
+    frame();
     expect(store.getState().cameraPose.target).not.toEqual(start.target); // damped centroid pan
   });
 
@@ -306,7 +330,7 @@ describe("installPointerCamera", () => {
     target.dispatchEvent(pointer("pointerup", 200, 100, { pointerId: 2 }));
     const before = store.getState().cameraPose;
     target.dispatchEvent(pointer("pointermove", 160, 100, { pointerId: 1 })); // drag right
-    await frame();
+    frame();
     expect(store.getState().cameraPose.azimuth).toBeLessThan(before.azimuth); // orbit, no jump
   });
 
@@ -315,12 +339,12 @@ describe("installPointerCamera", () => {
     target.dispatchEvent(pointer("pointerdown", 100, 100));
     target.dispatchEvent(pointer("pointermove", 260, 170));
     target.dispatchEvent(pointer("pointerup", 260, 170));
-    await pumpUntil(() => store.getState().cameraMotion === "idle"); // glide out
+    pumpUntil(() => store.getState().cameraMotion === "idle"); // glide out
     expect(store.getState().cameraPose).not.toBe(DEFAULT_POSE);
     // happy-dom's zero rect = no cursor to pick with — the gesture degrades to the old reset.
     target.dispatchEvent(new MouseEvent("dblclick"));
     // The tween's final frame applies the exact target object.
-    await pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
+    pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
   });
 
   it("double-click on the box flies immediately and dispatches a pick intent with the goal distance", async () => {
@@ -338,7 +362,7 @@ describe("installPointerCamera", () => {
       focusDistance: start.distance * 0.7, // committed once, before the flight moves the pose
     });
     // The flight toward the chord midpoint starts without waiting for any pick result.
-    await pumpUntil(() => store.getState().cameraPose.distance < start.distance * 0.9);
+    pumpUntil(() => store.getState().cameraPose.distance < start.distance * 0.9);
   });
 
   it("double-click off the box resets instead of picking", async () => {
@@ -349,7 +373,7 @@ describe("installPointerCamera", () => {
     // Top-left frame corner: NDC (−1, +1) clears the unit box from the default-distance view.
     target.dispatchEvent(new MouseEvent("dblclick", { clientX: 0, clientY: 0 }));
     expect(store.getState().pickRequest).toBeNull();
-    await pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
+    pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
   });
 
   it("ignores a modified double-click", async () => {
@@ -359,7 +383,7 @@ describe("installPointerCamera", () => {
     const moved = { ...DEFAULT_POSE, azimuth: 2 };
     store.getState().setCameraPose(moved);
     target.dispatchEvent(new MouseEvent("dblclick", { clientX: 100, clientY: 50, shiftKey: true }));
-    await frame();
+    frame();
     expect(store.getState().pickRequest).toBeNull();
     expect(store.getState().cameraPose).toBe(moved);
   });
@@ -385,7 +409,7 @@ describe("installPointerCamera", () => {
       purpose: "focus",
       focusDistance: start.distance * 0.7, // same goal-distance commit as dblclick
     });
-    await pumpUntil(() => store.getState().cameraPose.distance < start.distance * 0.9);
+    pumpUntil(() => store.getState().cameraPose.distance < start.distance * 0.9);
   });
 
   it("a touch drag past the slop is not a tap (no focus)", () => {
@@ -437,7 +461,7 @@ describe("installPointerCamera", () => {
       pointer("pointerdown", 100, 100, { pointerId: 3, pointerType: "touch", isPrimary: true }),
     );
     target.dispatchEvent(pointer("pointermove", 160, 100, { pointerId: 3, pointerType: "touch" }));
-    await frame();
+    frame();
     expect(store.getState().cameraPose.azimuth).toBeLessThan(start.azimuth); // drag right orbits again
   });
 
@@ -445,7 +469,7 @@ describe("installPointerCamera", () => {
     const { store } = setup();
     store.getState().setCameraPose({ ...DEFAULT_POSE, azimuth: 2, distance: 5 });
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "r" }));
-    await pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
+    pumpUntil(() => store.getState().cameraPose === DEFAULT_POSE);
   });
 
   it("ignores R with shift held or while typing in a contenteditable host", async () => {
@@ -457,8 +481,8 @@ describe("installPointerCamera", () => {
     editor.contentEditable = "true";
     document.body.appendChild(editor);
     editor.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true }));
-    await frame();
-    await frame();
+    frame();
+    frame();
     expect(store.getState().cameraPose).toBe(moved); // neither fired a fly-to
   });
 
@@ -466,11 +490,11 @@ describe("installPointerCamera", () => {
     const { target, store } = setup();
     store.getState().setCameraPose({ ...DEFAULT_POSE, azimuth: 2.5 });
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "r" }));
-    await frame(); // tween underway
+    frame(); // tween underway
     target.dispatchEvent(pointer("pointerdown", 100, 100));
     target.dispatchEvent(pointer("pointermove", 100, 160)); // vertical drag — elevation only
     target.dispatchEvent(pointer("pointerup", 100, 160));
-    await pumpUntil(() => store.getState().cameraMotion === "idle"); // flight + glide both land
+    pumpUntil(() => store.getState().cameraMotion === "idle"); // flight + glide both land
     const pose = store.getState().cameraPose;
     expect(pose.azimuth).toBeCloseTo(DEFAULT_POSE.azimuth, 6); // the flight still landed
     expect(pose.elevation).toBeGreaterThan(DEFAULT_POSE.elevation + 0.3); // the drag survived
@@ -481,9 +505,9 @@ describe("installPointerCamera", () => {
     const { target, store } = setup();
     const to = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 } as const;
     store.getState().requestCameraFly({ kind: "pose", pose: to });
-    await frame(); // flight underway
+    frame(); // flight underway
     target.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, cancelable: true }));
-    await pumpUntil(() => store.getState().cameraMotion === "idle");
+    pumpUntil(() => store.getState().cameraMotion === "idle");
     const pose = store.getState().cameraPose;
     // The wheel's geometric factor rides on the flight's goal distance — neither motion is lost.
     expect(pose.distance).toBeCloseTo(dollyPose(to, 120).distance, 9);
@@ -496,7 +520,7 @@ describe("installPointerCamera", () => {
     const to = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 } as const;
     store.getState().requestCameraFly({ kind: "pose", pose: to });
     expect(store.getState().cameraFlyRequest).toBeNull(); // consumed synchronously
-    await pumpUntil(() => store.getState().cameraPose === to);
+    pumpUntil(() => store.getState().cameraPose === to);
   });
 
   it("resolves a fit fly request against the canvas aspect and tweens there", async () => {
@@ -506,8 +530,8 @@ describe("installPointerCamera", () => {
     const start = store.getState().cameraPose;
     store.getState().requestCameraFly({ kind: "fit" });
     expect(store.getState().cameraFlyRequest).toBeNull(); // consumed synchronously
-    await pumpUntil(() => store.getState().cameraPose.distance !== start.distance);
-    await pumpUntil(() => store.getState().cameraMotion === "idle"); // tween lands
+    pumpUntil(() => store.getState().cameraPose.distance !== start.distance);
+    pumpUntil(() => store.getState().cameraMotion === "idle"); // tween lands
     const pose = store.getState().cameraPose;
     expect(pose.azimuth).toBe(start.azimuth); // fit keeps the viewing direction
     expect(pose.elevation).toBe(start.elevation);
@@ -518,7 +542,7 @@ describe("installPointerCamera", () => {
     const { store } = setup();
     store.getState().setCameraPose({ ...DEFAULT_POSE, distance: 40 });
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "z" }));
-    await pumpUntil(() => store.getState().cameraPose.distance < 5);
+    pumpUntil(() => store.getState().cameraPose.distance < 5);
   });
 
   it("held A/D keys orbit at constant velocity until released", async () => {
@@ -527,34 +551,34 @@ describe("installPointerCamera", () => {
     const down = new KeyboardEvent("keydown", { key: "d", code: "KeyD", cancelable: true });
     expect(document.dispatchEvent(down)).toBe(false); // preventDefault'ed — claimed by the orbit
     expect(store.getState().cameraMotion).toBe("gesture");
-    await frame();
+    frame();
     const early = store.getState().cameraPose;
     expect(early.azimuth).toBeGreaterThan(start.azimuth); // D ≙ camera sweeps right
-    await frame();
+    frame();
     expect(store.getState().cameraPose.azimuth).toBeGreaterThan(early.azimuth); // still moving
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "d", code: "KeyD" }));
-    await pumpUntil(() => store.getState().cameraMotion === "idle"); // hard stop, no glide tail
+    pumpUntil(() => store.getState().cameraMotion === "idle"); // hard stop, no glide tail
   });
 
   it("W/S dolly in and out; Q/E lower and raise the camera", async () => {
     const { store } = setup();
     const start = store.getState().cameraPose;
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW" }));
-    await frame();
+    frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "w", code: "KeyW" }));
     const zoomedIn = store.getState().cameraPose.distance;
     expect(zoomedIn).toBeLessThan(start.distance);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "s", code: "KeyS" }));
-    await frame();
+    frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "s", code: "KeyS" }));
     expect(store.getState().cameraPose.distance).toBeGreaterThan(zoomedIn);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "q", code: "KeyQ" }));
-    await frame();
+    frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "q", code: "KeyQ" }));
     const lowered = store.getState().cameraPose.elevation;
     expect(lowered).toBeLessThan(start.elevation); // Q descends, matching the orbit/fly keys
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "e", code: "KeyE" }));
-    await frame();
+    frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "e", code: "KeyE" }));
     expect(store.getState().cameraPose.elevation).toBeGreaterThan(lowered);
   });
@@ -563,12 +587,12 @@ describe("installPointerCamera", () => {
     const { store } = setup();
     const start = store.getState().cameraPose.distance;
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "=", code: "Equal" }));
-    await frame();
+    frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "=", code: "Equal" }));
     const zoomedIn = store.getState().cameraPose.distance;
     expect(zoomedIn).toBeLessThan(start);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "-", code: "Minus" }));
-    await frame();
+    frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "-", code: "Minus" }));
     expect(store.getState().cameraPose.distance).toBeGreaterThan(zoomedIn);
   });
@@ -576,11 +600,11 @@ describe("installPointerCamera", () => {
   it("releases a dolly key even when Shift renamed it between keydown and keyup", async () => {
     const { store } = setup();
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "=", code: "Equal" }));
-    await frame();
+    frame();
     // Shift pressed mid-hold (reaching for the pan modifier): the keyup arrives as "+", but the
     // held set is keyed by code, so the physical key still releases — no runaway zoom.
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "+", code: "Equal", shiftKey: true }));
-    await pumpUntil(() => store.getState().cameraMotion === "idle");
+    pumpUntil(() => store.getState().cameraMotion === "idle");
   });
 
   it("drops held keys when a modifier chord starts (macOS swallows those keyups)", async () => {
@@ -590,7 +614,7 @@ describe("installPointerCamera", () => {
     document.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Meta", code: "MetaLeft", metaKey: true }),
     );
-    await pumpUntil(() => store.getState().cameraMotion === "idle");
+    pumpUntil(() => store.getState().cameraMotion === "idle");
   });
 
   it("clears held keys when the window blurs (no stuck motion)", async () => {
@@ -598,7 +622,7 @@ describe("installPointerCamera", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "e", code: "KeyE" }));
     expect(store.getState().cameraMotion).toBe("gesture");
     window.dispatchEvent(new Event("blur"));
-    await pumpUntil(() => store.getState().cameraMotion === "idle");
+    pumpUntil(() => store.getState().cameraMotion === "idle");
   });
 
   it("tracks motion liveness in cameraMotion", async () => {
@@ -608,7 +632,7 @@ describe("installPointerCamera", () => {
     expect(store.getState().cameraMotion).toBe("gesture");
     target.dispatchEvent(pointer("pointermove", 140, 100));
     target.dispatchEvent(pointer("pointerup", 140, 100));
-    await pumpUntil(() => store.getState().cameraMotion === "idle"); // idle once the glide settles
+    pumpUntil(() => store.getState().cameraMotion === "idle"); // idle once the glide settles
   });
 
   it("reports a lone tween as 'fly' and hand input during it as 'gesture'", async () => {
@@ -616,16 +640,16 @@ describe("installPointerCamera", () => {
     store.getState().setCameraPose({ ...DEFAULT_POSE, azimuth: 2.5 });
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "r" }));
     expect(store.getState().cameraMotion).toBe("fly"); // machine flight, hand off the camera
-    await frame();
+    frame();
     document.dispatchEvent(
       new KeyboardEvent("keydown", { key: "e", code: "KeyE", cancelable: true }),
     );
     expect(store.getState().cameraMotion).toBe("gesture"); // real input outranks the fly
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "e", code: "KeyE" }));
-    await frame();
-    await frame();
+    frame();
+    frame();
     expect(store.getState().cameraMotion).toBe("fly"); // key released mid-flight → back to fly
-    await pumpUntil(() => store.getState().cameraMotion === "idle"); // flight lands
+    pumpUntil(() => store.getState().cameraMotion === "idle"); // flight lands
   });
 
   it("shows grab/grabbing cursors and restores the prior cursor on dispose", () => {

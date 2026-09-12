@@ -19,7 +19,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("field panel (wired)", () => {
+describe("installFieldPanel", () => {
   it("lists computable fields, dispatches selectField, and mirrors external selection", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);

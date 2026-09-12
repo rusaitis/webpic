@@ -10,31 +10,13 @@ import {
 } from "./magnitude.ts";
 
 describe("vectorMagnitude", () => {
-  it("satisfies the 3-4-5 Pythagorean identity", () => {
+  it("computes sqrt(x²+y²+z²) elementwise, including the zero vector", () => {
     const out = vectorMagnitude(
-      new Float64Array([3]),
-      new Float64Array([4]),
-      new Float64Array([0]),
+      new Float64Array([3, 5, 8, 1, 0]),
+      new Float64Array([4, 12, 15, 2, 0]),
+      new Float64Array([0, 0, 0, 2, 0]),
     );
-    assertAllclose(out, [5]);
-  });
-
-  it("computes a 1-2-2 → 3 triple and a zero vector", () => {
-    const out = vectorMagnitude(
-      new Float64Array([1, 0]),
-      new Float64Array([2, 0]),
-      new Float64Array([2, 0]),
-    );
-    assertAllclose(out, [3, 0]);
-  });
-
-  it("computes elementwise over a multi-point field", () => {
-    const out = vectorMagnitude(
-      new Float64Array([3, 5, 8]),
-      new Float64Array([4, 12, 15]),
-      new Float64Array([0, 0, 0]),
-    );
-    assertAllclose(out, [5, 13, 17], TOL.magnitude.ts_f64);
+    assertAllclose(out, [5, 13, 17, 3, 0], TOL.magnitude.ts_f64);
   });
 
   it("computes at render (f32) precision", () => {
@@ -62,6 +44,8 @@ describe("vectorMagnitude", () => {
   });
 });
 
+// The per-field aliases are re-run through computeRecipeTs in compute/backends/ts/magnitude.test.ts,
+// which additionally proves the recipe wiring; here we only pin that each alias exists and delegates.
 describe("magnitude family", () => {
   // Mirrors pypic's MAGNITUDE_FUNCTIONS parametrized test: every |X| = sqrt(X1²+X2²+X3²).
   const family: ReadonlyArray<
@@ -75,7 +59,11 @@ describe("magnitude family", () => {
 
   for (const [label, fn] of family) {
     it(`${label}: (3,4,0) → 5`, () => {
-      assertAllclose(fn(new Float64Array([3]), new Float64Array([4]), new Float64Array([0])), [5]);
+      assertAllclose(
+        fn(new Float64Array([3]), new Float64Array([4]), new Float64Array([0])),
+        [5],
+        TOL.magnitude.ts_f64,
+      );
     });
   }
 });

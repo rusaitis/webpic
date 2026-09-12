@@ -114,3 +114,43 @@ export function ballField(
   }
   return { data, shape: [n, n, n] };
 }
+
+export interface WorkerPost<M> {
+  readonly message: M;
+  // The transfer list as postMessage received it. `unknown[]` because tests/ compiles without the
+  // DOM lib, and the double never needs to know what a Transferable is — only to hand it back.
+  readonly transfer: readonly unknown[] | undefined;
+}
+
+export interface FakeWorker<M> {
+  // Structural double: a plain object carrying the Worker surface the bridges exercise, not a real
+  // Worker. The cast is the only way to hand it to code typed against the DOM Worker.
+  readonly worker: Worker;
+  readonly posts: WorkerPost<M>[];
+  terminated(): number;
+}
+
+// The Worker double every store→worker bridge test needs: it records each post with its transfer
+// list and counts terminate(). `shouldDetachTransfers` performs the real structured-clone handover,
+// so a bridge that reads a buffer it already gave away throws here exactly as it would in the
+// browser — the whole point of the layer bridge's detached-buffer refill path.
+export function makeFakeWorker<M = unknown>(
+  options: { readonly shouldDetachTransfers?: boolean } = {},
+): FakeWorker<M> {
+  const posts: WorkerPost<M>[] = [];
+  let terminateCount = 0;
+  const worker = {
+    onmessage: null,
+    postMessage: (message: M, transfer?: readonly unknown[]) => {
+      posts.push({ message, transfer });
+      if (options.shouldDetachTransfers !== true || transfer === undefined) return;
+      for (const item of transfer) {
+        if (item instanceof ArrayBuffer) structuredClone(item, { transfer: [item] });
+      }
+    },
+    terminate: () => {
+      terminateCount += 1;
+    },
+  };
+  return { worker: worker as unknown as Worker, posts, terminated: () => terminateCount };
+}

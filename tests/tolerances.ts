@@ -86,3 +86,13 @@ export const TOL = {
     webgpu_f16: { rtol: 5e-3, atol: 5e-3 }, // derived
   },
 } as const satisfies Record<Kernel, Record<Precision, Tolerance>>;
+
+// The conservation identities (div(curl F) ≡ 0, curl(grad f) ≡ 0) compare against exact zero, so a
+// relative tolerance is meaningless — the bound is purely absolute. Roundoff enters through the
+// second derivative, so it scales with the worst inverse-spacing-squared on the grid (pypic's
+// bound). Not a KERNELS row: this is a property of the identity, not of a precision class.
+const CONSERVATION_ROUNDOFF = 2e-13;
+
+export function conservationTolerance(spacing: readonly number[]): Tolerance {
+  return { rtol: 0, atol: CONSERVATION_ROUNDOFF / Math.min(...spacing) ** 2 };
+}

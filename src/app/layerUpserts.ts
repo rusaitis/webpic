@@ -53,7 +53,7 @@ export interface LayerUpsertsOptions extends Pick<RenderWorkerLink, "worker"> {
 
 // Which of a slice's two params moved. Named rather than two positional booleans: at the call site
 // `(layer, false, true)` says nothing, and the two are swappable without a type error.
-export interface SliceChange {
+interface SliceChange {
   readonly axis: boolean;
   readonly position: boolean;
 }

@@ -1,7 +1,7 @@
-import { createScrubPredictor } from "@data/prefetch.ts";
-import { createStreamRing } from "@data/stream.ts";
 import { describe, expect, it } from "vitest";
-import { seededRandom } from "./helpers.ts";
+import { seededRandom } from "../../tests/helpers.ts";
+import { createScrubPredictor } from "./prefetch.ts";
+import { createStreamRing } from "./stream.ts";
 
 // The directional predictor (data/prefetch.ts) is pure with injected time, so motion is scripted by
 // (step, nowMs) pairs and `plan()` inspected directly — no clock, no flake. The fuzz scrubber proves

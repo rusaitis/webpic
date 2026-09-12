@@ -34,6 +34,8 @@ describe("createShell", () => {
     const shell = createShell({ parent, dockedSide: "right", panels: ["a"], uiStore });
     shell.dispose();
     expect(parent.querySelector(".webpic-shell")).toBeNull();
-    expect(() => uiStore.getState().toggleUi()).not.toThrow(); // unsubscribed, no stale DOM write
+    const afterDispose = parent.innerHTML;
+    uiStore.getState().toggleUi();
+    expect(parent.innerHTML).toBe(afterDispose); // unsubscribed: the toggle writes no stale DOM
   });
 });

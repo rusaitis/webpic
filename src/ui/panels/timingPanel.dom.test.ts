@@ -27,7 +27,7 @@ describe("rollingMean", () => {
   });
 });
 
-describe("frame timing panel", () => {
+describe("installTimingPanel", () => {
   it("starts awaiting a frame, then shows a rolling readout against the 8 ms gate", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);

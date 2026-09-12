@@ -4,19 +4,9 @@ import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import { REQUEST_IDS } from "@render/messages.ts";
 import { createSimulationStore, createUiStore, DEFAULT_POSE, focusPoseOnPoint } from "@store";
 import { describe, expect, it, vi } from "vitest";
-import { makeDataset, makeField, vectorTriple } from "../../tests/fixtures.ts";
+import { makeDataset, makeFakeWorker, makeField, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import { bootstrap, DISPOSE_GRACE_MS } from "./main.ts";
-
-interface Post {
-  readonly message: RenderWorkerRequest;
-  readonly transfer: Transferable[] | undefined;
-}
-
-interface DataPost {
-  readonly message: DataStreamRequest;
-  readonly transfer: Transferable[] | undefined;
-}
 
 function fakeCanvas(): HTMLCanvasElement {
   const offscreen = { tag: "offscreen" } as unknown as OffscreenCanvas;
@@ -41,17 +31,7 @@ describe("bootstrap OffscreenCanvas handshake", () => {
       transferControlToOffscreen: () => offscreen,
     } as unknown as HTMLCanvasElement;
 
-    const posts: Post[] = [];
-    let terminated = 0;
-    const worker = {
-      onmessage: null,
-      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
-        posts.push({ message, transfer });
-      },
-      terminate: () => {
-        terminated += 1;
-      },
-    } as unknown as Worker;
+    const { worker, posts, terminated } = makeFakeWorker<RenderWorkerRequest>();
 
     const dispose = bootstrap({
       width: 64,
@@ -74,25 +54,18 @@ describe("bootstrap OffscreenCanvas handshake", () => {
     dispose();
     // Teardown is a handshake: a `dispose` request first, terminate on the worker's ack.
     expect(posts.at(-1)?.message.kind).toBe("dispose");
-    expect(terminated).toBe(0);
+    expect(terminated()).toBe(0);
     const disposed = {
       data: { kind: "disposed", requestId: REQUEST_IDS.dispose },
     } as MessageEvent<RenderWorkerResponse>;
     worker.onmessage?.(disposed);
-    expect(terminated).toBe(1);
+    expect(terminated()).toBe(1);
   });
 
   it("terminates after the grace period when the worker never acks", () => {
     vi.useFakeTimers();
     try {
-      let terminated = 0;
-      const worker = {
-        onmessage: null,
-        postMessage: () => {},
-        terminate: () => {
-          terminated += 1;
-        },
-      } as unknown as Worker;
+      const { worker, terminated } = makeFakeWorker<RenderWorkerRequest>();
       const dispose = bootstrap({
         width: 64,
         height: 48,
@@ -101,9 +74,9 @@ describe("bootstrap OffscreenCanvas handshake", () => {
         spawnWorker: () => worker,
       });
       dispose();
-      expect(terminated).toBe(0);
+      expect(terminated()).toBe(0);
       vi.advanceTimersByTime(DISPOSE_GRACE_MS);
-      expect(terminated).toBe(1);
+      expect(terminated()).toBe(1);
     } finally {
       vi.useRealTimers();
     }
@@ -119,14 +92,7 @@ describe("bootstrap store → compute → render", () => {
       transferControlToOffscreen: () => offscreen,
     } as unknown as HTMLCanvasElement;
 
-    const posts: Post[] = [];
-    const worker = {
-      onmessage: null,
-      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
-        posts.push({ message, transfer });
-      },
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker, posts } = makeFakeWorker<RenderWorkerRequest>();
 
     const dispose = bootstrap({
       width: 64,
@@ -174,14 +140,7 @@ describe("bootstrap store → compute → render", () => {
       transferControlToOffscreen: () => offscreen,
     } as unknown as HTMLCanvasElement;
 
-    const posts: Post[] = [];
-    const worker = {
-      onmessage: null,
-      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
-        posts.push({ message, transfer });
-      },
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker, posts } = makeFakeWorker<RenderWorkerRequest>();
 
     const dispose = bootstrap({
       width: 64,
@@ -207,14 +166,7 @@ describe("bootstrap store → compute → render", () => {
       transferControlToOffscreen: () => offscreen,
     } as unknown as HTMLCanvasElement;
 
-    const posts: Post[] = [];
-    const worker = {
-      onmessage: null,
-      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
-        posts.push({ message, transfer });
-      },
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker, posts } = makeFakeWorker<RenderWorkerRequest>();
 
     const dispose = bootstrap({
       width: 64,
@@ -245,11 +197,7 @@ describe("bootstrap dataset switch", () => {
   // scoping the rescale to the selection left the dipole's volume on the flux rope's window (a
   // saturated white box) and on the previous scale.
   it("applies the new dataset's default scale + value range to every field-drawing layer", async () => {
-    const worker = {
-      onmessage: null,
-      postMessage: () => {},
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker } = makeFakeWorker<RenderWorkerRequest>();
     const store = createSimulationStore();
     const big = () =>
       makeDataset({
@@ -302,14 +250,7 @@ describe("bootstrap dataset switch", () => {
 
 describe("bootstrap camera-motion forwarding", () => {
   it("forwards cameraMotion changes to the worker once it is ready", () => {
-    const posts: Post[] = [];
-    const worker = {
-      onmessage: null,
-      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
-        posts.push({ message, transfer });
-      },
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker, posts } = makeFakeWorker<RenderWorkerRequest>();
     const store = createSimulationStore();
     const dispose = bootstrap({
       width: 64,
@@ -335,14 +276,7 @@ describe("bootstrap camera-motion forwarding", () => {
 
 describe("bootstrap pick-to-focus", () => {
   function pickSetup() {
-    const posts: Post[] = [];
-    const worker = {
-      onmessage: null,
-      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
-        posts.push({ message, transfer });
-      },
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker, posts } = makeFakeWorker<RenderWorkerRequest>();
     const store = createSimulationStore();
     const dispose = bootstrap({
       width: 64,
@@ -449,24 +383,13 @@ describe("bootstrap pick-to-focus", () => {
 describe("bootstrap streaming", () => {
   it("pairs the data worker, opens the stream, relays the domain, and drives the cursor", async () => {
     const canvas = fakeCanvas();
-    const renderPosts: Post[] = [];
-    const renderWorker = {
-      onmessage: null,
-      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) =>
-        renderPosts.push({ message, transfer }),
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker: renderWorker, posts: renderPosts } = makeFakeWorker<RenderWorkerRequest>();
 
-    const dataPosts: DataPost[] = [];
-    let dataTerminated = 0;
-    const dataWorker = {
-      onmessage: null,
-      postMessage: (message: DataStreamRequest, transfer?: Transferable[]) =>
-        dataPosts.push({ message, transfer }),
-      terminate: () => {
-        dataTerminated += 1;
-      },
-    } as unknown as Worker;
+    const {
+      worker: dataWorker,
+      posts: dataPosts,
+      terminated: dataTerminated,
+    } = makeFakeWorker<DataStreamRequest>();
 
     const store = createSimulationStore();
     const dispose = bootstrap({
@@ -513,21 +436,13 @@ describe("bootstrap streaming", () => {
     expect(cursor.message.step).toBe(2);
 
     dispose();
-    expect(dataTerminated).toBe(1);
+    expect(dataTerminated()).toBe(1);
   });
 
   it("drives the loading phases: boot, dataset open, step acks, field switches, errors", async () => {
     const canvas = fakeCanvas();
-    const renderWorker = {
-      onmessage: null,
-      postMessage: () => {},
-      terminate: () => {},
-    } as unknown as Worker;
-    const dataWorker = {
-      onmessage: null,
-      postMessage: () => {},
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker: renderWorker } = makeFakeWorker<RenderWorkerRequest>();
+    const { worker: dataWorker } = makeFakeWorker<DataStreamRequest>();
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const store = createSimulationStore();
@@ -599,14 +514,7 @@ describe("bootstrap streaming", () => {
 
   it("seeds an initialPose into the store and replays it to the worker on ready", () => {
     const canvas = fakeCanvas();
-    const posts: Post[] = [];
-    const worker = {
-      onmessage: null,
-      postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
-        posts.push({ message, transfer });
-      },
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker, posts } = makeFakeWorker<RenderWorkerRequest>();
     const store = createSimulationStore();
     const initialPose = {
       target: [0, 0, 0],
@@ -662,14 +570,7 @@ describe("bootstrap streaming", () => {
         ownerDocument: { addEventListener: () => {}, defaultView: null },
         style: {},
       } as unknown as HTMLCanvasElement;
-      const posts: Post[] = [];
-      const worker = {
-        onmessage: null,
-        postMessage: (message: RenderWorkerRequest, transfer?: Transferable[]) => {
-          posts.push({ message, transfer });
-        },
-        terminate: () => {},
-      } as unknown as Worker;
+      const { worker, posts } = makeFakeWorker<RenderWorkerRequest>();
 
       const dispose = bootstrap({
         width: 64,
@@ -706,11 +607,7 @@ describe("bootstrap streaming", () => {
 
   it("spawns no data worker without a streamSource (single-step, scrub disabled)", () => {
     const canvas = fakeCanvas();
-    const renderWorker = {
-      onmessage: null,
-      postMessage: () => {},
-      terminate: () => {},
-    } as unknown as Worker;
+    const { worker: renderWorker } = makeFakeWorker<RenderWorkerRequest>();
     let dataSpawns = 0;
 
     const dispose = bootstrap({
@@ -721,7 +618,7 @@ describe("bootstrap streaming", () => {
       spawnWorker: () => renderWorker,
       spawnDataWorker: () => {
         dataSpawns += 1;
-        return { onmessage: null, postMessage: () => {}, terminate: () => {} } as unknown as Worker;
+        return makeFakeWorker().worker;
       },
       dataset: tinyDataset(),
     });

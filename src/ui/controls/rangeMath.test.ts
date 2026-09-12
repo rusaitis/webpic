@@ -250,7 +250,7 @@ describe("niceLinearTicks", () => {
     expect(niceLinearTicks(-10, -1, 5).values).toEqual([-10, -8, -6, -4, -2]);
   });
 
-  it("works at tiny and huge magnitudes (grid-snapped, no FP drift)", () => {
+  it("snaps to the grid at tiny and huge magnitudes without FP drift", () => {
     expect(niceLinearTicks(1e-9, 5e-9, 5).values).toEqual([1e-9, 2e-9, 3e-9, 4e-9, 5e-9]);
     expect(niceLinearTicks(0, 5e8, 5).values).toEqual([0, 1e8, 2e8, 3e8, 4e8, 5e8]);
   });

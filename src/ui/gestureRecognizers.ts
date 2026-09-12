@@ -43,7 +43,7 @@ const TAP_MAX_MS = 500; // a press held longer was a press-and-hold, not a tap
 const DBL_TAP_MS = 300; // two taps within this window pair into a double-tap
 const DBL_TAP_SLOP_PX = 30; // ...and landing within this distance of each other
 
-export interface TapRelease {
+interface TapRelease {
   readonly x: number;
   readonly y: number;
   readonly atMs: number;
