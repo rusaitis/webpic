@@ -17,11 +17,24 @@ export function assertAllclose(
   const rtol = tol.rtol ?? DEFAULT_TOLERANCE.rtol;
   const atol = tol.atol ?? DEFAULT_TOLERANCE.atol;
   expect(actual.length).toBe(expected.length);
+  // One expect for the whole array, scanning for the worst violation: a per-element expect costs
+  // minutes on the 256³ parity arrays, and the reported index says more than "some element differs".
+  let worst = -1;
+  let worstExcess = 0;
   for (let i = 0; i < actual.length; i++) {
     const a = actual[i] ?? Number.NaN;
     const e = expected[i] ?? Number.NaN;
-    expect(Math.abs(a - e)).toBeLessThanOrEqual(atol + rtol * Math.abs(e));
+    const excess = Math.abs(a - e) - (atol + rtol * Math.abs(e));
+    if (!(excess <= 0) && (worst < 0 || excess > worstExcess)) {
+      worst = i;
+      worstExcess = excess;
+    }
   }
+  const detail =
+    worst < 0
+      ? ""
+      : `assertAllclose: worst at [${worst}] — actual ${actual[worst]}, expected ${expected[worst]}, over rtol ${rtol} / atol ${atol} by ${worstExcess}`;
+  expect(detail).toBe("");
 }
 
 // Park–Miller minimal-standard LCG in (0, 1). Deterministic (no Math.random) so the bit-level

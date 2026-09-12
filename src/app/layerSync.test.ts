@@ -1,7 +1,7 @@
 import type { RenderWorkerRequest } from "@render";
 import { createSimulationStore, createUiStore, makeDefaultLayer } from "@store";
 import { describe, expect, it } from "vitest";
-import { dummyGrid, fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import { installLayerSync } from "./layerSync.ts";
 
@@ -16,12 +16,12 @@ interface Post {
 // |B| = 5 and |E| = 10 — two computable magnitudes for the field-switch test.
 const beDataset = () =>
   makeDataset({
-    B_1: fieldArray("B_1", new Float32Array([3]), [1]),
-    B_2: fieldArray("B_2", new Float32Array([4]), [1]),
-    B_3: fieldArray("B_3", new Float32Array([0]), [1]),
-    E_1: fieldArray("E_1", new Float32Array([6]), [1]),
-    E_2: fieldArray("E_2", new Float32Array([8]), [1]),
-    E_3: fieldArray("E_3", new Float32Array([0]), [1]),
+    B_1: makeField("B_1", new Float32Array([3]), [1]),
+    B_2: makeField("B_2", new Float32Array([4]), [1]),
+    B_3: makeField("B_3", new Float32Array([0]), [1]),
+    E_1: makeField("E_1", new Float32Array([6]), [1]),
+    E_2: makeField("E_2", new Float32Array([8]), [1]),
+    E_3: makeField("E_3", new Float32Array([0]), [1]),
   });
 
 function harness(ready: boolean) {
@@ -199,7 +199,7 @@ describe("installLayerSync", () => {
       throw new Error("expected two setSliceParams");
     }
     expect(pos.id).toBe("layer-1");
-    expect(pos.position).toBeCloseTo(0.2);
+    expect(pos.position).toBe(0.2);
     expect(pos.axis).toBeUndefined(); // only the changed field rides the wire
     expect(axis.axis).toBe("x");
     expect(axis.position).toBeUndefined();
@@ -261,11 +261,11 @@ describe("installLayerSync", () => {
     const size = n * n * n;
     return makeDataset(
       {
-        B_1: fieldArray("B_1", new Float64Array(size), [n, n, n]),
-        B_2: fieldArray("B_2", new Float64Array(size), [n, n, n]),
-        B_3: fieldArray("B_3", new Float64Array(size).fill(1), [n, n, n]),
+        B_1: makeField("B_1", new Float64Array(size), [n, n, n]),
+        B_2: makeField("B_2", new Float64Array(size), [n, n, n]),
+        B_3: makeField("B_3", new Float64Array(size).fill(1), [n, n, n]),
       },
-      { grid: dummyGrid([n, n, n]) },
+      { grid: makeGrid([n, n, n]) },
     );
   };
 

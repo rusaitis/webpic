@@ -1,6 +1,6 @@
 import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
-import { dummyGrid, fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
 import { displayTraceSteps, traceFields, vectorComponentsForField } from "./traceField.ts";
 
 // A 4³ uniform B = (0,0,1): a seed at a cell center (domain spans [0.5, 3.5]) traces a straight
@@ -10,11 +10,11 @@ const traceable = () => {
   const size = n * n * n;
   return makeDataset(
     {
-      B_1: fieldArray("B_1", new Float64Array(size), [n, n, n]),
-      B_2: fieldArray("B_2", new Float64Array(size), [n, n, n]),
-      B_3: fieldArray("B_3", new Float64Array(size).fill(1), [n, n, n]),
+      B_1: makeField("B_1", new Float64Array(size), [n, n, n]),
+      B_2: makeField("B_2", new Float64Array(size), [n, n, n]),
+      B_3: makeField("B_3", new Float64Array(size).fill(1), [n, n, n]),
     },
-    { grid: dummyGrid([n, n, n]) },
+    { grid: makeGrid([n, n, n]) },
   );
 };
 
@@ -26,11 +26,11 @@ const withNullSlab = () => {
   for (let iy = 0; iy < n; iy++) for (let iz = 0; iz < n; iz++) b3[iz + n * (iy + n * 1)] = 0;
   return makeDataset(
     {
-      B_1: fieldArray("B_1", new Float64Array(size), [n, n, n]),
-      B_2: fieldArray("B_2", new Float64Array(size), [n, n, n]),
-      B_3: fieldArray("B_3", b3, [n, n, n]),
+      B_1: makeField("B_1", new Float64Array(size), [n, n, n]),
+      B_2: makeField("B_2", new Float64Array(size), [n, n, n]),
+      B_3: makeField("B_3", b3, [n, n, n]),
     },
-    { grid: dummyGrid([n, n, n]) },
+    { grid: makeGrid([n, n, n]) },
   );
 };
 
@@ -74,11 +74,11 @@ describe("traceFields facade", () => {
     const size = 4 * 4 * 2;
     const thin = makeDataset(
       {
-        B_1: fieldArray("B_1", new Float64Array(size), dims),
-        B_2: fieldArray("B_2", new Float64Array(size), dims),
-        B_3: fieldArray("B_3", new Float64Array(size).fill(1), dims),
+        B_1: makeField("B_1", new Float64Array(size), dims),
+        B_2: makeField("B_2", new Float64Array(size), dims),
+        B_3: makeField("B_3", new Float64Array(size).fill(1), dims),
       },
-      { grid: { ...dummyGrid(dims), spacing: [1, 1, 0.4] } },
+      { grid: { ...makeGrid(dims), spacing: [1, 1, 0.4] } },
     );
     const { lines, skipped } = await traceFields(
       thin,
@@ -134,9 +134,9 @@ describe("vectorComponentsForField", () => {
 
   it("resolves a perpendicular magnitude to the unprojected family it stores", () => {
     const withE = makeDataset({
-      E_1: fieldArray("E_1", new Float64Array(64), [4, 4, 4]),
-      E_2: fieldArray("E_2", new Float64Array(64), [4, 4, 4]),
-      E_3: fieldArray("E_3", new Float64Array(64), [4, 4, 4]),
+      E_1: makeField("E_1", new Float64Array(64), [4, 4, 4]),
+      E_2: makeField("E_2", new Float64Array(64), [4, 4, 4]),
+      E_3: makeField("E_3", new Float64Array(64), [4, 4, 4]),
     });
     expect(vectorComponentsForField("|E_perp|", withE)).toEqual(["E_1", "E_2", "E_3"]);
   });
@@ -150,14 +150,14 @@ describe("vectorComponentsForField", () => {
 describe("displayTraceSteps", () => {
   it("refines the pypic default on a small domain and never coarsens it", () => {
     const dipole = displayTraceSteps({
-      ...dummyGrid([150, 100, 100]),
+      ...makeGrid([150, 100, 100]),
       spacing: [0.1, 0.1, 0.1],
       origin: [-10, -5, -5],
     });
     expect(dipole.maxStep).toBeCloseTo(0.02 * Math.sqrt(15 ** 2 + 10 ** 2 + 10 ** 2), 6);
     // The first step is taken before the controller clamps, so it comes down with maxStep.
     expect(dipole.stepSizeInit).toBe(dipole.maxStep);
-    const big = displayTraceSteps(dummyGrid([256, 256, 256]));
+    const big = displayTraceSteps(makeGrid([256, 256, 256]));
     expect(big.maxStep).toBe(2.0); // capped at pypic's max_step
     expect(big.stepSizeInit).toBe(0.5); // pypic's default, untouched
   });

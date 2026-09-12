@@ -1,13 +1,13 @@
 import { createSimulationStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
-import { fieldArray, makeDataset } from "../../../tests/fixtures.ts";
+import { makeDataset, makeField } from "../../../tests/fixtures.ts";
 import { installFieldPanel } from "./fieldPanel.ts";
 import { installPlaceholderPanel } from "./placeholderPanel.ts";
 
 const triple = (prefix: string) => ({
-  [`${prefix}_1`]: fieldArray(`${prefix}_1`, new Float32Array([3]), [1]),
-  [`${prefix}_2`]: fieldArray(`${prefix}_2`, new Float32Array([4]), [1]),
-  [`${prefix}_3`]: fieldArray(`${prefix}_3`, new Float32Array([0]), [1]),
+  [`${prefix}_1`]: makeField(`${prefix}_1`, new Float32Array([3]), [1]),
+  [`${prefix}_2`]: makeField(`${prefix}_2`, new Float32Array([4]), [1]),
+  [`${prefix}_3`]: makeField(`${prefix}_3`, new Float32Array([0]), [1]),
 });
 
 // B+E+J triples → |B|, |E|, |J| are all TS-computable, so the selector has 3 real options.

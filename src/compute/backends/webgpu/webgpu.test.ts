@@ -68,9 +68,9 @@ describe("buildKernelParams byte layout", () => {
     expect(view.getUint32(0, true)).toBe(4);
     expect(view.getUint32(4, true)).toBe(3);
     expect(view.getUint32(8, true)).toBe(2);
-    expect(view.getFloat32(12, true)).toBeCloseTo(2); // 1/0.5
-    expect(view.getFloat32(16, true)).toBeCloseTo(1); // 1/1
-    expect(view.getFloat32(20, true)).toBeCloseTo(0.25); // 1/4
+    expect(view.getFloat32(12, true)).toBe(2); // 1/0.5
+    expect(view.getFloat32(16, true)).toBe(1); // 1/1
+    expect(view.getFloat32(20, true)).toBe(0.25); // 1/4
     expect(view.getUint32(24, true)).toBe(24);
     expect(view.getUint32(28, true)).toBe(1);
   });
@@ -80,7 +80,7 @@ describe("buildKernelParams byte layout", () => {
     expect(view.getUint32(0, true)).toBe(5);
     expect(view.getUint32(4, true)).toBe(1);
     expect(view.getUint32(8, true)).toBe(1);
-    expect(view.getFloat32(12, true)).toBeCloseTo(1);
+    expect(view.getFloat32(12, true)).toBe(1);
   });
 });
 

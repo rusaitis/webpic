@@ -1,6 +1,7 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
+import { makeGrid } from "../../tests/fixtures.ts";
 import {
   clampSeedToDomain,
   defaultSeedRake,
@@ -10,25 +11,6 @@ import {
   seedFromVolume,
   worldToGrid,
 } from "./seedPick.ts";
-
-// Cartesian grid literal — only the fields the seed math reads matter; the rest are inert here.
-function makeGrid(
-  dimensions: readonly number[],
-  spacing: readonly number[],
-  origin: readonly number[],
-): GridInfo {
-  return {
-    dimensions,
-    spacing,
-    origin,
-    geometry: "cartesian",
-    axisLabels: ["x", "y", "z"],
-    dt: null,
-    boundary: null,
-    survivingAxes: null,
-    stagger: null,
-  };
-}
 
 const UNIT: Vec3 = [0.5, 0.5, 0.5];
 // dim 4 / dx 1 / origin 0 → physical box [0, 4]³, cell centers {0.5, 1.5, 2.5, 3.5}, domain [0.5, 3.5].

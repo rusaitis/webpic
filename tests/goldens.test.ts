@@ -2,14 +2,13 @@ import { readFileSync } from "node:fs";
 import { computeField } from "@compute/field.ts";
 import { describe, expect, it } from "vitest";
 import {
-  gridOf,
   SMOOTH_COMPONENTS,
   SMOOTH_SHAPE,
   SMOOTH_SPACING,
   sampleScalar,
 } from "./analyticFieldCore.ts";
 import { CROSS_BACKEND_CASES } from "./crossBackend.ts";
-import { fieldArray, makeDataset } from "./fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "./fixtures.ts";
 import { assertAllclose } from "./helpers.ts";
 import { type Kernel, TOL } from "./tolerances.ts";
 
@@ -42,11 +41,11 @@ const GOLDEN_CASES: ReadonlyArray<{ readonly recipe: string; readonly kernel: Ke
 
 const dataset = makeDataset(
   {
-    B_1: fieldArray("B_1", Float64Array.from(fixture.inputs.B_1), fixture.grid.shape),
-    B_2: fieldArray("B_2", Float64Array.from(fixture.inputs.B_2), fixture.grid.shape),
-    B_3: fieldArray("B_3", Float64Array.from(fixture.inputs.B_3), fixture.grid.shape),
+    B_1: makeField("B_1", Float64Array.from(fixture.inputs.B_1), fixture.grid.shape),
+    B_2: makeField("B_2", Float64Array.from(fixture.inputs.B_2), fixture.grid.shape),
+    B_3: makeField("B_3", Float64Array.from(fixture.inputs.B_3), fixture.grid.shape),
   },
-  { grid: gridOf(fixture.grid.shape, fixture.grid.spacing) },
+  { grid: makeGrid(fixture.grid.shape, fixture.grid.spacing) },
 );
 
 describe("pypic goldens — TS backend vs checked-in pypic outputs", () => {

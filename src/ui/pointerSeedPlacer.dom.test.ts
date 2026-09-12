@@ -1,6 +1,6 @@
 import { createSimulationStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
-import { dummyGrid, fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import { installPointerSeedPlacer } from "./pointerSeedPlacer.ts";
 
@@ -19,11 +19,11 @@ const traceableDataset = () => {
   const size = n * n * n;
   return makeDataset(
     {
-      B_1: fieldArray("B_1", new Float64Array(size), [n, n, n]),
-      B_2: fieldArray("B_2", new Float64Array(size), [n, n, n]),
-      B_3: fieldArray("B_3", new Float64Array(size).fill(1), [n, n, n]),
+      B_1: makeField("B_1", new Float64Array(size), [n, n, n]),
+      B_2: makeField("B_2", new Float64Array(size), [n, n, n]),
+      B_3: makeField("B_3", new Float64Array(size).fill(1), [n, n, n]),
     },
-    { grid: dummyGrid([n, n, n]) },
+    { grid: makeGrid([n, n, n]) },
   );
 };
 

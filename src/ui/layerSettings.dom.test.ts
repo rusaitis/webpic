@@ -1,6 +1,6 @@
 import { createSimulationStore, createUiStore, makeDefaultLayer } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
-import { dummyGrid, fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import { installLayerSettings } from "./layerSettings.ts";
 
@@ -77,7 +77,7 @@ describe("installLayerSettings", () => {
     const input = range(win, "Opacity");
     input.value = "0.4";
     input.dispatchEvent(new Event("change"));
-    expect(store.getState().layers[0]?.opacity).toBeCloseTo(0.4);
+    expect(store.getState().layers[0]?.opacity).toBe(0.4);
   });
 
   it("the Visible checkbox dispatches setLayerVisible", async () => {
@@ -124,7 +124,7 @@ describe("installLayerSettings", () => {
     pos.value = "0.25";
     pos.dispatchEvent(new Event("change"));
     const slice = store.getState().layers.find((l) => l.id === id);
-    expect(slice?.kind === "slice" && slice.position).toBeCloseTo(0.25);
+    expect(slice?.kind === "slice" && slice.position).toBe(0.25);
   });
 
   it("the fieldlines section toggles seed placement", async () => {
@@ -145,11 +145,11 @@ describe("installLayerSettings", () => {
     store.getState().setDataset(
       makeDataset(
         {
-          B_1: fieldArray("B_1", new Float64Array(size), [4, 4, 4]),
-          B_2: fieldArray("B_2", new Float64Array(size), [4, 4, 4]),
-          B_3: fieldArray("B_3", new Float64Array(size).fill(1), [4, 4, 4]),
+          B_1: makeField("B_1", new Float64Array(size), [4, 4, 4]),
+          B_2: makeField("B_2", new Float64Array(size), [4, 4, 4]),
+          B_3: makeField("B_3", new Float64Array(size).fill(1), [4, 4, 4]),
         },
-        { grid: dummyGrid([4, 4, 4]) },
+        { grid: makeGrid([4, 4, 4]) },
       ),
     );
     await flushAsync();

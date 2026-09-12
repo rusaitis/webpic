@@ -1,7 +1,7 @@
 import type { FieldArray, GridInfo } from "@containers/field_dataset.ts";
 import type { ColormapBinding } from "@schema/colormap.ts";
 import { describe, expect, it } from "vitest";
-import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import {
   createSimulationStore,
@@ -10,18 +10,6 @@ import {
   selectDataRange,
   selectVisibleBindings,
 } from "./simulation.ts";
-
-const gridOf = (dimensions: number[], spacing: number[]): GridInfo => ({
-  dimensions,
-  spacing,
-  origin: [0, 0, 0],
-  geometry: "cartesian",
-  axisLabels: ["x", "y", "z"],
-  dt: null,
-  boundary: null,
-  survivingAxes: null,
-  stagger: null,
-});
 
 const bDataset = () => vectorTriple("B", { array: Float32Array });
 
@@ -35,12 +23,12 @@ function activeBinding(store: SimulationStore): ColormapBinding | undefined {
 // |B| = 5 and |E| = 10 — two computable magnitudes with distinct ranges, for the field-switch test.
 const beDataset = () =>
   makeDataset({
-    B_1: fieldArray("B_1", new Float32Array([3]), [1]),
-    B_2: fieldArray("B_2", new Float32Array([4]), [1]),
-    B_3: fieldArray("B_3", new Float32Array([0]), [1]),
-    E_1: fieldArray("E_1", new Float32Array([6]), [1]),
-    E_2: fieldArray("E_2", new Float32Array([8]), [1]),
-    E_3: fieldArray("E_3", new Float32Array([0]), [1]),
+    B_1: makeField("B_1", new Float32Array([3]), [1]),
+    B_2: makeField("B_2", new Float32Array([4]), [1]),
+    B_3: makeField("B_3", new Float32Array([0]), [1]),
+    E_1: makeField("E_1", new Float32Array([6]), [1]),
+    E_2: makeField("E_2", new Float32Array([8]), [1]),
+    E_3: makeField("E_3", new Float32Array([0]), [1]),
   });
 
 describe("simulationStore", () => {
@@ -338,14 +326,14 @@ describe("selectDataset", () => {
 describe("setDataset — field-line seeds across a switch", () => {
   // Seeds are physical coordinates: a rake laid on one grid means nothing on another. Without the
   // re-rake every seed lands outside the new domain and the layer traces nothing at all.
-  const gridA = () => gridOf([4, 4, 4], [1, 1, 1]);
+  const gridA = () => makeGrid([4, 4, 4], [1, 1, 1]);
   const traceableOn = (grid: GridInfo, origin: readonly number[] = [0, 0, 0]) => {
     const size = grid.dimensions.reduce((a, b) => a * b, 1);
     return makeDataset(
       {
-        B_1: fieldArray("B_1", new Float64Array(size), grid.dimensions),
-        B_2: fieldArray("B_2", new Float64Array(size), grid.dimensions),
-        B_3: fieldArray("B_3", new Float64Array(size).fill(1), grid.dimensions),
+        B_1: makeField("B_1", new Float64Array(size), grid.dimensions),
+        B_2: makeField("B_2", new Float64Array(size), grid.dimensions),
+        B_3: makeField("B_3", new Float64Array(size).fill(1), grid.dimensions),
       },
       { grid: { ...grid, origin: [...origin] } },
     );
@@ -357,13 +345,13 @@ describe("setDataset — field-line seeds across a switch", () => {
     store.getState().addFieldlinesLayer();
     await flushAsync();
     const before = store.getState().layers.find((l) => l.id === "layer-1");
-    expect(before?.kind === "fieldlines" && before.seeds[0]?.[0]).toBeCloseTo(0.5);
+    expect(before?.kind === "fieldlines" && before.seeds[0]?.[0]).toBe(0.5);
 
     await store.getState().setDataset(traceableOn(gridA(), [100, 100, 100]));
     await flushAsync();
     const after = store.getState().layers.find((l) => l.id === "layer-1");
     expect(after?.kind === "fieldlines" && after.seeds).toHaveLength(8);
-    expect(after?.kind === "fieldlines" && after.seeds[0]?.[0]).toBeCloseTo(100.5);
+    expect(after?.kind === "fieldlines" && after.seeds[0]?.[0]).toBe(100.5);
     expect(store.getState().traces["layer-1"]).toHaveLength(8);
     expect(store.getState().traceNotices["layer-1"]?.traced).toBe(8);
   });
@@ -375,7 +363,7 @@ describe("setDataset — field-line seeds across a switch", () => {
     await flushAsync();
     store.getState().setFieldlineSeeds("layer-1", [[2, 2, 2]]);
     await flushAsync();
-    await store.getState().setDataset(traceableOn(gridOf([8, 8, 8], [1, 1, 1])));
+    await store.getState().setDataset(traceableOn(makeGrid([8, 8, 8], [1, 1, 1])));
     await flushAsync();
     const layer = store.getState().layers.find((l) => l.id === "layer-1");
     expect(layer?.kind === "fieldlines" && layer.seeds).toEqual([[2, 2, 2]]); // the placed seed survives
@@ -387,13 +375,13 @@ describe("setDataset", () => {
     const store = createSimulationStore();
     expect(store.getState().worldHalfExtent).toEqual([0.5, 0.5, 0.5]); // default unit box
     const fields = {
-      B_1: fieldArray("B_1", new Float32Array([1]), [1]),
-      B_2: fieldArray("B_2", new Float32Array([0]), [1]),
-      B_3: fieldArray("B_3", new Float32Array([0]), [1]),
+      B_1: makeField("B_1", new Float32Array([1]), [1]),
+      B_2: makeField("B_2", new Float32Array([0]), [1]),
+      B_3: makeField("B_3", new Float32Array([0]), [1]),
     };
     store
       .getState()
-      .setDataset(makeDataset(fields, { grid: gridOf([150, 100, 100], [0.1, 0.1, 0.1]) }));
+      .setDataset(makeDataset(fields, { grid: makeGrid([150, 100, 100], [0.1, 0.1, 0.1]) }));
     const h = store.getState().worldHalfExtent;
     expect(h[0]).toBeCloseTo(0.5, 12);
     expect(h[1]).toBeCloseTo(1 / 3, 12);

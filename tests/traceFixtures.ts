@@ -3,7 +3,7 @@ import type { AdaptiveTraceOptions } from "@numerics/tracing.ts";
 import rotationalJson from "./fixtures/traces/rotational.json";
 import smoothJson from "./fixtures/traces/smooth.json";
 import uniformJson from "./fixtures/traces/uniform.json";
-import { fieldArray, makeDataset } from "./fixtures.ts";
+import { makeDataset, makeField } from "./fixtures.ts";
 
 // Shared loader for the checked-in pypic golden traces (tests/fixtures/traces/*.json). The node golden
 // test and the GPU browser parity test both rebuild the dataset through this one path, so the two can't
@@ -57,9 +57,9 @@ export function datasetFromFixture(fix: TraceFixture): FieldDataset {
   };
   return makeDataset(
     {
-      B_1: fieldArray("B_1", Float64Array.from(fix.inputs.B_1), shape),
-      B_2: fieldArray("B_2", Float64Array.from(fix.inputs.B_2), shape),
-      B_3: fieldArray("B_3", Float64Array.from(fix.inputs.B_3), shape),
+      B_1: makeField("B_1", Float64Array.from(fix.inputs.B_1), shape),
+      B_2: makeField("B_2", Float64Array.from(fix.inputs.B_2), shape),
+      B_3: makeField("B_3", Float64Array.from(fix.inputs.B_3), shape),
     },
     { grid },
   );

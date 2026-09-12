@@ -10,82 +10,64 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
-import { resolveFieldMeta } from "@data/readers/decode.ts";
 import { writeZarr } from "@data/writers/zarr.ts";
 import { beforeAll, describe, expect, it } from "vitest";
+import { makeDataset, makeField, makeGrid } from "./fixtures.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const RUN_PYPIC = process.env.WEBPIC_PYPIC_PARITY === "1";
 
 const CELLS = 2 * 3 * 4;
 
-function makeField(name: string, data: Float32Array | Float64Array): FieldArray {
-  const meta = resolveFieldMeta(name);
-  if (meta === undefined) throw new Error(`test field "${name}" not in registry`);
-  return {
-    data,
-    shape: [2, 3, 4],
-    meta,
-    units: "normalized",
-    latex: "",
-    reduction: null,
-  };
-}
+// Normalized units + no latex: what a webpic-written store carries into pypic.
+const writerField = (
+  name: string,
+  data: Float32Array | Float64Array,
+  overrides: Partial<FieldArray> = {},
+): FieldArray => makeField(name, data, [2, 3, 4], { units: "normalized", latex: "", ...overrides });
 
-function makeDataset(): FieldDataset {
-  return {
-    fields: new Map([
-      [
+function writerDataset(): FieldDataset {
+  return makeDataset(
+    {
+      B_1: writerField(
         "B_1",
-        makeField(
-          "B_1",
-          Float32Array.from({ length: CELLS }, (_, i) => i + 1),
-        ),
-      ],
-      [
+        Float32Array.from({ length: CELLS }, (_, i) => i + 1),
+      ),
+      B_2: writerField(
         "B_2",
+        Float64Array.from({ length: CELLS }, (_, i) => (i + 1) / 3),
         {
-          ...makeField(
-            "B_2",
-            Float64Array.from({ length: CELLS }, (_, i) => (i + 1) / 3),
-          ),
-          reduction: { axis: "z", op: "integrate", lengthAxes: 1 } as const,
+          reduction: { axis: "z", op: "integrate", lengthAxes: 1 },
         },
-      ],
-    ]),
-    grid: {
-      dimensions: [2, 3, 4],
-      spacing: [0.5, 1, 2],
-      origin: [0, -1, 10],
-      geometry: "cartesian",
-      axisLabels: ["x", "y", "z"],
-      dt: 0.1,
-      boundary: ["periodic", "periodic", "periodic"],
-      survivingAxes: null,
-      stagger: null,
+      ),
     },
-    normalization: {
-      lengthRef: 0.005,
-      timeRef: 1.77e-11,
-      velocityRef: 299792458,
-      bFieldRef: 0.32,
-      eFieldRef: 9.6e7,
-      densityRef: 1e18,
-      massRef: 9.109e-31,
-      chargeRef: 1.602e-19,
-      speedOfLight: Number.POSITIVE_INFINITY,
+    {
+      grid: {
+        ...makeGrid([2, 3, 4], [0.5, 1, 2], [0, -1, 10]),
+        dt: 0.1,
+        boundary: ["periodic", "periodic", "periodic"],
+      },
+      normalization: {
+        lengthRef: 0.005,
+        timeRef: 1.77e-11,
+        velocityRef: 299792458,
+        bFieldRef: 0.32,
+        eFieldRef: 9.6e7,
+        densityRef: 1e18,
+        massRef: 9.109e-31,
+        chargeRef: 1.602e-19,
+        speedOfLight: Number.POSITIVE_INFINITY,
+      },
+      species: [{ name: "electrons", charge: -1, mass: 1, charge_to_mass: -1 }],
+      physics: { gamma: 5 / 3, c: Number.POSITIVE_INFINITY, relativistic: false, extra: {} },
+      frame: "simulation",
+      metadata: {
+        run_name: "writer-parity",
+        run: { name: "writer-parity-run", git_sha: "abc123" },
+        simulation_toml: '[run]\nname = "writer-parity-run"\n',
+      },
     },
-    species: [{ name: "electrons", charge: -1, mass: 1, charge_to_mass: -1 }],
-    physics: { gamma: 5 / 3, c: Number.POSITIVE_INFINITY, relativistic: false, extra: {} },
-    frame: "simulation",
-    transforms: {},
-    metadata: {
-      run_name: "writer-parity",
-      run: { name: "writer-parity-run", git_sha: "abc123" },
-      simulation_toml: '[run]\nname = "writer-parity-run"\n',
-    },
-    step: 0,
-  };
+  );
 }
 
 const READBACK_SCRIPT = `
@@ -155,7 +137,7 @@ describe.skipIf(!RUN_PYPIC)("written store opens through live pypic from_zarr", 
     rmSync(storeDir, { recursive: true, force: true });
 
     const store = new Map<string, Uint8Array>();
-    await writeZarr(makeDataset(), store);
+    await writeZarr(writerDataset(), store);
     for (const [key, bytes] of store) {
       const file = join(storeDir, key);
       mkdirSync(dirname(file), { recursive: true });

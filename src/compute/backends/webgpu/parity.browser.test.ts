@@ -13,14 +13,12 @@ import { vectorMagnitude } from "@derived/magnitude.ts";
 import { hasDevice, installGpu } from "@gpu/device.ts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  gridOf,
   maxAbs,
-  maxAbsDiff,
   SMOOTH_SHAPE,
   SMOOTH_SPACING,
   smoothVectorField,
 } from "../../../../tests/analyticField.ts";
-import { fieldArray, makeDataset } from "../../../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "../../../../tests/fixtures.ts";
 import { assertAllclose } from "../../../../tests/helpers.ts";
 import { TOL } from "../../../../tests/tolerances.ts";
 import { webgpuBackend } from "./index.ts";
@@ -72,18 +70,18 @@ describe("webgpu field-op parity vs the coordinates/derived twins", () => {
   it("rejects a non-cartesian grid like the TS reference", async () => {
     const ds = makeDataset(
       {
-        B_1: fieldArray("B_1", f1, shape),
-        B_2: fieldArray("B_2", f2, shape),
-        B_3: fieldArray("B_3", f3, shape),
+        B_1: makeField("B_1", f1, shape),
+        B_2: makeField("B_2", f2, shape),
+        B_3: makeField("B_3", f3, shape),
       },
-      { grid: { ...gridOf(SMOOTH_SHAPE, SMOOTH_SPACING), geometry: "spherical" } },
+      { grid: { ...makeGrid(SMOOTH_SHAPE, SMOOTH_SPACING), geometry: "spherical" } },
     );
     await expect(webgpuBackend.compute("div_B", ds)).rejects.toThrow(/geometry not implemented/);
   });
 
   // 256³ = 16,777,216 > 65535*256 = 16,776,960, so the last 256 elements only get computed on the
-  // grid-stride loop's second iteration. Cheap integer fills + a manual max-diff keep the 16.7M-element
-  // comparison fast (no per-element expect).
+  // grid-stride loop's second iteration. Integer fills keep the 16.7M-element comparison cheap; the
+  // tail indices (computed only on the 2nd loop pass) are inside the same allclose scan.
   it("256³ magnitude exercises the grid-stride wraparound", async () => {
     const n = 256 * 256 * 256;
     const bigShape: readonly number[] = [256, 256, 256];
@@ -97,19 +95,15 @@ describe("webgpu field-op parity vs the coordinates/derived twins", () => {
     }
     const ds = makeDataset(
       {
-        B_1: fieldArray("B_1", b1, bigShape),
-        B_2: fieldArray("B_2", b2, bigShape),
-        B_3: fieldArray("B_3", b3, bigShape),
+        B_1: makeField("B_1", b1, bigShape),
+        B_2: makeField("B_2", b2, bigShape),
+        B_3: makeField("B_3", b3, bigShape),
       },
-      { grid: gridOf(bigShape, [1, 1, 1]) },
+      { grid: makeGrid(bigShape, [1, 1, 1]) },
     );
     const gpu = await webgpuBackend.compute("|B|", ds);
     const twin = vectorMagnitude(b1, b2, b3);
     expect(gpu.data.length).toBe(n);
-    expect(maxAbsDiff(gpu.data, twin)).toBeLessThanOrEqual(1e-3);
-    // Spot-check the wraparound tail explicitly (indices computed only on the 2nd loop pass).
-    for (const i of [n - 1, n - 128, n - 256]) {
-      expect(gpu.data[i] ?? 0).toBeCloseTo(twin[i] ?? 0, 3);
-    }
+    assertAllclose(gpu.data, twin, TOL.magnitude.webgpu_f32);
   });
 });

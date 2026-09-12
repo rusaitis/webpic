@@ -65,10 +65,16 @@ describe("iStepController", () => {
   });
 });
 
+// DP5(4)'s local truncation error is O(h⁶): one h = 0.1 step of y' = ±y lands ~1e-10 from the
+// analytic exponential, and 1000 steps of the harmonic oscillator drift ~1e-7 in energy. Both bounds
+// sit one decade above the measured error — a method regression blows past them, round-off doesn't.
+const ONE_STEP_TRUNCATION = 1e-9;
+const ENERGY_DRIFT_1000_STEPS = 1e-6;
+
 describe("dormandPrinceStep", () => {
   it("matches e^{-h} for y' = -y over one step", () => {
     const r = expectOk(dormandPrinceStep(decay, new Float64Array([1]), 0.1));
-    expect(Math.abs((r.yNew[0] ?? Number.NaN) - Math.exp(-0.1))).toBeLessThan(1e-9);
+    expect(Math.abs((r.yNew[0] ?? Number.NaN) - Math.exp(-0.1))).toBeLessThan(ONE_STEP_TRUNCATION);
   });
 
   it("integrates a constant RHS exactly (linear solution, Σb = 1)", () => {
@@ -79,7 +85,7 @@ describe("dormandPrinceStep", () => {
 
   it("integrates backward for negative h", () => {
     const r = expectOk(dormandPrinceStep(decay, new Float64Array([1]), -0.1));
-    expect(Math.abs((r.yNew[0] ?? Number.NaN) - Math.exp(0.1))).toBeLessThan(1e-9);
+    expect(Math.abs((r.yNew[0] ?? Number.NaN) - Math.exp(0.1))).toBeLessThan(ONE_STEP_TRUNCATION);
   });
 
   it("re-uses the FSAL carry exactly (k0 = previous kLast ≡ fresh f(yNew))", () => {
@@ -106,7 +112,7 @@ describe("dormandPrinceStep", () => {
       carry = r.kLast;
     }
     const energy = (y[0] ?? Number.NaN) ** 2 + (y[1] ?? Number.NaN) ** 2;
-    expect(Math.abs(energy - 1)).toBeLessThan(1e-6);
+    expect(Math.abs(energy - 1)).toBeLessThan(ENERGY_DRIFT_1000_STEPS);
   });
 });
 

@@ -2,6 +2,7 @@ import { traceFieldLineAdaptive } from "@numerics/tracing.ts";
 import { describe, expect, it } from "vitest";
 import { SMOOTH_COMPONENTS } from "./analyticFieldCore.ts";
 import { assertAllclose } from "./helpers.ts";
+import { TOL } from "./tolerances.ts";
 import { datasetFromFixture, TRACE_FIXTURES } from "./traceFixtures.ts";
 
 // pypic golden-trace parity: the TS tracer must reproduce pypic.traces.trace_field_line_adaptive on the
@@ -10,8 +11,11 @@ import { datasetFromFixture, TRACE_FIXTURES } from "./traceFixtures.ts";
 // points + maxLocalError within a measured per-fixture tolerance (the f64 drift between numpy np.dot and
 // the TS loops over the trace — uniform is bit-tight since DP5(4) is exact on a constant).
 
+// smooth/rotational carry a MEASURED per-fixture bound rather than a TOL cell: the gap is numpy's
+// np.dot summation order vs the TS loops, which accumulates differently per curve — not the uniform
+// per-precision gap the ladder grades.
 const CASES = [
-  { name: "uniform", tol: { rtol: 1e-12, atol: 1e-12 } }, // DP5(4) exact on a constant field
+  { name: "uniform", tol: TOL.trace.ts_f64 }, // DP5(4) exact on a constant field
   { name: "smooth", tol: { rtol: 1e-6, atol: 1e-9 } },
   { name: "rotational", tol: { rtol: 1e-6, atol: 1e-7 } },
 ] as const;

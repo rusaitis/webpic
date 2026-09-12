@@ -1,15 +1,15 @@
 import { createPerfStore, createSimulationStore, createUiStore } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
-import { fieldArray, makeDataset } from "../../../tests/fixtures.ts";
+import { makeDataset, makeField } from "../../../tests/fixtures.ts";
 import { flushAsync } from "../../../tests/helpers.ts";
 import { installDevWindow } from "./devWindow.ts";
 
 // B triple → a seeded volume layer once a dataset loads (so Phong is enabled).
 const bTriple = () =>
   makeDataset({
-    B_1: fieldArray("B_1", new Float32Array([3]), [1]),
-    B_2: fieldArray("B_2", new Float32Array([4]), [1]),
-    B_3: fieldArray("B_3", new Float32Array([0]), [1]),
+    B_1: makeField("B_1", new Float32Array([3]), [1]),
+    B_2: makeField("B_2", new Float32Array([4]), [1]),
+    B_3: makeField("B_3", new Float32Array([0]), [1]),
   });
 
 function el<T extends HTMLElement>(root: ParentNode, sel: string): T {

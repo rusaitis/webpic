@@ -1,6 +1,29 @@
 import { fullRangeWindow, LOG_DECADES, logWindowFloor } from "@schema/colormap.ts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// three/tsl's `uniform()` is the only seam onto what createNormalization sends the shader; capture
+// each node it mints so the retune assertions can read the values back.
+const { createdUniforms } = vi.hoisted(() => ({ createdUniforms: [] as Array<{ value: number }> }));
+vi.mock("three/tsl", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("three/tsl")>();
+  return {
+    ...actual,
+    uniform: (value: number) => {
+      const node = actual.uniform(value);
+      createdUniforms.push(node as unknown as { value: number });
+      return node;
+    },
+  };
+});
+
 import { createNormalization, safeWidth, windowedT } from "./normalization.ts";
+
+// uScaleMode's in-shader encoding (normalization.ts `scaleMode`).
+const LINEAR_MODE = 0;
+const LOG_MODE = 1;
+const SYMLOG_MODE = 2;
+
+const uniformValues = (): number[] => createdUniforms.map((u) => u.value);
 
 describe("safeWidth", () => {
   it("floors a collapsed window so the in-shader divide stays finite", () => {
@@ -81,13 +104,30 @@ describe("windowedT", () => {
   });
 });
 
+// The TSL `toT` graph needs a device to evaluate, so the retune contract is read off the uniforms it
+// closes over — the three values that actually reach the shader, in construction order.
 describe("createNormalization", () => {
-  it("constructs over [vmin, vmax] and retunes a degenerate width without dividing by zero", () => {
+  it("seeds center/width/mode uniforms from the full range, linear", () => {
+    createdUniforms.length = 0;
+    createNormalization(0, 10);
+    expect(uniformValues()).toEqual([5, 10, LINEAR_MODE]);
+  });
+
+  it("floors a collapsed width instead of sending 0 to the divide", () => {
+    createdUniforms.length = 0;
     const norm = createNormalization(0, 10);
-    // The TSL `toT` node needs a device to evaluate; here we only assert the guard paths
-    // run — a collapsed window and a scale switch must not throw or leave width at 0.
-    expect(() => norm.setWindow(5, 0)).not.toThrow();
-    expect(() => norm.setScale("log")).not.toThrow();
-    expect(() => norm.setScale("symlog")).not.toThrow();
+    norm.setWindow(5, 0);
+    expect(uniformValues()).toEqual([5, safeWidth(0), LINEAR_MODE]);
+  });
+
+  it("switches the scale mode in place, leaving the window alone", () => {
+    createdUniforms.length = 0;
+    const norm = createNormalization(0, 10);
+    norm.setScale("log");
+    expect(uniformValues()).toEqual([5, 10, LOG_MODE]);
+    norm.setScale("symlog");
+    expect(uniformValues()).toEqual([5, 10, SYMLOG_MODE]);
+    norm.setScale("linear");
+    expect(uniformValues()).toEqual([5, 10, LINEAR_MODE]);
   });
 });

@@ -13,10 +13,10 @@ import { webgpuBackend } from "@compute/backends/webgpu/index.ts";
 import { hasDevice, installGpu } from "@gpu/device.ts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { smoothVectorField } from "../../../tests/analyticField.ts";
-import { gridOf, sampleScalar } from "../../../tests/analyticFieldCore.ts";
+import { sampleScalar } from "../../../tests/analyticFieldCore.ts";
 import { assertBackendsAgree, CROSS_BACKEND_CASES } from "../../../tests/crossBackend.ts";
 import goldenJson from "../../../tests/fixtures/v1/smooth-field.json";
-import { fieldArray, makeDataset } from "../../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "../../../tests/fixtures.ts";
 import { assertAllclose } from "../../../tests/helpers.ts";
 import { SYNTHETIC_FIELDS, spacingFor } from "../../../tests/syntheticFieldsCore.ts";
 
@@ -63,11 +63,11 @@ describe("webgpu backend vs pypic goldens", () => {
   const toF32 = (values: number[]): Float32Array => Float32Array.from(values);
   const dataset = makeDataset(
     {
-      B_1: fieldArray("B_1", toF32(golden.inputs.B_1), golden.grid.shape),
-      B_2: fieldArray("B_2", toF32(golden.inputs.B_2), golden.grid.shape),
-      B_3: fieldArray("B_3", toF32(golden.inputs.B_3), golden.grid.shape),
+      B_1: makeField("B_1", toF32(golden.inputs.B_1), golden.grid.shape),
+      B_2: makeField("B_2", toF32(golden.inputs.B_2), golden.grid.shape),
+      B_3: makeField("B_3", toF32(golden.inputs.B_3), golden.grid.shape),
     },
-    { grid: gridOf(golden.grid.shape, golden.grid.spacing) },
+    { grid: makeGrid(golden.grid.shape, golden.grid.spacing) },
   );
 
   for (const testCase of CROSS_BACKEND_CASES) {
@@ -92,11 +92,11 @@ describe("ts vs webgpu — synthetic MHD fields", () => {
     const [b1, b2, b3] = field.components;
     const dataset = makeDataset(
       {
-        B_1: fieldArray("B_1", sampleScalar(field.shape, spacing, b1, Float32Array), field.shape),
-        B_2: fieldArray("B_2", sampleScalar(field.shape, spacing, b2, Float32Array), field.shape),
-        B_3: fieldArray("B_3", sampleScalar(field.shape, spacing, b3, Float32Array), field.shape),
+        B_1: makeField("B_1", sampleScalar(field.shape, spacing, b1, Float32Array), field.shape),
+        B_2: makeField("B_2", sampleScalar(field.shape, spacing, b2, Float32Array), field.shape),
+        B_3: makeField("B_3", sampleScalar(field.shape, spacing, b3, Float32Array), field.shape),
       },
-      { grid: gridOf(field.shape, spacing) },
+      { grid: makeGrid(field.shape, spacing) },
     );
     for (const testCase of CROSS_BACKEND_CASES) {
       it(`${field.name}: agrees on ${testCase.label}`, async () => {

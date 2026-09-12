@@ -131,8 +131,8 @@ describe("createManagedMarker", () => {
     fake.tickResult = true;
     expect(marker.tick(1000)).toBe(true); // first tick of a fresh scene assumes 1/60
     expect(marker.tick(1016)).toBe(true);
-    expect(fake.ticks[0]).toBeCloseTo(1 / 60);
-    expect(fake.ticks[1]).toBeCloseTo(0.016); // (1016 - 1000) / 1000
+    expect(fake.ticks[0]).toBe(1 / 60);
+    expect(fake.ticks[1]).toBe(0.016); // (1016 - 1000) / 1000
   });
 
   it("tick is a no-op (false) when no marker is built", () => {

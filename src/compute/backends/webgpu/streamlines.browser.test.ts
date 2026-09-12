@@ -8,12 +8,13 @@
 // reference didn't, after which step COUNTS diverge though the curve does not) did NOT fire — all three
 // fixtures hold nPoints/nSteps exactly. So the counts are asserted as the flip canary; if a future driver
 // flips a step, relax that fixture's count check (the count-independent Hausdorff / radius checks still
-// pin the curve). Tolerances are ~20–40× the measured f32-vs-f64 gap.
+// pin the curve). Every bound reads TOL.trace.webgpu_f32 — a few × the measured f32-vs-f64 gap.
 
 import { hasDevice, installGpu } from "@gpu/device.ts";
 import { traceFieldLineAdaptive } from "@numerics/tracing.ts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { assertAllclose } from "../../../../tests/helpers.ts";
+import { TOL } from "../../../../tests/tolerances.ts";
 import {
   datasetFromFixture,
   TRACE_FIXTURES,
@@ -90,6 +91,10 @@ function hausdorff(a: ArrayLike<number>, na: number, b: ArrayLike<number>, nb: n
 
 const seedsOf = (fix: TraceFixture): ReadonlyArray<readonly number[]> => fix.seeds;
 
+// Every GPU-vs-f64 bound in this suite is the same f32 trace gap; the curve distances are absolute
+// (grid units), so they read the atol side of the cell.
+const TRACE_TOL = TOL.trace.webgpu_f32;
+
 describe("webgpu streamline parity vs the CPU tracer + pypic goldens", () => {
   it("uniform: exact counts + points (flip-free constant field)", async () => {
     const fix = TRACE_FIXTURES.uniform;
@@ -104,7 +109,7 @@ describe("webgpu streamline parity vs the CPU tracer + pypic goldens", () => {
     expect(gpu.metadata.nSteps).toBe(golden.nSteps);
     // Measured max |Δ| ≈ 2.4e-7 (f32 epsilon scale); the f64 CPU/golden are bit-exact. CPU↔golden is
     // pinned in traces.golden.test.ts, so GPU↔golden here closes the triangle.
-    assertAllclose(gpu.points, golden.points, { rtol: 1e-5, atol: 1e-5 });
+    assertAllclose(gpu.points, golden.points, TRACE_TOL);
   });
 
   it("smooth: GPU matches the CPU twin + golden curve", async () => {
@@ -122,8 +127,12 @@ describe("webgpu streamline parity vs the CPU tracer + pypic goldens", () => {
     expect(gpu.metadata.nSteps).toBe(golden.nSteps);
     // Count-independent (survives an f32 accept/reject flip): the GPU curve hugs the CPU twin and the
     // pypic golden. Measured Hausdorff ≈ 5e-7 (f32-vs-f64 over a 16-point trace).
-    expect(hausdorff(gpu.points, gpu.nPoints, cpu.points, cpu.nPoints)).toBeLessThan(1e-5);
-    expect(hausdorff(gpu.points, gpu.nPoints, golden.points, golden.nPoints)).toBeLessThan(1e-5);
+    expect(hausdorff(gpu.points, gpu.nPoints, cpu.points, cpu.nPoints)).toBeLessThan(
+      TRACE_TOL.atol,
+    );
+    expect(hausdorff(gpu.points, gpu.nPoints, golden.points, golden.nPoints)).toBeLessThan(
+      TRACE_TOL.atol,
+    );
   });
 
   it("rotational: closes the loop on the analytic circle", async () => {
@@ -148,9 +157,11 @@ describe("webgpu streamline parity vs the CPU tracer + pypic goldens", () => {
     const radius = Math.hypot((seed[0] ?? 0) - cx, (seed[1] ?? 0) - cy);
     for (let i = 0; i < gpu.nPoints; i++) {
       const r = Math.hypot((gpu.points[3 * i] ?? 0) - cx, (gpu.points[3 * i + 1] ?? 0) - cy);
-      expect(Math.abs(r - radius)).toBeLessThan(1e-4);
+      expect(Math.abs(r - radius)).toBeLessThan(TRACE_TOL.atol);
     }
     // GPU hugs the CPU twin (f32-vs-f64) over the whole loop.
-    expect(hausdorff(gpu.points, gpu.nPoints, cpu.points, cpu.nPoints)).toBeLessThan(1e-4);
+    expect(hausdorff(gpu.points, gpu.nPoints, cpu.points, cpu.nPoints)).toBeLessThan(
+      TRACE_TOL.atol,
+    );
   });
 });

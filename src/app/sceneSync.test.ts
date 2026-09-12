@@ -3,19 +3,11 @@ import type { RenderWorkerRequest } from "@render";
 import { parseTheme } from "@schema";
 import { createSimulationStore } from "@store";
 import { describe, expect, it } from "vitest";
-import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
 import { buildOverlayPayload, installSceneSync, resolveOverlayColors } from "./sceneSync.ts";
 
 const grid3d = (overrides: Partial<GridInfo> = {}): GridInfo => ({
-  dimensions: [10, 4, 3],
-  spacing: [0.5, 1, 2],
-  origin: [0, -5, 2],
-  geometry: "cartesian",
-  axisLabels: ["x", "y", "z"],
-  dt: null,
-  boundary: null,
-  survivingAxes: null,
-  stagger: null,
+  ...makeGrid([10, 4, 3], [0.5, 1, 2], [0, -5, 2]),
   ...overrides,
 });
 
@@ -23,9 +15,9 @@ const grid3d = (overrides: Partial<GridInfo> = {}): GridInfo => ({
 const volumeDataset = (grid: GridInfo = grid3d()) =>
   makeDataset(
     {
-      B_1: fieldArray("B_1", new Float32Array([3]), [1]),
-      B_2: fieldArray("B_2", new Float32Array([4]), [1]),
-      B_3: fieldArray("B_3", new Float32Array([0]), [1]),
+      B_1: makeField("B_1", new Float32Array([3]), [1]),
+      B_2: makeField("B_2", new Float32Array([4]), [1]),
+      B_3: makeField("B_3", new Float32Array([0]), [1]),
     },
     { grid },
   );

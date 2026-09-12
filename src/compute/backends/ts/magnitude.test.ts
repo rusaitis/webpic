@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fieldArray, makeDataset, vectorTriple } from "../../../../tests/fixtures.ts";
+import { makeDataset, makeField, vectorTriple } from "../../../../tests/fixtures.ts";
 import { computeRecipeTs } from "./index.ts";
 
 describe("computeRecipeTs", () => {
@@ -25,17 +25,17 @@ describe("computeRecipeTs", () => {
 
   it("throws when a required input field is absent", () => {
     const ds = makeDataset({
-      B_1: fieldArray("B_1", new Float64Array([3]), [1]),
-      B_2: fieldArray("B_2", new Float64Array([4]), [1]),
+      B_1: makeField("B_1", new Float64Array([3]), [1]),
+      B_2: makeField("B_2", new Float64Array([4]), [1]),
     });
     expect(() => computeRecipeTs("|B|", ds)).toThrow(/requires field "B_3"/);
   });
 
   it("throws when input shapes disagree", () => {
     const ds = makeDataset({
-      B_1: fieldArray("B_1", new Float64Array([3]), [1]),
-      B_2: fieldArray("B_2", new Float64Array([4, 0]), [2]),
-      B_3: fieldArray("B_3", new Float64Array([0]), [1]),
+      B_1: makeField("B_1", new Float64Array([3]), [1]),
+      B_2: makeField("B_2", new Float64Array([4, 0]), [2]),
+      B_3: makeField("B_3", new Float64Array([0]), [1]),
     });
     expect(() => computeRecipeTs("|B|", ds)).toThrow(/mismatched shapes/);
   });

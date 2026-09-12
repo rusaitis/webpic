@@ -1,13 +1,12 @@
 import type { FieldDataset } from "@containers/field_dataset.ts";
 import type { FloatArray, Vec3 } from "@schema/types.ts";
 import {
-  gridOf,
   SMOOTH_COMPONENTS,
   SMOOTH_SHAPE,
   SMOOTH_SPACING,
   sampleScalar,
 } from "./analyticFieldCore.ts";
-import { fieldArray, makeDataset } from "./fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "./fixtures.ts";
 
 // A smooth analytic vector field on a Cartesian grid: O(1)-amplitude components with non-trivial,
 // well-conditioned curl and divergence everywhere. Shared by the real-GPU parity suite (vs the
@@ -16,7 +15,7 @@ import { fieldArray, makeDataset } from "./fixtures.ts";
 // scripts/gen-fixtures.ts can import them under bare `node`); this file packs them into a FieldDataset.
 
 export type { ScalarFn } from "./analyticFieldCore.ts";
-export { gridOf, SMOOTH_COMPONENTS, SMOOTH_SHAPE, SMOOTH_SPACING, sampleScalar };
+export { SMOOTH_COMPONENTS, SMOOTH_SHAPE, SMOOTH_SPACING, sampleScalar };
 
 type ArrayCtor = Float32ArrayConstructor | Float64ArrayConstructor;
 
@@ -44,11 +43,11 @@ export function smoothVectorField(
   const f3 = sampleScalar(shape, spacing, fn3, ArrayType);
   const dataset = makeDataset(
     {
-      B_1: fieldArray("B_1", f1, shape),
-      B_2: fieldArray("B_2", f2, shape),
-      B_3: fieldArray("B_3", f3, shape),
+      B_1: makeField("B_1", f1, shape),
+      B_2: makeField("B_2", f2, shape),
+      B_3: makeField("B_3", f3, shape),
     },
-    { grid: gridOf(shape, spacing) },
+    { grid: makeGrid(shape, spacing) },
   );
   return { shape, spacing, f1, f2, f3, dataset };
 }
@@ -56,11 +55,5 @@ export function smoothVectorField(
 export function maxAbs(a: ArrayLike<number>): number {
   let m = 0;
   for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i] ?? 0));
-  return m;
-}
-
-export function maxAbsDiff(a: ArrayLike<number>, b: ArrayLike<number>): number {
-  let m = 0;
-  for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs((a[i] ?? 0) - (b[i] ?? 0)));
   return m;
 }

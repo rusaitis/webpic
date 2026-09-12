@@ -1,6 +1,7 @@
-import type { FieldDataset, GridInfo } from "@containers/field_dataset.ts";
+import type { FieldDataset } from "@containers/field_dataset.ts";
 import { describe, expect, it } from "vitest";
-import { fieldArray, makeDataset } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
+import { TOL } from "../../tests/tolerances.ts";
 import { interpolatorFromDataset, type VectorFieldInterpolator } from "./interp.ts";
 import {
   classifySeed,
@@ -11,26 +12,17 @@ import {
   traceFieldLinesAdaptive,
 } from "./tracing.ts";
 
-// Analytical fixtures; inline tolerances (the accuracy is a DP5(4) method property, not a backend
-// precision gap, so it stays out of tests/tolerances.ts). Fields are sampled CELL-CENTERED — sample i
-// at origin + (i+0.5)·dx — to match the interpolator's pypic-compatible grid convention.
+// Analytical fixtures. The bounds below are DP5(4) method properties (truncation), not the backend
+// precision gap tests/tolerances.ts grades — the one exception is the transverse drift, which is a
+// pure f64 round-off claim and reads the ladder's trace reference floor. Fields are sampled
+// CELL-CENTERED — sample i at origin + (i+0.5)·dx — the interpolator's pypic-compatible convention.
+
+// A seed re-crossing: "both" stitches two half-traces, so the join must coincide with the seed to
+// well within one integration step (steps here are O(0.1) grid units).
+const SEED_COINCIDENCE = 1e-9;
 
 type ScalarFn = (x: number, y: number, z: number) => number;
 type Vec3 = readonly [number, number, number];
-
-function makeGrid(shape: Vec3, spacing: Vec3, origin: Vec3 = [0, 0, 0]): GridInfo {
-  return {
-    dimensions: [...shape],
-    spacing: [...spacing],
-    origin: [...origin],
-    geometry: "cartesian",
-    axisLabels: ["x", "y", "z"],
-    dt: null,
-    boundary: null,
-    survivingAxes: null,
-    stagger: null,
-  };
-}
 
 function sampleCellCentered(shape: Vec3, spacing: Vec3, origin: Vec3, fn: ScalarFn): Float64Array {
   const [nx, ny, nz] = shape;
@@ -57,9 +49,9 @@ function vectorDataset(
   const grid = makeGrid(shape, spacing, origin);
   return makeDataset(
     {
-      B_1: fieldArray("B_1", sampleCellCentered(shape, spacing, origin, fns[0]), shape),
-      B_2: fieldArray("B_2", sampleCellCentered(shape, spacing, origin, fns[1]), shape),
-      B_3: fieldArray("B_3", sampleCellCentered(shape, spacing, origin, fns[2]), shape),
+      B_1: makeField("B_1", sampleCellCentered(shape, spacing, origin, fns[0]), shape),
+      B_2: makeField("B_2", sampleCellCentered(shape, spacing, origin, fns[1]), shape),
+      B_3: makeField("B_3", sampleCellCentered(shape, spacing, origin, fns[2]), shape),
     },
     { grid },
   );
@@ -87,8 +79,8 @@ describe("traceFieldLineAdaptive — uniform field", () => {
     expect(pointAt(fl.points, 0)).toEqual([4, 4, 4]);
     for (let i = 0; i < fl.nPoints; i++) {
       const [x, y, z] = pointAt(fl.points, i);
-      expect(Math.abs(y - 4)).toBeLessThan(1e-12);
-      expect(Math.abs(z - 4)).toBeLessThan(1e-12);
+      expect(Math.abs(y - 4)).toBeLessThan(TOL.trace.ts_f64.atol);
+      expect(Math.abs(z - 4)).toBeLessThan(TOL.trace.ts_f64.atol);
       if (i > 0) expect(x).toBeGreaterThan(pointAt(fl.points, i - 1)[0]); // strictly advancing +x
     }
   });
@@ -102,7 +94,10 @@ describe("traceFieldLineAdaptive — uniform field", () => {
       expect(pointAt(fl.points, i)[0]).toBeGreaterThan(pointAt(fl.points, i - 1)[0]);
     }
     const seedHits = Array.from({ length: fl.nPoints }, (_, i) => pointAt(fl.points, i)).filter(
-      ([x, y, z]) => Math.abs(x - 4) < 1e-9 && Math.abs(y - 4) < 1e-9 && Math.abs(z - 4) < 1e-9,
+      ([x, y, z]) =>
+        Math.abs(x - 4) < SEED_COINCIDENCE &&
+        Math.abs(y - 4) < SEED_COINCIDENCE &&
+        Math.abs(z - 4) < SEED_COINCIDENCE,
     );
     expect(seedHits).toHaveLength(1);
   });

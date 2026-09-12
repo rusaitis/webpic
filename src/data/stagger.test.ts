@@ -1,6 +1,7 @@
-import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
-import type { FieldMeta, Vec3 } from "@schema/types.ts";
+import type { GridInfo } from "@containers/field_dataset.ts";
+import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
+import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
 import { assertAllclose } from "../../tests/helpers.ts";
 import { averageAlong, destaggerArrayToCellCenters, destaggerToColocated } from "./stagger.ts";
 
@@ -114,28 +115,10 @@ describe("second-order accuracy", () => {
   });
 });
 
-const DUMMY_META: FieldMeta = {
-  quantityType: "b_field",
-  longName: "test field",
-  siUnit: "T",
-  latex: "$B$",
-  unitDimension: null,
-};
-
-function fieldArray(data: Float32Array | Float64Array, shape: number[]): FieldArray {
-  return { data, shape, meta: DUMMY_META, units: "T", latex: "$B$", reduction: null };
-}
-
-function makeGrid(dimensions: number[], position: Record<string, Vec3> | null): GridInfo {
+// A staggered grid: the shared cell-centered fixture plus the Yee positions under test.
+function staggeredGrid(dimensions: number[], position: Record<string, Vec3> | null): GridInfo {
   return {
-    dimensions,
-    spacing: dimensions.map(() => 1),
-    origin: dimensions.map(() => 0),
-    geometry: "cartesian",
-    axisLabels: ["x", "y", "z"].slice(0, dimensions.length),
-    dt: null,
-    boundary: null,
-    survivingAxes: null,
+    ...makeGrid(dimensions),
     stagger:
       position === null
         ? null
@@ -149,43 +132,19 @@ function makeGrid(dimensions: number[], position: Record<string, Vec3> | null): 
   };
 }
 
-function makeDataset(fields: Record<string, FieldArray>, grid: GridInfo): FieldDataset {
-  return {
-    fields: new Map(Object.entries(fields)),
-    grid,
-    normalization: {
-      lengthRef: 1,
-      timeRef: 1,
-      velocityRef: 1,
-      bFieldRef: 1,
-      eFieldRef: 1,
-      densityRef: 1,
-      massRef: 1,
-      chargeRef: 1,
-      speedOfLight: Number.POSITIVE_INFINITY,
-    },
-    species: [],
-    physics: { gamma: 5 / 3, c: Number.POSITIVE_INFINITY, relativistic: false, extra: {} },
-    frame: "simulation",
-    transforms: {},
-    metadata: {},
-    step: 0,
-  };
-}
-
 describe("destaggerToColocated", () => {
   it("returns the same object for a co-located store (no stagger)", () => {
     const ds = makeDataset(
-      { B_1: fieldArray(new Float64Array(64).fill(1), [4, 4, 4]) },
-      makeGrid([4, 4, 4], null),
+      { B_1: makeField("B_1", new Float64Array(64).fill(1), [4, 4, 4]) },
+      { grid: staggeredGrid([4, 4, 4], null) },
     );
     expect(destaggerToColocated(ds)).toBe(ds);
   });
 
   it("returns the same object when positions are all at cell centers", () => {
     const ds = makeDataset(
-      { B_1: fieldArray(new Float64Array(64).fill(1), [4, 4, 4]) },
-      makeGrid([4, 4, 4], { B_1: [0.5, 0.5, 0.5] }),
+      { B_1: makeField("B_1", new Float64Array(64).fill(1), [4, 4, 4]) },
+      { grid: staggeredGrid([4, 4, 4], { B_1: [0.5, 0.5, 0.5] }) },
     );
     expect(destaggerToColocated(ds)).toBe(ds);
   });
@@ -195,16 +154,18 @@ describe("destaggerToColocated", () => {
     const n = 64;
     const ds = makeDataset(
       {
-        B_1: fieldArray(new Float64Array(n).fill(1), [...dims]),
-        B_2: fieldArray(new Float64Array(n).fill(2), [...dims]),
-        B_3: fieldArray(new Float64Array(n).fill(3), [...dims]),
-        rho_c: fieldArray(new Float64Array(n).fill(7), [...dims]), // cell-centered scalar, no offset
+        B_1: makeField("B_1", new Float64Array(n).fill(1), [...dims]),
+        B_2: makeField("B_2", new Float64Array(n).fill(2), [...dims]),
+        B_3: makeField("B_3", new Float64Array(n).fill(3), [...dims]),
+        rho_c: makeField("rho_c", new Float64Array(n).fill(7), [...dims]), // cell-centered scalar, no offset
       },
-      makeGrid(dims, {
-        B_1: [0.5, 0, 0], // x-face
-        B_2: [0, 0.5, 0], // y-face
-        B_3: [0, 0, 0.5], // z-face
-      }),
+      {
+        grid: staggeredGrid(dims, {
+          B_1: [0.5, 0, 0], // x-face
+          B_2: [0, 0.5, 0], // y-face
+          B_3: [0, 0, 0.5], // z-face
+        }),
+      },
     );
 
     const out = destaggerToColocated(ds);
@@ -226,8 +187,8 @@ describe("destaggerToColocated", () => {
 
   it("preserves the f32 dtype through destaggering", () => {
     const ds = makeDataset(
-      { B_1: fieldArray(new Float32Array(64).fill(1), [4, 4, 4]) },
-      makeGrid([4, 4, 4], { B_1: [0.5, 0, 0] }),
+      { B_1: makeField("B_1", new Float32Array(64).fill(1), [4, 4, 4]) },
+      { grid: staggeredGrid([4, 4, 4], { B_1: [0.5, 0, 0] }) },
     );
     const out = destaggerToColocated(ds);
     expect(out.fields.get("B_1")?.data).toBeInstanceOf(Float32Array);

@@ -1,6 +1,6 @@
 import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
-import { dummyGrid, fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import {
   addLayer,
@@ -24,11 +24,11 @@ const traceableDataset = () => {
   const size = n * n * n;
   return makeDataset(
     {
-      B_1: fieldArray("B_1", new Float64Array(size), [n, n, n]),
-      B_2: fieldArray("B_2", new Float64Array(size), [n, n, n]),
-      B_3: fieldArray("B_3", new Float64Array(size).fill(1), [n, n, n]),
+      B_1: makeField("B_1", new Float64Array(size), [n, n, n]),
+      B_2: makeField("B_2", new Float64Array(size), [n, n, n]),
+      B_3: makeField("B_3", new Float64Array(size).fill(1), [n, n, n]),
     },
-    { grid: dummyGrid([n, n, n]) },
+    { grid: makeGrid([n, n, n]) },
   );
 };
 
@@ -43,11 +43,11 @@ const nullSlabDataset = () => {
     for (let iy = 0; iy < n; iy++) for (let iz = 0; iz < n; iz++) b3[iz + n * (iy + n * ix)] = 0;
   return makeDataset(
     {
-      B_1: fieldArray("B_1", new Float64Array(size), [n, n, n]),
-      B_2: fieldArray("B_2", new Float64Array(size), [n, n, n]),
-      B_3: fieldArray("B_3", b3, [n, n, n]),
+      B_1: makeField("B_1", new Float64Array(size), [n, n, n]),
+      B_2: makeField("B_2", new Float64Array(size), [n, n, n]),
+      B_3: makeField("B_3", b3, [n, n, n]),
     },
-    { grid: dummyGrid([n, n, n]) },
+    { grid: makeGrid([n, n, n]) },
   );
 };
 
@@ -59,14 +59,14 @@ const beTraceableDataset = () => {
   const zero = () => new Float64Array(size);
   return makeDataset(
     {
-      B_1: fieldArray("B_1", zero(), [n, n, n]),
-      B_2: fieldArray("B_2", zero(), [n, n, n]),
-      B_3: fieldArray("B_3", new Float64Array(size).fill(1), [n, n, n]),
-      E_1: fieldArray("E_1", new Float64Array(size).fill(1), [n, n, n]),
-      E_2: fieldArray("E_2", zero(), [n, n, n]),
-      E_3: fieldArray("E_3", zero(), [n, n, n]),
+      B_1: makeField("B_1", zero(), [n, n, n]),
+      B_2: makeField("B_2", zero(), [n, n, n]),
+      B_3: makeField("B_3", new Float64Array(size).fill(1), [n, n, n]),
+      E_1: makeField("E_1", new Float64Array(size).fill(1), [n, n, n]),
+      E_2: makeField("E_2", zero(), [n, n, n]),
+      E_3: makeField("E_3", zero(), [n, n, n]),
     },
-    { grid: dummyGrid([n, n, n]) },
+    { grid: makeGrid([n, n, n]) },
   );
 };
 
@@ -75,12 +75,12 @@ const bDataset = () => vectorTriple("B", { array: Float32Array });
 // |B| = 5 and |E| = 10 — two computable magnitudes for the field-switch re-point test.
 const beDataset = () =>
   makeDataset({
-    B_1: fieldArray("B_1", new Float32Array([3]), [1]),
-    B_2: fieldArray("B_2", new Float32Array([4]), [1]),
-    B_3: fieldArray("B_3", new Float32Array([0]), [1]),
-    E_1: fieldArray("E_1", new Float32Array([6]), [1]),
-    E_2: fieldArray("E_2", new Float32Array([8]), [1]),
-    E_3: fieldArray("E_3", new Float32Array([0]), [1]),
+    B_1: makeField("B_1", new Float32Array([3]), [1]),
+    B_2: makeField("B_2", new Float32Array([4]), [1]),
+    B_3: makeField("B_3", new Float32Array([0]), [1]),
+    E_1: makeField("E_1", new Float32Array([6]), [1]),
+    E_2: makeField("E_2", new Float32Array([8]), [1]),
+    E_3: makeField("E_3", new Float32Array([0]), [1]),
   });
 
 const slice = (id: string): Layer => makeDefaultLayer(id, "|B|", "slice");
@@ -137,7 +137,7 @@ describe("layer helpers", () => {
     expect(setLayerVisible(hidden, "b", false)).toBe(hidden); // unchanged → identity
 
     const faded = setLayerOpacity(before, "a", 0.3);
-    expect(faded[0]?.opacity).toBeCloseTo(0.3);
+    expect(faded[0]?.opacity).toBe(0.3);
     expect(setLayerOpacity(before, "a", -1)[0]?.opacity).toBe(0); // clamp lo
     expect(setLayerOpacity(before, "a", 9)[0]?.opacity).toBe(1); // clamp hi
   });
@@ -165,7 +165,7 @@ describe("layer helpers", () => {
     expect(setSliceAxis(before, "missing", "x")).toBe(before); // absent → identity
 
     const moved = setSlicePosition(before, "s", 0.25);
-    expect(moved[0]?.kind === "slice" && moved[0].position).toBeCloseTo(0.25);
+    expect(moved[0]?.kind === "slice" && moved[0].position).toBe(0.25);
     expect(setSlicePosition(before, "s", -1)[0]).toMatchObject({ position: 0 }); // clamp lo
     expect(setSlicePosition(before, "s", 9)[0]).toMatchObject({ position: 1 }); // clamp hi
     expect(setSlicePosition(before, "v", 0.3)).toBe(before); // non-slice → identity
@@ -297,7 +297,7 @@ describe("simulationStore layers", () => {
     unsub();
     expect(seen).toHaveLength(2);
     expect(seen[0]).not.toBe(seen[1]);
-    expect(seen[1]?.[0]?.opacity).toBeCloseTo(0.5);
+    expect(seen[1]?.[0]?.opacity).toBe(0.5);
   });
 
   it("ids reset per store (deterministic, test-isolated)", async () => {
@@ -321,7 +321,7 @@ describe("simulationStore layers", () => {
     store.getState().setSlicePosition("layer-1", 0.2);
     const layer = store.getState().layers.find((l) => l.id === "layer-1");
     expect(layer?.kind === "slice" && layer.axis).toBe("x");
-    expect(layer?.kind === "slice" && layer.position).toBeCloseTo(0.2);
+    expect(layer?.kind === "slice" && layer.position).toBe(0.2);
   });
 
   it("keeps the traceable seeds when one sits at a field null (issue #1)", async () => {

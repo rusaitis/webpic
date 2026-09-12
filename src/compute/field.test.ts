@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { smoothVectorField } from "../../tests/analyticField.ts";
-import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, vectorTriple } from "../../tests/fixtures.ts";
 import { computableFields, computeField } from "./field.ts";
 
 describe("computeField", () => {
@@ -36,9 +36,9 @@ describe("computableFields", () => {
 
   it("grows as more input components are present", () => {
     const triple = (prefix: string) => ({
-      [`${prefix}_1`]: fieldArray(`${prefix}_1`, new Float32Array([3]), [1]),
-      [`${prefix}_2`]: fieldArray(`${prefix}_2`, new Float32Array([4]), [1]),
-      [`${prefix}_3`]: fieldArray(`${prefix}_3`, new Float32Array([0]), [1]),
+      [`${prefix}_1`]: makeField(`${prefix}_1`, new Float32Array([3]), [1]),
+      [`${prefix}_2`]: makeField(`${prefix}_2`, new Float32Array([4]), [1]),
+      [`${prefix}_3`]: makeField(`${prefix}_3`, new Float32Array([0]), [1]),
     });
     expect(
       computableFields(makeDataset({ ...triple("B"), ...triple("E"), ...triple("J") })),

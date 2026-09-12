@@ -4,7 +4,7 @@ import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import { REQUEST_IDS } from "@render/messages.ts";
 import { createSimulationStore, createUiStore, DEFAULT_POSE, focusPoseOnPoint } from "@store";
 import { describe, expect, it, vi } from "vitest";
-import { fieldArray, makeDataset, vectorTriple } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
 import { bootstrap, DISPOSE_GRACE_MS } from "./main.ts";
 
@@ -253,9 +253,9 @@ describe("bootstrap dataset switch", () => {
     const store = createSimulationStore();
     const big = () =>
       makeDataset({
-        B_1: fieldArray("B_1", new Float32Array([3000]), [1]),
-        B_2: fieldArray("B_2", new Float32Array([4000]), [1]),
-        B_3: fieldArray("B_3", new Float32Array([0]), [1]),
+        B_1: makeField("B_1", new Float32Array([3000]), [1]),
+        B_2: makeField("B_2", new Float32Array([4000]), [1]),
+        B_3: makeField("B_3", new Float32Array([0]), [1]),
       });
     const catalog = new Map<string, DatasetEntry>([
       [
@@ -295,7 +295,7 @@ describe("bootstrap dataset switch", () => {
     const volume = store.getState().layers.find((layer) => layer.kind === "volume");
     const binding = store.getState().colormapBindings[volume?.colormapBindingId ?? ""];
     expect(binding?.scale).toBe("log");
-    expect(binding?.window.center).toBeCloseTo(5000.5); // |B| = 5000 (was 5 — the flux-rope scale)
+    expect(binding?.window.center).toBe(5000.5); // |B| = 5000 (was 5 — the flux-rope scale)
     dispose();
   });
 });

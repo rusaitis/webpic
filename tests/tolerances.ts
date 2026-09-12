@@ -17,7 +17,8 @@
 // (catastrophic cancellation near zero-crossings → a larger atol floor at the same precision).
 //
 // MEASURED today: magnitude/curl/divergence @ webgpu_f32 (M3.1 parity.browser, small smooth grid);
-// magnitude @ ts_f32 (magnitude.test); all four @ ts_f64 (analytical-exact linear fields). Every
+// magnitude @ ts_f32 (magnitude.test); trace @ webgpu_f32 (M4.3 streamlines.browser); every kernel
+// @ ts_f64 (analytical-exact linear fields — trilinear and a straight-line trace included). Every
 // other cell is a DERIVED estimate, re-pinned with a measured reason as M3.3 (ts-vs-webgpu harness)
 // and M3.4 (pypic goldens) land. Widen a cell only with a measured reason; never silently tighten.
 // (M3.4 may widen curl/div ts_f64 toward ~1e-10 and webgpu_f32's atol floor at 256³ on turbulent
@@ -32,7 +33,7 @@ export interface Tolerance {
 // `ts_f64` cell and is the assertAllclose default.
 export const DEFAULT_TOLERANCE: Tolerance = { rtol: 1e-12, atol: 1e-12 };
 
-export const KERNELS = ["magnitude", "divergence", "curl", "gradient"] as const;
+export const KERNELS = ["magnitude", "divergence", "curl", "gradient", "interp", "trace"] as const;
 export const PRECISIONS = ["ts_f64", "ts_f32", "webgpu_f32", "webgpu_f16"] as const;
 export type Kernel = (typeof KERNELS)[number];
 export type Precision = (typeof PRECISIONS)[number];
@@ -64,6 +65,24 @@ export const TOL = {
     ts_f64: DEFAULT_TOLERANCE,
     ts_f32: { rtol: 1e-5, atol: 1e-5 }, // derived
     webgpu_f32: { rtol: 1e-5, atol: 1e-6 }, // derived — no WGSL gradient kernel
+    webgpu_f16: { rtol: 5e-3, atol: 5e-3 }, // derived
+  },
+  // Trilinear sampling (numerics/interp.ts ↔ the WGSL streamline kernel's manual blend): a convex
+  // combination of eight corners — no cancellation, so it tracks magnitude, not the FD operators.
+  // Exact on a linear field at f64, which is what the interp suite asserts.
+  interp: {
+    ts_f64: DEFAULT_TOLERANCE,
+    ts_f32: { rtol: 1e-6, atol: 1e-6 }, // derived by analogy with magnitude's measured f32 row
+    webgpu_f32: { rtol: 1e-5, atol: 1e-6 }, // derived — the kernel is only exercised through trace
+    webgpu_f16: { rtol: 1e-3, atol: 1e-3 }, // derived
+  },
+  // Field-line traces: positions in GRID units, compared point-wise against the CPU twin or a pypic
+  // golden that ran the same DP5(4) stencil, so only arithmetic precision separates them. Integration
+  // ACCUMULATES that gap along the curve, hence a looser floor than the single-pass kernels.
+  trace: {
+    ts_f64: DEFAULT_TOLERANCE,
+    ts_f32: { rtol: 1e-5, atol: 1e-5 }, // derived — no f32 CPU tracer
+    webgpu_f32: { rtol: 1e-5, atol: 1e-5 }, // measured (M4.3 streamlines.browser: worst |Δ| ≈ 2.4e-6)
     webgpu_f16: { rtol: 5e-3, atol: 5e-3 }, // derived
   },
 } as const satisfies Record<Kernel, Record<Precision, Tolerance>>;

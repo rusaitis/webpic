@@ -4,27 +4,15 @@
 // `gpu` vitest project (`npm run test:gpu`) — local-only, not CI.
 
 import { describe, expect, it } from "vitest";
+import { ballField } from "../../tests/fixtures.ts";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "./messages.ts";
 
 const SIZE = 64;
 const N = 16;
 
-// Unit-valued ball at object (0.25, 0, 0) — offset along object-x = field axis 0 (slowest), so a
-// transposed upload or a wrong NDC basis pulls the pick back to the box center and fails loudly.
-function ballField(): Float32Array {
-  const data = new Float32Array(N * N * N);
-  for (let i0 = 0; i0 < N; i0++) {
-    for (let i1 = 0; i1 < N; i1++) {
-      for (let i2 = 0; i2 < N; i2++) {
-        const dx = (i0 + 0.5) / N - 0.75;
-        const dy = (i1 + 0.5) / N - 0.5;
-        const dz = (i2 + 0.5) / N - 0.5;
-        if (Math.sqrt(dx * dx + dy * dy + dz * dz) < 0.15) data[i2 + N * (i1 + N * i0)] = 1;
-      }
-    }
-  }
-  return data;
-}
+// Offset along object-x = field axis 0 (slowest), so a transposed upload or a wrong NDC basis pulls
+// the pick back to the box center and fails loudly.
+const OFFSET_BALL = ballField([0.25, 0, 0], 0.15, N);
 
 // Level straight-on view down −x: the centered ray runs through the box center AND the ball.
 const POSE = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 } as const;
@@ -47,7 +35,7 @@ function pickPoints(): Promise<{ persp: readonly number[]; ortho: readonly numbe
       const message = event.data;
       switch (message.kind) {
         case "ready": {
-          const data = ballField();
+          const data = OFFSET_BALL.data;
           // Float32Array allocates a plain ArrayBuffer; the payload type narrows ArrayBufferLike.
           const buffer = data.buffer as ArrayBuffer;
           worker.postMessage(

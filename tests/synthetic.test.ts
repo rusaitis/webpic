@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { computeField } from "@compute/field.ts";
 import { describe, expect, it } from "vitest";
-import { gridOf, type ScalarFn, sampleScalar } from "./analyticFieldCore.ts";
-import { fieldArray, makeDataset } from "./fixtures.ts";
+import { type ScalarFn, sampleScalar } from "./analyticFieldCore.ts";
+import { makeDataset, makeField, makeGrid } from "./fixtures.ts";
 import { assertAllclose } from "./helpers.ts";
 import {
   SYNTHETIC_FIELDS,
@@ -76,11 +76,11 @@ function datasetAt(field: SyntheticField, shape: readonly number[]) {
   const [b1, b2, b3] = field.components;
   return makeDataset(
     {
-      B_1: fieldArray("B_1", sampleScalar(shape, spacing, b1, Float64Array), shape),
-      B_2: fieldArray("B_2", sampleScalar(shape, spacing, b2, Float64Array), shape),
-      B_3: fieldArray("B_3", sampleScalar(shape, spacing, b3, Float64Array), shape),
+      B_1: makeField("B_1", sampleScalar(shape, spacing, b1, Float64Array), shape),
+      B_2: makeField("B_2", sampleScalar(shape, spacing, b2, Float64Array), shape),
+      B_3: makeField("B_3", sampleScalar(shape, spacing, b3, Float64Array), shape),
     },
-    { grid: gridOf(shape, spacing) },
+    { grid: makeGrid(shape, spacing) },
   );
 }
 

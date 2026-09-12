@@ -6,10 +6,10 @@ import type {
   PhysicsParams,
 } from "@containers/field_dataset.ts";
 import type { DataHandle } from "@data/readers/_protocols.ts";
-import { resolveFieldMeta } from "@data/readers/decode.ts";
 import { createZarrConfidence, createZarrReader } from "@data/readers/zarr.ts";
 import { describe, expect, it } from "vitest";
 import * as zarr from "zarrita";
+import { makeDataset, makeField, makeGrid } from "../../../tests/fixtures.ts";
 import { encodePypicAttrs, toJsonNative, writeZarr } from "./zarr.ts";
 
 // The writer is proven against the production reader: write to an in-memory Map, read back
@@ -19,15 +19,9 @@ import { encodePypicAttrs, toJsonNative, writeZarr } from "./zarr.ts";
 const HANDLE: DataHandle = { kind: "url", url: "mem://written" };
 
 const GRID: GridInfo = {
-  dimensions: [2, 3, 4],
-  spacing: [0.5, 1, 2],
-  origin: [0, -1, 10],
-  geometry: "cartesian",
-  axisLabels: ["x", "y", "z"],
+  ...makeGrid([2, 3, 4], [0.5, 1, 2], [0, -1, 10]),
   dt: 0.1,
   boundary: ["periodic", "periodic", "periodic"],
-  survivingAxes: null,
-  stagger: null,
 };
 
 const NORMALIZATION: Normalization = {
@@ -49,11 +43,9 @@ const PHYSICS: PhysicsParams = {
   extra: { code: "webpic-test" },
 };
 
-function makeField(name: string, data: Float32Array | Float64Array): FieldArray {
-  const meta = resolveFieldMeta(name);
-  if (meta === undefined) throw new Error(`test field "${name}" not in registry`);
-  return { data, shape: GRID.dimensions, meta, units: "normalized", latex: "", reduction: null };
-}
+// Normalized units + no latex: what a webpic-written store carries, and what the reader compares.
+const writerField = (name: string, data: Float32Array | Float64Array): FieldArray =>
+  makeField(name, data, GRID.dimensions, { units: "normalized", latex: "" });
 
 function rampF32(n: number): Float32Array {
   return Float32Array.from({ length: n }, (_, i) => i + 1);
@@ -65,22 +57,22 @@ function rampF64(n: number): Float64Array {
 
 const CELLS = 2 * 3 * 4;
 
-function makeDataset(overrides: Partial<FieldDataset> = {}): FieldDataset {
-  return {
-    fields: new Map([
-      ["B_1", makeField("B_1", rampF32(CELLS))],
-      ["B_2", makeField("B_2", rampF64(CELLS))],
-    ]),
-    grid: GRID,
-    normalization: NORMALIZATION,
-    species: [{ name: "electrons", charge: -1, mass: 1, charge_to_mass: -1 }],
-    physics: PHYSICS,
-    frame: "simulation",
-    transforms: {},
-    metadata: { run_name: "writer-test", nested: { a: 1 } },
-    step: 0,
-    ...overrides,
-  };
+function writerDataset(overrides: Partial<FieldDataset> = {}): FieldDataset {
+  return makeDataset(
+    {
+      B_1: writerField("B_1", rampF32(CELLS)),
+      B_2: writerField("B_2", rampF64(CELLS)),
+    },
+    {
+      grid: GRID,
+      normalization: NORMALIZATION,
+      species: [{ name: "electrons", charge: -1, mass: 1, charge_to_mass: -1 }],
+      physics: PHYSICS,
+      frame: "simulation",
+      metadata: { run_name: "writer-test", nested: { a: 1 } },
+      ...overrides,
+    },
+  );
 }
 
 async function writeToMap(dataset: FieldDataset): Promise<Map<string, Uint8Array>> {
@@ -102,7 +94,7 @@ function rootAttrsOf(store: Map<string, Uint8Array>): Record<string, unknown> {
 
 describe("writeZarr — reader round-trip", () => {
   it("round-trips field data with dtype and shape preserved", async () => {
-    const reader = readerFor(await writeToMap(makeDataset()));
+    const reader = readerFor(await writeToMap(writerDataset()));
     const ds = await reader.readTimestep(HANDLE, 0);
 
     const b1 = ds.fields.get("B_1");
@@ -118,7 +110,7 @@ describe("writeZarr — reader round-trip", () => {
   });
 
   it("round-trips grid, normalization (inf sentinel), physics, species, metadata", async () => {
-    const reader = readerFor(await writeToMap(makeDataset()));
+    const reader = readerFor(await writeToMap(writerDataset()));
     const ds = await reader.readTimestep(HANDLE, 0, { fields: ["B_1"] });
 
     expect(ds.grid.dimensions).toEqual(GRID.dimensions);
@@ -139,14 +131,14 @@ describe("writeZarr — reader round-trip", () => {
   });
 
   it("is a single-step store: one timestep, coords excluded from the field listing", async () => {
-    const store = await writeToMap(makeDataset());
+    const store = await writeToMap(writerDataset());
     const reader = readerFor(store);
     expect(await reader.availableTimesteps(HANDLE)).toEqual([0]);
     expect(await reader.availableFields(HANDLE, 0)).toEqual(["B_1", "B_2"]);
   });
 
   it("scores 1 on the zarr confidence probe", async () => {
-    const store = await writeToMap(makeDataset());
+    const store = await writeToMap(writerDataset());
     const probe = createZarrConfidence(() => store);
     expect(await probe(HANDLE)).toBe(1);
   });
@@ -159,7 +151,7 @@ describe("writeZarr — reader round-trip", () => {
       interpolationOrder: 2,
       notes: null,
     };
-    const store = await writeToMap(makeDataset({ grid: { ...GRID, stagger } }));
+    const store = await writeToMap(writerDataset({ grid: { ...GRID, stagger } }));
     const gridAttrs = rootAttrsOf(store).grid as Record<string, unknown>;
     expect(gridAttrs.stagger).toEqual({
       __pypic_class__: "StaggerInfo",
@@ -183,10 +175,10 @@ describe("writeZarr — reader round-trip", () => {
       lengthAxes: 2,
     };
     const minimal: FieldArray["reduction"] = { axis: "z", op: "mean" };
-    const dataset = makeDataset({
+    const dataset = writerDataset({
       fields: new Map([
-        ["B_1", { ...makeField("B_1", rampF32(CELLS)), reduction: full }],
-        ["B_2", { ...makeField("B_2", rampF64(CELLS)), reduction: minimal }],
+        ["B_1", { ...writerField("B_1", rampF32(CELLS)), reduction: full }],
+        ["B_2", { ...writerField("B_2", rampF64(CELLS)), reduction: minimal }],
       ]),
     });
     const reader = readerFor(await writeToMap(dataset));
@@ -197,7 +189,7 @@ describe("writeZarr — reader round-trip", () => {
 
   it("round-trips Map-valued metadata via the keyed_dict tag", async () => {
     const metadata = { lookup: new Map<unknown, unknown>([[1, "one"]]) };
-    const reader = readerFor(await writeToMap(makeDataset({ metadata })));
+    const reader = readerFor(await writeToMap(writerDataset({ metadata })));
     const ds = await reader.readTimestep(HANDLE, 0, { fields: ["B_1"] });
     expect(ds.metadata).toEqual({ lookup: new Map([[1, "one"]]) });
   });
@@ -209,7 +201,7 @@ describe("writeZarr — reader round-trip", () => {
       simulation_toml: '[run]\nname = "test-run"\n',
       model: { model_name: "mhd" },
     };
-    const reader = readerFor(await writeToMap(makeDataset({ metadata })));
+    const reader = readerFor(await writeToMap(writerDataset({ metadata })));
     const ds = await reader.readTimestep(HANDLE, 0, { fields: ["B_1"] });
     expect(ds.metadata).toEqual(metadata);
   });
@@ -217,7 +209,7 @@ describe("writeZarr — reader round-trip", () => {
 
 describe("writeZarr — on-disk layout (pypic schema-v1.0 mirror)", () => {
   it("writes the root attrs sections pypic from_zarr expects", async () => {
-    const attrs = rootAttrsOf(await writeToMap(makeDataset()));
+    const attrs = rootAttrsOf(await writeToMap(writerDataset()));
     expect(attrs.schema).toEqual({ version: "1.0" });
     expect(attrs.grid).toEqual({
       dimensions: [2, 3, 4],
@@ -246,7 +238,7 @@ describe("writeZarr — on-disk layout (pypic schema-v1.0 mirror)", () => {
 
   it("omits time/boundary_conditions/transforms sections when the dataset has none", async () => {
     const attrs = rootAttrsOf(
-      await writeToMap(makeDataset({ grid: { ...GRID, dt: null, boundary: null } })),
+      await writeToMap(writerDataset({ grid: { ...GRID, dt: null, boundary: null } })),
     );
     expect(attrs.time).toBeUndefined();
     expect(attrs.boundary_conditions).toBeUndefined();
@@ -254,7 +246,7 @@ describe("writeZarr — on-disk layout (pypic schema-v1.0 mirror)", () => {
   });
 
   it("writes self-describing field attrs from the registry meta", async () => {
-    const store = await writeToMap(makeDataset());
+    const store = await writeToMap(writerDataset());
     const raw = store.get("/fields/B_1/zarr.json");
     const doc = JSON.parse(new TextDecoder().decode(raw ?? new Uint8Array())) as {
       attributes: Record<string, unknown>;
@@ -268,16 +260,16 @@ describe("writeZarr — on-disk layout (pypic schema-v1.0 mirror)", () => {
   });
 
   it("writes attrs.reduction in pypic's snake_case shape, absent when null", async () => {
-    const dataset = makeDataset({
+    const dataset = writerDataset({
       fields: new Map([
         [
           "B_1",
           {
-            ...makeField("B_1", rampF32(CELLS)),
+            ...writerField("B_1", rampF32(CELLS)),
             reduction: { axis: "x", op: "argmax", resultKind: "axis_position" },
           },
         ],
-        ["B_2", makeField("B_2", rampF64(CELLS))],
+        ["B_2", writerField("B_2", rampF64(CELLS))],
       ]),
     });
     const store = await writeToMap(dataset);
@@ -299,7 +291,7 @@ describe("writeZarr — on-disk layout (pypic schema-v1.0 mirror)", () => {
   it("lifts reserved metadata keys to root attrs, not into attrs.metadata", async () => {
     const attrs = rootAttrsOf(
       await writeToMap(
-        makeDataset({
+        writerDataset({
           metadata: {
             run_name: "writer-test",
             run: { name: "test-run" },
@@ -314,7 +306,7 @@ describe("writeZarr — on-disk layout (pypic schema-v1.0 mirror)", () => {
   });
 
   it("writes cell-centered coordinate arrays (origin + (i+0.5)·dx)", async () => {
-    const store = await writeToMap(makeDataset());
+    const store = await writeToMap(writerDataset());
     const x = await zarr.open(zarr.root(store).resolve("fields/x"), { kind: "array" });
     const y = await zarr.open(zarr.root(store).resolve("fields/y"), { kind: "array" });
     expect(Array.from((await zarr.get(x, null)).data as Float64Array)).toEqual([0.25, 0.75]);
@@ -325,7 +317,7 @@ describe("writeZarr — on-disk layout (pypic schema-v1.0 mirror)", () => {
 describe("writeZarr — options and validation", () => {
   it("downcasts to float32 on request", async () => {
     const store = new Map<string, Uint8Array>();
-    await writeZarr(makeDataset(), store, { dtype: "float32" });
+    await writeZarr(writerDataset(), store, { dtype: "float32" });
     const ds = await readerFor(store).readTimestep(HANDLE, 0, { fields: ["B_2"] });
     const b2 = ds.fields.get("B_2");
     expect(b2?.data).toBeInstanceOf(Float32Array);
@@ -333,31 +325,31 @@ describe("writeZarr — options and validation", () => {
   });
 
   it("rejects a field whose shape disagrees with the grid", async () => {
-    const bad = makeField("B_1", rampF32(8));
-    const dataset = makeDataset({
+    const bad = writerField("B_1", rampF32(8));
+    const dataset = writerDataset({
       fields: new Map([["B_1", { ...bad, shape: [2, 2, 2] }]]),
     });
     await expect(writeZarr(dataset, new Map())).rejects.toThrow(/does not match/);
   });
 
   it("rejects a field name that collides with a coordinate array", async () => {
-    const dataset = makeDataset({
-      fields: new Map([["x", makeField("B_1", rampF32(CELLS))]]),
+    const dataset = writerDataset({
+      fields: new Map([["x", writerField("B_1", rampF32(CELLS))]]),
     });
     await expect(writeZarr(dataset, new Map())).rejects.toThrow(/collides with a coordinate/);
   });
 
   it("rejects a non-string metadata.simulation_toml and a non-object metadata.run", async () => {
     await expect(
-      writeZarr(makeDataset({ metadata: { simulation_toml: 42 } }), new Map()),
+      writeZarr(writerDataset({ metadata: { simulation_toml: 42 } }), new Map()),
     ).rejects.toThrow(/simulation_toml must be a string/);
     await expect(
-      writeZarr(makeDataset({ metadata: { run: "not-a-record" } }), new Map()),
+      writeZarr(writerDataset({ metadata: { run: "not-a-record" } }), new Map()),
     ).rejects.toThrow(/run must be a JSON object/);
   });
 
   it("rejects mismatched grid dimension/spacing lengths loudly", async () => {
-    const dataset = makeDataset({ grid: { ...GRID, spacing: [0.5, 1] } });
+    const dataset = writerDataset({ grid: { ...GRID, spacing: [0.5, 1] } });
     await expect(writeZarr(dataset, new Map())).rejects.toThrow(/lengths disagree/);
   });
 
@@ -366,7 +358,7 @@ describe("writeZarr — options and validation", () => {
     controller.abort();
     let error: unknown;
     try {
-      await writeZarr(makeDataset(), new Map(), { signal: controller.signal });
+      await writeZarr(writerDataset(), new Map(), { signal: controller.signal });
     } catch (caught) {
       error = caught;
     }
@@ -396,7 +388,7 @@ describe("toJsonNative", () => {
 
 describe("encodePypicAttrs", () => {
   it("is the inverse of the reader's decode for the identity sections", () => {
-    const attrs = encodePypicAttrs(makeDataset());
+    const attrs = encodePypicAttrs(writerDataset());
     expect(Object.keys(attrs).sort()).toEqual([
       "boundary_conditions",
       "coordinates",

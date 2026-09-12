@@ -261,14 +261,17 @@ function glideToRest(
   return { pose, frames };
 }
 
+// What a glide is allowed to leave on the table: the 1.5e-4 settle epsilon × ORBIT_SENS (2π) ≈
+// 9.4e-4 rad, i.e. sub-pixel at any sane viewport.
+const SETTLE_RESIDUE = 1e-3;
+
 describe("stepMomentum", () => {
   it("conserves the drag: a glide lands where the undamped orbit would (sub-pixel residue)", () => {
     const direct = orbitPose(DEFAULT_POSE, 0.2, -0.1);
     const { pose, frames } = glideToRest(DEFAULT_POSE, addOrbitMomentum(MOMENTUM_ZERO, 0.2, -0.1));
     expect(frames).toBeGreaterThan(20); // it glides, it doesn't snap
-    // Residue bound: the 1.5e-4 settle epsilon × ORBIT_SENS (2π) ≈ 9.4e-4 rad.
-    expect(Math.abs(pose.azimuth - direct.azimuth)).toBeLessThan(1e-3);
-    expect(Math.abs(pose.elevation - direct.elevation)).toBeLessThan(1e-3);
+    expect(Math.abs(pose.azimuth - direct.azimuth)).toBeLessThan(SETTLE_RESIDUE);
+    expect(Math.abs(pose.elevation - direct.elevation)).toBeLessThan(SETTLE_RESIDUE);
     expect(pose.target).toBe(DEFAULT_POSE.target); // orbit momentum never moves the target
   });
 

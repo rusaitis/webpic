@@ -6,7 +6,7 @@ import {
   STREAMLINE_WORKGROUP_SIZE,
 } from "@shaders/kernels/streamline.wgsl.ts";
 import { describe, expect, it } from "vitest";
-import { dummyGrid, fieldArray, makeDataset } from "../../../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "../../../../tests/fixtures.ts";
 import { datasetFromFixture, TRACE_FIXTURES } from "../../../../tests/traceFixtures.ts";
 import {
   buildStreamlineParams,
@@ -121,11 +121,11 @@ describe("traceFieldLinesWebgpu — CPU-side validation (no device)", () => {
   const uniform = datasetFromFixture(TRACE_FIXTURES.uniform);
   const zeroField = makeDataset(
     {
-      B_1: fieldArray("B_1", new Float64Array(8), [2, 2, 2]),
-      B_2: fieldArray("B_2", new Float64Array(8), [2, 2, 2]),
-      B_3: fieldArray("B_3", new Float64Array(8), [2, 2, 2]),
+      B_1: makeField("B_1", new Float64Array(8), [2, 2, 2]),
+      B_2: makeField("B_2", new Float64Array(8), [2, 2, 2]),
+      B_3: makeField("B_3", new Float64Array(8), [2, 2, 2]),
     },
-    { grid: dummyGrid([2, 2, 2]) },
+    { grid: makeGrid([2, 2, 2]) },
   );
 
   it("rejects an out-of-domain seed before acquiring a device", async () => {
