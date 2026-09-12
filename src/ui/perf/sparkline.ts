@@ -28,6 +28,9 @@ export function createSparkline(doc: Document, devicePixelRatio: number): Sparkl
   const canvas = makeEl(doc, "canvas", "webpic-perf_spark");
   canvas.width = Math.round(SPARK_W * devicePixelRatio);
   canvas.height = Math.round(SPARK_H * devicePixelRatio);
+  // CSS size from the same constants as the backing store — the stylesheet would be a second copy.
+  canvas.style.width = `${SPARK_W}px`;
+  canvas.style.height = `${SPARK_H}px`;
   const context = canvas.getContext("2d");
   context?.scale(devicePixelRatio, devicePixelRatio); // draw in CSS px
 

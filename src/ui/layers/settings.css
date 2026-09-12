@@ -1,0 +1,70 @@
+/* Per-layer settings window (ui/layers/settings): the action row beneath the controls — reorder ▲▼,
+   clear seeds, remove. Buttons read like the rail menu's action list (transparent, hover-lift). */
+.webpic-layerset_empty {
+  color: var(--webpic-muted);
+  padding: 12px 6px;
+  font: 500 12px / 1.5 var(--webpic-mono);
+}
+.webpic-layerset_actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 2px 2px;
+  border-top: 1px solid var(--webpic-border);
+}
+.webpic-layerset_spacer {
+  flex: 1 1 auto;
+}
+.webpic-layerset_btn,
+.webpic-layerset_move {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  color: var(--webpic-fg);
+  background: transparent;
+  border: 1px solid var(--webpic-edge);
+  border-radius: 6px;
+  font: 500 12px / 1.2 var(--webpic-mono);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    opacity 0.12s ease;
+}
+.webpic-layerset_btn {
+  padding: 5px 10px;
+}
+.webpic-layerset_move {
+  width: var(--webpic-unit);
+  height: var(--webpic-unit);
+  padding: 0;
+}
+.webpic-layerset_btn:hover:not(:disabled),
+.webpic-layerset_btn:focus-visible,
+.webpic-layerset_move:hover:not(:disabled),
+.webpic-layerset_move:focus-visible {
+  outline: none;
+  background: var(--webpic-hover);
+}
+.webpic-layerset_btn:disabled,
+.webpic-layerset_move:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.webpic-layerset_btn.is-danger:hover:not(:disabled) {
+  border-color: var(--webpic-active-edge);
+  background: var(--webpic-active);
+}
+.webpic-layerset_move svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

@@ -1,0 +1,134 @@
+/* Status pill: bottom-center loading/error feedback (ui/status/statusPill.ts). Geometry mirrors the
+   index.html boot splash exactly so the HTML→JS handoff is pixel-stable (keep the bottom in sync). Sits
+   just above the bottom rail (12px inset + 32px button), tracking the same safe-area inset so it clears
+   the rail on devices with a home indicator. The delayed visibility transition on fade-out keeps the
+   element readable through the fade, then drops it from the a11y tree; fade-in flips visibility instantly. */
+.webpic-status {
+  position: fixed;
+  left: 50%;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  z-index: var(--webpic-z-status);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 15px;
+  background: var(--webpic-bg);
+  color: var(--webpic-muted);
+  border: 1px solid var(--webpic-border);
+  border-radius: 999px;
+  font: 500 13px / 1.4 var(--webpic-mono);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 6px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    visibility 0s linear 160ms;
+}
+.webpic-status.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+.webpic-status_spinner {
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid var(--webpic-border);
+  border-top-color: var(--webpic-accent);
+  animation: webpic-spin 0.9s linear infinite;
+}
+.webpic-status_text {
+  white-space: nowrap;
+}
+.webpic-status[data-kind="error"] {
+  color: var(--webpic-error);
+  border-color: color-mix(in srgb, var(--webpic-error) 40%, transparent);
+}
+.webpic-status[data-kind="error"] .webpic-status_spinner {
+  animation: none;
+  border-color: currentColor;
+  opacity: 0.5;
+}
+@keyframes webpic-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .webpic-status,
+  .webpic-status.is-visible {
+    transition: opacity 160ms ease;
+    transform: translateX(-50%);
+  }
+  .webpic-status_spinner {
+    animation-duration: 2s;
+  }
+}
+/* Keyboard cheat-sheet modal (ui/status/helpOverlay.ts): full-viewport dimmer + a centered card. z-index in a
+   high band (above the floating-window stack, which rises from 15 without bound — see floating/zStack). */
+.webpic-help {
+  position: fixed;
+  inset: 0;
+  z-index: var(--webpic-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--webpic-dim);
+  color: var(--webpic-fg);
+  font: 500 12px / 1.5 var(--webpic-mono);
+}
+.webpic-help[hidden] {
+  display: none;
+}
+.webpic-help_panel {
+  width: 100%;
+  max-width: 680px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 18px 20px;
+  box-sizing: border-box;
+  background: var(--webpic-bg);
+  border: 1px solid var(--webpic-border);
+  border-radius: 10px;
+}
+.webpic-help_title {
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.webpic-help_grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px 28px;
+}
+.webpic-help_section-title {
+  color: var(--webpic-accent);
+  margin-bottom: 6px;
+}
+.webpic-help_row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 2px 0;
+}
+.webpic-help_keys {
+  color: var(--webpic-fg);
+  white-space: nowrap;
+  font: inherit;
+}
+.webpic-help_action {
+  color: var(--webpic-muted);
+  text-align: right;
+}
+@media (prefers-reduced-motion: reduce) {
+  .webpic-help {
+    background: var(--webpic-dim-strong);
+  }
+}

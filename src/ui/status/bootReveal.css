@@ -1,0 +1,13 @@
+/* Cold-start reveal (ui/status/bootReveal.ts): chrome held invisible while the boot phase is live,
+   fading in when the class drops. visibility (not pointer-events) so the gnomon tips' own
+   pointer-events: auto can't reach through. The status pill is deliberately not matched. */
+.webpic-booting .webpic-shell,
+.webpic-booting .webpic-chrome,
+.webpic-booting .webpic-rail,
+.webpic-booting .webpic-siderail,
+.webpic-booting .webpic-topbar,
+.webpic-booting .webpic-cbar,
+.webpic-booting .webpic-window {
+  opacity: 0;
+  visibility: hidden;
+}

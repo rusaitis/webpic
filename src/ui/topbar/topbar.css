@@ -1,0 +1,442 @@
+/* Top menu bar (ui/topbar/bar): brand + dataset/field pickers + time scrub + a hover-revealed action
+   cluster. A centered, content-sized translucent glass pill: ~25% bg + blur, with
+   content dimmed via --topbar-fg at rest and brightening on hover/focus. The SVG marks stroke with
+   currentColor, so dimming the 'color' prop dims text + icons together; the accent brand mark is exempt.
+   Declares the shell-local control tokens itself since it lives outside .webpic-shell. */
+.webpic-topbar {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--webpic-z-glass);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  height: 46px;
+  max-width: calc(100vw - 24px);
+  color: color-mix(in srgb, var(--webpic-fg) calc(var(--topbar-fg) * 100%), transparent);
+  background: var(--webpic-surface);
+  border: 1px solid var(--webpic-edge);
+  border-radius: 999px;
+  -webkit-backdrop-filter: blur(var(--webpic-blur));
+  backdrop-filter: blur(var(--webpic-blur));
+  box-shadow: var(--webpic-shadow-1);
+  font: 500 12px / 1.4 var(--webpic-mono);
+  --webpic-input-bg: rgba(0, 0, 0, 0.28);
+  --webpic-radius: 999px;
+  --webpic-unit: 30px;
+  --topbar-fg: 0.78;
+  transition:
+    opacity 240ms ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+}
+.webpic-topbar:hover,
+.webpic-topbar:focus-within {
+  --topbar-fg: 1;
+  background: var(--webpic-pop);
+  border-color: var(--webpic-edge-strong);
+  box-shadow: var(--webpic-shadow-2);
+}
+.webpic-topbar[hidden] {
+  display: none;
+}
+.webpic-topbar_brand {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding-right: 4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.webpic-topbar_mark {
+  display: grid;
+  place-items: center;
+  color: var(--webpic-accent);
+}
+.webpic-topbar_mark svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.webpic-topbar_btn {
+  box-sizing: border-box;
+  min-width: 0;
+  height: var(--webpic-unit);
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font: inherit;
+  background: var(--webpic-input-bg);
+  color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border);
+  border-radius: var(--webpic-radius);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+.webpic-topbar_btn:hover,
+.webpic-topbar_btn:focus-visible {
+  outline: none;
+  background: var(--webpic-hover);
+}
+.webpic-topbar_btn[aria-expanded="true"] {
+  border-color: var(--webpic-active-edge);
+  background: var(--webpic-active);
+}
+.webpic-topbar_btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.webpic-topbar_btn:disabled:hover {
+  background: var(--webpic-input-bg);
+}
+/* Dataset/field pickers recede at rest (their solid fill otherwise competes with the scene); the
+   bar's hover/focus brings them back in step with --topbar-fg, as does opening one (aria-expanded). */
+.webpic-topbar_dataset,
+.webpic-topbar_field {
+  opacity: 0.7;
+}
+.webpic-topbar:hover .webpic-topbar_dataset,
+.webpic-topbar:focus-within .webpic-topbar_dataset,
+.webpic-topbar:hover .webpic-topbar_field,
+.webpic-topbar:focus-within .webpic-topbar_field,
+.webpic-topbar_dataset[aria-expanded="true"],
+.webpic-topbar_field[aria-expanded="true"] {
+  opacity: 1;
+}
+.webpic-topbar_icon {
+  width: var(--webpic-unit);
+  padding: 0;
+  justify-content: center;
+}
+.webpic-topbar_btn svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.webpic-topbar_label {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.webpic-topbar_field .webpic-topbar_label {
+  max-width: 14ch;
+} /* the content button stays a touch tighter */
+.webpic-topbar_caret {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--webpic-muted);
+}
+.webpic-topbar_caret svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Time control: a compact "step N ▾" chip that reveals a scrub popover (track + prev/next) on the
+   wrapper's hover/focus/pin (see the shared .webpic-topbar_pop reveal below). --webpic-radius scoped
+   to 4px so the chip + the popover's track/grip stay crisp against the bar's 999px pills. */
+.webpic-topbar_time {
+  position: relative;
+  display: flex;
+  align-items: center;
+  --webpic-radius: 4px;
+}
+.webpic-topbar_time.is-disabled {
+  opacity: 0.5;
+}
+.webpic-topbar_chip {
+  position: relative;
+  box-sizing: border-box;
+  height: var(--webpic-unit);
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font: inherit;
+  background: transparent;
+  color: var(--webpic-muted);
+  border: 0;
+  border-radius: var(--webpic-radius);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.webpic-topbar_chip:hover,
+.webpic-topbar_chip:focus-visible {
+  outline: none;
+  color: var(--webpic-fg);
+  background: var(--webpic-hover);
+}
+.webpic-topbar_chip[aria-expanded="true"] {
+  color: var(--webpic-fg);
+  background: var(--webpic-active);
+} /* accent tint on open, like the buttons */
+.webpic-topbar_chip:disabled {
+  cursor: default;
+}
+.webpic-topbar_chip:disabled:hover {
+  background: transparent;
+  color: var(--webpic-muted);
+}
+.webpic-topbar_chip .webpic-topbar_caret svg {
+  transition: transform 0.18s ease;
+}
+.webpic-topbar_reveal.is-expanded .webpic-topbar_chip .webpic-topbar_caret svg {
+  transform: rotate(180deg);
+}
+.webpic-topbar_step {
+  white-space: nowrap;
+}
+/* Projection chip — fixed width so persp ⇄ ortho never jitters the bar. */
+.webpic-topbar_proj {
+  width: 52px;
+  justify-content: center;
+}
+/* Compact, borderless step buttons — live inside the scrub popover. */
+.webpic-topbar_step-btn {
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  border-radius: var(--webpic-radius);
+  cursor: pointer;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
+}
+.webpic-topbar_step-btn:hover,
+.webpic-topbar_step-btn:focus-visible {
+  opacity: 1;
+  outline: none;
+  background: var(--webpic-hover);
+}
+.webpic-topbar_step-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.webpic-topbar_step-btn:disabled:hover {
+  background: transparent;
+}
+.webpic-topbar_step-btn svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The custom range control wants width:100% for a panel row; pin it to a fixed track in the popover.
+   The inner track keeps its half-grip side margins (load-bearing — grip stays inside at index 0/max). */
+.webpic-topbar_track.webpic-range {
+  width: 160px;
+  flex: 0 0 auto;
+}
+
+/* Shared click-to-pin reveal — the time chip and the actions chevron both use it: a glass popover
+   under the trigger, hidden until the trigger is clicked (.is-expanded). Click-only (no hover-open),
+   to match the dataset/field pickers; a two-triangle arrow points up at the trigger. */
+.webpic-topbar_reveal {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+.webpic-topbar_chevron {
+  position: relative;
+  opacity: 0.7;
+  transition: opacity 0.18s ease;
+}
+.webpic-topbar:hover .webpic-topbar_chevron,
+.webpic-topbar:focus-within .webpic-topbar_chevron {
+  opacity: 1;
+}
+.webpic-topbar_chevron svg {
+  transition: transform 0.18s ease;
+}
+.webpic-topbar_reveal.is-expanded .webpic-topbar_chevron svg {
+  transform: rotate(180deg);
+}
+.webpic-topbar_pop {
+  position: absolute;
+  top: 100%;
+  margin-top: 15px;
+  z-index: 1;
+  background: var(--webpic-pop);
+  -webkit-backdrop-filter: blur(var(--webpic-blur));
+  backdrop-filter: blur(var(--webpic-blur));
+  border: 1px solid var(--webpic-edge-strong);
+  border-radius: 12px;
+  box-shadow: var(--webpic-shadow-3);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(var(--pop-x, 0px), -6px);
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    visibility 0s linear 0.18s;
+}
+.webpic-topbar_reveal.is-expanded > .webpic-topbar_pop {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(var(--pop-x, 0px), 0);
+  pointer-events: auto;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.webpic-topbar_pop::before,
+.webpic-topbar_pop::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  border: 8px solid transparent;
+}
+.webpic-topbar_pop::before {
+  border-bottom-color: var(--webpic-edge-strong);
+}
+.webpic-topbar_pop::after {
+  margin-bottom: -1px;
+  border-bottom-color: var(--webpic-pop);
+}
+/* Actions popover: right-anchored 2-col icon grid, arrow near the right. */
+.webpic-topbar_actions {
+  right: 0;
+  padding: 6px;
+}
+.webpic-topbar_actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, var(--webpic-unit));
+  gap: 4px;
+}
+.webpic-topbar_actions::before,
+.webpic-topbar_actions::after {
+  right: 14px;
+}
+/* Time scrub popover: centered under the chip (--pop-x: -50% pairs with left: 50%), single row
+   [prev | track | next], arrow centered. */
+.webpic-topbar_time-pop {
+  left: 50%;
+  --pop-x: -50%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 7px;
+}
+.webpic-topbar_time-pop::before,
+.webpic-topbar_time-pop::after {
+  left: 50%;
+  margin-left: -8px;
+}
+/* Compact bar (phones / very narrow windows): JS adds .is-compact below ~560px and relocates the time
+   scrub into the chevron's action panel. The bar tightens — brand wordmark drops, pickers truncate
+   harder — so the chevron never spills past the viewport edge. The relocated scrub de-floats: it sits
+   inline + always-open inside the panel, so there's no nested popover to clip at the screen edge. */
+.webpic-topbar.is-compact {
+  gap: 4px;
+  padding: 0 8px;
+}
+.webpic-topbar.is-compact .webpic-topbar_word {
+  display: none;
+}
+.webpic-topbar.is-compact .webpic-topbar_dataset .webpic-topbar_label,
+.webpic-topbar.is-compact .webpic-topbar_field .webpic-topbar_label {
+  max-width: 9ch;
+}
+.webpic-topbar.is-compact .webpic-topbar_actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 224px;
+  padding: 8px;
+}
+.webpic-topbar.is-compact .webpic-topbar_actions-grid {
+  grid-template-columns: repeat(4, var(--webpic-unit));
+  justify-content: center;
+}
+/* The step+slider sit in a subtle full-bleed footer tray (lighter fill, no border) that cleanly
+   divides them from the action icons above; the readout de-buttons into a plain field. */
+.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_time {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0 -8px -8px;
+  padding: 8px;
+  border-radius: 0 0 11px 11px;
+  background: var(--webpic-lift-6);
+}
+.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_chip {
+  width: 100%;
+  height: auto;
+  padding: 0;
+  justify-content: center;
+  cursor: default;
+  pointer-events: none;
+  color: var(--webpic-muted);
+}
+.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_chip .webpic-topbar_caret {
+  display: none;
+}
+.webpic-topbar.is-compact .webpic-topbar_actions .webpic-topbar_time .webpic-topbar_time-pop {
+  position: static;
+  transform: none;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transition: none;
+}
+.webpic-topbar.is-compact .webpic-topbar_time-pop::before,
+.webpic-topbar.is-compact .webpic-topbar_time-pop::after {
+  display: none;
+}
+.webpic-topbar.is-compact .webpic-topbar_track.webpic-range {
+  flex: 1 1 auto;
+  width: auto;
+}

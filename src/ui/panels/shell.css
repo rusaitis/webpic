@@ -1,0 +1,9 @@
+.webpic-shell[data-side="left"] {
+  left: 12px;
+}
+.webpic-shell[data-side="right"] {
+  right: 12px;
+}
+.webpic-shell[hidden] {
+  display: none;
+}

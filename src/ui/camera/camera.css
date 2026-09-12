@@ -1,0 +1,124 @@
+/* Clickable ±axis tips (snap-to-view): filled = positive, ring = negative. The chrome overlay is
+   pointer-events: none, so tips opt back in. Their transforms are JS-owned (position + a counter-
+   rotation keeping the discs screen-facing), hence a halo hover affordance rather than a scale. */
+.webpic-gnomon_tip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.webpic-gnomon_tip:hover {
+  box-shadow: var(--webpic-glow);
+}
+.webpic-gnomon_tip.is-px {
+  background: var(--webpic-axis-x);
+}
+.webpic-gnomon_tip.is-nx {
+  border-color: var(--webpic-axis-x);
+}
+.webpic-gnomon_tip.is-py {
+  background: var(--webpic-axis-y);
+}
+.webpic-gnomon_tip.is-ny {
+  border-color: var(--webpic-axis-y);
+}
+.webpic-gnomon_tip.is-pz {
+  background: var(--webpic-axis-z);
+}
+.webpic-gnomon_tip.is-nz {
+  border-color: var(--webpic-axis-z);
+}
+/* Centered bottom button rail (ui/camera/bottomRail): subtle icon toggles. pointer-events:
+   none on the bar so it never blocks the canvas — each button options back in. has-gnomon reserves the
+   bottom-left gnomon's footprint (12 + 56 + 12) symmetrically, keeping the cluster centered + clear. */
+.webpic-rail {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: var(--webpic-z-chrome);
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  /* The colorbar slides the centered cluster aside (via --webpic-rail-shift) when it docks beside the
+     rail, so the two read as one centered group; 0 = the rail owns the center alone. */
+  transform: translateX(var(--webpic-rail-shift, 0px));
+  transition:
+    opacity 240ms ease,
+    transform 0.3s var(--webpic-ease);
+}
+.webpic-rail[hidden] {
+  display: none;
+}
+.webpic-rail.has-gnomon {
+  padding: 0 80px;
+}
+.webpic-rail_btn {
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0.4;
+  background: transparent;
+  color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border);
+  border-radius: 6px;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.webpic-rail_btn:hover,
+.webpic-rail_btn:focus-visible {
+  opacity: 1;
+  outline: none;
+  background: var(--webpic-hover);
+}
+.webpic-rail_btn[aria-pressed="true"],
+.webpic-rail_btn.is-copied {
+  opacity: 1;
+  border-color: var(--webpic-active-edge);
+  background: var(--webpic-active);
+}
+.webpic-rail_btn svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Coordinate chip: a text button (geometry · field units) that opens the grid-info card — auto width
+   instead of the 30px icon square, single-line with ellipsis. aria-expanded reuses the pressed
+   accent-tint while the card is open. */
+.webpic-rail_coords {
+  display: block;
+  width: auto;
+  min-width: 32px;
+  max-width: 40vw;
+  padding: 0 9px;
+  font: 500 11px / 30px var(--webpic-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.webpic-rail_coords[aria-expanded="true"] {
+  opacity: 1;
+  border-color: var(--webpic-active-edge);
+  background: var(--webpic-active);
+}

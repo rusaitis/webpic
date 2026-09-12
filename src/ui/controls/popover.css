@@ -1,0 +1,100 @@
+/* Anchored single-select popover (ui/controls/popover) — the dataset + content pickers share it.
+   Body-appended (escapes the bar's clip); z-index above the help modal (1000) so a transient menu is
+   never occluded — even over a raised floating panel. Declares the control tokens locally. */
+.webpic-popover {
+  position: fixed;
+  z-index: var(--webpic-z-popover);
+  box-sizing: border-box;
+  min-width: 200px;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--webpic-bg);
+  color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border);
+  border-radius: 8px;
+  font: 500 12px / 1.4 var(--webpic-mono);
+  --webpic-radius: 4px;
+  box-shadow: var(--webpic-shadow-3);
+}
+.webpic-popover[hidden] {
+  display: none;
+}
+.webpic-popover_item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--webpic-radius);
+  cursor: pointer;
+}
+.webpic-popover_item.is-active,
+.webpic-popover_item:hover {
+  background: var(--webpic-hover);
+}
+.webpic-popover_item[aria-selected="true"] {
+  background: var(--webpic-active);
+}
+.webpic-popover_check {
+  flex: 0 0 14px;
+  display: grid;
+  place-items: center;
+  height: 16px;
+  opacity: 0;
+}
+.webpic-popover_item[aria-selected="true"] .webpic-popover_check {
+  opacity: 1;
+}
+.webpic-popover_check svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: var(--webpic-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.webpic-popover_field {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.webpic-popover_text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.webpic-popover_meta {
+  color: var(--webpic-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Colormap picker rows: a fixed-width gradient swatch (so every row's gradient is identical
+   regardless of label length) + the name filling the rest, right-aligned beside the check cell. */
+.webpic-popover.is-swatches {
+  min-width: 216px;
+}
+.webpic-popover_swatch {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.webpic-popover_swatch .webpic-swatch_canvas {
+  flex: 0 0 100px;
+  height: 14px;
+}
+.webpic-popover_swatch .webpic-swatch_name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--webpic-fg);
+}

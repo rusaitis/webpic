@@ -1,0 +1,400 @@
+.webpic-pane {
+  display: flex;
+  flex-direction: column;
+}
+.webpic-pane_title {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--webpic-muted);
+  padding: 2px 4px 6px;
+}
+.webpic-folder {
+  border-top: 1px solid var(--webpic-border);
+}
+.webpic-folder_bar {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--webpic-fg);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.webpic-folder_body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 0 8px;
+}
+.webpic-folder_body[hidden] {
+  display: none;
+}
+.webpic-row {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+.webpic-row_label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--webpic-muted);
+  padding-right: 10px;
+}
+.webpic-row_value {
+  flex: 0 0 132px;
+}
+.webpic-checkbox {
+  display: block;
+  position: relative;
+  width: var(--webpic-unit);
+  height: var(--webpic-unit);
+}
+.webpic-checkbox_input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.webpic-checkbox_box {
+  width: var(--webpic-unit);
+  height: var(--webpic-unit);
+  background: var(--webpic-input-bg);
+  border-radius: var(--webpic-radius);
+}
+.webpic-checkbox_box svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+.webpic-checkbox_input:checked + .webpic-checkbox_box svg {
+  opacity: 1;
+}
+.webpic-checkbox_box svg path {
+  fill: none;
+  stroke: var(--webpic-accent);
+  stroke-width: 2;
+}
+.webpic-select,
+.webpic-text {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--webpic-unit);
+  padding: 0 6px;
+  border: 1px solid var(--webpic-border);
+  border-radius: var(--webpic-radius);
+  background: var(--webpic-input-bg);
+  color: var(--webpic-fg);
+  font: inherit;
+}
+.webpic-text {
+  text-align: right;
+}
+/* Range geometry is a JS/CSS split: JS sets normalized fractions (--t/--tlo/--thi, fill --fa/--fb,
+   tick --mt) in [0,1] and CSS insets them by half a grip width (--gs), so grips stay inside the
+   track at the extremes. On log/symlog the drag + keyboard snap to a log-decade grid (…10,20,50…). */
+.webpic-range {
+  --gs: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  width: 100%;
+}
+.webpic-range.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.webpic-range_track {
+  position: relative;
+  flex: 1 1 100%;
+  min-width: 0;
+  margin: 0 calc(var(--gs) / 2);
+  height: var(--gs);
+  background: transparent;
+  touch-action: none;
+  cursor: pointer;
+}
+.webpic-range_track::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  background: var(--webpic-border);
+  border-radius: var(--webpic-radius);
+  pointer-events: none;
+}
+.webpic-range_fill {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  left: calc(var(--fa, 0) * 100%);
+  width: calc((var(--fb, 0) - var(--fa, 0)) * 100%);
+  background: var(--webpic-accent);
+  border-radius: var(--webpic-radius);
+  pointer-events: none;
+}
+.webpic-range_fill[data-origin="left"] {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.webpic-range_fill[data-origin="right"] {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.webpic-range_ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.webpic-range_tick {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: calc(var(--gs) * 2 / 3);
+  transform: translate(-50%, -50%);
+  left: calc(var(--mt) * 100%);
+  background: var(--webpic-muted);
+}
+.webpic-range_tick.is-minor {
+  height: calc(var(--gs) / 3);
+  background: color-mix(in srgb, var(--webpic-muted) 45%, transparent);
+}
+.webpic-range_grip {
+  position: absolute;
+  top: 50%;
+  width: var(--gs);
+  height: var(--gs);
+  transform: translate(-50%, -50%);
+  background: var(--webpic-input-bg);
+  border-radius: var(--webpic-radius);
+  touch-action: none;
+  cursor: grab;
+  z-index: 1;
+}
+.webpic-range_grip[data-end="value"] {
+  left: calc(var(--t, 0) * 100%);
+}
+.webpic-range_grip[data-end="lo"] {
+  left: calc(var(--tlo, 0) * 100%);
+}
+.webpic-range_grip[data-end="hi"] {
+  left: calc(var(--thi, 1) * 100%);
+}
+.webpic-range_grip::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+.webpic-range_grip::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(var(--gs) / 2);
+  height: calc(var(--gs) / 2);
+  transform: translate(-50%, -50%);
+  background: var(--webpic-accent);
+  border-radius: calc(var(--webpic-radius) / 2);
+  pointer-events: none;
+}
+.webpic-range_grip:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--webpic-accent) 40%, transparent);
+  outline-offset: 2px;
+}
+.webpic-range.is-dragging .webpic-range_grip {
+  cursor: grabbing;
+}
+.webpic-range_text {
+  display: flex;
+  gap: 4px;
+  flex: 1 1 100%;
+  justify-content: flex-end;
+}
+.webpic-range_input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0 4px;
+  height: var(--webpic-unit);
+  border: 1px solid var(--webpic-border);
+  border-radius: var(--webpic-radius);
+  background: var(--webpic-input-bg);
+  color: var(--webpic-fg);
+  font: inherit;
+  text-align: right;
+}
+.webpic-shell :disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.webpic-placeholder {
+  padding: 2px 4px;
+  color: var(--webpic-muted);
+  font-style: italic;
+}
+/* A note reporting dropped work (seeds skipped, nothing traced) — amber and upright, so it
+   reads as a finding rather than a hint. */
+.webpic-placeholder[data-kind="warn"] {
+  color: var(--webpic-warn);
+  font-style: normal;
+}
+/* Swatch select (ui/controls/swatchSelect): a gradient-preview trigger that opens a createPopover
+   list of painted rows. The trigger's canvas grows to fill; name + caret trail on the right. */
+.webpic-swatch {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--webpic-unit);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 6px;
+  border: 1px solid var(--webpic-border);
+  border-radius: var(--webpic-radius);
+  background: var(--webpic-input-bg);
+  color: var(--webpic-fg);
+  font: inherit;
+  cursor: pointer;
+}
+.webpic-swatch:hover,
+.webpic-swatch:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--webpic-accent) 50%, var(--webpic-border));
+}
+.webpic-swatch_canvas {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 12px;
+  border-radius: 2px;
+  box-shadow: var(--webpic-inset-edge);
+}
+.webpic-swatch_name {
+  flex: 0 0 auto;
+  color: var(--webpic-muted);
+}
+.webpic-swatch_caret {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--webpic-muted);
+  transition: transform 0.15s ease;
+}
+.webpic-swatch_caret svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.webpic-swatch[aria-expanded="true"] .webpic-swatch_caret {
+  transform: rotate(180deg);
+}
+/* Segmented sliding pill (ui/controls/segmented): equal-width radios over a highlight that slides via
+   --seg-index (one column width per step); --seg-count sizes both the grid and the pill. */
+.webpic-segmented {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--webpic-unit);
+  display: grid;
+  grid-template-columns: repeat(var(--seg-count, 1), 1fr);
+  padding: 2px;
+  background: var(--webpic-input-bg);
+  border: 1px solid var(--webpic-border);
+  border-radius: var(--webpic-radius);
+}
+.webpic-segmented_pill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / var(--seg-count, 1));
+  border-radius: calc(var(--webpic-radius) - 1px);
+  background: var(--webpic-seg-pill);
+  pointer-events: none;
+  transform: translateX(calc(var(--seg-index, 0) * 100%));
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.webpic-segmented_seg {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--webpic-muted);
+  font: inherit;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.webpic-segmented_seg[aria-checked="true"] {
+  color: var(--webpic-fg);
+}
+.webpic-segmented_seg:focus-visible {
+  outline: none;
+  color: var(--webpic-fg);
+}
+.webpic-segmented.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.webpic-chrome {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: var(--webpic-z-chrome);
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+.webpic-chrome[hidden] {
+  display: none;
+}
+.webpic-gnomon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  perspective: 220px;
+}
+.webpic-gnomon_scene {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+}
+.webpic-gnomon_axis {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 2px;
+  transform-origin: 0 50%;
+  border-radius: 1px;
+}
+.webpic-gnomon_axis.is-x {
+  transform: rotateZ(0deg);
+  background: var(--webpic-axis-x);
+} /* +x right */
+.webpic-gnomon_axis.is-y {
+  transform: rotateY(90deg);
+  background: var(--webpic-axis-y);
+} /* +y into screen */
+.webpic-gnomon_axis.is-z {
+  transform: rotateZ(-90deg);
+  background: var(--webpic-axis-z);
+} /* +z up (z-up world) */

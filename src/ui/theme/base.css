@@ -1,0 +1,65 @@
+/* Control-sizing scope: hosts outside .webpic-shell that mount shell-style controls must redeclare
+   these tokens, or var() falls back to auto (facade-control-css-vars). One grouped rule states the
+   contract once; the topbar (pill: 999px/30px) and popover (radius-only) keep their own deliberate
+   values, and the (pointer: coarse) block at the end raises --webpic-unit after this. */
+.webpic-shell,
+.webpic-flyout,
+.webpic-cbar,
+.webpic-cbar-pop,
+.webpic-window {
+  --webpic-input-bg: rgba(0, 0, 0, 0.28);
+  --webpic-radius: 4px;
+  --webpic-unit: 22px;
+}
+/* Chrome is unselectable by default: a press-drag — especially on touch (holding a finger, dragging
+   one element across another) — must never start a text selection or pop the iOS long-press callout.
+   user-select inherits, so one declaration per chrome root covers its whole subtree, including the
+   body-appended popovers (each carries its own root class). Opt back in just below. */
+.webpic-shell,
+.webpic-topbar,
+.webpic-chrome,
+.webpic-rail,
+.webpic-siderail,
+.webpic-flyout,
+.webpic-coords-card,
+.webpic-status,
+.webpic-cbar,
+.webpic-cbar-pop,
+.webpic-window,
+.webpic-help,
+.webpic-popover,
+.webpic-railmenu,
+.webpic-layers {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+/* Selectable opt-ins: the editable value fields (so the number/text can be selected + edited) and any
+   region a caller tags .webpic-selectable (an info window body, a readout) — text inherits into the
+   tagged subtree. */
+.webpic-text,
+.webpic-range_input,
+.webpic-selectable {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+.webpic-shell {
+  position: fixed;
+  top: 12px;
+  bottom: 12px;
+  width: 268px;
+  z-index: var(--webpic-z-shell);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 10px;
+  box-sizing: border-box;
+  background: var(--webpic-bg);
+  color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border);
+  border-radius: 8px;
+  font: 500 12px / 1.4 var(--webpic-mono);
+  transition: opacity 240ms ease;
+}

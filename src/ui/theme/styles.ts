@@ -6,8 +6,43 @@ import {
   type ThemeAxes,
   type ThemeColors,
 } from "@schema/theme.ts";
+import cameraCss from "../camera/camera.css?raw";
+import coordsCardCss from "../camera/coordsCard.css?raw";
+import colorbarCss from "../colorbar/colorbar.css?raw";
+import controlsCss from "../controls/controls.css?raw";
 import type { Disposer } from "../controls/index.ts";
-import UI_CSS from "./ui.css?raw";
+import popoverCss from "../controls/popover.css?raw";
+import floatingCss from "../floating/floating.css?raw";
+import layersCss from "../layers/layers.css?raw";
+import layerSettingsCss from "../layers/settings.css?raw";
+import shellCss from "../panels/shell.css?raw";
+import perfCss from "../perf/perf.css?raw";
+import bootRevealCss from "../status/bootReveal.css?raw";
+import statusPillCss from "../status/statusPill.css?raw";
+import topbarCss from "../topbar/topbar.css?raw";
+import baseCss from "./base.css?raw";
+import coarsePointerCss from "./coarsePointer.css?raw";
+
+// One stylesheet, assembled from per-surface fragments that live beside the modules they style.
+// This array IS the cascade, so it is ordered by hand: base tokens, surfaces in mount order, then
+// the coarse-pointer overrides, which must win over all of them.
+const UI_CSS = [
+  baseCss,
+  bootRevealCss,
+  shellCss,
+  controlsCss,
+  cameraCss,
+  layersCss,
+  coordsCardCss,
+  statusPillCss,
+  topbarCss,
+  popoverCss,
+  colorbarCss,
+  floatingCss,
+  layerSettingsCss,
+  coarsePointerCss,
+  perfCss,
+].join("\n");
 
 // One injected <style> for the whole UI (shell + controls). CSP-safe single tag
 // (strict-CSP hosts get a nonce'd <link> instead). Theme colors resolve to `--webpic-*`
@@ -20,12 +55,10 @@ function colorVar(color: Rgba01 | undefined, fallback: string): string {
   return color ? cssRgba(color) : fallback;
 }
 
-// Neutral dark palette used when a theme omits a color. bg/fg/border are exported because the perf
-// HUD injects its own stylesheet and repeats them as var() fallbacks — sourcing from here keeps the
-// two from drifting (they had: #e8eef4 / 0.86 bg / white-0.12 border).
-export const FALLBACK_BG = "rgba(16, 24, 32, 0.94)";
-export const FALLBACK_FG = "#c8d0d8";
-export const FALLBACK_BORDER = "rgba(200, 208, 216, 0.16)";
+// Neutral dark palette used when a theme omits a color.
+const FALLBACK_BG = "rgba(16, 24, 32, 0.94)";
+const FALLBACK_FG = "#c8d0d8";
+const FALLBACK_BORDER = "rgba(200, 208, 216, 0.16)";
 const FALLBACK_MUTED = "#8a94a0";
 const FALLBACK_ACCENT = "#5aa9e6";
 

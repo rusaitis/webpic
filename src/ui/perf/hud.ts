@@ -4,15 +4,12 @@ import { makeEl } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { createShortcutRegistry } from "../keys/shortcuts.ts";
 import { createSubscriptions, type Subscriptions } from "../subscriptions.ts";
-import { FALLBACK_BG, FALLBACK_BORDER, FALLBACK_FG } from "../theme/styles.ts";
 import {
   CPU_COLOR,
   createSparkline,
   FRAME_30_MS,
   FRAME_BUDGET_MS,
   FRAME_COLOR,
-  SPARK_H,
-  SPARK_W,
 } from "./sparkline.ts";
 
 // Dev-mode performance HUD: a corner meter (top-left, Shift+P) showing FPS + a CPU/frame
@@ -28,40 +25,6 @@ const GPU_KEY = "#f5b050"; // the band's legend swatch (opaque amber)
 const OK_COLOR = "#8fbf8f"; // frame within the 60 fps budget (desaturated green)
 const WARN_COLOR = "#f5b050"; // frame within 30 fps (reuses the amber warning hue)
 const BAD_COLOR = "#d98a78"; // frame over the 30 fps budget (soft terracotta)
-
-const HUD_CSS = `
-.webpic-perf {
-  position: fixed; top: 12px; left: 12px; z-index: 30; width: 220px; padding: 8px 10px;
-  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--webpic-fg, ${FALLBACK_FG}); background: var(--webpic-bg, ${FALLBACK_BG});
-  border: 1px solid var(--webpic-border, ${FALLBACK_BORDER}); border-radius: 8px;
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); user-select: none;
-}
-.webpic-perf[hidden] { display: none; }
-.webpic-perf_head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; }
-.webpic-perf_title { font-weight: 600; letter-spacing: 0.08em; opacity: 0.6; }
-.webpic-perf_fps { margin-left: auto; font-variant-numeric: tabular-nums; }
-.webpic-perf_caret {
-  cursor: pointer; background: none; border: none; color: inherit; font: inherit; padding: 0 2px;
-  opacity: 0.6; line-height: 1;
-}
-.webpic-perf_caret:hover { opacity: 1; }
-.webpic-perf_spark { display: block; width: ${SPARK_W}px; height: ${SPARK_H}px; margin: 2px 0 4px; }
-.webpic-perf_legend { display: flex; gap: 12px; font-size: 10px; opacity: 0.65; margin: 0 0 6px; }
-.webpic-perf_legend > span { display: inline-flex; align-items: center; gap: 5px; }
-.webpic-perf_key { display: inline-block; width: 10px; height: 2px; border-radius: 1px; }
-.webpic-perf_key.is-fill { height: 7px; opacity: 0.55; }
-.webpic-perf_row { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
-.webpic-perf_row > span:first-child { opacity: 0.55; }
-.webpic-perf_detail {
-  margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--webpic-border, ${FALLBACK_BORDER});
-}
-.webpic-perf_detail[hidden] { display: none; }
-.webpic-perf_sub {
-  opacity: 0.5; text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; margin: 6px 0 1px;
-}
-.webpic-perf_clk { opacity: 0.4; font-size: 10px; margin-top: 2px; }
-`;
 
 function formatMs(ms: number): string {
   return Number.isFinite(ms) ? `${ms.toFixed(1)} ms` : "—";
@@ -90,14 +53,6 @@ function governorColor(scale: number): string {
   return scale >= 0.85 ? WARN_COLOR : BAD_COLOR;
 }
 
-// Inject the HUD stylesheet once; the returned disposer removes it (single HUD instance).
-function injectStyles(doc: Document): Disposer {
-  const style = makeEl(doc, "style", "webpic-perf-style");
-  style.textContent = HUD_CSS;
-  doc.head.appendChild(style);
-  return () => style.remove();
-}
-
 export function installPerfHud(
   parent: HTMLElement,
   perfStore: PerfStore,
@@ -105,7 +60,6 @@ export function installPerfHud(
 ): Disposer {
   const doc = parent.ownerDocument;
   const view = doc.defaultView;
-  const disposeStyles = injectStyles(doc);
 
   const container = makeEl(doc, "div", "webpic-perf");
   container.hidden = true;
@@ -286,7 +240,6 @@ export function installPerfHud(
     subscriptions.dispose();
     shortcuts.dispose();
     container.remove();
-    disposeStyles();
   };
 }
 

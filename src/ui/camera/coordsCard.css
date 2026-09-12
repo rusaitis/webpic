@@ -1,0 +1,42 @@
+/* Grid-info card: a parent-level floating dialog above the rail (ui/camera/bottomRail). pointer-events: auto
+   so its copy button works; z-index over the transient status pill (11), under the help modal (20). */
+.webpic-coords-card {
+  position: fixed;
+  left: 50%;
+  bottom: calc(54px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: var(--webpic-z-card);
+  pointer-events: auto;
+  box-sizing: border-box;
+  min-width: 248px;
+  max-width: 92vw;
+  padding: 10px 12px;
+  background: var(--webpic-bg);
+  color: var(--webpic-fg);
+  border: 1px solid var(--webpic-border);
+  border-radius: 8px;
+  font: 500 11px / 1.5 var(--webpic-mono);
+}
+.webpic-coords-card[hidden] {
+  display: none;
+}
+.webpic-coords-card_row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 1px 0;
+}
+.webpic-coords-card_label {
+  color: var(--webpic-muted);
+}
+.webpic-coords-card_value {
+  color: var(--webpic-fg);
+  text-align: right;
+  white-space: nowrap;
+}
+/* Separate the static grid facts from the live View + Center pose rows below. */
+.webpic-coords-card_rows {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--webpic-border);
+}

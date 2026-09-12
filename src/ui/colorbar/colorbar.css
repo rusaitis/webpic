@@ -1,0 +1,502 @@
+/* Floating colorbar (ui/colorbar): a draggable, collapsible gradient strip for the selected layer's
+   color mapping. Glass like the rails; transform: translate(--drag-x/y) is written by ui/floating's
+   drag, then snapped to inline left/right/top/bottom anchors with data-edge driving orientation
+   (left/right → vertical, top/bottom → horizontal). Declares the shell-local control tokens itself
+   (it lives outside .webpic-shell). z over the coords card (12), under the help modal (20). */
+.webpic-cbar {
+  position: fixed;
+  z-index: var(--webpic-z-cbar);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  cursor: grab;
+  touch-action: none;
+  color: var(--webpic-fg);
+  background: var(--webpic-surface);
+  border: 1px solid var(--webpic-edge);
+  border-radius: 12px;
+  box-shadow: var(--webpic-shadow-1);
+  -webkit-backdrop-filter: blur(var(--webpic-blur));
+  backdrop-filter: blur(var(--webpic-blur));
+  font: 500 11px / 1.4 var(--webpic-mono);
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
+  transition:
+    opacity 240ms ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    left 0.3s var(--webpic-ease),
+    right 0.3s var(--webpic-ease),
+    top 0.3s var(--webpic-ease),
+    bottom 0.3s var(--webpic-ease),
+    transform 0.3s var(--webpic-ease);
+}
+.webpic-cbar[hidden] {
+  display: none;
+}
+.webpic-cbar:hover,
+.webpic-cbar:focus-within {
+  background: var(--webpic-pop);
+  border-color: var(--webpic-edge-strong);
+  box-shadow: var(--webpic-shadow-2);
+}
+/* No transform transition during a drag (latency); restore the grab affordance on release. */
+.webpic-cbar.is-dragging {
+  transition: none;
+  cursor: grabbing;
+}
+/* Resize pivot for collapse/expand: translate the FREE axis by -50% so the strip grows/shrinks
+   symmetrically around its center (dragSnap anchors that axis by its center px), while the docked
+   axis stays pinned by its edge anchor. A free drop in the middle (data-docked=false) centers both. */
+.webpic-cbar[data-edge="top"]:not([data-docked="false"]),
+.webpic-cbar[data-edge="bottom"]:not([data-docked="false"]) {
+  transform: translateX(-50%) translate(var(--drag-x, 0px), var(--drag-y, 0px));
+}
+.webpic-cbar[data-edge="left"]:not([data-docked="false"]),
+.webpic-cbar[data-edge="right"]:not([data-docked="false"]) {
+  transform: translateY(-50%) translate(var(--drag-x, 0px), var(--drag-y, 0px));
+}
+.webpic-cbar[data-docked="false"] {
+  transform: translate(-50%, -50%) translate(var(--drag-x, 0px), var(--drag-y, 0px));
+}
+/* Vertical when docked to a side edge; horizontal (the default row) on top/bottom. */
+.webpic-cbar[data-edge="left"],
+.webpic-cbar[data-edge="right"] {
+  flex-direction: column;
+}
+/* Collapsed: recede at rest, brighten on hover; a thinner, flatter frame that reads like a bottom
+   rail button rather than a chunky glass pill. */
+.webpic-cbar.collapsed {
+  opacity: 0.62;
+  border-radius: 6px;
+  padding: 3px;
+  border-color: color-mix(in srgb, var(--webpic-border) 20%, transparent);
+  box-shadow: var(--webpic-shadow-mid);
+}
+.webpic-cbar.collapsed:hover,
+.webpic-cbar.collapsed:focus-within {
+  opacity: 1;
+}
+/* main stacks the sections (one per shown binding, ≤2) along the free axis: below each other on a
+   horizontal dock, side by side on a vertical one. */
+.webpic-cbar_main {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+.webpic-cbar.collapsed .webpic-cbar_main {
+  gap: 5px;
+}
+.webpic-cbar[data-edge="top"] .webpic-cbar_main,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_main {
+  flex-direction: column;
+  align-items: stretch;
+}
+.webpic-cbar[data-edge="left"] .webpic-cbar_main,
+.webpic-cbar[data-edge="right"] .webpic-cbar_main {
+  flex-direction: row;
+  align-items: stretch;
+}
+/* A section runs the same direction as main (inherit tracks the edge without re-stating the four
+   selectors): caption above the gradient, ticks below on horizontal docks; rotated to the side on
+   vertical. gap:0 so the tick rail sits flush under the strip (marks touch the bar); the caption
+   keeps its own breathing room via its margin (margin-bottom on top/bottom, margin-left rotated). */
+.webpic-cbar_sec {
+  display: flex;
+  flex-direction: inherit;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  min-height: 0;
+}
+/* Two-strip stack: the selected layer's strip — the gear's edit target — reads full strength; the
+   passenger recedes a notch until hovered. Only set when the active binding holds a slot. */
+.webpic-cbar_sec[data-active="false"] {
+  opacity: 0.66;
+  transition: opacity 0.15s ease;
+}
+.webpic-cbar_sec[data-active="false"]:hover {
+  opacity: 1;
+}
+.webpic-cbar_strip {
+  position: relative;
+  flex: 0 0 auto;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: var(--webpic-inset-edge);
+  transition:
+    width 0.28s var(--webpic-ease),
+    height 0.28s var(--webpic-ease);
+}
+.webpic-cbar[data-edge="top"] .webpic-cbar_strip,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_strip {
+  width: 320px;
+  height: 20px;
+}
+.webpic-cbar[data-edge="left"] .webpic-cbar_strip,
+.webpic-cbar[data-edge="right"] .webpic-cbar_strip {
+  width: 20px;
+  height: 200px;
+}
+/* Collapsed: a chunkier, shorter gradient that fills the rail-height row (110×24). */
+.webpic-cbar.collapsed[data-edge="top"] .webpic-cbar_strip,
+.webpic-cbar.collapsed[data-edge="bottom"] .webpic-cbar_strip {
+  width: 110px;
+  height: 24px;
+}
+.webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_strip,
+.webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_strip {
+  width: 24px;
+  height: 110px;
+}
+.webpic-cbar_canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Collapsed-only field key, painted faintly over the gradient; empty → hidden,
+   brightens on hover, rotates with the strip on the side edges. */
+.webpic-cbar_minilabel {
+  display: none;
+}
+.webpic-cbar.collapsed .webpic-cbar_minilabel:not(:empty) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  color: var(--webpic-fg);
+  opacity: 0.45;
+  font: 500 13px / 1 var(--webpic-mono);
+  letter-spacing: 0.2px;
+  text-shadow: var(--webpic-text-shadow);
+  transition:
+    opacity 0.2s ease,
+    text-shadow 0.2s ease;
+}
+.webpic-cbar.collapsed:hover .webpic-cbar_minilabel {
+  opacity: 1;
+  text-shadow: var(--webpic-text-shadow-strong);
+}
+.webpic-cbar.collapsed[data-edge="left"] .webpic-cbar_minilabel,
+.webpic-cbar.collapsed[data-edge="right"] .webpic-cbar_minilabel {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+/* Tick rail: a thin gutter flush against the gradient (no gap), spanning the strip's long axis so a
+   tick's --t (0 = min, 1 = max) lands on the painted extent. Every tick is a centered label with a
+   flush mark (::before); overflow stays visible so an edge label can half-overhang the rail. */
+.webpic-cbar_ticks {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: visible;
+  color: var(--webpic-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.webpic-cbar[data-edge="top"] .webpic-cbar_ticks,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_ticks {
+  height: 18px;
+}
+.webpic-cbar[data-edge="left"] .webpic-cbar_ticks,
+.webpic-cbar[data-edge="right"] .webpic-cbar_ticks {
+  width: 40px;
+}
+.webpic-cbar_tick {
+  position: absolute;
+  white-space: nowrap;
+}
+.webpic-cbar_tick::before {
+  content: "";
+  position: absolute;
+  background: color-mix(in srgb, var(--webpic-muted) 80%, transparent);
+}
+/* Horizontal: marks hang down from the bar's bottom edge (top:-1px sits over the strip's 1px inner
+   border → flush, no gap), the label centered just below. */
+.webpic-cbar[data-edge="top"] .webpic-cbar_tick,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_tick {
+  top: 0;
+  left: calc(var(--t) * 100%);
+  transform: translateX(-50%);
+  padding-top: 8px;
+}
+.webpic-cbar[data-edge="top"] .webpic-cbar_tick::before,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_tick::before {
+  left: 50%;
+  top: -1px;
+  width: 1px;
+  height: 6px;
+  transform: translateX(-50%);
+}
+/* Vertical: marks point right from the bar's right edge (left:-1px → flush), the label to their
+   right; top = (1 − t) so the maximum reads at the top. */
+.webpic-cbar[data-edge="left"] .webpic-cbar_tick,
+.webpic-cbar[data-edge="right"] .webpic-cbar_tick {
+  left: 0;
+  top: calc((1 - var(--t)) * 100%);
+  transform: translateY(-50%);
+  padding-left: 9px;
+}
+.webpic-cbar[data-edge="left"] .webpic-cbar_tick::before,
+.webpic-cbar[data-edge="right"] .webpic-cbar_tick::before {
+  top: 50%;
+  left: -1px;
+  width: 6px;
+  height: 1px;
+  transform: translateY(-50%);
+}
+/* Field key, sized into the gradient stack: above it (column) on top/bottom, right of it (row,
+   rotated) on the side edges. Collapsed hides it for the over-gradient mini-label. */
+.webpic-cbar_caption {
+  flex: 0 0 auto;
+  align-self: center;
+  text-align: center;
+  color: var(--webpic-fg);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A touch more air between the title and the gradient + its tick labels. */
+.webpic-cbar[data-edge="top"] .webpic-cbar_caption,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_caption {
+  margin-bottom: 4px;
+}
+/* Vertical docks: the field key reads up the right side of the gradient (order:2 trails the strip +
+   ticks) on the right — not the left. Rotate 180° so it reads bottom-to-top
+   (matching the collapsed mini-label), with a wider gap from the tick labels. */
+.webpic-cbar[data-edge="left"] .webpic-cbar_caption,
+.webpic-cbar[data-edge="right"] .webpic-cbar_caption {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  max-width: none;
+  max-height: 14ch;
+  order: 2;
+  transform: rotate(180deg);
+  margin-left: 6px;
+}
+/* Collapsed drops both: the strip carries the over-gradient mini-label instead. Placed after the
+   base rules it overrides so source order runs ascending in specificity. */
+.webpic-cbar.collapsed .webpic-cbar_ticks,
+.webpic-cbar.collapsed .webpic-cbar_caption {
+  display: none;
+}
+/* Expanded panels widen their long-axis margins (symmetric) so the end tick labels get breathing room
+   and the hover gear sits in the margin beside the strip; collapsed keeps its compact 3px pill. */
+.webpic-cbar:not(.collapsed)[data-edge="top"],
+.webpic-cbar:not(.collapsed)[data-edge="bottom"] {
+  padding: 7px 26px;
+}
+.webpic-cbar:not(.collapsed)[data-edge="left"],
+.webpic-cbar:not(.collapsed)[data-edge="right"] {
+  padding: 26px 7px;
+}
+/* Expanded: the gear sits in the long-axis margin aligned to the strip — right of it (horizontal) or
+   below it (vertical), like the collapsed pill — but hidden until the bar is hovered or its popover is
+   open, so an expanded colorbar reads clean for screenshots. Absolute (out of the strip's flow) so the
+   gradient keeps symmetric margins inside the wider padding. */
+.webpic-cbar_actions {
+  position: absolute;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.webpic-cbar[data-edge="top"] .webpic-cbar_actions,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_actions {
+  top: 50%;
+  right: 3px;
+  transform: translateY(-50%);
+} /* strip is vertically centred in the panel */
+.webpic-cbar[data-edge="left"] .webpic-cbar_actions,
+.webpic-cbar[data-edge="right"] .webpic-cbar_actions {
+  bottom: 4px;
+  left: 17px;
+  transform: translateX(-50%);
+} /* 17px = 7px pad + 10px half-strip */
+.webpic-cbar:hover .webpic-cbar_actions,
+.webpic-cbar:focus-within .webpic-cbar_actions,
+.webpic-cbar:has(.webpic-cbar_settings[aria-expanded="true"]) .webpic-cbar_actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Collapsed: the gear returns to the flow beside the mini gradient and stays visible — a docked pill
+   keeps its settings affordance; only the expanded panel hides it until hover. */
+.webpic-cbar.collapsed .webpic-cbar_actions {
+  position: static;
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+.webpic-cbar_btn {
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0.6;
+  background: transparent;
+  color: var(--webpic-muted);
+  border: none;
+  border-radius: 5px;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.webpic-cbar_btn:hover,
+.webpic-cbar_btn:focus-visible {
+  opacity: 1;
+  outline: none;
+  color: var(--webpic-fg);
+  background: var(--webpic-hover);
+}
+.webpic-cbar_settings[aria-expanded="true"] {
+  opacity: 1;
+  color: var(--webpic-fg);
+  background: var(--webpic-active-strong);
+}
+.webpic-cbar_btn svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Soft warn: more distinct bindings among visible layers than strips — a small "+N" amber pill in
+   the long-axis margin opposite the gear (its title names the stripless fields). Always visible
+   while it applies (a warning shouldn't wait for hover); collapsed returns it to the flow. */
+.webpic-cbar_warn {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font: 600 9px / 1.4 var(--webpic-mono);
+  letter-spacing: 0.02em;
+  cursor: help;
+  color: var(--webpic-warn);
+  border: 1px solid color-mix(in srgb, var(--webpic-warn) 55%, transparent);
+  background: color-mix(in srgb, var(--webpic-warn) 14%, transparent);
+}
+.webpic-cbar_warn[hidden] {
+  display: none;
+}
+.webpic-cbar[data-edge="top"] .webpic-cbar_warn,
+.webpic-cbar[data-edge="bottom"] .webpic-cbar_warn {
+  top: 50%;
+  left: 3px;
+  transform: translateY(-50%);
+}
+.webpic-cbar[data-edge="left"] .webpic-cbar_warn,
+.webpic-cbar[data-edge="right"] .webpic-cbar_warn {
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.webpic-cbar.collapsed .webpic-cbar_warn {
+  position: static;
+  transform: none;
+}
+/* Colorbar settings popover (ui/colorbar/colorbarSettings): a small glass dialog hosting the colormap
+   controls, body-appended so it escapes the bar's clip; positioned beside the gear toward the
+   viewport center. Headerless (Esc + outside-click dismiss) — too small for a title bar; each control
+   stacks full-width with its own uppercase mini-label above it. */
+.webpic-cbar-pop {
+  position: fixed;
+  z-index: var(--webpic-z-cbar-pop);
+  box-sizing: border-box;
+  width: 240px;
+  max-height: calc(100vh - 16px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--webpic-fg);
+  background: var(--webpic-pop);
+  border: 1px solid var(--webpic-edge-strong);
+  border-radius: 10px;
+  box-shadow: var(--webpic-shadow-3);
+  -webkit-backdrop-filter: blur(var(--webpic-blur));
+  backdrop-filter: blur(var(--webpic-blur));
+  font: 500 12px / 1.4 var(--webpic-mono);
+}
+.webpic-cbar-pop[hidden] {
+  display: none;
+}
+.webpic-cbar-pop_body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 11px 11px 12px;
+}
+.webpic-cbar-pop_body .webpic-pane_title,
+.webpic-cbar-pop_body .webpic-folder_bar {
+  display: none;
+}
+.webpic-cbar-pop_body .webpic-folder {
+  border-top: none;
+}
+.webpic-cbar-pop_body .webpic-folder_body {
+  gap: 12px;
+  padding: 0;
+}
+/* Stack each control full-width with its label as an uppercase caption above (not a 132px side cell). */
+.webpic-cbar-pop_body .webpic-row {
+  flex-wrap: wrap;
+  padding: 0 1px;
+}
+.webpic-cbar-pop_body .webpic-row_label {
+  flex: 1 1 100%;
+  padding: 0 1px 5px;
+  color: var(--webpic-muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.webpic-cbar-pop_body .webpic-row_value {
+  flex: 1 1 100%;
+}
+/* Window: box-less min/max readouts flanking the dual slider (min hugs left, max hugs right). */
+.webpic-cbar-pop_body .webpic-range_text {
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.webpic-cbar-pop_body .webpic-range_text::before {
+  content: "min";
+  color: var(--webpic-muted);
+}
+.webpic-cbar-pop_body .webpic-range_text::after {
+  content: "max";
+  color: var(--webpic-muted);
+}
+.webpic-cbar-pop_body .webpic-range_input {
+  flex: 1 1 0;
+  min-width: 0;
+  height: auto;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+}
+.webpic-cbar-pop_body .webpic-range_input:first-of-type {
+  text-align: left;
+}
+.webpic-cbar-pop_body .webpic-range_input:last-of-type {
+  text-align: right;
+}
