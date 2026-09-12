@@ -17,8 +17,7 @@ const params = new URLSearchParams(location.search);
 const requested = Number.parseInt(params.get("n") ?? "", 10);
 const n = Number.isInteger(requested) && requested >= 2 && requested <= 512 ? requested : 32;
 
-// `?pose=` (+ `&proj=ortho`) restores a shared camera view (the readout's copy-link affordance);
-// invalid → default.
+// `?pose=` (+ `&proj=ortho`) restores a shared camera view; invalid → default.
 const pose = parsePoseParam(params.get("pose") ?? "");
 const orthographic = params.get("proj") === "ortho";
 

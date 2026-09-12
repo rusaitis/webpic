@@ -69,7 +69,8 @@ export type FieldLayerParams =
 // One field axis's physical extent + sample count + name, for the scene overlay's labeled grid/axes.
 // FIELD-axis order (0/1/2 = pypic GridInfo). `bounds` are inclusive [min, max] in code units (the app
 // derives them from GridInfo origin/spacing, or falls back to voxel [0, dim]); the worker maps field
-// axes → THREE xyz internally (overlayRemap.fieldAxisToThree) and treats the numbers opaquely.
+// axes → THREE xyz internally (they coincide: overlayRemap's coordinate invariant) and treats
+// the numbers opaquely.
 export interface OverlayAxis {
   readonly bounds: readonly [number, number];
   readonly label: string; // GridInfo.axisLabels[axis], e.g. "x" / "r" / "z"

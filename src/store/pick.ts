@@ -1,5 +1,5 @@
 import { CAMERA_HALF_FOV_TAN, type CameraPose } from "@schema/camera.ts";
-import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import { clamp, UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import { intersectCenteredBox } from "@schema/rayBox.ts";
 import type { Vec3 } from "@schema/types.ts";
 import {
@@ -69,7 +69,7 @@ const FOCUS_DOLLY = 0.7;
 // The goal distance a focus gesture commits to. Computed once at double-click time and carried
 // through the pick round trip — recomputing it against the already-flying pose would compound ×0.7.
 export function focusDistance(distance: number): number {
-  return Math.min(Math.max(distance * FOCUS_DOLLY, DISTANCE_MIN), DISTANCE_MAX);
+  return clamp(distance * FOCUS_DOLLY, DISTANCE_MIN, DISTANCE_MAX);
 }
 
 // Re-pivot the orbit on a picked point: target flies there and the camera dollies in (clamped) —
@@ -99,11 +99,11 @@ export function focusPoseOnPoint(
       roll: pose.roll,
     };
   }
-  const sinElevation = Math.min(Math.max(vz / len, -1), 1);
+  const sinElevation = clamp(vz / len, -1, 1);
   return {
     target: point,
     azimuth: Math.atan2(vy, vx),
-    elevation: Math.min(Math.max(Math.asin(sinElevation), -ELEVATION_LIMIT), ELEVATION_LIMIT),
+    elevation: clamp(Math.asin(sinElevation), -ELEVATION_LIMIT, ELEVATION_LIMIT),
     distance,
     roll: pose.roll,
   };

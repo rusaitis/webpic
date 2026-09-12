@@ -1,20 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  fieldAxisToThree,
   formatTick,
   LABEL_FADE_FULL_COS,
   LABEL_FADE_START_COS,
   labelFadeOpacity,
   physicalToObject,
 } from "./overlayRemap.ts";
-
-describe("fieldAxisToThree", () => {
-  it("maps field axes to world axes by identity (z-up, world=physical; swizzle in the sampler)", () => {
-    expect(fieldAxisToThree(0)).toBe(0); // field axis 0 → world x
-    expect(fieldAxisToThree(1)).toBe(1); // field axis 1 → world y
-    expect(fieldAxisToThree(2)).toBe(2); // field axis 2 → world z (up)
-  });
-});
 
 describe("physicalToObject", () => {
   it("maps the bounds onto the unit box faces", () => {

@@ -1,3 +1,5 @@
+import { clamp } from "@schema/math.ts";
+
 // Pure ops for the scene-overlay UI state (axes + grid + gnomon toggles). Mirrors layers.ts /
 // colormap.ts: framework-free, node-testable, fresh-object-per-change for subscribeWithSelector, and
 // identity-preserving on no-ops (so the app's sceneSync doesn't re-post on a non-change). Holds only
@@ -39,7 +41,7 @@ export const DEFAULT_OVERLAY: OverlayState = {
 
 function clampDivisions(n: number): number {
   if (!Number.isFinite(n)) return GRID_DIVISIONS_MIN;
-  return Math.max(GRID_DIVISIONS_MIN, Math.min(GRID_DIVISIONS_MAX, Math.round(n)));
+  return clamp(Math.round(n), GRID_DIVISIONS_MIN, GRID_DIVISIONS_MAX);
 }
 
 // The five visibility flags share one setter keyed by field name, so the identity-on-no-op rule

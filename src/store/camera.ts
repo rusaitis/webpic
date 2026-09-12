@@ -57,11 +57,9 @@ function wrapAngle(angle: number): number {
 // fractions, so a full-height drag is a full revolution. Fresh object so subscribeWithSelector fires.
 export function orbitPose(pose: CameraPose, dx: number, dy: number): CameraPose {
   return {
-    target: pose.target,
+    ...pose,
     azimuth: wrapAngle(pose.azimuth - dx * ORBIT_SENS),
     elevation: clamp(pose.elevation + dy * ORBIT_SENS, -ELEVATION_LIMIT, ELEVATION_LIMIT),
-    distance: pose.distance,
-    roll: pose.roll,
   };
 }
 
@@ -71,13 +69,7 @@ export function orbitPose(pose: CameraPose, dx: number, dy: number): CameraPose 
 // (it's all mod 2π), so the screen side may pass a raw angle difference. Fresh object so
 // subscribeWithSelector fires.
 export function rollPose(pose: CameraPose, deltaRoll: number): CameraPose {
-  return {
-    target: pose.target,
-    azimuth: pose.azimuth,
-    elevation: pose.elevation,
-    distance: pose.distance,
-    roll: wrapAngle(pose.roll + deltaRoll),
-  };
+  return { ...pose, roll: wrapAngle(pose.roll + deltaRoll) };
 }
 
 // Geometric dolly distance plus the pivot walk that lets a zoom-in fly THROUGH the near limit
@@ -125,13 +117,7 @@ export function normalizeWheelDelta(deltaY: number, deltaMode: number, ctrlKey: 
 // Scroll up (deltaY < 0) zooms in (distance shrinks). At the near limit it flies through (dollyWithWalk).
 export function dollyPose(pose: CameraPose, wheelDeltaY: number): CameraPose {
   const walked = dollyWithWalk(pose, pose.distance * Math.exp(wheelDeltaY * DOLLY_SENS));
-  return {
-    target: walked.target,
-    azimuth: pose.azimuth,
-    elevation: pose.elevation,
-    distance: walked.distance,
-    roll: pose.roll,
-  };
+  return { ...pose, target: walked.target, distance: walked.distance };
 }
 
 // World-space offset of a view-plane displacement: kr along screenRight = (−sa, ca, 0), ku along
@@ -166,13 +152,7 @@ export function dollyPoseToCursor(
   // Anchor offset (distance change down to the clamp) rides on top of the walked pivot, so the
   // cursor stays put down to the near limit and the overflow then flies straight through.
   const [tx, ty, tz] = next.target;
-  return {
-    target: [tx + o[0], ty + o[1], tz + o[2]],
-    azimuth: pose.azimuth,
-    elevation: pose.elevation,
-    distance: next.distance,
-    roll: pose.roll,
-  };
+  return { ...pose, target: [tx + o[0], ty + o[1], tz + o[2]], distance: next.distance };
 }
 
 // Drag → pan (shift/middle/right): slide the look-at target across the view plane. dx/dy are
@@ -183,13 +163,7 @@ export function panPose(pose: CameraPose, dx: number, dy: number): CameraPose {
   const scale = pose.distance * PAN_WORLD_PER_VIEWPORT;
   const o = viewPlaneOffset(pose, -dx * scale, dy * scale);
   const [tx, ty, tz] = pose.target;
-  return {
-    target: [tx + o[0], ty + o[1], tz + o[2]],
-    azimuth: pose.azimuth,
-    elevation: pose.elevation,
-    distance: pose.distance,
-    roll: pose.roll,
-  };
+  return { ...pose, target: [tx + o[0], ty + o[1], tz + o[2]] };
 }
 
 // Pending drag deltas not yet applied to the pose — the damped-glide state. Viewport-height
@@ -422,9 +396,10 @@ export function poseForBounds(
   };
 }
 
-// Compact pose ⇄ URL-param string ("az,el,d,tx,ty,tz", radians, 4 decimals — finer than the HUD's
-// readout, so a shared link reproduces the view it displayed). Parse normalizes through the same
-// invariants the pointer path enforces and returns null for anything malformed (caller ignores).
+// Compact pose ⇄ URL-param string ("az,el,d,tx,ty,tz", radians, 4 decimals). `parsePoseParam` reads
+// `?pose=` at boot; `formatPoseParam` is its inverse — how a permalink is minted, and what the
+// round-trip test pins. Parse normalizes through the same invariants the pointer path enforces and
+// returns null for anything malformed (caller ignores).
 const POSE_PARAM_DECIMALS = 4;
 
 export function formatPoseParam(pose: CameraPose): string {

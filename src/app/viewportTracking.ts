@@ -1,4 +1,5 @@
 import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
+import { clamp } from "@schema/math.ts";
 import type { RenderWorkerLink } from "./storeBridge.ts";
 
 // Tracks the canvas viewport + device-pixel-ratio and posts `resize` to the render worker (app-only
@@ -18,7 +19,7 @@ export function currentDevicePixelRatio(): number {
   if (typeof window === "undefined") return 1;
   const isTouch = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
   const cap = isTouch ? MAX_DEVICE_PIXEL_RATIO_TOUCH : MAX_DEVICE_PIXEL_RATIO;
-  return Math.max(1, Math.min(window.devicePixelRatio || 1, cap));
+  return clamp(window.devicePixelRatio || 1, 1, cap);
 }
 
 export interface ViewportTrackingOptions extends RenderWorkerLink {

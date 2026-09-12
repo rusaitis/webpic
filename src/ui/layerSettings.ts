@@ -1,3 +1,4 @@
+import { clamp } from "@schema/math.ts";
 import type { FieldName } from "@schema/types.ts";
 import {
   LAYER_KINDS,
@@ -38,6 +39,11 @@ const SLICE_AXES: ReadonlyArray<{ value: SliceAxis; label: string }> = [
 // Seed-rake bounds for the count slider (defaultSeedRake floors at 2). 32 keeps the CPU re-trace snappy.
 const MIN_SEEDS = 2;
 const MAX_SEEDS = 32;
+
+// The slider's range is narrower than a placed rake may be, so the displayed count is the clamped
+// one — the layer keeps its real seeds either way.
+const seedCountFor = (layer: { readonly seeds: ReadonlyArray<unknown> }): number =>
+  clamp(layer.seeds.length, MIN_SEEDS, MAX_SEEDS);
 
 const PLACE_HINT = 'toggle "Place seeds", then click the volume';
 
@@ -256,7 +262,7 @@ export function installLayerSettings(
       case "fieldlines": {
         seedCountControl = folder.addSlider({
           label: "Seed count",
-          value: Math.min(Math.max(layer.seeds.length, MIN_SEEDS), MAX_SEEDS),
+          value: seedCountFor(layer),
           min: MIN_SEEDS,
           max: MAX_SEEDS,
           step: 1,
@@ -302,7 +308,7 @@ export function installLayerSettings(
         positionControl?.set(layer.position);
         break;
       case "fieldlines":
-        seedCountControl?.set(Math.min(Math.max(layer.seeds.length, MIN_SEEDS), MAX_SEEDS));
+        seedCountControl?.set(seedCountFor(layer));
         placeControl?.set(getState().seedPlacementLayerId === layer.id);
         applySeedNote(seedNote, layer, getState().traceNotices[layer.id]);
         break;

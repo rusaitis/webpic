@@ -1,3 +1,4 @@
+import { clamp } from "@schema/math.ts";
 import { installOutsideClickDismiss, makeEl } from "./controls/dom.ts";
 import { ICON_PLUS } from "./layerIcons.ts";
 import { positionArrowFlyout } from "./layout.ts";
@@ -54,7 +55,7 @@ export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
   let items: HTMLButtonElement[] = []; // focusable rows in DOM order (instances, then "Add new")
 
   const focusItem = (index: number): void => {
-    const next = items[Math.max(0, Math.min(index, items.length - 1))];
+    const next = items[clamp(index, 0, items.length - 1)];
     next?.focus();
   };
   // indexOf compares identity only, so a non-row (or null) activeElement safely yields −1

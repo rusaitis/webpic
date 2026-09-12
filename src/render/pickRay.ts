@@ -1,5 +1,5 @@
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
-import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
+import { clamp, UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import { intersectRayBox } from "@schema/rayBox.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { windowedT } from "./volume/normalization.ts";
@@ -31,9 +31,9 @@ function sampleNearest(field: ScalarField, px: number, py: number, pz: number): 
   const n0 = field.shape[0] ?? 1;
   const n1 = field.shape[1] ?? 1;
   const n2 = field.shape[2] ?? 1;
-  const i0 = Math.min(Math.max(Math.floor(px * n0), 0), n0 - 1);
-  const i1 = Math.min(Math.max(Math.floor(py * n1), 0), n1 - 1);
-  const i2 = Math.min(Math.max(Math.floor(pz * n2), 0), n2 - 1);
+  const i0 = clamp(Math.floor(px * n0), 0, n0 - 1);
+  const i1 = clamp(Math.floor(py * n1), 0, n1 - 1);
+  const i2 = clamp(Math.floor(pz * n2), 0, n2 - 1);
   const raw = field.data[i2 + n2 * (i1 + n1 * i0)] ?? 0;
   return Number.isFinite(raw) ? raw : 0;
 }
@@ -79,7 +79,7 @@ export function pickPointOnRay(
       const raw = sampleNearest(layer.field, px, py, pz);
       const { center, width } = layer.windowLevel;
       const a = windowedT(raw, center, width, layer.scale) * layer.density * dt * layer.opacity;
-      transparency *= 1 - Math.min(Math.max(a, 0), 1);
+      transparency *= 1 - clamp(a, 0, 1);
     }
     const stepAlpha = 1 - transparency;
     stepAlphas[k] = stepAlpha;

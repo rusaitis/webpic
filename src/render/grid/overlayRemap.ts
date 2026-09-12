@@ -7,16 +7,10 @@ import { clamp } from "@schema/math.ts";
 // the .zyx swizzle of the object-space position (raymarchScene.ts) to compose that reversal back to
 // identity. Camera: up=(0,0,1); azimuth sweeps the xy-plane (0→+x, →+y), elevation lifts toward +z.
 
-// THREE axis index, matching Vector3 component order (x=0, y=1, z=2).
+// THREE axis index, matching Vector3 component order (x=0, y=1, z=2). Also the pypic `GridInfo`
+// field-axis index: the two coincide under the invariant above, so a field axis indexes world
+// directly with no mapping step.
 export type ThreeAxis = 0 | 1 | 2;
-
-// Field axis (0/1/2 = pypic `GridInfo` order) → THREE/world axis. IDENTITY under the z-up,
-// world=physical convention: the raymarch sampler's .zyx swizzle composes with the texture's C-order
-// reversal back to identity, so world axis i = field axis i. (Historically `2 − fieldAxis`, before the
-// swizzle moved the reversal into the sampler.)
-export function fieldAxisToThree(fieldAxis: 0 | 1 | 2): ThreeAxis {
-  return fieldAxis;
-}
 
 // Linear remap of a physical value on [min, max] to the volume box's world span [-halfExtent,
 // halfExtent] (the raymarch mesh, scaled to the dataset aspect — `raymarchScene.ts`). `halfExtent`

@@ -16,7 +16,6 @@ import { finishCanvasTexture } from "../canvasTexture.ts";
 import type { SceneOverlayConfig } from "../messages.ts";
 import { niceStep, ticksForStep } from "./niceTicks.ts";
 import {
-  fieldAxisToThree,
   formatTick,
   LABEL_FADE_FULL_COS,
   LABEL_FADE_START_COS,
@@ -137,14 +136,14 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
   // per-axis niceTicks would instead pick a coarser step on the wider axis (dipole x vs y). Base the
   // step on the widest span so the longest axis lands ~targetCount divisions, shorter ones fewer.
   const spans = THREE_AXES.map((threeAxis) => {
-    const [min, max] = config.axes[fieldAxisToThree(threeAxis)].bounds;
+    const [min, max] = config.axes[threeAxis].bounds;
     return Math.abs(max - min);
   });
   const commonStep = niceStep(Math.max(...spans), config.tick.targetCount);
 
   // Major-tick lattice per THREE axis (the shared step over the mapped field axis's physical bounds).
   const axisData: readonly ThreeAxisData[] = THREE_AXES.map((threeAxis) => {
-    const axis = config.axes[fieldAxisToThree(threeAxis)];
+    const axis = config.axes[threeAxis];
     const [min, max] = axis.bounds;
     const nt = ticksForStep(min, max, commonStep);
     return {
@@ -262,7 +261,7 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
       config.axisColors.z,
     ];
     const originAt = (a: ThreeAxis): number => {
-      const [min, max] = config.axes[fieldAxisToThree(a)].bounds;
+      const [min, max] = config.axes[a].bounds;
       const h = halfAt(a);
       return clamp(physicalToObject(0, min, max, h), -h, h);
     };

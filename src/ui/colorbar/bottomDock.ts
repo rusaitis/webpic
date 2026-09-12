@@ -1,3 +1,4 @@
+import { clamp } from "@schema/math.ts";
 import type { Box } from "../floating/dragSnap.ts";
 import { VIEWPORT_MARGIN_PX } from "../layout.ts";
 
@@ -54,7 +55,7 @@ export function bottomDockLayout(input: BottomDockInput): BottomDockResult {
   const total = cluster + GROUP_GAP_PX + colorbar.width;
   const minLeft = cornerClearRight > 0 ? cornerClearRight + CORNER_GAP_PX : VIEWPORT_MARGIN_PX;
   const maxLeft = Math.max(minLeft, vw - VIEWPORT_MARGIN_PX - total);
-  const groupLeft = Math.min(Math.max((vw - total) / 2, minLeft), maxLeft);
+  const groupLeft = clamp((vw - total) / 2, minLeft, maxLeft);
 
   if (side === "right") {
     // [cluster | gap | colorbar]: the cluster leads, the colorbar trails to its right.
