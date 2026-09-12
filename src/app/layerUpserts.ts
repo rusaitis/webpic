@@ -1,5 +1,6 @@
 import type { FieldLine } from "@compute";
 import type { FieldArray } from "@containers/field_dataset.ts";
+import { fieldPayload } from "@data";
 import { type FieldLayerParams, REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import { type ColormapBinding, colormapColor, DEFAULT_COLORMAP } from "@schema/colormap.ts";
 import type { Rgba01 } from "@schema/theme.ts";
@@ -84,21 +85,20 @@ export function createLayerUpserts(options: LayerUpsertsOptions): LayerUpserts {
 
   const sendUpsert = (layer: Layer, field: FieldArray): void => {
     if (!isFieldLayer(layer)) return; // field lines draw traced polylines, not the scalar texture
-    const dtype = field.data instanceof Float64Array ? "f64" : "f32";
-    const buffer = transferableBuffer(field.data); // freshly computed, offset-0 → transfers wholesale
+    const payload = fieldPayload(field); // freshly computed, offset-0 → transfers wholesale
     const binding = bindingFor(layer);
     const request: RenderWorkerRequest = {
       kind: "upsertLayer",
       requestId: REQUEST_IDS.layer,
       id: layer.id,
-      field: { buffer, dtype, shape: field.shape },
+      field: payload,
       colormap: binding?.colormap ?? DEFAULT_COLORMAP,
       scale: binding?.scale ?? "linear",
       opacity: layer.opacity,
       ...(binding !== undefined ? { windowLevel: binding.window } : {}),
       params: upsertParams(layer, store.getState().worldHalfExtent),
     };
-    worker.postMessage(request, [buffer]);
+    worker.postMessage(request, [payload.buffer]);
     fieldUpserted.add(layer.id);
     // The warm (compileAsync) runs off the render path; hold a pill until the worker acks layerCompiled.
     uiStore.getState().beginLoading(RENDER_PHASE_KEY, "preparing render");

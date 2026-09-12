@@ -7,8 +7,10 @@ export {
   syntheticHandle,
   syntheticStep,
 } from "./readers/synthetic.ts";
-export type {
-  DataStreamRequest,
-  DataStreamResponse,
-  StreamStepMessage,
+export {
+  type DataStreamRequest,
+  type DataStreamResponse,
+  type FieldPayload,
+  fieldPayload,
+  type StreamStepMessage,
 } from "./streamMessages.ts";

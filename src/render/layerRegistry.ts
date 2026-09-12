@@ -12,8 +12,8 @@ import { warmScene } from "./managedScene.ts";
 import type {
   FieldLayerKind,
   FieldLayerParams,
+  FieldPayload,
   RenderWorkerRequest,
-  SliceFieldPayload,
 } from "./messages.ts";
 import type { PickLayer } from "./pickRay.ts";
 import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
@@ -122,13 +122,13 @@ export interface LayerRegistry extends RenderModule {
 
 // The wire boundary for field data: a buffer read at the wrong dtype (or against the wrong shape)
 // silently reinterprets the field instead of failing, so the sizes are checked here, once.
-function decodeSliceField(payload: SliceFieldPayload): ScalarField {
+function decodeFieldPayload(payload: FieldPayload): ScalarField {
   const Ctor = payload.dtype === "f64" ? Float64Array : Float32Array;
   const cells = payload.shape.reduce((product, dim) => product * dim, 1);
   const wanted = cells * Ctor.BYTES_PER_ELEMENT;
   if (payload.buffer.byteLength !== wanted) {
     throw new Error(
-      `decodeSliceField: ${payload.dtype} buffer is ${payload.buffer.byteLength} bytes, shape [${payload.shape.join(", ")}] needs ${wanted}`,
+      `decodeFieldPayload: ${payload.dtype} buffer is ${payload.buffer.byteLength} bytes, shape [${payload.shape.join(", ")}] needs ${wanted}`,
     );
   }
   return { data: new Ctor(payload.buffer), shape: payload.shape };
@@ -260,7 +260,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     async upsert(request) {
       const source: FieldSource = {
         layerKind: request.params.layerKind,
-        field: decodeSliceField(request.field),
+        field: decodeFieldPayload(request.field),
         colormap: request.colormap,
         scale: request.scale,
         opacity: request.opacity,
@@ -303,7 +303,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     swapField(message) {
       const entry = layers.get(message.id);
       if (entry === undefined || entry.kind === "fieldlines") return; // streams target field layers only
-      const field = decodeSliceField(message.field);
+      const field = decodeFieldPayload(message.field);
       if (entry.scene.setField(field)) {
         entry.source.field = field;
         host.requestRender();

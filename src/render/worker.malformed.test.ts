@@ -68,6 +68,6 @@ it("rejects a field payload whose buffer disagrees with its dtype and shape", as
   });
   await vi.waitFor(() => expect(lastError()?.requestId).toBe(100));
   expect(lastError()?.message).toMatch(
-    /decodeSliceField: f64 buffer is 16 bytes, shape \[2, 2, 2\] needs 64/,
+    /decodeFieldPayload: f64 buffer is 16 bytes, shape \[2, 2, 2\] needs 64/,
   );
 });

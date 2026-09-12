@@ -9,9 +9,6 @@ import type { SimulationStore, UiStore } from "@store";
 // field. The render-side port pairs into the render worker on its `ready` (pair()); the data-side port
 // rides the open message once the store has seeded its layer (open()).
 
-// The data worker's request label — its sole posting module, so a local const, not render REQUEST_IDS.
-const STREAM_REQUEST_ID = 7;
-
 export interface StreamingBridgeOptions {
   readonly store: SimulationStore;
   readonly uiStore: UiStore;
@@ -80,7 +77,6 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
       if (!isOpened) return;
       dataWorker.postMessage({
         kind: "setCursor",
-        requestId: STREAM_REQUEST_ID,
         step,
       } satisfies DataStreamRequest);
       hasStreamedStep = true;
@@ -97,7 +93,6 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
       if (!isOpened) return;
       dataWorker.postMessage({
         kind: "setActiveField",
-        requestId: STREAM_REQUEST_ID,
         field,
       } satisfies DataStreamRequest);
       // Pre-scrub the worker has no cursor and never acks (main's synchronous layerBridge covers that
@@ -115,7 +110,6 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
       dataWorker.postMessage(
         {
           kind: "open",
-          requestId: STREAM_REQUEST_ID,
           handle: streamSource,
           activeField: store.getState().activeField,
           layerId,
@@ -141,7 +135,6 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
       uiStore.getState().beginLoading("open", "opening dataset");
       dataWorker.postMessage({
         kind: "reopen",
-        requestId: STREAM_REQUEST_ID,
         handle,
         activeField: store.getState().activeField,
       } satisfies DataStreamRequest);
@@ -149,7 +142,6 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
     setPerfActive(active) {
       dataWorker.postMessage({
         kind: "setPerfActive",
-        requestId: STREAM_REQUEST_ID,
         active,
       } satisfies DataStreamRequest);
     },

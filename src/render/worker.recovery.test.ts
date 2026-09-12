@@ -42,7 +42,7 @@ it("rebuilds the renderer + every layer scene on the new device when the device 
   });
   await vi.waitFor(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
 
-  // Seed one volume layer (carries a real ArrayBuffer so decodeSliceField succeeds).
+  // Seed one volume layer (carries a real ArrayBuffer so decodeFieldPayload succeeds).
   onmessage({
     data: {
       kind: "upsertLayer",

@@ -1,3 +1,5 @@
+import type { FieldArray } from "@containers/field_dataset.ts";
+import { transferableBuffer } from "@schema/transfer.ts";
 import type { DataHandle } from "./readers/_protocols.ts";
 
 // Time-series streaming wire protocol. Lives in the `data` layer on purpose: the data worker and
@@ -7,13 +9,22 @@ import type { DataHandle } from "./readers/_protocols.ts";
 //   • data worker → render worker, over a private MessagePort (StreamStepMessage)
 // All field buffers move by transfer, never clone.
 
-// A computed scalar field on the wire — structurally identical to render's SliceFieldPayload, so the
-// render worker decodes it with the same path. The typed array can't cross as a view; it goes as a
-// raw `buffer` + a `dtype` tag the worker reinterprets.
-export interface StreamFieldPayload {
+// A computed scalar field on the wire, for both worker protocols (render's `upsertLayer` and the data
+// worker's `streamStep`). The typed array can't cross as a view; it goes as a raw `buffer` + a `dtype`
+// tag the receiver reinterprets — a buffer read as the wrong type silently corrupts the field.
+export interface FieldPayload {
   readonly buffer: ArrayBuffer;
   readonly dtype: "f32" | "f64";
   readonly shape: readonly number[];
+}
+
+// The dtype tag is the rule both senders must agree on, so it is derived here rather than at each wire.
+export function fieldPayload(field: FieldArray): FieldPayload {
+  return {
+    buffer: transferableBuffer(field.data),
+    dtype: field.data instanceof Float64Array ? "f64" : "f32",
+    shape: field.shape,
+  };
 }
 
 // data worker → render worker (over the paired port): swap one layer's volume to a new timestep's
@@ -22,7 +33,7 @@ export interface StreamStepMessage {
   readonly kind: "streamStep";
   readonly id: string;
   readonly step: number;
-  readonly field: StreamFieldPayload;
+  readonly field: FieldPayload;
 }
 
 // main → data worker. `open` carries the render port (transferred) + the layer the worker streams
@@ -33,7 +44,6 @@ export interface StreamStepMessage {
 export type DataStreamRequest =
   | {
       readonly kind: "open";
-      readonly requestId: number;
       readonly handle: DataHandle;
       readonly activeField: string;
       readonly layerId: string;
@@ -41,14 +51,13 @@ export type DataStreamRequest =
     }
   | {
       readonly kind: "reopen";
-      readonly requestId: number;
       readonly handle: DataHandle;
       readonly activeField: string;
     }
-  | { readonly kind: "setActiveField"; readonly requestId: number; readonly field: string }
-  | { readonly kind: "setCursor"; readonly requestId: number; readonly step: number }
+  | { readonly kind: "setActiveField"; readonly field: string }
+  | { readonly kind: "setCursor"; readonly step: number }
   // Dev-mode perf HUD: while active the worker self-reports its heap + last read time (~1 Hz).
-  | { readonly kind: "setPerfActive"; readonly requestId: number; readonly active: boolean };
+  | { readonly kind: "setPerfActive"; readonly active: boolean };
 
 // data worker → main. `opened` reports the timestep domain (→ store.setAvailableSteps); `stepLoaded`
 // acks a decoded+streamed step (a future loading indicator); `streamError` surfaces a read failure.

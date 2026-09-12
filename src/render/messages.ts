@@ -1,3 +1,4 @@
+import type { FieldPayload } from "@data";
 import type { CameraMotion, CameraPose, CameraProjection } from "@schema/camera.ts";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import type { FieldLayerKind, SliceAxis } from "@schema/layers.ts";
@@ -37,19 +38,12 @@ export const REQUEST_IDS = {
   dispose: 16,
 } as const;
 
-// A computed scalar field, serialized for transfer to the worker: the typed array can't
-// cross `postMessage` as a view, so it goes as a raw `buffer` + a `dtype` tag the worker
-// reinterprets (a buffer read as the wrong type silently corrupts the field).
-export interface SliceFieldPayload {
-  readonly buffer: ArrayBuffer;
-  readonly dtype: "f32" | "f64";
-  readonly shape: readonly number[];
-}
-
+// The scalar-field wire payload is declared once, in the layer both workers can import (@data);
+// re-exported here so the render protocol reads whole.
 // The layer discriminants (@schema/layers) — one home for store, wire, and render. Field layers carry
 // a 3D scalar texture (slice/volume, one upsert path); field lines carry packed polylines (a separate
 // upsert + scene), so the field-only upsertLayer message can't be handed a fieldlines kind.
-export type { FieldLayerKind };
+export type { FieldLayerKind, FieldPayload };
 
 // The per-kind build params of a field layer — what a slice needs (its held axis + plane) and what
 // a volume needs (march + look + box aspect), each only on its own kind. Omitted volume params fall
@@ -137,7 +131,7 @@ export type RenderWorkerRequest =
       readonly kind: "upsertLayer";
       readonly requestId: number;
       readonly id: string;
-      readonly field: SliceFieldPayload;
+      readonly field: FieldPayload;
       readonly colormap: string;
       readonly scale: ColorScale;
       readonly opacity: number;

@@ -7,13 +7,12 @@ import type { DataHandle, SimulationReader } from "@data/readers/_protocols.ts";
 import { openSimulation } from "@data/readers/_registry.ts";
 import { registerSyntheticReader } from "@data/readers/synthetic.ts";
 import { createStreamRing, type StreamRing } from "@data/stream.ts";
-import type {
-  DataStreamRequest,
-  DataStreamResponse,
-  StreamFieldPayload,
-  StreamStepMessage,
+import {
+  type DataStreamRequest,
+  type DataStreamResponse,
+  fieldPayload,
+  type StreamStepMessage,
 } from "@data/streamMessages.ts";
-import { transferableBuffer } from "@schema/transfer.ts";
 
 // The data worker owns all off-main data I/O (DESIGN §Package shape): OPFS writes and time-series
 // streaming. On `open` it resolves a reader and reports the timestep domain; on `setCursor` it drives
@@ -116,11 +115,9 @@ async function readStep(step: number, signal: AbortSignal): Promise<FieldArray> 
 // the ring re-reads this step on scrub-back. Also acks the load to main (a future loading indicator).
 function streamToRender(step: number, field: FieldArray): void {
   if (port === undefined || layerId === undefined) return;
-  const dtype: StreamFieldPayload["dtype"] = field.data instanceof Float64Array ? "f64" : "f32";
-  const buffer = transferableBuffer(field.data);
-  const payload: StreamFieldPayload = { buffer, dtype, shape: field.shape };
+  const payload = fieldPayload(field);
   const message: StreamStepMessage = { kind: "streamStep", id: layerId, step, field: payload };
-  port.postMessage(message, [buffer]);
+  port.postMessage(message, [payload.buffer]);
   context.postMessage({ kind: "stepLoaded", step });
 }
 
