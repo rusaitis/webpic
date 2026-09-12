@@ -41,7 +41,7 @@ export interface PerfBridge {
   dispose(): void;
 }
 
-export function installPerf(opts: PerfBridgeOptions): PerfBridge {
+export function installPerf(options: PerfBridgeOptions): PerfBridge {
   const {
     perfStore,
     uiStore,
@@ -50,7 +50,7 @@ export function installPerf(opts: PerfBridgeOptions): PerfBridge {
     setDataPerfActive,
     isRenderReady,
     isDataPresent,
-  } = opts;
+  } = options;
 
   const disposeHud = installPerfHud(uiParent, perfStore, uiStore);
 

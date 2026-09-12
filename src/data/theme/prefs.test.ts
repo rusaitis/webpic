@@ -29,8 +29,8 @@ function makeOpfsFake(options: { withWritable?: boolean } = {}) {
   });
 
   const settingsDir = {
-    getFileHandle: async (name: string, opts?: { create?: boolean }) => {
-      if (!files.has(name) && opts?.create !== true) {
+    getFileHandle: async (name: string, options?: { create?: boolean }) => {
+      if (!files.has(name) && options?.create !== true) {
         throw new DOMException("not found", "NotFoundError");
       }
       return fileHandle(name);
@@ -39,9 +39,9 @@ function makeOpfsFake(options: { withWritable?: boolean } = {}) {
 
   const dirs = new Map<string, unknown>();
   const root = {
-    getDirectoryHandle: async (name: string, opts?: { create?: boolean }) => {
+    getDirectoryHandle: async (name: string, options?: { create?: boolean }) => {
       if (!dirs.has(name)) {
-        if (opts?.create !== true) throw new DOMException("not found", "NotFoundError");
+        if (options?.create !== true) throw new DOMException("not found", "NotFoundError");
         dirs.set(name, settingsDir);
       }
       return dirs.get(name);

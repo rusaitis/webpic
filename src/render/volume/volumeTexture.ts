@@ -76,12 +76,12 @@ function packInto(out: Float32Array | Uint16Array, data: FloatArray, fill: numbe
   }
 }
 
-/** Build a ping-pong-capable volume (R32F when `float32Filterable`, else R16F) + finite range.
- *  `ledgerKey` (the layer id) opts the two texture slots into the VRAM ledger for the perf HUD;
+/** Build a ping-pong-capable volume (R32F when `hasFloat32Filterable`, else R16F) + finite range.
+ *  `ledgerKey` (the layer id) options the two texture slots into the VRAM ledger for the perf HUD;
  *  omit it (e.g. in tests) to allocate untracked. */
 export function createVolumeTexture(
   field: ScalarField,
-  float32Filterable = false,
+  hasFloat32Filterable = false,
   ledgerKey?: string,
 ): VolumeTexture {
   const { shape } = field;
@@ -96,13 +96,13 @@ export function createVolumeTexture(
   const voxels = width * height * depth;
 
   const { min, max } = finiteRange(field.data) ?? NO_FINITE_RANGE;
-  const bytesPerVoxel = float32Filterable ? 4 : 2; // R32F vs R16F
+  const bytesPerVoxel = hasFloat32Filterable ? 4 : 2; // R32F vs R16F
 
   const makeBuffer = (data: FloatArray, fill: number, slot: number): PingPongBuffer => {
-    const array = float32Filterable ? new Float32Array(voxels) : new Uint16Array(voxels);
+    const array = hasFloat32Filterable ? new Float32Array(voxels) : new Uint16Array(voxels);
     packInto(array, data, fill);
     const texture = new Data3DTexture(array, width, height, depth);
-    texture.type = float32Filterable ? FloatType : HalfFloatType;
+    texture.type = hasFloat32Filterable ? FloatType : HalfFloatType;
     texture.format = RedFormat;
     // Data3DTexture defaults to NearestFilter; Linear gives the trilinear interpolation the slice +
     // raymarch sample across.

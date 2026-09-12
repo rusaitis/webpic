@@ -26,8 +26,8 @@ function isPaneEdge(value: string): value is PaneEdge {
 
 /** The dock edge held in `data-edge` — written here on snap, seeded by the owner — or undefined when
  *  unset. Validated against the literal set, so every reader gets a typed edge without a cast. */
-export function readEdge(el: HTMLElement): PaneEdge | undefined {
-  const edge = el.dataset.edge;
+export function readEdge(element: HTMLElement): PaneEdge | undefined {
+  const edge = element.dataset.edge;
   return edge !== undefined && isPaneEdge(edge) ? edge : undefined;
 }
 
@@ -56,7 +56,7 @@ export interface SnapPlacement {
   /** True when flush against an edge/corner; false for a free drop kept where released (the `edge`
    *  is then only an orientation hint). A floating element is not re-flushed on reflow, so a
    *  collapse/expand resizes it in place instead of migrating it to the edge. */
-  readonly docked: boolean;
+  readonly isDocked: boolean;
 }
 
 const FREE_DRAG_KEEP_PX = 64; // free panels may overhang an edge, but keep at least this much (a grab strip) on screen
@@ -115,7 +115,7 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
       v: topSide ? "top" : "bottom",
       left: leftSide ? EDGE_GAP_PX : dockLeft,
       top: topSide ? EDGE_GAP_PX : dockTop,
-      docked: true,
+      isDocked: true,
     };
   }
   // Anchor the free axis to whichever side the strip leans toward, so it tracks that edge on the
@@ -130,7 +130,7 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
       v: topSide ? "top" : "bottom",
       left: leftSide ? EDGE_GAP_PX : dockLeft,
       top: clamp(rect.top, VIEWPORT_MARGIN_PX, H - rect.height - VIEWPORT_MARGIN_PX),
-      docked: true,
+      isDocked: true,
     };
   }
   if (nearV) {
@@ -142,7 +142,7 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
       v: topSide ? "top" : "bottom",
       left: clamp(rect.left, VIEWPORT_MARGIN_PX, W - rect.width - VIEWPORT_MARGIN_PX),
       top: topSide ? EDGE_GAP_PX : dockTop,
-      docked: true,
+      isDocked: true,
     };
   }
 
@@ -163,7 +163,7 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
     v: edge === "bottom" ? "bottom" : "top",
     left: clamp(rect.left, VIEWPORT_MARGIN_PX, W - rect.width - VIEWPORT_MARGIN_PX),
     top: clamp(rect.top, VIEWPORT_MARGIN_PX, H - rect.height - VIEWPORT_MARGIN_PX),
-    docked: false, // a free drop in the middle: kept where released, edge is orientation-only
+    isDocked: false, // a free drop in the middle: kept where released, edge is orientation-only
   };
 }
 
@@ -320,7 +320,7 @@ export interface DragSnapOptions {
   /** Anchor the *free* axis (the one not pinned to a dock edge) by its center rather than a corner,
    *  so a size change (collapse/expand) pivots on the center. The stylesheet must translate that axis
    *  by -50% (`translateX(-50%)` on top/bottom docks, `translateY(-50%)` on left/right, both for a
-   *  free drop). The colorbar opts in; the free-mode window keeps corner anchoring. */
+   *  free drop). The colorbar options in; the free-mode window keeps corner anchoring. */
   readonly centerFreeAxis?: boolean;
   /** Fired when the dock edge changes (the colorbar repaints its gradient orientation). */
   readonly onEdgeChange?: (edge: PaneEdge) => void;
@@ -340,9 +340,12 @@ export interface DragSnapController {
   dispose(): void;
 }
 
-export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): DragSnapController {
-  const handle = opts.handle ?? el;
-  const doc = el.ownerDocument;
+export function installDragSnap(
+  element: HTMLElement,
+  options: DragSnapOptions = {},
+): DragSnapController {
+  const handle = options.handle ?? element;
+  const doc = element.ownerDocument;
   const view = doc.defaultView;
   const ac = new AbortController();
   const { signal } = ac;
@@ -360,10 +363,11 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     width: doc.documentElement.clientWidth,
     height: doc.documentElement.clientHeight,
   });
-  const readVar = (name: string): number => Number.parseFloat(el.style.getPropertyValue(name)) || 0;
+  const readVar = (name: string): number =>
+    Number.parseFloat(element.style.getPropertyValue(name)) || 0;
   const writeOffset = (x: number, y: number): void => {
-    el.style.setProperty("--drag-x", `${x}px`);
-    el.style.setProperty("--drag-y", `${y}px`);
+    element.style.setProperty("--drag-x", `${x}px`);
+    element.style.setProperty("--drag-y", `${y}px`);
   };
 
   const setAnchors = (
@@ -376,18 +380,18 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     vp: Viewport,
   ): void => {
     if (h === "left") {
-      el.style.left = `${left}px`;
-      el.style.right = "auto";
+      element.style.left = `${left}px`;
+      element.style.right = "auto";
     } else {
-      el.style.right = `${vp.width - left - w}px`;
-      el.style.left = "auto";
+      element.style.right = `${vp.width - left - w}px`;
+      element.style.left = "auto";
     }
     if (v === "top") {
-      el.style.top = `${top}px`;
-      el.style.bottom = "auto";
+      element.style.top = `${top}px`;
+      element.style.bottom = "auto";
     } else {
-      el.style.bottom = `${vp.height - top - hgt}px`;
-      el.style.top = "auto";
+      element.style.bottom = `${vp.height - top - hgt}px`;
+      element.style.top = "auto";
     }
   };
 
@@ -396,7 +400,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
   // changes. A free drop (docked=false) centers both axes.
   const placeCentered = (
     edge: PaneEdge,
-    docked: boolean,
+    isDocked: boolean,
     left: number,
     top: number,
     w: number,
@@ -404,14 +408,14 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     vp: Viewport,
   ): void => {
     const centerX = (): void => {
-      el.style.left = `${left + w / 2}px`;
-      el.style.right = "auto";
+      element.style.left = `${left + w / 2}px`;
+      element.style.right = "auto";
     };
     const centerY = (): void => {
-      el.style.top = `${top + hgt / 2}px`;
-      el.style.bottom = "auto";
+      element.style.top = `${top + hgt / 2}px`;
+      element.style.bottom = "auto";
     };
-    if (!docked) {
+    if (!isDocked) {
       centerX();
       centerY();
       return;
@@ -419,29 +423,29 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     if (edge === "top" || edge === "bottom") {
       centerX(); // horizontal is free → center it
       if (edge === "bottom") {
-        el.style.bottom = `${vp.height - top - hgt}px`;
-        el.style.top = "auto";
+        element.style.bottom = `${vp.height - top - hgt}px`;
+        element.style.top = "auto";
       } else {
-        el.style.top = `${top}px`;
-        el.style.bottom = "auto";
+        element.style.top = `${top}px`;
+        element.style.bottom = "auto";
       }
     } else {
       centerY(); // vertical is free → center it
       if (edge === "right") {
-        el.style.right = `${vp.width - left - w}px`;
-        el.style.left = "auto";
+        element.style.right = `${vp.width - left - w}px`;
+        element.style.left = "auto";
       } else {
-        el.style.left = `${left}px`;
-        el.style.right = "auto";
+        element.style.left = `${left}px`;
+        element.style.right = "auto";
       }
     }
   };
 
   const obstacles = (): Box[] => {
-    if (!opts.chromeSelector) return [];
+    if (!options.chromeSelector) return [];
     const out: Box[] = [];
-    for (const node of doc.querySelectorAll<HTMLElement>(opts.chromeSelector)) {
-      if (node === el || el.contains(node)) continue;
+    for (const node of doc.querySelectorAll<HTMLElement>(options.chromeSelector)) {
+      if (node === element || element.contains(node)) continue;
       chromeObserver?.observe(node); // re-clear if this chrome later resizes (re-observe is a no-op)
       const r = node.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) continue;
@@ -455,15 +459,15 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
   // rect would read the mid-transition value, not the target.
   const apply = (placement: SnapPlacement, w: number, h: number, vp: Viewport): Box => {
     const set = (left: number, top: number): void => {
-      if (opts.centerFreeAxis) {
-        placeCentered(placement.edge, placement.docked, left, top, w, h, vp);
+      if (options.centerFreeAxis) {
+        placeCentered(placement.edge, placement.isDocked, left, top, w, h, vp);
       } else {
         setAnchors(placement.h, placement.v, left, top, w, h, vp);
       }
     };
     set(placement.left, placement.top);
     // A free drop stays where released; only a docked element springs clear of the rails/bars.
-    if (!placement.docked) return box(placement.left, placement.top, w, h);
+    if (!placement.isDocked) return box(placement.left, placement.top, w, h);
     const cleared = pushOutOf(
       box(placement.left, placement.top, w, h),
       obstacles(),
@@ -479,23 +483,23 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
 
   const snap = (): void => {
     const vp = viewport();
-    const r = el.getBoundingClientRect(); // visual drop position (includes the drag transform)
-    if (opts.mode === "free") {
+    const r = element.getBoundingClientRect(); // visual drop position (includes the drag transform)
+    if (options.mode === "free") {
       const { left, top } = freePlacement(box(r.left, r.top, r.width, r.height), vp);
       writeOffset(0, 0);
       setAnchors("left", "top", left, top, r.width, r.height, vp);
       return;
     }
-    const prevEdge = readEdge(el);
+    const prevEdge = readEdge(element);
     const placement = chooseEdge(box(r.left, r.top, r.width, r.height), vp, prevEdge);
     writeOffset(0, 0);
-    el.dataset.docked = placement.docked ? "true" : "false";
+    element.dataset.docked = placement.isDocked ? "true" : "false";
     const settled = apply(placement, r.width, r.height, vp);
     if (placement.edge !== prevEdge) {
-      el.dataset.edge = placement.edge;
-      opts.onEdgeChange?.(placement.edge);
+      element.dataset.edge = placement.edge;
+      options.onEdgeChange?.(placement.edge);
     }
-    opts.onSettled?.(placement.edge, settled, vp);
+    options.onSettled?.(placement.edge, settled, vp);
   };
 
   // Re-settle after a resize or a size change: re-flush a docked edge, hold a free drop in place,
@@ -503,31 +507,31 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
   // -50% translate keeps the free axis pivoting on its center — this just re-clamps + re-groups.
   const reflow = (): void => {
     const hasInline =
-      el.style.left !== "" ||
-      el.style.right !== "" ||
-      el.style.top !== "" ||
-      el.style.bottom !== "";
+      element.style.left !== "" ||
+      element.style.right !== "" ||
+      element.style.top !== "" ||
+      element.style.bottom !== "";
     if (!hasInline) return;
     const vp = viewport();
-    const r = el.getBoundingClientRect();
+    const r = element.getBoundingClientRect();
     // A hidden (display:none) or detached element measures 0×0; reflowing it would anchor it to the
     // viewport origin and clobber its initial inline placement. Keep the inline anchors until it's laid
     // out — floatingWindow re-runs reflow on show, so a default-hidden window settles when first shown.
     if (r.width === 0 && r.height === 0) return;
-    if (opts.mode === "free") {
+    if (options.mode === "free") {
       const { left, top } = freePlacement(box(r.left, r.top, r.width, r.height), vp);
       setAnchors("left", "top", left, top, r.width, r.height, vp);
       return;
     }
-    const edge = readEdge(el) ?? "bottom";
-    const docked = el.dataset.docked !== "false";
+    const edge = readEdge(element) ?? "bottom";
+    const isDocked = element.dataset.docked !== "false";
     const maxLeft = Math.max(VIEWPORT_MARGIN_PX, vp.width - r.width - VIEWPORT_MARGIN_PX);
     const maxTop = Math.max(VIEWPORT_MARGIN_PX, vp.height - r.height - VIEWPORT_MARGIN_PX);
 
     // Re-flush a docked element to its edge; a free drop keeps its current visual position.
     let left = r.left;
     let top = r.top;
-    if (docked) {
+    if (isDocked) {
       if (edge === "left") left = EDGE_GAP_PX;
       if (edge === "right") left = vp.width - r.width - EDGE_GAP_PX;
       if (edge === "top") top = EDGE_GAP_PX;
@@ -536,14 +540,14 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     left = clamp(left, VIEWPORT_MARGIN_PX, maxLeft);
     top = clamp(top, VIEWPORT_MARGIN_PX, maxTop);
 
-    if (opts.centerFreeAxis) {
+    if (options.centerFreeAxis) {
       const settled = apply(
-        { edge, h: "left", v: "top", left, top, docked },
+        { edge, h: "left", v: "top", left, top, isDocked },
         r.width,
         r.height,
         vp,
       );
-      opts.onSettled?.(edge, settled, vp);
+      options.onSettled?.(edge, settled, vp);
       return;
     }
     // Legacy corner-anchor path (no center pivot): anchor the free axis to the nearer side so the
@@ -557,8 +561,8 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
       h = left + r.width / 2 > vp.width / 2 ? "right" : "left";
       v = edge;
     }
-    const settled = apply({ edge, h, v, left, top, docked }, r.width, r.height, vp);
-    opts.onSettled?.(edge, settled, vp);
+    const settled = apply({ edge, h, v, left, top, isDocked }, r.width, r.height, vp);
+    options.onSettled?.(edge, settled, vp);
   };
 
   const onDown = (e: PointerEvent): void => {
@@ -580,7 +584,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     if (!active && Math.hypot(dx, dy) < GESTURE_THRESHOLD_PX) return;
     if (!active) {
       active = true;
-      el.classList.add("is-dragging");
+      element.classList.add("is-dragging");
     }
     writeOffset(baseX + dx, baseY + dy);
   };
@@ -591,7 +595,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
     pointerId = null;
     if (!active) return;
     active = false;
-    el.classList.remove("is-dragging");
+    element.classList.remove("is-dragging");
     snap();
     recentlyDragged = true; // suppress the trailing click; a microtask is too early
     view?.setTimeout(() => {
@@ -610,7 +614,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
   handle.addEventListener("pointermove", onMove, { signal });
   handle.addEventListener("pointerup", onUp, { signal });
   handle.addEventListener("pointercancel", onUp, { signal });
-  el.addEventListener("click", onClick, { capture: true, signal });
+  element.addEventListener("click", onClick, { capture: true, signal });
 
   // Coalesce reflow triggers (window resize, chrome resize) to one per frame.
   let reflowScheduled = false;
@@ -627,7 +631,7 @@ export function installDragSnap(el: HTMLElement, opts: DragSnapOptions = {}): Dr
   // after the strip already docked against its old (empty) width. obstacles() registers each node;
   // moving the strip never resizes chrome, so this can't loop. (No ResizeObserver under jsdom.)
   const RO = view?.ResizeObserver;
-  if (RO && opts.chromeSelector) chromeObserver = new RO(scheduleReflow);
+  if (RO && options.chromeSelector) chromeObserver = new RO(scheduleReflow);
 
   return {
     reflow,

@@ -108,8 +108,8 @@ describe("requestGpu", () => {
     let seen: GPURequestAdapterOptions | undefined;
     vi.stubGlobal("navigator", {
       gpu: {
-        requestAdapter: async (opts: GPURequestAdapterOptions) => {
-          seen = opts;
+        requestAdapter: async (options: GPURequestAdapterOptions) => {
+          seen = options;
           return null; // captured the options; a no-adapter return is fine here
         },
       },
@@ -145,7 +145,7 @@ describe("device.lost recovery", () => {
     gpu.resolveLost(lostInfo("unknown", "reset"));
     await flush();
 
-    expect(lost).toHaveBeenCalledWith({ kind: "unknown", message: "reset", terminal: false });
+    expect(lost).toHaveBeenCalledWith({ kind: "unknown", message: "reset", isTerminal: false });
     expect(restored).toHaveBeenCalledTimes(1);
     expect(getDevice()).not.toBe(firstDevice);
     expect(gpu.adapterCount()).toBe(2); // install + recovery
@@ -163,10 +163,10 @@ describe("device.lost recovery", () => {
       await flush();
     }
 
-    const events = lost.mock.calls.map((call) => call[0] as { terminal: boolean });
-    // First two recovered (terminal:false); the third trips the breaker (terminal:true, no re-acquire).
-    expect(events.filter((e) => !e.terminal)).toHaveLength(2);
-    expect(events.filter((e) => e.terminal)).toHaveLength(1);
+    const events = lost.mock.calls.map((call) => call[0] as { isTerminal: boolean });
+    // First two recovered (isTerminal:false); the third trips the breaker (isTerminal:true, no re-acquire).
+    expect(events.filter((e) => !e.isTerminal)).toHaveLength(2);
+    expect(events.filter((e) => e.isTerminal)).toHaveLength(1);
     expect(gpu.adapterCount()).toBe(3); // install + 2 recoveries; the terminal loss does not re-acquire
   });
 
@@ -183,7 +183,7 @@ describe("device.lost recovery", () => {
     expect(lost).toHaveBeenCalledWith({
       kind: "intentional",
       message: expect.any(String),
-      terminal: false,
+      isTerminal: false,
     });
 
     // The pending lost promise resolving afterward must not double-fire or recover.

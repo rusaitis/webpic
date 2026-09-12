@@ -49,15 +49,15 @@ export interface FloatingWindowHandle {
   dispose(): void;
 }
 
-export function createFloatingWindow(opts: FloatingWindowOptions): FloatingWindowHandle {
-  const doc = opts.parent.ownerDocument;
+export function createFloatingWindow(options: FloatingWindowOptions): FloatingWindowHandle {
+  const doc = options.parent.ownerDocument;
   const ac = new AbortController();
 
   const container = makeEl(doc, "div", "webpic-window");
   container.setAttribute("role", "group");
-  container.setAttribute("aria-label", opts.title);
-  container.style.width = `${opts.width ?? DEFAULT_WIDTH_PX}px`;
-  container.style.height = `${opts.height ?? DEFAULT_HEIGHT_PX}px`;
+  container.setAttribute("aria-label", options.title);
+  container.style.width = `${options.width ?? DEFAULT_WIDTH_PX}px`;
+  container.style.height = `${options.height ?? DEFAULT_HEIGHT_PX}px`;
 
   // Header: grip dots (the drag affordance) + title + an actions slot (e.g. the close button); the
   // whole bar is the drag handle, so the slot is marked no-drag.
@@ -65,12 +65,12 @@ export function createFloatingWindow(opts: FloatingWindowOptions): FloatingWindo
   const grip = makeEl(doc, "span", "webpic-window_grip");
   grip.setAttribute("aria-hidden", "true");
   const title = makeEl(doc, "span", "webpic-window_title");
-  title.textContent = opts.title;
+  title.textContent = options.title;
   const actions = makeEl(doc, "div", "webpic-window_actions");
   actions.dataset.noDrag = "";
-  if (opts.onClose !== undefined) {
+  if (options.onClose !== undefined) {
     const closeBtn = makeIconButton(doc, "webpic-window_close", ICON_CLOSE, { ariaLabel: "Close" });
-    closeBtn.addEventListener("click", () => opts.onClose?.(), { signal: ac.signal });
+    closeBtn.addEventListener("click", () => options.onClose?.(), { signal: ac.signal });
     actions.append(closeBtn);
   }
   bar.append(grip, title, actions);
@@ -85,21 +85,21 @@ export function createFloatingWindow(opts: FloatingWindowOptions): FloatingWindo
 
   // Initial inline placement (top-right by default); the mount-time reflow rewrites it to a top-left
   // anchor so corner-resize keeps the top-left fixed.
-  const initial = opts.initial ?? {};
+  const initial = options.initial ?? {};
   container.style.top = `${initial.top ?? DEFAULT_TOP_PX}px`;
   if (initial.left !== undefined) container.style.left = `${initial.left}px`;
   else container.style.right = `${initial.right ?? DEFAULT_RIGHT_PX}px`;
   if (initial.bottom !== undefined) container.style.bottom = `${initial.bottom}px`;
 
-  opts.parent.appendChild(container);
+  options.parent.appendChild(container);
 
   bringToFront(container); // newest window opens on top of the shared floating stack
   installRaise(container, ac.signal); // and re-raises whenever it's grabbed
 
   const drag = installDragSnap(container, { mode: "free", handle: bar });
   const disposeResize = installCornerResize(container, resize, {
-    minWidth: opts.minWidth ?? DEFAULT_MIN_WIDTH_PX,
-    minHeight: opts.minHeight ?? DEFAULT_MIN_HEIGHT_PX,
+    minWidth: options.minWidth ?? DEFAULT_MIN_WIDTH_PX,
+    minHeight: options.minHeight ?? DEFAULT_MIN_HEIGHT_PX,
   });
 
   // Settle the top-left anchor once layout (and thus rects) are valid.

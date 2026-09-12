@@ -13,7 +13,7 @@ export interface DecorationSpec<TScene extends { dispose(): void }, TConfig> {
   create(config: TConfig): TScene;
   warm(scene: TScene): Promise<unknown> | undefined;
   prepare?(scene: TScene): void;
-  ctx: RenderModuleContext;
+  context: RenderModuleContext;
 }
 
 export interface ManagedDecoration<TScene, TConfig> extends RenderModule {
@@ -44,7 +44,7 @@ export function createManagedDecoration<TScene extends { dispose(): void }, TCon
         () => (next !== undefined ? spec.warm(next) : undefined),
         () => epoch === mine,
         (built) => built.dispose(),
-        spec.ctx.reportFault,
+        spec.context.reportFault,
       );
       if (!committed) return;
       // New scene live before the old one's GPU resources are freed — a decoration has no
@@ -53,7 +53,7 @@ export function createManagedDecoration<TScene extends { dispose(): void }, TCon
       scene = next;
       source = config ?? undefined;
       previous?.dispose();
-      spec.ctx.requestRender();
+      spec.context.requestRender();
     },
 
     current() {

@@ -7,9 +7,9 @@ import { mountPanel } from "./registry.ts";
 // for an unknown name, so a theme's custom panel list never breaks the shell layout.
 
 function host() {
-  const el = document.createElement("div");
-  document.body.appendChild(el);
-  return el;
+  const element = document.createElement("div");
+  document.body.appendChild(element);
+  return element;
 }
 
 afterEach(() => {

@@ -27,22 +27,29 @@ function spacingVec3(spacing: readonly number[]): Vec3 {
   return [spacing[0] ?? 0, spacing[1] ?? 0, spacing[2] ?? 0];
 }
 
-const divergenceOp: TsFieldOp = (inputs, ctx) => {
+const divergenceOp: TsFieldOp = (inputs, context) => {
   const [c1, c2, c3] = threeComponentInputs(inputs, "divergence");
-  return divergence(c1.data, c2.data, c3.data, ctx.shape, spacingVec3(ctx.grid.spacing), {
-    geometry: ctx.grid.geometry,
+  return divergence(c1.data, c2.data, c3.data, context.shape, spacingVec3(context.grid.spacing), {
+    geometry: context.grid.geometry,
   });
 };
 
 // curl returns the full vector; the recipe's `component` selects one (curl_B_1 → 0, …). Computing all
 // three to return one slice mirrors the reference exactly — the reference backend optimizes for
 // verifiability, not for skipping the other two components (the WGSL kernel does select per dispatch).
-const curlOp: TsFieldOp = (inputs, ctx) => {
+const curlOp: TsFieldOp = (inputs, context) => {
   const [c1, c2, c3] = threeComponentInputs(inputs, "curl");
-  const components = curl(c1.data, c2.data, c3.data, ctx.shape, spacingVec3(ctx.grid.spacing), {
-    geometry: ctx.grid.geometry,
-  });
-  const index = ctx.component ?? 0;
+  const components = curl(
+    c1.data,
+    c2.data,
+    c3.data,
+    context.shape,
+    spacingVec3(context.grid.spacing),
+    {
+      geometry: context.grid.geometry,
+    },
+  );
+  const index = context.component ?? 0;
   const out = components[index];
   if (out === undefined) {
     throw new Error(`ts backend: curl component ${index} out of range`);

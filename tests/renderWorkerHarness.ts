@@ -7,7 +7,7 @@ import { vi } from "vitest";
 export interface DeviceLossEvent {
   readonly kind: string;
   readonly message: string;
-  readonly terminal: boolean;
+  readonly isTerminal: boolean;
 }
 
 export type FakeScene = ReturnType<typeof makeFakeScene>;

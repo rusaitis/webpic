@@ -30,82 +30,84 @@ export interface InstallUiOptions {
   readonly theme?: Theme;
 }
 
-export function installUi(opts: InstallUiOptions): () => void {
-  const layout = opts.theme?.webpic.layout ?? DEFAULT_WEBPIC_CONFIG.layout;
-  const shortcuts = opts.theme?.webpic.shortcuts ?? DEFAULT_WEBPIC_CONFIG.shortcuts;
+export function installUi(options: InstallUiOptions): () => void {
+  const layout = options.theme?.webpic.layout ?? DEFAULT_WEBPIC_CONFIG.layout;
+  const shortcuts = options.theme?.webpic.shortcuts ?? DEFAULT_WEBPIC_CONFIG.shortcuts;
   const panels = layout.defaultPanels.filter(isDockable);
 
   const disposers: Disposer[] = [];
-  disposers.push(applyControlStyles(opts.parent, opts.theme));
+  disposers.push(applyControlStyles(options.parent, options.theme));
 
   // Class on before the chrome mounts, so it never flashes over the blank boot canvas.
-  disposers.push(installBootReveal(opts.parent, opts.uiStore));
+  disposers.push(installBootReveal(options.parent, options.uiStore));
 
   // The docked shell renders only when something is docked — an empty shell would show as a bare
   // glass box. Floating chrome (colorbar, Developer window) lives outside it.
   if (panels.length > 0) {
     const shell = createShell({
-      parent: opts.parent,
+      parent: options.parent,
       dockedSide: layout.dockedSide,
       panels,
-      uiStore: opts.uiStore,
+      uiStore: options.uiStore,
     });
     disposers.push(() => shell.dispose());
     for (const name of panels) {
-      disposers.push(mountPanel(name, shell.panelHost(name), opts.simulationStore));
+      disposers.push(mountPanel(name, shell.panelHost(name), options.simulationStore));
     }
   }
 
   // Fixed top menu bar — dataset/field pickers + time scrub + placeholder actions. Outside the shell
   // (it spans the top edge), UI-toggle-hidden. It owns dataset/field/time, so those drop from the
   // default docked panels (schema/theme defaultPanels).
-  disposers.push(installTopBar(opts.parent, opts.simulationStore, opts.uiStore));
+  disposers.push(installTopBar(options.parent, options.simulationStore, options.uiStore));
 
   // The camera gnomon is a fixed bottom-left overlay, not a docked panel — it sits outside the shell
   // so it stays put when panels collapse, and hides with the global UI toggle.
-  disposers.push(installCameraChrome(opts.parent, opts.simulationStore, opts.uiStore));
+  disposers.push(installCameraChrome(options.parent, options.simulationStore, options.uiStore));
 
   // The centered bottom button rail (gnomon/fly/projection/coord/help) — also outside the shell, also
   // UI-toggle-hidden. It reserves the gnomon's footprint so the two never collide.
-  disposers.push(installCameraRail(opts.parent, opts.simulationStore, opts.uiStore));
+  disposers.push(installCameraRail(options.parent, options.simulationStore, options.uiStore));
 
   // The left tool rail — View (toggles the Scene panel) + Probe (the point marker), the instance-first
   // rail's first occupants on the operations axis. Outside the shell on the left edge, UI-toggle-
   // hidden; the layer add-buttons + future tools mount here too. The gnomon stays on the bottom rail.
-  disposers.push(installSideRail(opts.parent, opts.simulationStore, opts.uiStore));
+  disposers.push(installSideRail(options.parent, options.simulationStore, options.uiStore));
 
   // The Layers overlay — the rail-toggled, fixed translucent panel of renderable instances (one row
   // per layer: eye / select / reorder). Mounts next to the rail's interaction cluster; owns the "L"
   // shortcut. UI-toggle-hidden, like the rail.
-  disposers.push(installLayersPanel(opts.parent, opts.simulationStore, opts.uiStore));
+  disposers.push(installLayersPanel(options.parent, options.simulationStore, options.uiStore));
 
   // The per-layer settings window — one component opened from the Layers-panel gear or the rail's
   // "Add new", bound to the selected layer (field/colormap/window/opacity/order/remove + kind-specific).
   // Free-floating + UI-toggle-hidden like the colorbar/Developer window.
-  disposers.push(installLayerSettings(opts.parent, opts.simulationStore, opts.uiStore));
+  disposers.push(installLayerSettings(options.parent, options.simulationStore, options.uiStore));
 
   // The floating colorbar — the selected layer's color mapping as a draggable, edge-snapping
   // gradient strip; its gear opens the colormap/scale/window controls. Replaces the old docked
   // colormap panel. Outside the shell on a free-floating layer, UI-toggle-hidden.
-  disposers.push(installColorbar(opts.parent, opts.simulationStore, opts.uiStore));
+  disposers.push(installColorbar(options.parent, options.simulationStore, options.uiStore));
 
   // The Developer tool — a small, free-floating, resizable window (replaces the old docked panel).
   // Outside the shell on a free-floating layer, UI-toggle-hidden, like the colorbar.
-  disposers.push(installDevWindow(opts.parent, opts.simulationStore, opts.perfStore, opts.uiStore));
+  disposers.push(
+    installDevWindow(options.parent, options.simulationStore, options.perfStore, options.uiStore),
+  );
 
   // Loading/error feedback; unlike the chrome it ignores the global UI toggle — status, not chrome.
-  disposers.push(installStatusPill(opts.parent, opts.uiStore));
+  disposers.push(installStatusPill(options.parent, options.uiStore));
 
   // Keyboard cheat-sheet modal (? / H). Its own keydown listener — independent of the UI toggle.
-  disposers.push(installHelpOverlay(opts.parent, opts.uiStore));
+  disposers.push(installHelpOverlay(options.parent, options.uiStore));
 
   // Global bare-key shortcuts: the theme's UI toggle (default "F"), the PNG screenshot ("P"), and
   // the add-field-lines layer intent ("T", DESIGN §Shortcuts). Unshifted only — Shift+P is the perf
   // HUD's. The camera's view keys and the panels' toggles register on their own registries.
-  const registry = createShortcutRegistry(opts.parent.ownerDocument);
-  registry.register(shortcuts.toggleUi, () => opts.uiStore.getState().toggleUi());
-  registry.register("p", () => opts.uiStore.getState().requestScreenshot());
-  registry.register("t", () => opts.simulationStore.getState().addFieldlinesLayer());
+  const registry = createShortcutRegistry(options.parent.ownerDocument);
+  registry.register(shortcuts.toggleUi, () => options.uiStore.getState().toggleUi());
+  registry.register("p", () => options.uiStore.getState().requestScreenshot());
+  registry.register("t", () => options.simulationStore.getState().addFieldlinesLayer());
   disposers.push(() => registry.dispose());
 
   // LIFO teardown: shortcut → panels → shell → styles, mirroring install order. Snapshot

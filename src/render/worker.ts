@@ -45,7 +45,7 @@ type Request<K extends RenderWorkerRequest["kind"]> = Extract<RenderWorkerReques
 // Everything the render worker owns — GPU handles, cameras, the managed subsystems and the message
 // handlers over them — built once per worker so no state lives at module scope.
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: the body is the worker's state
-function createWorkerWorld(ctx: WorkerContext): {
+function createWorkerWorld(context: WorkerContext): {
   handle(request: RenderWorkerRequest): Promise<void>;
 } {
   let gpu: InstalledGpu | undefined; // retained so dispose() can release the device
@@ -60,7 +60,7 @@ function createWorkerWorld(ctx: WorkerContext): {
   let dims = { width: 0, height: 0 };
   let canvas: OffscreenCanvas | undefined; // retained to rebuild the renderer on device-restore
   let devicePixelRatio = 1; // retained for the rebuild's drawing-buffer scale
-  let float32Filterable = false; // R32F linear volume texture when the device supports it
+  let hasFloat32Filterable = false; // R32F linear volume texture when the device supports it
   // The init promise; every other message waits behind it so none can race a half-built renderer,
   // even if a future caller stops gating on the `ready` response.
   let initDone: Promise<void> | undefined;
@@ -78,7 +78,7 @@ function createWorkerWorld(ctx: WorkerContext): {
   function reportError(message: string): void {
     if (message === lastErrorMessage) return;
     lastErrorMessage = message;
-    ctx.postMessage({ kind: "error", requestId: -1, message });
+    context.postMessage({ kind: "error", requestId: -1, message });
   }
 
   function reportFault(error: unknown): void {
@@ -135,7 +135,7 @@ function createWorkerWorld(ctx: WorkerContext): {
   // Every warm compiles the FULL prospective composite — overlay + marker included — through the
   // assembler, so the first paint after a commit never hitches on a sync pipeline compile.
   const registry = createLayerRegistry({
-    float32Filterable: () => float32Filterable,
+    hasFloat32Filterable: () => hasFloat32Filterable,
     stepScale: () => quality.stepScale(),
     isOrthographic: () => projection === "orthographic",
     requestRender,
@@ -180,7 +180,7 @@ function createWorkerWorld(ctx: WorkerContext): {
     governorScale: () => quality.governorScale(),
     vramSnapshot,
     readHeapBytes,
-    post: (message) => ctx.postMessage(message),
+    post: (message) => context.postMessage(message),
     reportFault,
   });
 
@@ -189,7 +189,7 @@ function createWorkerWorld(ctx: WorkerContext): {
     paintItems: () => composite.paintItems(),
     beginReadback: () => loop.beginReadback(),
     endReadback: () => loop.endReadback(),
-    post: (message, transfer) => ctx.postMessage(message, transfer),
+    post: (message, transfer) => context.postMessage(message, transfer),
   });
 
   const loop = createRenderLoop({
@@ -258,7 +258,7 @@ function createWorkerWorld(ctx: WorkerContext): {
     reportError,
     reportFault,
     postRecoveryFailed: (reason, message) =>
-      ctx.postMessage({ kind: "gpuRecoveryFailed", requestId: -1, reason, message }),
+      context.postMessage({ kind: "gpuRecoveryFailed", requestId: -1, reason, message }),
   });
 
   async function init(request: Request<"init">): Promise<void> {
@@ -275,18 +275,18 @@ function createWorkerWorld(ctx: WorkerContext): {
       device: getDevice(),
     });
     dims = { width: request.width, height: request.height };
-    float32Filterable = getCapabilities().hasFloat32Filterable;
+    hasFloat32Filterable = getCapabilities().hasFloat32Filterable;
     frameTimer = createFrameTimer(getDevice());
     rig = createCameraRig(aspect());
     applyVolumePose();
-    isDebugScene = request.debugScene === true;
+    isDebugScene = request.showDebugScene === true;
     if (isDebugScene) testScene = createTestScene();
     recovery.start(); // gpu/'s loss + restore signals: pause + rebuild, or halt + surface a reload state
     // Paint the boot frame synchronously (the loop isn't started yet) so "first frame" honestly means
     // a frame is on the swapchain before `ready` fires — the perf-gate contract. With no layers yet
     // that frame is the bare clear color, matching the page background: a seamless boot.
     requestRender();
-    ctx.postMessage({ kind: "ready", requestId: request.requestId });
+    context.postMessage({ kind: "ready", requestId: request.requestId });
     loop.start();
   }
 
@@ -301,7 +301,7 @@ function createWorkerWorld(ctx: WorkerContext): {
     try {
       await build();
     } finally {
-      ctx.postMessage({ kind: "layerCompiled", requestId: request.requestId, id: request.id });
+      context.postMessage({ kind: "layerCompiled", requestId: request.requestId, id: request.id });
     }
   }
 
@@ -353,7 +353,7 @@ function createWorkerWorld(ctx: WorkerContext): {
     const { origin, dir } = unprojectRay(camera, request.ndcX, request.ndcY);
     const { layers: pickLayers, halfExtent } = registry.pickLayers();
     const point = pickPointOnRay(origin, dir, pickLayers, halfExtent);
-    ctx.postMessage({
+    context.postMessage({
       kind: "pickResult",
       requestId: request.requestId,
       point,
@@ -415,7 +415,7 @@ function createWorkerWorld(ctx: WorkerContext): {
     frameTimer = undefined;
     gpu?.dispose();
     gpu = undefined;
-    ctx.postMessage({ kind: "disposed", requestId: request.requestId });
+    context.postMessage({ kind: "disposed", requestId: request.requestId });
   }
 
   async function handle(request: RenderWorkerRequest): Promise<void> {
@@ -487,12 +487,12 @@ function createWorkerWorld(ctx: WorkerContext): {
 // Worker-scope view of `self`. This module stays under the DOM-lib program (its node suites import
 // it), where `self` is a Window whose postMessage wants a targetOrigin — so narrow it to the
 // dedicated-worker surface.
-const ctx = self as unknown as WorkerContext;
-const world = createWorkerWorld(ctx);
-ctx.onmessage = (event) => {
+const context = self as unknown as WorkerContext;
+const world = createWorkerWorld(context);
+context.onmessage = (event) => {
   const request = event.data;
   world.handle(request).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
-    ctx.postMessage({ kind: "error", requestId: request.requestId, message });
+    context.postMessage({ kind: "error", requestId: request.requestId, message });
   });
 };

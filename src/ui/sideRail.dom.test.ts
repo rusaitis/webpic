@@ -20,20 +20,20 @@ function setup() {
   const rail = parent.querySelector<HTMLElement>(".webpic-siderail");
   if (rail === null) throw new Error("side rail not mounted");
   const button = (control: string): HTMLButtonElement => {
-    const el = rail.querySelector<HTMLButtonElement>(`[data-control="${control}"]`);
-    if (el === null) throw new Error(`missing side-rail button: ${control}`);
-    return el;
+    const element = rail.querySelector<HTMLButtonElement>(`[data-control="${control}"]`);
+    if (element === null) throw new Error(`missing side-rail button: ${control}`);
+    return element;
   };
   const flyout = (): HTMLElement => {
-    const el = parent.querySelector<HTMLElement>(".webpic-flyout");
-    if (el === null) throw new Error("flyout not mounted");
-    return el;
+    const element = parent.querySelector<HTMLElement>(".webpic-flyout");
+    if (element === null) throw new Error("flyout not mounted");
+    return element;
   };
   // The visible add-menu (each add-button owns one, all `.webpic-railmenu`; only the open one shows).
   const openMenu = (): HTMLElement => {
-    const el = parent.querySelector<HTMLElement>(".webpic-railmenu:not([hidden])");
-    if (el === null) throw new Error("no open rail menu");
-    return el;
+    const element = parent.querySelector<HTMLElement>(".webpic-railmenu:not([hidden])");
+    if (element === null) throw new Error("no open rail menu");
+    return element;
   };
   return { parent, store, uiStore, rail, button, flyout, openMenu, dispose };
 }

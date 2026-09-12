@@ -88,7 +88,7 @@ export interface BootstrapOptions {
   readonly onFirstFrame?: () => void;
   /** Render the RGB test triangle while no layers exist (`?debugScene`) — a "renderer alive,
    *  data missing" diagnostic. Off by default: the boot frame is the bare clear color. */
-  readonly debugScene?: boolean;
+  readonly showDebugScene?: boolean;
   /** Auto-add a field-line layer (default seed rake) once the dataset lands (`?fieldlines`) — a dev /
    *  screenshot affordance; the rail's `+Field lines` button / `T` shortcut do the same
    *  interactively. */
@@ -262,13 +262,13 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
         perfBridge?.ingestRenderSample(message);
         return;
       case "pickResult":
-        renderSync.handlePickResult(message);
+        renderSync.applyPickResult(message);
         return;
       case "layerCompiled":
-        layerSync.handleCompiled(); // the layer's pipeline is warm → drop the render-loading pill
+        layerSync.finishLoading(); // the layer's pipeline is warm → drop the render-loading pill
         return;
       case "screenshot":
-        screenshotBridge.handleScreenshot(message);
+        screenshotBridge.deliverScreenshot(message);
         return;
       case "error":
         logError("render worker", message.message);
@@ -306,7 +306,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     width: initial.width,
     height: initial.height,
     devicePixelRatio: currentDevicePixelRatio(),
-    ...(options.debugScene === true ? { debugScene: true } : {}),
+    ...(options.showDebugScene === true ? { showDebugScene: true } : {}),
   };
   worker.postMessage(request, [offscreen]); // transfer the OffscreenCanvas
 

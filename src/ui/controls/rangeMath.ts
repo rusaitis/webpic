@@ -90,7 +90,7 @@ export function makeScale(
   kind: ScaleKind,
   min: number,
   max: number,
-  opts: { linthresh?: number } = {},
+  options: { linthresh?: number } = {},
 ): Scale {
   const span = max - min;
 
@@ -110,7 +110,8 @@ export function makeScale(
 
   if (kind === "symlog") {
     const guess = Math.max(Math.abs(min), Math.abs(max)) / 100;
-    const L = opts.linthresh && opts.linthresh > 0 ? opts.linthresh : guess > 0 ? guess : 1;
+    const L =
+      options.linthresh && options.linthresh > 0 ? options.linthresh : guess > 0 ? guess : 1;
     // g is C¹ at ±L (slope 1 matches the linear branch); inv is its exact inverse.
     const g = (v: number): number =>
       Math.abs(v) <= L ? v : Math.sign(v) * L * (1 + Math.log(Math.abs(v) / L));
@@ -142,16 +143,19 @@ export function makeScale(
  *  spanning [min, max]; log → 10ᵏ decades; symlog → 0 plus every ±10ᵏ decade within range, from the
  *  linthresh decade up. Ungated and unsorted-by-position — {@link tickPositions} maps + gates these,
  *  while the colorbar labels them directly (and thins its own decades). */
-export function tickValues(scale: Scale, opts: { step?: number; count?: number } = {}): number[] {
+export function tickValues(
+  scale: Scale,
+  options: { step?: number; count?: number } = {},
+): number[] {
   const { kind, min, max, linthresh: L } = scale;
   const values: number[] = [];
 
   if (kind === "linear") {
     const step =
-      opts.step && opts.step > 0
-        ? opts.step
-        : opts.count && opts.count > 0
-          ? span(min, max) / opts.count
+      options.step && options.step > 0
+        ? options.step
+        : options.count && options.count > 0
+          ? span(min, max) / options.count
           : 0;
     if (!(step > 0)) return values;
     const n = Math.round(span(min, max) / step);
@@ -179,9 +183,9 @@ export function tickValues(scale: Scale, opts: { step?: number; count?: number }
  *  decade lines. Empty when the count would exceed MAX_TICKS (renders as a solid bar). */
 export function tickPositions(
   scale: Scale,
-  opts: { step?: number; count?: number } = {},
+  options: { step?: number; count?: number } = {},
 ): number[] {
-  const values = tickValues(scale, opts);
+  const values = tickValues(scale, options);
   if (values.length === 0) return [];
   // < 2 intervals (linear) or > MAX_TICKS marks reads as a solid bar — leave it to the gradient.
   if (scale.kind === "linear" && values.length < 3) return [];

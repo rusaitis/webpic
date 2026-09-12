@@ -15,7 +15,7 @@ describe("chooseEdge", () => {
     expect(p.h).toBe("left");
     expect(p.left).toBe(EDGE_GAP);
     expect(p.top).toBe(300); // free axis preserved
-    expect(p.docked).toBe(true);
+    expect(p.isDocked).toBe(true);
   });
 
   it("docks to the right edge with the right anchor", () => {
@@ -59,22 +59,22 @@ describe("chooseEdge", () => {
     // Past center toward the left, but no edge is near → naturally "left".
     const p = chooseEdge(box(468, 300, 24, 220), VP, undefined);
     expect(p.edge).toBe("left");
-    // A middle drop is *not* docked: the edge is an orientation hint, the drop point is preserved so
+    // A middle drop is *not* isDocked: the edge is an orientation hint, the drop point is preserved so
     // a later collapse/expand resizes in place instead of migrating to the edge.
-    expect(p.docked).toBe(false);
+    expect(p.isDocked).toBe(false);
     expect(p.left).toBe(468);
     expect(p.top).toBe(300);
   });
 
   it("hysteresis holds the current edge against a small cross-midline drag", () => {
-    // Same geometry, but already docked right: the 120px bias keeps it on the right.
+    // Same geometry, but already isDocked right: the 120px bias keeps it on the right.
     const p = chooseEdge(box(468, 300, 24, 220), VP, "right");
     expect(p.edge).toBe("right");
   });
 });
 
 describe("pushOutOf", () => {
-  it("springs a bottom-docked strip sideways, never off its edge", () => {
+  it("springs a bottom-isDocked strip sideways, never off its edge", () => {
     const rect = box(320, 764, 360, 24); // centered horizontally, on the bottom edge
     const rail = box(440, 760, 120, 40); // the centered camera rail
     const { left, top } = pushOutOf(rect, [rail], "bottom", VP);
@@ -84,11 +84,11 @@ describe("pushOutOf", () => {
     expect(left).toBeGreaterThanOrEqual(560);
   });
 
-  it("springs a left-docked strip vertically", () => {
+  it("springs a left-isDocked strip vertically", () => {
     const rect = box(12, 300, 24, 220);
     const obstacle = box(0, 360, 60, 60); // chrome on the left edge
     const { left, top } = pushOutOf(rect, [obstacle], "left", VP);
-    expect(left).toBe(12); // stayed docked
+    expect(left).toBe(12); // stayed isDocked
     expect(top).not.toBe(300); // moved vertically to clear
   });
 

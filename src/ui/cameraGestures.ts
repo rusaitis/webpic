@@ -61,7 +61,7 @@ export function installCameraGestures(
   const ac = new AbortController();
   const { signal } = ac;
   const pointers = new Map<number, TrackedPointer>(); // one drags; two pinch
-  let panning = false;
+  let isPanning = false;
   let viewportHeight = NOMINAL_VIEWPORT_PX; // measured per gesture; drags normalize px by this
   // getBoundingClientRect forces layout, so it's measured once per gesture (pinch NDC) and once
   // per wheel trail (dolly NDC) rather than per event; the canvas can't resize mid-gesture.
@@ -79,7 +79,7 @@ export function installCameraGestures(
   // lands (onPointerDown, size === 2).
   let twistTravelPx = 0;
   let zoomTravelPx = 0;
-  let twistEngaged = false;
+  let isTwistEngaged = false;
 
   // Single writer for the canvas cursor (the marker picker never sets it directly): a marker grab
   // or a camera drag reads "grabbing", a marker hover reads "pointer", everything else rests on "grab".
@@ -105,7 +105,7 @@ export function installCameraGestures(
     if (pointers.size >= 2) return; // two fingers own the gesture; a third joins nothing
     if (event.button === 1) event.preventDefault(); // no middle-click autoscroll
     if (pointers.size === 0) {
-      panning = event.shiftKey || event.button === 1 || event.button === 2;
+      isPanning = event.shiftKey || event.button === 1 || event.button === 2;
       gestureRect = target.getBoundingClientRect();
       viewportHeight = gestureRect.height > 0 ? gestureRect.height : NOMINAL_VIEWPORT_PX;
       wasMultiTouch = false;
@@ -121,7 +121,7 @@ export function installCameraGestures(
       wasMultiTouch = true; // a pinch began — no release in it is a tap
       twistTravelPx = 0; // fresh twist/zoom intent gate for this two-finger gesture
       zoomTravelPx = 0;
-      twistEngaged = false;
+      isTwistEngaged = false;
     }
     target.setPointerCapture?.(event.pointerId); // keep the drag if the cursor leaves the canvas
     applyCursor();
@@ -167,14 +167,14 @@ export function installCameraGestures(
     let dTwist = twist - prevTwist;
     if (dTwist > Math.PI) dTwist -= 2 * Math.PI;
     else if (dTwist < -Math.PI) dTwist += 2 * Math.PI;
-    if (!twistEngaged) {
+    if (!isTwistEngaged) {
       twistTravelPx += Math.abs(dTwist) * spread; // arc length swept at the orbiting finger
       zoomTravelPx += Math.abs(spread - prevSpread);
       if (twistTravelPx >= TWIST_ENGAGE_PX && twistTravelPx >= TWIST_DOMINANCE * zoomTravelPx) {
-        twistEngaged = true; // pre-gate rotation is discarded — track from here, no catch-up jump
+        isTwistEngaged = true; // pre-gate rotation is discarded — track from here, no catch-up jump
       }
     }
-    if (twistEngaged && dTwist !== 0) {
+    if (isTwistEngaged && dTwist !== 0) {
       // Screen y is down, so a clockwise on-screen twist increases atan2; +roll banks the camera CW
       // (the world then reads CCW), so flip the sign to make the world follow the fingers.
       const { cameraPose, setCameraPose } = store.getState();
@@ -194,7 +194,7 @@ export function installCameraGestures(
     tracked.x = event.clientX;
     tracked.y = event.clientY;
     if (dx === 0 && dy === 0) return;
-    if (panning) glide.pan(dx / viewportHeight, dy / viewportHeight);
+    if (isPanning) glide.pan(dx / viewportHeight, dy / viewportHeight);
     else glide.orbit(dx / viewportHeight, dy / viewportHeight);
   };
 

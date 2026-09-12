@@ -7,7 +7,7 @@ import type { RecipeKey } from "./recipes.generated.ts";
 // it can evaluate. `compute` is async to admit GPU dispatch + readback — the TS backend resolves
 // immediately, but the uniform Promise lets an async backend share the dispatcher without the sync ones
 // faking a hop. The dispatcher (computeField) picks the first registered backend that `supports` a
-// recipe; a `ctx.prefer` override + calibration scoring (DESIGN §Compute dispatcher) will refine the choice once
+// recipe; a `context.prefer` override + calibration scoring (DESIGN §Compute dispatcher) will refine the choice once
 // more than one backend qualifies.
 // The id universe, single-sourced: the `BackendId` type and calibration's runtime Zod enum both
 // derive from this, so adding a backend (WebGPU shipped, WASM planned) is one edit here — no skew.

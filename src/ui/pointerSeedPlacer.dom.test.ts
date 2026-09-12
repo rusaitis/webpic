@@ -55,12 +55,12 @@ const seedCount = (store: ReturnType<typeof createSimulationStore>): number => {
 };
 
 async function withFieldlines() {
-  const ctx = setup();
-  ctx.store.getState().setDataset(traceableDataset());
+  const context = setup();
+  context.store.getState().setDataset(traceableDataset());
   await flushAsync();
-  ctx.store.getState().addFieldlinesLayer(); // layer-1
+  context.store.getState().addFieldlinesLayer(); // layer-1
   await flushAsync();
-  return ctx;
+  return context;
 }
 
 describe("installPointerSeedPlacer", () => {

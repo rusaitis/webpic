@@ -40,17 +40,17 @@ export interface FieldlinesScene {
 const DEFAULT_LINEWIDTH = 2; // pixels
 
 /** Build a batched field-line scene from packed world-space polylines. */
-export function createFieldlinesScene(opts: FieldlinesSceneOptions): FieldlinesScene {
-  const segments = packSegments(opts.positions, opts.counts);
+export function createFieldlinesScene(options: FieldlinesSceneOptions): FieldlinesScene {
+  const segments = packSegments(options.positions, options.counts);
   const geometry = new LineSegmentsGeometry();
   geometry.setPositions(segments);
 
-  let baseAlpha = opts.color[3];
-  let layerOpacity = opts.opacity ?? 1;
+  let baseAlpha = options.color[3];
+  let layerOpacity = options.opacity ?? 1;
 
   const material = new Line2NodeMaterial({
-    color: new Color(opts.color[0], opts.color[1], opts.color[2]),
-    linewidth: opts.linewidth ?? DEFAULT_LINEWIDTH,
+    color: new Color(options.color[0], options.color[1], options.color[2]),
+    linewidth: options.linewidth ?? DEFAULT_LINEWIDTH,
     worldUnits: false, // screen-space px width — constant on screen, viewport read via TSL
     transparent: true,
     depthWrite: false, // lines are an overlay over the volume; don't occlude later layers by depth
@@ -65,7 +65,7 @@ export function createFieldlinesScene(opts: FieldlinesSceneOptions): FieldlinesS
   const scene = new Scene();
   scene.add(mesh);
 
-  if (opts.ledgerKey !== undefined) trackAlloc(opts.ledgerKey, segments.byteLength);
+  if (options.ledgerKey !== undefined) trackAlloc(options.ledgerKey, segments.byteLength);
 
   return {
     scene,
@@ -81,7 +81,7 @@ export function createFieldlinesScene(opts: FieldlinesSceneOptions): FieldlinesS
     dispose() {
       geometry.dispose();
       material.dispose();
-      if (opts.ledgerKey !== undefined) releaseAlloc(opts.ledgerKey);
+      if (options.ledgerKey !== undefined) releaseAlloc(options.ledgerKey);
     },
   };
 }

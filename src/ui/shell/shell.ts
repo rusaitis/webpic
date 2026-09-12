@@ -19,21 +19,21 @@ export interface ShellOptions {
   readonly uiStore: UiStore;
 }
 
-export function createShell(opts: ShellOptions): Shell {
-  const doc = opts.parent.ownerDocument;
+export function createShell(options: ShellOptions): Shell {
+  const doc = options.parent.ownerDocument;
   const root = doc.createElement("div");
   root.className = "webpic-shell";
-  root.dataset.side = opts.dockedSide;
+  root.dataset.side = options.dockedSide;
 
   const hosts = new Map<string, HTMLElement>();
-  for (const name of opts.panels) {
+  for (const name of options.panels) {
     const host = doc.createElement("div");
     host.className = "webpic-panel";
     host.dataset.panel = name;
     root.appendChild(host);
     hosts.set(name, host);
   }
-  opts.parent.appendChild(root);
+  options.parent.appendChild(root);
 
   const applyVisible = (visible: boolean): void => {
     root.hidden = !visible;
@@ -43,8 +43,8 @@ export function createShell(opts: ShellOptions): Shell {
   };
 
   const subs = createSubscriptions();
-  subs.on(opts.uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
-  subs.on(opts.uiStore, (s) => s.panels, applyPanels, { fireNow: true });
+  subs.on(options.uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
+  subs.on(options.uiStore, (s) => s.panels, applyPanels, { fireNow: true });
 
   return {
     root,

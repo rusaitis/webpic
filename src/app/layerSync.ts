@@ -4,6 +4,7 @@ import { type FieldLayerParams, REQUEST_IDS, type RenderWorkerRequest } from "@r
 import { type ColormapBinding, colormapColor, DEFAULT_COLORMAP } from "@schema/colormap.ts";
 import { rejectionLogger } from "@schema/log.ts";
 import type { Rgba01 } from "@schema/theme.ts";
+import { transferableBuffer } from "@schema/transfer.ts";
 import type { Vec3 } from "@schema/types.ts";
 import {
   type FieldLayer,
@@ -33,10 +34,9 @@ const FIELDLINE_COLOR_T = 0.75;
 // to recompute (recomputeField) — this bridge, the one that transferred, owns that call; per-layer
 // compute will generalize it.
 
-// A computed field is a fresh, offset-0 ArrayBuffer (never the SharedArrayBuffer ArrayBufferLike
-// also admits), so `detached` — set by the transfer — is the honest "already handed over" check.
+// `detached` — set by the transfer — is the honest "already handed over" check.
 function isTransferred(field: FieldArray): boolean {
-  return (field.data.buffer as ArrayBuffer).detached;
+  return transferableBuffer(field.data).detached;
 }
 
 // The wire's per-kind build params from a store layer. `worldHalfExtent` is the dataset's volume-box
@@ -67,12 +67,12 @@ export interface LayerSync {
   readonly flushAll: () => void;
   /** Drop the render-loading pill when the worker acks a layer's pipeline warm (the layerCompiled
    *  response). Coalesced (flat key), so any acked layer clears the shared pill. */
-  readonly handleCompiled: () => void;
+  readonly finishLoading: () => void;
   readonly dispose: () => void;
 }
 
-export function installLayerSync(opts: LayerSyncOptions): LayerSync {
-  const { store, uiStore, worker, isReady } = opts;
+export function installLayerSync(options: LayerSyncOptions): LayerSync {
+  const { store, uiStore, worker, isReady } = options;
   const bridge = createStoreBridge(store, isReady);
   let lastLayers: readonly Layer[] = store.getState().layers; // snapshot for the removal diff
   let lastBindings = store.getState().colormapBindings; // snapshot for the per-binding change diff
@@ -90,9 +90,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
   const sendUpsert = (layer: Layer, field: FieldArray): void => {
     if (!isFieldLayer(layer)) return; // field lines draw traced polylines, not the scalar texture
     const dtype = field.data instanceof Float64Array ? "f64" : "f32";
-    // Freshly computed magnitude → an offset-0 ArrayBuffer (not the SharedArrayBuffer that
-    // ArrayBufferLike also admits), so it transfers wholesale.
-    const buffer = field.data.buffer as ArrayBuffer;
+    const buffer = transferableBuffer(field.data); // freshly computed, offset-0 → transfers wholesale
     const binding = bindingFor(layer);
     const request: RenderWorkerRequest = {
       kind: "upsertLayer",
@@ -197,9 +195,8 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
       kind: "upsertFieldlines",
       requestId: REQUEST_IDS.layer,
       id: layer.id,
-      // .buffer is typed ArrayBufferLike; both were allocated above as plain ArrayBuffers
-      positions: positions.buffer as ArrayBuffer,
-      counts: counts.buffer as ArrayBuffer,
+      positions: transferableBuffer(positions),
+      counts: transferableBuffer(counts),
       color,
       opacity: layer.opacity,
     };
@@ -380,7 +377,7 @@ export function installLayerSync(opts: LayerSyncOptions): LayerSync {
 
   return {
     flushAll,
-    handleCompiled() {
+    finishLoading() {
       uiStore.getState().endLoading(RENDER_PHASE_KEY);
     },
     dispose() {

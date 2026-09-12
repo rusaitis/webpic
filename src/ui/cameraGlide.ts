@@ -59,7 +59,7 @@ interface PoseTween {
   readonly delta: PoseDelta; // live pose → to, computed once at flyTo
   start: number | undefined; // set on the first glide frame — rAF timestamp domain
   easedPrev: number; // ease(t) already applied — per-frame increments sum to exactly 1
-  perturbed: boolean; // a non-tween writer touched the pose since flyTo
+  isPerturbed: boolean; // a non-tween writer touched the pose since flyTo
   lastWritten: CameraPose; // the tween's last setCameraPose object — reference identity check
 }
 
@@ -160,12 +160,12 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
       if (tween.start === undefined) tween.start = nowMs;
       const t = Math.min((nowMs - tween.start) / FLY_MS, 1);
       const live = store.getState().cameraPose;
-      if (live !== tween.lastWritten) tween.perturbed = true;
+      if (live !== tween.lastWritten) tween.isPerturbed = true;
       if (t >= 1) {
         // Unperturbed flights land on the exact goal object (pose-permalink determinism); blended
         // ones get the exact remaining fraction, so increments sum to goal ⊕ user input.
         setCameraPose(
-          tween.perturbed ? applyPoseDelta(live, tween.delta, 1 - tween.easedPrev) : tween.to,
+          tween.isPerturbed ? applyPoseDelta(live, tween.delta, 1 - tween.easedPrev) : tween.to,
         );
         tween = undefined;
       } else {
@@ -236,7 +236,7 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
         delta: poseDelta(from, to),
         start: undefined,
         easedPrev: 0,
-        perturbed: false,
+        isPerturbed: false,
         lastWritten: from,
       };
       syncMotion();

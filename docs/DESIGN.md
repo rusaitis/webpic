@@ -100,9 +100,9 @@ store       ──►  schema, containers,          reactive state; canonical na
 ui          ──►  schema, containers, store,   no direct render imports; theming is
                  remote                        @schema/theme + ui/theme/ (not a layer)
 app         ──►  everything (composition root only)
-workers     ──►  coordinates, numerics,       no DOM, no THREE, no GPUDevice
-                 compute (ts/wasm only),
-                 data, containers
+workers     ──►  schema, coordinates,          no DOM, no THREE, no GPUDevice
+                 numerics, compute (ts/wasm
+                 only), data, containers
 embed       ──►  (re-export facade only)      public lib surface; never
                  schema, containers,          render/ui/app/store/remote-client
                  coordinates, numerics,

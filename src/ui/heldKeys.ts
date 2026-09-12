@@ -31,16 +31,16 @@ export interface HeldKeys {
 export function createHeldKeys(
   doc: Document,
   keys: ReadonlySet<string>,
-  opts: HeldKeysOptions,
+  options: HeldKeysOptions,
 ): HeldKeys {
-  const { signal } = opts;
+  const { signal } = options;
   const codes = new Set<string>();
   let shiftHeld = false;
 
   const drop = (): void => {
     if (codes.size === 0) return;
     codes.clear();
-    opts.onRelease();
+    options.onRelease();
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
@@ -50,18 +50,18 @@ export function createHeldKeys(
       return;
     }
     if (event.defaultPrevented || isTypingTarget(event.target)) return;
-    if (!keys.has(event.code) || !(opts.claims?.(event) ?? true)) {
-      if (event.shiftKey && opts.shiftIsChord === true) drop();
+    if (!keys.has(event.code) || !(options.claims?.(event) ?? true)) {
+      if (event.shiftKey && options.shiftIsChord === true) drop();
       return;
     }
     event.preventDefault(); // claimed — no quick-find / scroll side effects while held
     codes.add(event.code); // Set-idempotent, so OS key-repeat keydowns are harmless
-    opts.onPress(event);
+    options.onPress(event);
   };
 
   const onKeyUp = (event: KeyboardEvent): void => {
     shiftHeld = event.shiftKey;
-    if (codes.delete(event.code)) opts.onRelease();
+    if (codes.delete(event.code)) options.onRelease();
   };
 
   doc.addEventListener("keydown", onKeyDown, { signal });

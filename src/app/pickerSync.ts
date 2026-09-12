@@ -40,9 +40,9 @@ export interface PickerSync {
   readonly dispose: () => void;
 }
 
-export function installPickerSync(opts: PickerSyncOptions): PickerSync {
-  const { store, worker, isReady } = opts;
-  let config = buildMarkerConfig(opts.theme);
+export function installPickerSync(options: PickerSyncOptions): PickerSync {
+  const { store, worker, isReady } = options;
+  let config = buildMarkerConfig(options.theme);
   const bridge = createStoreBridge(store, isReady);
 
   // The readiness gate lives in the bridge (subscribeWhenReady); flushAll is only called post-ready.

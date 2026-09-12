@@ -7,7 +7,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function setup(opts: Partial<HeldKeysOptions> = {}) {
+function setup(options: Partial<HeldKeysOptions> = {}) {
   const ac = new AbortController();
   controllers.push(ac);
   const presses: string[] = [];
@@ -16,7 +16,7 @@ function setup(opts: Partial<HeldKeysOptions> = {}) {
     signal: ac.signal,
     onPress: (event) => presses.push(event.code),
     onRelease: () => releases++,
-    ...opts,
+    ...options,
   });
   return { held, presses, releases: () => releases };
 }

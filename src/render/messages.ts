@@ -124,7 +124,7 @@ export type RenderWorkerRequest =
       readonly devicePixelRatio: number;
       // Opt into the RGB boot/test triangle as the empty-layers frame (`?debugScene`, parity test).
       // Off by default: the user-facing boot frame is the bare clear color, not a placeholder flash.
-      readonly debugScene?: boolean;
+      readonly showDebugScene?: boolean;
     }
   | { readonly kind: "renderFrame"; readonly requestId: number }
   // Viewport changed (window resize / DPR change). Logical size + DPR; the worker re-sizes the

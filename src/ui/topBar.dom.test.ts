@@ -24,9 +24,9 @@ function setup() {
   const bar = parent.querySelector<HTMLElement>(".webpic-topbar");
   if (bar === null) throw new Error("top bar not mounted");
   const control = (c: string): HTMLButtonElement => {
-    const el = bar.querySelector<HTMLButtonElement>(`[data-control="${c}"]`);
-    if (el === null) throw new Error(`missing control: ${c}`);
-    return el;
+    const element = bar.querySelector<HTMLButtonElement>(`[data-control="${c}"]`);
+    if (element === null) throw new Error(`missing control: ${c}`);
+    return element;
   };
   const range = (): HTMLElement | null => bar.querySelector<HTMLElement>(".webpic-range");
   const valueGrip = (): HTMLElement | null =>

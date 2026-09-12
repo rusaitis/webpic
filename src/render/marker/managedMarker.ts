@@ -50,7 +50,7 @@ export function createManagedMarker(host: MarkerHost): ManagedMarker {
       seed(scene);
       lastTickMs = undefined; // restart the easing dt clock for the fresh scene
     },
-    ctx: host,
+    context: host,
   });
 
   return {

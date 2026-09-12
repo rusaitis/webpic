@@ -416,11 +416,11 @@ describe("installPointerCamera", () => {
     };
     tap();
     tap(); // synthetic double-tap focuses
-    const req = store.getState().pickRequest;
-    expect(req).not.toBeNull();
+    const request = store.getState().pickRequest;
+    expect(request).not.toBeNull();
     // Some touch browsers also synthesize a dblclick for the same gesture — it must not refocus.
     target.dispatchEvent(new MouseEvent("dblclick", { clientX: 100, clientY: 50 }));
-    expect(store.getState().pickRequest).toBe(req); // same object ⇒ requestPick not called again
+    expect(store.getState().pickRequest).toBe(request); // same object ⇒ requestPick not called again
   });
 
   it("recovers from stranded multitouch: a primary pointerdown purges phantom pointers", async () => {

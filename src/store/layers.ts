@@ -46,11 +46,24 @@ export type Layer =
 type DistributeOmitId<T> = T extends unknown ? Omit<T, "id"> : never;
 export type LayerSpec = DistributeOmitId<Layer>;
 
+// Re-attach the id and the minted binding to a spec. The switch is what removes the cast a bare
+// spread would need: spreading the LayerSpec union widens away the discriminant correlation, while
+// spreading inside a narrowed arm reconstructs that exact member. A new kind fails to compile here.
+export function makeLayer(spec: LayerSpec, id: string, colormapBindingId: string | null): Layer {
+  switch (spec.kind) {
+    case "slice":
+      return { ...spec, id, colormapBindingId };
+    case "volume":
+      return { ...spec, id, colormapBindingId };
+    case "fieldlines":
+      return { ...spec, id, colormapBindingId };
+  }
+}
+
 // The kind's full default (visible, opaque, no binding, no seeds) — the descriptor table's spec
 // with an id stamped on.
 export function makeDefaultLayer(id: string, field: FieldName, kind: LayerKind): Layer {
-  // The spec is the union member sans id; stamping the id reconstructs it.
-  return { ...LAYER_KINDS[kind].makeDefaultSpec(field, null), id } as Layer;
+  return makeLayer(LAYER_KINDS[kind].makeDefaultSpec(field, null), id, null);
 }
 
 export function addLayer(list: readonly Layer[], layer: Layer): readonly Layer[] {

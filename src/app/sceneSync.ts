@@ -91,9 +91,9 @@ export interface SceneSync {
   readonly dispose: () => void;
 }
 
-export function installSceneSync(opts: SceneSyncOptions): SceneSync {
-  const { store, worker, isReady } = opts;
-  let colors = resolveOverlayColors(opts.theme);
+export function installSceneSync(options: SceneSyncOptions): SceneSync {
+  const { store, worker, isReady } = options;
+  let colors = resolveOverlayColors(options.theme);
   const bridge = createStoreBridge(store, isReady);
 
   // The readiness gate lives in the bridge (subscribeWhenReady); flushAll is only called post-ready.

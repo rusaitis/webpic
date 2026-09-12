@@ -58,7 +58,7 @@ export function createDeviceRecovery(host: DeviceRecoveryHost): DeviceRecovery {
 
   function onLost(event: DeviceLossEvent): void {
     isLost = true; // pause the loop between loss and restore
-    if (event.terminal) {
+    if (event.isTerminal) {
       // Recovery gave up (breaker tripped or no adapter) — halt the loop so nothing hammers the dead
       // GPU, and tell the app to show a terminal "reload" state instead of spiraling.
       host.stopLoop();

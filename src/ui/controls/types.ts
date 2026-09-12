@@ -112,20 +112,20 @@ export interface FolderOptions {
 
 export interface Folder {
   readonly element: HTMLElement;
-  addSlider(opts: SliderOptions): ControlHandle<number>;
-  addRangeControl(opts: RangeControlOptions): ControlHandle<RangeValue>;
-  addSelect<V extends string>(opts: SelectOptions<V>): SelectHandle<V>;
-  addSwatchSelect<V extends string>(opts: SwatchSelectOptions<V>): SelectHandle<V>;
-  addSegmented<V extends string>(opts: SegmentedOptions<V>): ControlHandle<V>;
-  addCheckbox(opts: CheckboxOptions): ControlHandle<boolean>;
-  addText(opts: TextOptions): ControlHandle<string>;
-  addFolder(opts: FolderOptions): Folder;
+  addSlider(options: SliderOptions): ControlHandle<number>;
+  addRangeControl(options: RangeControlOptions): ControlHandle<RangeValue>;
+  addSelect<V extends string>(options: SelectOptions<V>): SelectHandle<V>;
+  addSwatchSelect<V extends string>(options: SwatchSelectOptions<V>): SelectHandle<V>;
+  addSegmented<V extends string>(options: SegmentedOptions<V>): ControlHandle<V>;
+  addCheckbox(options: CheckboxOptions): ControlHandle<boolean>;
+  addText(options: TextOptions): ControlHandle<string>;
+  addFolder(options: FolderOptions): Folder;
   addNote(text: string): NoteHandle;
   dispose(): void;
 }
 
 export interface Pane {
   readonly element: HTMLElement;
-  addFolder(opts: FolderOptions): Folder;
+  addFolder(options: FolderOptions): Folder;
   dispose(): void;
 }

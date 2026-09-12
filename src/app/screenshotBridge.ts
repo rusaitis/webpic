@@ -7,7 +7,7 @@ import type { SimulationStore, UiStore } from "@store";
 import type { RenderWorkerLink } from "./storeBridge.ts";
 
 // PNG-screenshot glue (app-only: ui dispatches the store intent, the worker captures). Subscribes
-// to uiStore.screenshotSerial → posts the capture request; handleScreenshot (routed from main.ts
+// to uiStore.screenshotSerial → posts the capture request; deliverScreenshot (routed from main.ts
 // onmessage) downloads the returned Blob via an object-URL anchor click. One capture in flight at
 // a time; the pending loading pill ends on the reply, which the worker posts even on failure
 // (blob: null — the never-strand contract).
@@ -20,7 +20,7 @@ export interface ScreenshotBridgeOptions extends RenderWorkerLink {
 }
 
 export interface ScreenshotBridge {
-  readonly handleScreenshot: (
+  readonly deliverScreenshot: (
     message: Extract<RenderWorkerResponse, { kind: "screenshot" }>,
   ) => void;
   readonly dispose: () => void;
@@ -43,9 +43,9 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function installScreenshotBridge(opts: ScreenshotBridgeOptions): ScreenshotBridge {
-  const { store, uiStore, worker, isReady } = opts;
-  const deliver = opts.deliver ?? downloadBlob;
+export function installScreenshotBridge(options: ScreenshotBridgeOptions): ScreenshotBridge {
+  const { store, uiStore, worker, isReady } = options;
+  const deliver = options.deliver ?? downloadBlob;
   let inFlight = false;
 
   const unsubscribe = uiStore.subscribe(
@@ -62,7 +62,7 @@ export function installScreenshotBridge(opts: ScreenshotBridgeOptions): Screensh
   );
 
   return {
-    handleScreenshot(message) {
+    deliverScreenshot(message) {
       inFlight = false;
       uiStore.getState().endLoading(PHASE_KEY);
       if (message.blob === null) return; // capture failed — reported on the error channel

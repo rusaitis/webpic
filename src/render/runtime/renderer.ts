@@ -47,18 +47,18 @@ export interface InstalledRenderer {
   dispose(): void;
 }
 
-export async function installRenderer(opts: RendererOptions): Promise<InstalledRenderer> {
+export async function installRenderer(options: RendererOptions): Promise<InstalledRenderer> {
   const renderer = new WebGPURenderer({
-    canvas: opts.canvas,
+    canvas: options.canvas,
     antialias: false, // MSAA resolve is a nondeterminism source; off for parity
     // No trackTimestamp: it writes timestampWrites into *every* render pass incl. the swapchain
     // present, and the per-frame resolveTimestampsAsync/mapAsync loses the device on Metal (the
     // adaptive timer demotes on garbage values, not on a device-lost throw). GPU timing is
     // wall-clock instead (render/frameTimer.ts) — no querySet, no mapAsync.
-    ...(opts.device ? { device: opts.device } : {}),
+    ...(options.device ? { device: options.device } : {}),
   });
-  let logical = { width: opts.width, height: opts.height };
-  let dpr = opts.devicePixelRatio ?? 1;
+  let logical = { width: options.width, height: options.height };
+  let dpr = options.devicePixelRatio ?? 1;
   let renderScale = 1; // interaction-time swapchain scale; never applied to the readback target
 
   renderer.setPixelRatio(dpr); // before setSize: drawing buffer = logical × DPR

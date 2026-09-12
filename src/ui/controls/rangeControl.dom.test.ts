@@ -16,8 +16,8 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function inputsOf(el: HTMLElement): HTMLInputElement[] {
-  return Array.from(el.querySelectorAll<HTMLInputElement>(".webpic-range_input"));
+function inputsOf(element: HTMLElement): HTMLInputElement[] {
+  return Array.from(element.querySelectorAll<HTMLInputElement>(".webpic-range_input"));
 }
 
 describe("range control — interval mode", () => {

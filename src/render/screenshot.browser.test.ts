@@ -51,7 +51,7 @@ function workerScreenshot(): Promise<ScreenshotReply> {
       width: SIZE,
       height: SIZE,
       devicePixelRatio: 1,
-      debugScene: true, // the RGB triangle gives the capture non-uniform, checkable content
+      showDebugScene: true, // the RGB triangle gives the capture non-uniform, checkable content
     };
     worker.postMessage(init, [canvas]);
   });

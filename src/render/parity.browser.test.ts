@@ -70,7 +70,7 @@ function workerPixels(): Promise<Uint8Array> {
       width: SIZE,
       height: SIZE,
       devicePixelRatio: 1, // parity reads back at logical resolution — no DPR scaling
-      debugScene: true, // the triangle is the parity target; default empty frames are clear-only
+      showDebugScene: true, // the triangle is the parity target; default empty frames are clear-only
     };
     worker.postMessage(init, [canvas]);
   });
@@ -154,7 +154,7 @@ function workerSustainsSwapchain(): Promise<{ frames: number; errors: string[] }
       width: SIZE,
       height: SIZE,
       devicePixelRatio: 1,
-      debugScene: true, // keep a real draw call per frame — a clear-only loop wouldn't stress the GPU
+      showDebugScene: true, // keep a real draw call per frame — a clear-only loop wouldn't stress the GPU
     };
     worker.postMessage(init, [canvas]);
   });

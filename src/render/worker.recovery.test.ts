@@ -57,9 +57,9 @@ it("rebuilds the renderer + every layer scene on the new device when the device 
   });
   await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
 
-  // A recoverable loss (terminal:false), then restore on a fresh GPUDevice.
+  // A recoverable loss (isTerminal:false), then restore on a fresh GPUDevice.
   expect(h.lostCbs.length).toBeGreaterThan(0);
-  for (const cb of h.lostCbs) cb({ kind: "unknown", message: "reset", terminal: false });
+  for (const cb of h.lostCbs) cb({ kind: "unknown", message: "reset", isTerminal: false });
   const newDevice = { queue: { onSubmittedWorkDone: async () => undefined } };
   for (const cb of h.restoredCbs) cb(newDevice);
 
@@ -75,13 +75,13 @@ it("rebuilds the renderer + every layer scene on the new device when the device 
   expect(restored?.compileComposite).toHaveBeenCalled();
 });
 
-it("posts gpuRecoveryFailed and does not rebuild on a terminal loss", () => {
+it("posts gpuRecoveryFailed and does not rebuild on a isTerminal loss", () => {
   const self = (globalThis as unknown as { self: { postMessage: ReturnType<typeof vi.fn> } }).self;
   self.postMessage.mockClear();
   const installsBefore = h.installRenderer.mock.calls.length;
 
   // A terminal loss (breaker tripped / no adapter) must not rebuild — it surfaces a reload state.
-  for (const cb of h.lostCbs) cb({ kind: "unknown", message: "no GPUAdapter", terminal: true });
+  for (const cb of h.lostCbs) cb({ kind: "unknown", message: "no GPUAdapter", isTerminal: true });
 
   expect(h.installRenderer.mock.calls.length).toBe(installsBefore);
   const failed = self.postMessage.mock.calls

@@ -26,7 +26,7 @@ export interface SliceSceneOptions {
   /** Per-layer opacity multiplier on the composited output, [0,1]; default 1 (opaque). */
   readonly opacity?: number;
   /** Device supports R32F linear sampling — picks the volume texture format. */
-  readonly float32Filterable?: boolean;
+  readonly hasFloat32Filterable?: boolean;
   /** Layer id keying the volume texture into the VRAM ledger (perf HUD); omit to skip tracking. */
   readonly ledgerKey?: string;
 }
@@ -59,16 +59,20 @@ function sliceCoord(
 }
 
 /** Build a themed orthogonal-slice scene from a 3D scalar field. */
-export function createSliceScene(opts: SliceSceneOptions): SliceScene {
-  const volume = createVolumeTexture(opts.field, opts.float32Filterable, opts.ledgerKey);
-  const tf = createTransferFunctionTexture(opts.colormap);
+export function createSliceScene(options: SliceSceneOptions): SliceScene {
+  const volume = createVolumeTexture(
+    options.field,
+    options.hasFloat32Filterable,
+    options.ledgerKey,
+  );
+  const tf = createTransferFunctionTexture(options.colormap);
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const norm = createNormalization(volume.min, volume.max, opts.windowLevel, opts.scale);
-  const uPosition = uniform(opts.position);
-  const uLayerOpacity = uniform(opts.opacity ?? 1);
+  const norm = createNormalization(volume.min, volume.max, options.windowLevel, options.scale);
+  const uPosition = uniform(options.position);
+  const uLayerOpacity = uniform(options.opacity ?? 1);
 
-  const coord = sliceCoord(opts.axis, uv().x, uv().y, uPosition);
+  const coord = sliceCoord(options.axis, uv().x, uv().y, uPosition);
   const raw = volume.node.sample(coord).r; // swappable node so a streamed step re-binds the sample
   const t = norm.toT(raw);
 

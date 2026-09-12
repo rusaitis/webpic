@@ -11,7 +11,7 @@ const bTriple = () =>
     B_3: makeField("B_3", new Float32Array([0]), [1]),
   });
 
-function el<T extends HTMLElement>(root: ParentNode, sel: string): T {
+function query<T extends HTMLElement>(root: ParentNode, sel: string): T {
   const found = root.querySelector<T>(sel);
   if (found === null) throw new Error(`missing ${sel}`);
   return found;
@@ -28,9 +28,9 @@ describe("floating colorbar", () => {
     await flushAsync();
     const dispose = installColorbar(document.body, store, createUiStore());
 
-    const bar = el(document.body, ".webpic-cbar");
+    const bar = query(document.body, ".webpic-cbar");
     expect(bar.dataset.edge).toBe("bottom");
-    const canvas = el<HTMLCanvasElement>(bar, "canvas");
+    const canvas = query<HTMLCanvasElement>(bar, "canvas");
     expect(canvas.width).toBe(360); // horizontal orientation pixel size
     expect(canvas.height).toBe(24);
 
@@ -38,7 +38,7 @@ describe("floating colorbar", () => {
     const bindingId = layers.find((l) => l.id === selectedLayerId)?.colormapBindingId ?? "";
     const field = colormapBindings[bindingId]?.field ?? "";
     // The expanded caption shows the field key plus its SI unit in brackets (|B| → tesla).
-    expect(el(bar, ".webpic-cbar_caption").textContent).toBe(`${field} [T]`);
+    expect(query(bar, ".webpic-cbar_caption").textContent).toBe(`${field} [T]`);
     // The caption stacks inside its section (above the gradient on a horizontal dock), one
     // section per shown binding inside main.
     expect(
@@ -46,7 +46,7 @@ describe("floating colorbar", () => {
     ).not.toBeNull();
     expect(bar.querySelectorAll(".webpic-cbar_sec")).toHaveLength(1);
     // A single binding shows no soft-warn badge.
-    expect(el(bar, ".webpic-cbar_warn").hidden).toBe(true);
+    expect(query(bar, ".webpic-cbar_warn").hidden).toBe(true);
     // Nice-number ticks span the window — the count follows the range, not a fixed 5.
     const tickEls = bar.querySelectorAll<HTMLElement>(".webpic-cbar_tick");
     expect(tickEls.length).toBeGreaterThanOrEqual(2);
@@ -67,8 +67,8 @@ describe("floating colorbar", () => {
     await flushAsync();
     const dispose = installColorbar(document.body, store, createUiStore());
 
-    const gear = el<HTMLButtonElement>(document.body, ".webpic-cbar_settings");
-    const pop = el(document.body, ".webpic-cbar-pop");
+    const gear = query<HTMLButtonElement>(document.body, ".webpic-cbar_settings");
+    const pop = query(document.body, ".webpic-cbar-pop");
     expect(pop.hidden).toBe(true);
 
     gear.click();
@@ -91,8 +91,8 @@ describe("floating colorbar", () => {
     await flushAsync();
     const dispose = installColorbar(document.body, store, createUiStore());
 
-    const bar = el<HTMLElement>(document.body, ".webpic-cbar");
-    const gear = el<HTMLButtonElement>(bar, ".webpic-cbar_settings");
+    const bar = query<HTMLElement>(document.body, ".webpic-cbar");
+    const gear = query<HTMLButtonElement>(bar, ".webpic-cbar_settings");
     const { selectedLayerId, layers, colormapBindings } = store.getState();
     const bindingId = layers.find((l) => l.id === selectedLayerId)?.colormapBindingId ?? "";
     expect(bar.classList.contains("collapsed")).toBe(false);
@@ -101,7 +101,9 @@ describe("floating colorbar", () => {
     bar.click();
     expect(bar.classList.contains("collapsed")).toBe(true);
     // ...and the field key is mirrored onto the over-gradient mini-label.
-    expect(el(bar, ".webpic-cbar_minilabel").textContent).toBe(colormapBindings[bindingId]?.field);
+    expect(query(bar, ".webpic-cbar_minilabel").textContent).toBe(
+      colormapBindings[bindingId]?.field,
+    );
 
     bar.click();
     expect(bar.classList.contains("collapsed")).toBe(false);
@@ -118,7 +120,7 @@ describe("floating colorbar", () => {
     store.getState().setDataset(bTriple());
     await flushAsync();
     const dispose = installColorbar(document.body, store, createUiStore());
-    const bar = el(document.body, ".webpic-cbar");
+    const bar = query(document.body, ".webpic-cbar");
     expect(bar.querySelectorAll(".webpic-cbar_sec")).toHaveLength(1);
 
     // A second layer mints a second binding → a second captioned strip, no warn.
@@ -130,7 +132,7 @@ describe("floating colorbar", () => {
       expect(sec.querySelector(".webpic-cbar_caption")?.textContent).toBe("|B| [T]");
       expect(sec.querySelector("canvas")).not.toBeNull();
     }
-    expect(el(bar, ".webpic-cbar_warn").hidden).toBe(true);
+    expect(query(bar, ".webpic-cbar_warn").hidden).toBe(true);
     // The added layer is auto-selected → its strip carries the active cue, the first recedes.
     expect(sections[0]?.dataset.active).toBe("false");
     expect(sections[1]?.dataset.active).toBe("true");
@@ -139,7 +141,7 @@ describe("floating colorbar", () => {
     const secondId = store.getState().layers[1]?.id ?? "";
     store.getState().setLayerVisible(secondId, false);
     expect(bar.querySelectorAll(".webpic-cbar_sec")).toHaveLength(1);
-    expect(el<HTMLElement>(bar, ".webpic-cbar_sec").dataset.active).toBeUndefined();
+    expect(query<HTMLElement>(bar, ".webpic-cbar_sec").dataset.active).toBeUndefined();
 
     dispose();
   });
@@ -153,9 +155,9 @@ describe("floating colorbar", () => {
     store.getState().addLayerOfKind("slice"); // third distinct binding — over the two-strip cap
     await flushAsync();
 
-    const bar = el(document.body, ".webpic-cbar");
+    const bar = query(document.body, ".webpic-cbar");
     expect(bar.querySelectorAll(".webpic-cbar_sec")).toHaveLength(2);
-    const warn = el(bar, ".webpic-cbar_warn");
+    const warn = query(bar, ".webpic-cbar_warn");
     expect(warn.hidden).toBe(false);
     expect(warn.textContent).toBe("+1");
     expect(warn.title).toContain("3 colormaps among visible layers");
@@ -171,7 +173,7 @@ describe("floating colorbar", () => {
 
     // Re-showing fewer bindings clears the warn.
     store.getState().setLayerVisible(layers[1]?.id ?? "", false);
-    expect(el(bar, ".webpic-cbar_warn").hidden).toBe(true);
+    expect(query(bar, ".webpic-cbar_warn").hidden).toBe(true);
     expect(bar.querySelectorAll(".webpic-cbar_sec")).toHaveLength(2);
 
     dispose();
@@ -184,9 +186,9 @@ describe("floating colorbar", () => {
     const uiStore = createUiStore();
     const dispose = installColorbar(document.body, store, uiStore);
 
-    const bar = el(document.body, ".webpic-cbar");
-    const gear = el<HTMLButtonElement>(document.body, ".webpic-cbar_settings");
-    const pop = el(document.body, ".webpic-cbar-pop");
+    const bar = query(document.body, ".webpic-cbar");
+    const gear = query<HTMLButtonElement>(document.body, ".webpic-cbar_settings");
+    const pop = query(document.body, ".webpic-cbar-pop");
 
     gear.click();
     expect(pop.hidden).toBe(false);

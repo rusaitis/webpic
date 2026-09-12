@@ -19,6 +19,6 @@ export function createManagedOverlay(host: OverlayHost): ManagedOverlay {
   return createManagedDecoration<SceneOverlay, SceneOverlayConfig>({
     create: createSceneOverlay,
     warm: (scene) => host.warmComposite(scene),
-    ctx: host,
+    context: host,
   });
 }

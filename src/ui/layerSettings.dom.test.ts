@@ -48,11 +48,11 @@ const range = (host: HTMLElement, label: string): HTMLInputElement => {
   return input;
 };
 const button = (host: HTMLElement, text: string): HTMLButtonElement => {
-  const el = [...host.querySelectorAll<HTMLButtonElement>(".webpic-layerset_btn")].find(
+  const element = [...host.querySelectorAll<HTMLButtonElement>(".webpic-layerset_btn")].find(
     (b) => b.textContent === text,
   );
-  if (!el) throw new Error(`no button "${text}"`);
-  return el;
+  if (!element) throw new Error(`no button "${text}"`);
+  return element;
 };
 
 describe("installLayerSettings", () => {

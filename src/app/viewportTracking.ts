@@ -27,8 +27,8 @@ export interface ViewportTrackingOptions extends RenderWorkerLink {
   readonly logicalSize: () => { width: number; height: number };
 }
 
-export function installViewportTracking(opts: ViewportTrackingOptions): () => void {
-  const { canvas, worker, isReady, logicalSize } = opts;
+export function installViewportTracking(options: ViewportTrackingOptions): () => void {
+  const { canvas, worker, isReady, logicalSize } = options;
 
   // ResizeObserver is frame-aligned, so post directly (no extra debounce). A pre-ready resize is
   // vanishingly rare (init carried the first layout), so it's dropped rather than queued.

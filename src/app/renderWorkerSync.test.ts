@@ -77,9 +77,9 @@ describe("installRenderWorkerSync", () => {
     expect(store.getState().pickRequest).toBeNull(); // still consumed
   });
 
-  it("handlePickResult places the marker and retargets a focus fly", () => {
+  it("applyPickResult places the marker and retargets a focus fly", () => {
     const { store, sync } = harness(true);
-    sync.handlePickResult({
+    sync.applyPickResult({
       kind: "pickResult",
       requestId: 10,
       point: [0.1, 0.2, 0.3],
@@ -90,10 +90,10 @@ describe("installRenderWorkerSync", () => {
     expect(store.getState().cameraFlyRequest?.target.kind).toBe("pose");
   });
 
-  it("handlePickResult ignores a missed ray (null point)", () => {
+  it("applyPickResult ignores a missed ray (null point)", () => {
     const { store, sync } = harness(true);
     const before = store.getState().pickerPoint;
-    sync.handlePickResult({
+    sync.applyPickResult({
       kind: "pickResult",
       requestId: 10,
       point: null,

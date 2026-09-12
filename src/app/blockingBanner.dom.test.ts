@@ -12,12 +12,12 @@ afterEach(() => {
 describe("showBlockingBanner", () => {
   it("renders the message, the optional detail, and an opt-in reload button", () => {
     showBlockingBanner("dead", { detail: "why", reload: true });
-    const el = banner();
-    expect(el).not.toBeNull();
-    expect(el?.getAttribute("role")).toBe("alert"); // announced, not just painted
-    expect(el?.textContent).toContain("dead");
-    expect(el?.textContent).toContain("why");
-    expect(el?.querySelector("button")).not.toBeNull();
+    const element = banner();
+    expect(element).not.toBeNull();
+    expect(element?.getAttribute("role")).toBe("alert"); // announced, not just painted
+    expect(element?.textContent).toContain("dead");
+    expect(element?.textContent).toContain("why");
+    expect(element?.querySelector("button")).not.toBeNull();
   });
 
   it("omits the reload button by default — reloading cannot fix an unsupported browser", () => {

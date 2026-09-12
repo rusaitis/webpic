@@ -42,7 +42,7 @@ describe("installScreenshotBridge", () => {
     const { uiStore, bridge } = harness();
     uiStore.getState().requestScreenshot();
     expect(uiStore.getState().loadingPhases.map((p) => p.key)).toContain("screenshot");
-    bridge.handleScreenshot(pngReply(new Blob(["png"], { type: "image/png" })));
+    bridge.deliverScreenshot(pngReply(new Blob(["png"], { type: "image/png" })));
     expect(uiStore.getState().loadingPhases).toHaveLength(0);
   });
 
@@ -51,7 +51,7 @@ describe("installScreenshotBridge", () => {
     uiStore.getState().requestScreenshot();
     uiStore.getState().requestScreenshot(); // still in flight — dropped
     expect(posts).toHaveLength(1);
-    bridge.handleScreenshot(pngReply(new Blob(["png"], { type: "image/png" })));
+    bridge.deliverScreenshot(pngReply(new Blob(["png"], { type: "image/png" })));
     uiStore.getState().requestScreenshot();
     expect(posts).toHaveLength(2);
   });
@@ -60,7 +60,7 @@ describe("installScreenshotBridge", () => {
     const { store, uiStore, bridge, delivered } = harness();
     uiStore.getState().requestScreenshot();
     const blob = new Blob(["png"], { type: "image/png" });
-    bridge.handleScreenshot(pngReply(blob));
+    bridge.deliverScreenshot(pngReply(blob));
     const state = store.getState();
     expect(delivered).toHaveLength(1);
     expect(delivered[0]?.blob).toBe(blob);
@@ -71,7 +71,7 @@ describe("installScreenshotBridge", () => {
   it("ends the pill without delivering on a failed capture (blob null)", () => {
     const { uiStore, bridge, delivered } = harness();
     uiStore.getState().requestScreenshot();
-    bridge.handleScreenshot(pngReply(null));
+    bridge.deliverScreenshot(pngReply(null));
     expect(uiStore.getState().loadingPhases).toHaveLength(0);
     expect(delivered).toHaveLength(0);
   });

@@ -26,14 +26,14 @@ interface FakeScene {
 
 function makeFake(
   kind: "slice" | "volume",
-  opts: { opacity: number; field: { shape: readonly number[] } },
+  options: { opacity: number; field: { shape: readonly number[] } },
 ) {
   const fake: FakeScene = {
     kind,
     scene: { tag: kind },
-    field: opts.field,
+    field: options.field,
     disposed: false,
-    opacity: opts.opacity,
+    opacity: options.opacity,
     setFieldResult: true,
     fieldSwaps: 0,
     shaderRebuilds: 0,
@@ -84,12 +84,12 @@ function makeFake(
 }
 
 vi.mock("./volume/sliceScene.ts", () => ({
-  createSliceScene: (opts: { opacity: number; field: { shape: readonly number[] } }) =>
-    makeFake("slice", opts),
+  createSliceScene: (options: { opacity: number; field: { shape: readonly number[] } }) =>
+    makeFake("slice", options),
 }));
 vi.mock("./volume/raymarchScene.ts", () => ({
-  createRaymarchScene: (opts: { opacity: number; field: { shape: readonly number[] } }) =>
-    makeFake("volume", opts),
+  createRaymarchScene: (options: { opacity: number; field: { shape: readonly number[] } }) =>
+    makeFake("volume", options),
 }));
 
 const { createLayerRegistry } = await import("./layerRegistry.ts");
@@ -99,7 +99,7 @@ function harness() {
   const warms: Array<{ id: string }> = [];
   let warm: Promise<void> = Promise.resolve();
   const registry = createLayerRegistry({
-    float32Filterable: () => false,
+    hasFloat32Filterable: () => false,
     stepScale: () => 1,
     isOrthographic: () => false,
     requestRender: () => {},

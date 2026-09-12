@@ -35,11 +35,11 @@ export interface PopoverHandle {
 const MIN_WIDTH_PX = 200;
 const GAP_PX = 6;
 
-export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): PopoverHandle {
-  const { anchor } = opts;
+export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>): PopoverHandle {
+  const { anchor } = options;
   const doc = anchor.ownerDocument;
   const win = doc.defaultView;
-  const dismissOnOutside = opts.dismissOnOutside ?? true;
+  const dismissOnOutside = options.dismissOnOutside ?? true;
 
   let panel: HTMLElement | null = null; // the listbox; built lazily on first open
   let rows: HTMLElement[] = []; // option elements, parallel to `items`
@@ -49,17 +49,17 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
 
   const ensurePanel = (): HTMLElement => {
     if (panel !== null) return panel;
-    const el = makeEl(
+    const element = makeEl(
       doc,
       "div",
-      opts.className ? `webpic-popover ${opts.className}` : "webpic-popover",
+      options.className ? `webpic-popover ${options.className}` : "webpic-popover",
     );
-    el.setAttribute("role", "listbox");
-    el.tabIndex = -1;
-    el.hidden = true;
-    doc.body.appendChild(el);
-    panel = el;
-    return el;
+    element.setAttribute("role", "listbox");
+    element.tabIndex = -1;
+    element.hidden = true;
+    doc.body.appendChild(element);
+    panel = element;
+    return element;
   };
 
   const setActive = (index: number): void => {
@@ -76,16 +76,16 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
   const commit = (index: number): void => {
     const item = items[index];
     if (item === undefined) return;
-    opts.onSelect(item.value);
+    options.onSelect(item.value);
     close(); // the trigger label updates via the caller's store subscription
   };
 
   const buildRows = (): void => {
-    const el = ensurePanel();
-    el.replaceChildren();
+    const element = ensurePanel();
+    element.replaceChildren();
     rows = [];
-    items = opts.getItems();
-    const selected = opts.getSelected();
+    items = options.getItems();
+    const selected = options.getSelected();
     items.forEach((item, index) => {
       const isSelected = item.value === selected;
       const row = makeEl(doc, "div", "webpic-popover_item");
@@ -94,13 +94,13 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
       row.setAttribute("aria-selected", String(isSelected));
       const check = makeEl(doc, "span", "webpic-popover_check");
       check.innerHTML = ICON_CHECK;
-      row.append(check, opts.renderRow(doc, item, isSelected));
+      row.append(check, options.renderRow(doc, item, isSelected));
       row.addEventListener("mouseenter", () => setActive(index));
       row.addEventListener("click", (event) => {
         event.preventDefault();
         commit(index);
       });
-      el.appendChild(row);
+      element.appendChild(row);
       rows.push(row);
     });
     // Seed the active option at the current selection (else the first row).
@@ -160,9 +160,9 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
 
   function open(): void {
     if (visible) return;
-    const el = ensurePanel();
+    const element = ensurePanel();
     buildRows();
-    el.hidden = false;
+    element.hidden = false;
     visible = true;
     anchor.setAttribute("aria-expanded", "true");
     reposition();
@@ -170,7 +170,7 @@ export function createPopover<T extends PopoverItem>(opts: PopoverOptions<T>): P
     doc.addEventListener("keydown", onKeyDown);
     win?.addEventListener("resize", reposition);
     win?.addEventListener("scroll", reposition, true);
-    opts.onOpen?.();
+    options.onOpen?.();
   }
 
   function close(): void {

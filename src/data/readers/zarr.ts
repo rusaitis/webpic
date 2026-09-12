@@ -53,11 +53,11 @@ function sourceLabel(handle: DataHandle): string {
   return handle.kind === "url" ? handle.url : handle.path;
 }
 
-function handleKey(handle: DataHandle): string {
+function keyFor(handle: DataHandle): string {
   return handle.kind === "url" ? `url:${handle.url}` : `opfs:${handle.path}`;
 }
 
-function getOpts(signal: AbortSignal | undefined): { signal?: AbortSignal } {
+function abortOptions(signal: AbortSignal | undefined): { signal?: AbortSignal } {
   return signal === undefined ? {} : { signal };
 }
 
@@ -286,7 +286,7 @@ async function readField(
     ? [stepIndex, ...Array.from<unknown, null>({ length: spatial }, () => null)]
     : Array.from<unknown, null>({ length: ndim }, () => null);
 
-  const chunk = await zarr.get(array, selection, getOpts(signal));
+  const chunk = await zarr.get(array, selection, abortOptions(signal));
   const data = toFloatArray(chunk.data, array.dtype, name);
   return { data, shape: chunk.shape, ...attrs };
 }
@@ -319,7 +319,7 @@ export function createZarrReader(
   const opened = new Map<string, Promise<OpenedStore>>();
 
   function getOpened(handle: DataHandle, signal: AbortSignal | undefined): Promise<OpenedStore> {
-    const key = handleKey(handle);
+    const key = keyFor(handle);
     const cached = opened.get(key);
     if (cached !== undefined) return cached;
     const promise = openPypicStore(handle, openStore, signal).catch((error: unknown) => {

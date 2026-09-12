@@ -19,8 +19,8 @@ export interface ThemeBridgeOptions {
   readonly persist: (name: string) => Promise<void>;
 }
 
-export function installThemeBridge(opts: ThemeBridgeOptions): () => void {
-  const { uiStore, themes, applyTheme, persist } = opts;
+export function installThemeBridge(options: ThemeBridgeOptions): () => void {
+  const { uiStore, themes, applyTheme, persist } = options;
   const names = [...themes.keys()];
 
   const unsubscribeName = uiStore.subscribe(
@@ -47,7 +47,7 @@ export function installThemeBridge(opts: ThemeBridgeOptions): () => void {
   // Seed the boot theme through the same path a cycle takes: the subscription applies + persists.
   // The boot styles were already installed with this theme, so the re-apply is an idempotent no-op
   // visually; persisting the resolved name heals a stale/foreign pref in place.
-  uiStore.getState().setThemeName(opts.initialName);
+  uiStore.getState().setThemeName(options.initialName);
 
   return () => {
     unsubscribeName();

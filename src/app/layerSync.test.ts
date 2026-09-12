@@ -221,7 +221,7 @@ describe("installLayerSync", () => {
     setReady(true);
     sync.flushAll(); // posts the seed upsert → its async warm raises the pill
     expect(uiStore.getState().loadingPhases.map((p) => p.key)).toContain("render");
-    sync.handleCompiled(); // the worker's layerCompiled ack
+    sync.finishLoading(); // the worker's layerCompiled ack
     expect(uiStore.getState().loadingPhases.map((p) => p.key)).not.toContain("render");
   });
 

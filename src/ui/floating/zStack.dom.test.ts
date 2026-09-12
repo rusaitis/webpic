@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import { bringToFront, installRaise, Z_FLOATING_BASE } from "./zStack.ts";
 
 function raiser(signal?: AbortSignal) {
-  const el = document.createElement("div");
-  document.body.appendChild(el);
-  const dispose = installRaise(el, signal);
+  const element = document.createElement("div");
+  document.body.appendChild(element);
+  const dispose = installRaise(element, signal);
   const press = (): void => {
-    el.dispatchEvent(new Event("pointerdown"));
+    element.dispatchEvent(new Event("pointerdown"));
   };
-  return { el, dispose, press };
+  return { element, dispose, press };
 }
 
 afterEach(() => {
@@ -22,8 +22,8 @@ describe("zStack", () => {
     a.press();
     b.press();
     a.press();
-    expect(a.el.style.zIndex).toBe(`${Z_FLOATING_BASE + 3}`);
-    expect(b.el.style.zIndex).toBe(`${Z_FLOATING_BASE + 2}`);
+    expect(a.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 3}`);
+    expect(b.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 2}`);
     a.dispose();
     b.dispose();
   });
@@ -34,17 +34,17 @@ describe("zStack", () => {
     const b = raiser(ac.signal);
     a.press();
     b.press();
-    expect(b.el.style.zIndex).toBe(`${Z_FLOATING_BASE + 2}`);
+    expect(b.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 2}`);
 
     a.dispose();
     a.dispose(); // idempotent: b still holds the stack open, so no reset yet
     b.press();
-    expect(b.el.style.zIndex).toBe(`${Z_FLOATING_BASE + 3}`);
+    expect(b.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 3}`);
 
     ac.abort();
     const c = raiser();
     c.press();
-    expect(c.el.style.zIndex).toBe(`${Z_FLOATING_BASE + 1}`);
+    expect(c.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 1}`);
     c.dispose();
   });
 
@@ -52,13 +52,13 @@ describe("zStack", () => {
     const a = raiser();
     a.dispose();
     a.press();
-    expect(a.el.style.zIndex).toBe("");
+    expect(a.element.style.zIndex).toBe("");
 
     const b = raiser();
-    bringToFront(b.el);
-    expect(b.el.style.zIndex).toBe(`${Z_FLOATING_BASE + 1}`);
+    bringToFront(b.element);
+    expect(b.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 1}`);
     b.press();
-    expect(b.el.style.zIndex).toBe(`${Z_FLOATING_BASE + 2}`);
+    expect(b.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 2}`);
     b.dispose();
   });
 
@@ -67,12 +67,12 @@ describe("zStack", () => {
     ac.abort();
     const dead = raiser(ac.signal);
     dead.press();
-    expect(dead.el.style.zIndex).toBe("");
+    expect(dead.element.style.zIndex).toBe("");
     const live = raiser();
     live.dispose(); // the only counted raiser → reset
     const next = raiser();
     next.press();
-    expect(next.el.style.zIndex).toBe(`${Z_FLOATING_BASE + 1}`);
+    expect(next.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 1}`);
     next.dispose();
   });
 });

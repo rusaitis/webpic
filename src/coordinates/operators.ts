@@ -110,9 +110,9 @@ export function gradient(
   field: FloatArray,
   shape: readonly number[],
   spacing: Vec3,
-  opts?: OperatorOptions,
+  options?: OperatorOptions,
 ): [FloatArray, FloatArray, FloatArray] {
-  requireCartesian(opts?.geometry, "gradient");
+  requireCartesian(options?.geometry, "gradient");
   requirePositiveSpacing(spacing, "gradient");
   require3dScalar(field, shape, "gradient");
   const useFloat64 = field instanceof Float64Array;
@@ -130,9 +130,9 @@ export function divergence(
   f3: FloatArray,
   shape: readonly number[],
   spacing: Vec3,
-  opts?: OperatorOptions,
+  options?: OperatorOptions,
 ): FloatArray {
-  requireCartesian(opts?.geometry, "divergence");
+  requireCartesian(options?.geometry, "divergence");
   requirePositiveSpacing(spacing, "divergence");
   require3dVector(f1, f2, f3, shape, "divergence");
   const useFloat64 = anyFloat64(f1, f2, f3);
@@ -153,9 +153,9 @@ export function curl(
   f3: FloatArray,
   shape: readonly number[],
   spacing: Vec3,
-  opts?: OperatorOptions,
+  options?: OperatorOptions,
 ): [FloatArray, FloatArray, FloatArray] {
-  requireCartesian(opts?.geometry, "curl");
+  requireCartesian(options?.geometry, "curl");
   requirePositiveSpacing(spacing, "curl");
   require3dVector(f1, f2, f3, shape, "curl");
   const useFloat64 = anyFloat64(f1, f2, f3);

@@ -34,13 +34,13 @@ export function coordsLabel(systemName: string | null, units: string): string {
 // view's mode is legible at a glance. Paired with formatCenter below (the orbit target it omits).
 export function formatOrientation(pose: CameraPose, orthographic: boolean): string {
   const az = (pose.azimuth * RAD_TO_DEG).toFixed(0);
-  const el = (pose.elevation * RAD_TO_DEG).toFixed(0);
+  const elevation = (pose.elevation * RAD_TO_DEG).toFixed(0);
   const roll =
     Math.abs(pose.roll) > ROLL_READOUT_EPSILON
       ? `  roll ${(pose.roll * RAD_TO_DEG).toFixed(0)}°`
       : "";
   const suffix = orthographic ? "  ·  ortho" : "";
-  return `az ${az}°  el ${el}°  d ${pose.distance.toFixed(2)}${roll}${suffix}`;
+  return `az ${az}°  element ${elevation}°  d ${pose.distance.toFixed(2)}${roll}${suffix}`;
 }
 
 // The orbit target — the card's "Center" row (the world point the camera looks at / pivots around).

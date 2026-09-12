@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createFloatingWindow } from "./floatingWindow.ts";
 
-function el<T extends HTMLElement>(root: ParentNode, sel: string): T {
+function query<T extends HTMLElement>(root: ParentNode, sel: string): T {
   const found = root.querySelector<T>(sel);
   if (found === null) throw new Error(`missing ${sel}`);
   return found;
@@ -14,10 +14,10 @@ afterEach(() => {
 describe("createFloatingWindow", () => {
   it("mounts the window chrome — grip, titled bar, body, resize handle", () => {
     const win = createFloatingWindow({ parent: document.body, title: "Developer" });
-    const root = el(document.body, ".webpic-window");
-    expect(el(root, ".webpic-window_grip")).toBeTruthy();
-    expect(el(root, ".webpic-window_title").textContent).toBe("Developer");
-    expect(el(root, ".webpic-window_resize").dataset.noDrag).toBe("");
+    const root = query(document.body, ".webpic-window");
+    expect(query(root, ".webpic-window_grip")).toBeTruthy();
+    expect(query(root, ".webpic-window_title").textContent).toBe("Developer");
+    expect(query(root, ".webpic-window_resize").dataset.noDrag).toBe("");
     expect(win.body.classList.contains("webpic-window_body")).toBe(true);
 
     win.dispose();
@@ -39,7 +39,7 @@ describe("createFloatingWindow", () => {
         closed++;
       },
     });
-    el<HTMLButtonElement>(document.body, ".webpic-window_close").click();
+    query<HTMLButtonElement>(document.body, ".webpic-window_close").click();
     expect(closed).toBe(1);
     win.dispose();
   });
@@ -47,7 +47,7 @@ describe("createFloatingWindow", () => {
   it("retitles via setTitle (text + aria-label)", () => {
     const win = createFloatingWindow({ parent: document.body, title: "Developer" });
     win.setTitle("Frame timing");
-    expect(el(document.body, ".webpic-window_title").textContent).toBe("Frame timing");
+    expect(query(document.body, ".webpic-window_title").textContent).toBe("Frame timing");
     expect(win.element.getAttribute("aria-label")).toBe("Frame timing");
     win.dispose();
   });

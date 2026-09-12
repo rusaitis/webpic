@@ -40,16 +40,16 @@ export interface CornerResizeOptions {
 }
 
 export function installCornerResize(
-  el: HTMLElement,
+  element: HTMLElement,
   handle: HTMLElement,
-  opts: CornerResizeOptions = {},
+  options: CornerResizeOptions = {},
 ): Disposer {
-  const doc = el.ownerDocument;
+  const doc = element.ownerDocument;
   const ac = new AbortController();
   const { signal } = ac;
-  const minWidth = opts.minWidth ?? 160;
-  const minHeight = opts.minHeight ?? 120;
-  const margin = opts.margin ?? VIEWPORT_MARGIN_PX;
+  const minWidth = options.minWidth ?? 160;
+  const minHeight = options.minHeight ?? 120;
+  const margin = options.margin ?? VIEWPORT_MARGIN_PX;
 
   let startX = 0;
   let startY = 0;
@@ -62,7 +62,7 @@ export function installCornerResize(
 
   const onDown = (e: PointerEvent): void => {
     if (!e.isPrimary) return;
-    const rect = el.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
     startX = e.clientX;
     startY = e.clientY;
     startWidth = rect.width;
@@ -80,7 +80,7 @@ export function installCornerResize(
     if (!active && Math.hypot(dx, dy) < GESTURE_THRESHOLD_PX) return;
     if (!active) {
       active = true;
-      el.classList.add("is-resizing");
+      element.classList.add("is-resizing");
     }
     const { width, height } = resizeDims(startWidth, startHeight, dx, dy, {
       minWidth,
@@ -88,9 +88,9 @@ export function installCornerResize(
       maxWidth: doc.documentElement.clientWidth - originLeft - margin,
       maxHeight: doc.documentElement.clientHeight - originTop - margin,
     });
-    el.style.width = `${width}px`;
-    el.style.height = `${height}px`;
-    opts.onResize?.();
+    element.style.width = `${width}px`;
+    element.style.height = `${height}px`;
+    options.onResize?.();
   };
 
   const onUp = (e: PointerEvent): void => {
@@ -99,7 +99,7 @@ export function installCornerResize(
     pointerId = null;
     if (!active) return;
     active = false;
-    el.classList.remove("is-resizing");
+    element.classList.remove("is-resizing");
   };
 
   handle.addEventListener("pointerdown", onDown, { signal });

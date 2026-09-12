@@ -24,7 +24,7 @@ describe("bottomDockLayout", () => {
       viewportWidth: vw,
       cornerClearRight: 0,
     });
-    expect(r.grouped).toBe(true);
+    expect(r.isGrouped).toBe(true);
     expect(r.side).toBe("right");
     // Rail slides left by half the (gap + colorbar) it must make room for.
     expect(r.railShift).toBeCloseTo(-(G + 320) / 2, 6);
@@ -46,7 +46,7 @@ describe("bottomDockLayout", () => {
       viewportWidth: vw,
       cornerClearRight: 0,
     });
-    expect(r.grouped).toBe(true);
+    expect(r.isGrouped).toBe(true);
     expect(r.side).toBe("left");
     expect(r.railShift).toBeCloseTo((G + 320) / 2, 6); // rail slides right
     const naturalClusterLeft = (vw - cluster) / 2;
@@ -63,7 +63,7 @@ describe("bottomDockLayout", () => {
       viewportWidth: 1000,
       cornerClearRight: 0,
     });
-    expect(r.grouped).toBe(false);
+    expect(r.isGrouped).toBe(false);
     expect(r.railShift).toBe(0);
     expect(r.colorbarLeft).toBeNull();
   });
@@ -75,7 +75,7 @@ describe("bottomDockLayout", () => {
       viewportWidth: 1000,
       cornerClearRight: 0,
     });
-    expect(r.grouped).toBe(false);
+    expect(r.isGrouped).toBe(false);
     expect(r.railShift).toBe(0);
   });
 
@@ -88,7 +88,7 @@ describe("bottomDockLayout", () => {
       viewportWidth: vw,
       cornerClearRight: 68, // gnomon right edge
     });
-    expect(r.grouped).toBe(true);
+    expect(r.isGrouped).toBe(true);
     const clusterLeft = (vw - cluster) / 2 + r.railShift;
     expect(clusterLeft).toBeGreaterThanOrEqual(68 + 12 - 1e-6); // cleared the gnomon + corner gap
     expect(r.colorbarLeft).toBeCloseTo(clusterLeft + cluster + G, 6); // still one gap apart

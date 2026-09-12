@@ -12,7 +12,7 @@ const bTriple = () =>
     B_3: makeField("B_3", new Float32Array([0]), [1]),
   });
 
-function el<T extends HTMLElement>(root: ParentNode, sel: string): T {
+function query<T extends HTMLElement>(root: ParentNode, sel: string): T {
   const found = root.querySelector<T>(sel);
   if (found === null) throw new Error(`missing ${sel}`);
   return found;
@@ -25,7 +25,7 @@ function rowInput(root: ParentNode, label: string): HTMLInputElement {
     (r) => r.querySelector(".webpic-row_label")?.textContent === label,
   );
   if (row === undefined) throw new Error(`missing row ${label}`);
-  return el<HTMLInputElement>(row, ".webpic-checkbox_input");
+  return query<HTMLInputElement>(row, ".webpic-checkbox_input");
 }
 
 afterEach(() => {
@@ -39,8 +39,8 @@ describe("developer window", () => {
     await flushAsync();
     const dispose = installDevWindow(document.body, store, createPerfStore(), createUiStore());
 
-    const win = el(document.body, ".webpic-window");
-    expect(el(win, ".webpic-window_title").textContent).toBe("Developer");
+    const win = query(document.body, ".webpic-window");
+    expect(query(win, ".webpic-window_title").textContent).toBe("Developer");
     expect(rowInput(win, "Phong").disabled).toBe(false); // volume layer → Phong enabled
     expect(rowInput(win, "Measure (continuous)")).not.toBeNull(); // the GPU frame-time instrument
 
@@ -52,12 +52,12 @@ describe("developer window", () => {
     const store = createSimulationStore();
     const uiStore = createUiStore();
     const dispose = installDevWindow(document.body, store, createPerfStore(), uiStore);
-    const win = el(document.body, ".webpic-window");
+    const win = query(document.body, ".webpic-window");
     expect(win.hidden).toBe(true); // closed on boot
     uiStore.getState().setPanelVisible("dev", true);
     expect(win.hidden).toBe(false);
 
-    el<HTMLButtonElement>(win, ".webpic-window_close").click();
+    query<HTMLButtonElement>(win, ".webpic-window_close").click();
     expect(win.hidden).toBe(true);
 
     dispose();
@@ -67,7 +67,7 @@ describe("developer window", () => {
     const store = createSimulationStore();
     const uiStore = createUiStore();
     const dispose = installDevWindow(document.body, store, createPerfStore(), uiStore);
-    const win = el(document.body, ".webpic-window");
+    const win = query(document.body, ".webpic-window");
     uiStore.getState().setPanelVisible("dev", true); // the UI toggle only matters once opened
     expect(win.hidden).toBe(false);
 

@@ -18,14 +18,14 @@ function setup() {
   const rail = parent.querySelector<HTMLElement>(".webpic-rail");
   if (rail === null) throw new Error("rail not mounted");
   const button = (control: string): HTMLButtonElement => {
-    const el = rail.querySelector<HTMLButtonElement>(`[data-control="${control}"]`);
-    if (el === null) throw new Error(`missing rail button: ${control}`);
-    return el;
+    const element = rail.querySelector<HTMLButtonElement>(`[data-control="${control}"]`);
+    if (element === null) throw new Error(`missing rail button: ${control}`);
+    return element;
   };
   const card = (): HTMLElement => {
-    const el = parent.querySelector<HTMLElement>(".webpic-coords-card");
-    if (el === null) throw new Error("coords card not mounted");
-    return el;
+    const element = parent.querySelector<HTMLElement>(".webpic-coords-card");
+    if (element === null) throw new Error("coords card not mounted");
+    return element;
   };
   return { parent, store, uiStore, rail, button, card, dispose };
 }

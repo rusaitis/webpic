@@ -13,6 +13,7 @@ import type {
   StreamFieldPayload,
   StreamStepMessage,
 } from "@data/streamMessages.ts";
+import { transferableBuffer } from "@schema/transfer.ts";
 
 // The data worker owns all off-main data I/O (DESIGN §Package shape): OPFS writes (below) and time-series
 // streaming. On `open` it resolves a reader and reports the timestep domain; on `setCursor` it drives
@@ -26,7 +27,7 @@ import type {
 
 // This chunk typechecks under the WebWorker lib (tsconfig.worker.json), so `self` is the worker
 // global; the annotation just pins the message types on the wire.
-const ctx: {
+const context: {
   onmessage: ((event: MessageEvent<DataCacheRequest | DataStreamRequest>) => void) | null;
   postMessage(message: DataCacheResponse | DataStreamResponse): void;
 } = self;
@@ -63,7 +64,7 @@ async function cacheRemove(
 
 // Serialize cache writes across tabs: the sync handle needs exclusive file access, and the web-lock
 // keeps two tabs from racing the same cache (losing tab queues).
-function handleCache(request: DataCacheRequest): Promise<void> {
+function applyCacheRequest(request: DataCacheRequest): Promise<void> {
   return navigator.locks.request("webpic-cache", { mode: "exclusive" }, async () => {
     switch (request.kind) {
       case "cacheWrite":
@@ -95,7 +96,7 @@ let lastReadMs: number | null = null; // wall-clock of the most recent readStep
 
 function streamError(error: unknown, step?: number): void {
   const where = step === undefined ? "" : `step ${step}: `;
-  ctx.postMessage({
+  context.postMessage({
     kind: "streamError",
     message: where + (error instanceof Error ? error.message : String(error)),
   });
@@ -118,11 +119,11 @@ async function readStep(step: number, signal: AbortSignal): Promise<FieldArray> 
 function streamToRender(step: number, field: FieldArray): void {
   if (port === undefined || layerId === undefined) return;
   const dtype: StreamFieldPayload["dtype"] = field.data instanceof Float64Array ? "f64" : "f32";
-  const buffer = field.data.buffer as ArrayBuffer; // computeField output is offset-0 — safe to transfer
+  const buffer = transferableBuffer(field.data);
   const payload: StreamFieldPayload = { buffer, dtype, shape: field.shape };
   const message: StreamStepMessage = { kind: "streamStep", id: layerId, step, field: payload };
   port.postMessage(message, [buffer]);
-  ctx.postMessage({ kind: "stepLoaded", step });
+  context.postMessage({ kind: "stepLoaded", step });
 }
 
 function buildRing(): void {
@@ -146,11 +147,11 @@ async function resolveReader(h: DataHandle): Promise<void> {
   }
   reader = await openSimulation(h);
   steps = await reader.availableTimesteps(h);
-  ctx.postMessage({ kind: "opened", steps });
+  context.postMessage({ kind: "opened", steps });
   buildRing();
 }
 
-async function handleOpen(request: Extract<DataStreamRequest, { kind: "open" }>): Promise<void> {
+async function openStream(request: Extract<DataStreamRequest, { kind: "open" }>): Promise<void> {
   handle = request.handle;
   activeField = request.activeField;
   layerId = request.layerId;
@@ -161,7 +162,7 @@ async function handleOpen(request: Extract<DataStreamRequest, { kind: "open" }>)
 
 // Swap the source onto a new handle (dataset switch) — same port + layer, fresh reader/domain. The
 // cursor resets: the new domain may not contain the old step, and main re-seeded step 0 on the swap.
-async function handleReopen(
+async function reopenStream(
   request: Extract<DataStreamRequest, { kind: "reopen" }>,
 ): Promise<void> {
   handle = request.handle;
@@ -170,8 +171,8 @@ async function handleReopen(
   await resolveReader(request.handle);
 }
 
-function handleSetActiveField(req: Extract<DataStreamRequest, { kind: "setActiveField" }>): void {
-  activeField = req.field;
+function switchActiveField(request: Extract<DataStreamRequest, { kind: "setActiveField" }>): void {
+  activeField = request.field;
   if (ring === undefined) return; // pre-open: the new field is picked up when the ring is built
   // The ring caches scalars computed for the previous field — rebuild to drop them, then re-stream
   // the scrubbed step under the new field (main's field-switch upsert renders step 0; this corrects).
@@ -179,9 +180,9 @@ function handleSetActiveField(req: Extract<DataStreamRequest, { kind: "setActive
   if (cursor !== null) ring?.setCursor(cursor);
 }
 
-function handleSetCursor(req: Extract<DataStreamRequest, { kind: "setCursor" }>): void {
-  cursor = req.step;
-  ring?.setCursor(req.step);
+function moveCursor(request: Extract<DataStreamRequest, { kind: "setCursor" }>): void {
+  cursor = request.step;
+  ring?.setCursor(request.step);
 }
 
 // Dev perf HUD: start/stop the ~1 Hz self-report (heap + last read time). Idempotent — clears any
@@ -193,34 +194,34 @@ function setPerfActive(active: boolean): void {
   }
   if (!active) return;
   const post = (): void =>
-    ctx.postMessage({ kind: "perfSample", heapBytes: readHeapBytes(), lastReadMs });
+    context.postMessage({ kind: "perfSample", heapBytes: readHeapBytes(), lastReadMs });
   post(); // first sample immediately, then on the interval
   perfTimer = setInterval(post, 1000);
 }
 
-ctx.onmessage = (event) => {
+context.onmessage = (event) => {
   const request = event.data;
   switch (request.kind) {
     case "cacheWrite":
     case "cacheRemove":
-      handleCache(request)
-        .then(() => ctx.postMessage({ kind: "ok", requestId: request.requestId }))
+      applyCacheRequest(request)
+        .then(() => context.postMessage({ kind: "ok", requestId: request.requestId }))
         .catch((error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
-          ctx.postMessage({ kind: "error", requestId: request.requestId, message });
+          context.postMessage({ kind: "error", requestId: request.requestId, message });
         });
       return;
     case "open":
-      void handleOpen(request).catch((error: unknown) => streamError(error));
+      void openStream(request).catch((error: unknown) => streamError(error));
       return;
     case "reopen":
-      void handleReopen(request).catch((error: unknown) => streamError(error));
+      void reopenStream(request).catch((error: unknown) => streamError(error));
       return;
     case "setActiveField":
-      handleSetActiveField(request);
+      switchActiveField(request);
       return;
     case "setCursor":
-      handleSetCursor(request);
+      moveCursor(request);
       return;
     case "setPerfActive":
       setPerfActive(request.active);

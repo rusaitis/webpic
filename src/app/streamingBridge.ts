@@ -39,8 +39,8 @@ export interface StreamingBridge {
   readonly dispose: () => void;
 }
 
-export function installStreamingBridge(opts: StreamingBridgeOptions): StreamingBridge {
-  const { store, uiStore, renderWorker, dataWorker, streamSource } = opts;
+export function installStreamingBridge(options: StreamingBridgeOptions): StreamingBridge {
+  const { store, uiStore, renderWorker, dataWorker, streamSource } = options;
   const channel = new MessageChannel();
   let opened = false; // gates cursor/field/reopen posts until the worker has its reader
   let hasStreamedStep = false; // the worker only re-streams a field switch after a first scrub
@@ -64,7 +64,7 @@ export function installStreamingBridge(opts: StreamingBridgeOptions): StreamingB
         uiStore.getState().flashError(message.message);
         return;
       case "perfSample":
-        opts.onPerfSample?.({ heapBytes: message.heapBytes, lastReadMs: message.lastReadMs });
+        options.onPerfSample?.({ heapBytes: message.heapBytes, lastReadMs: message.lastReadMs });
         return;
       default: {
         const unreachable: never = message;

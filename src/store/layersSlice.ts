@@ -39,7 +39,6 @@ export function createLayersSlice({ get, set, ids, retrace }: LayersSliceHost): 
     traceNotices: {},
     seedPlacementLayerId: null,
     addLayer(spec) {
-      // The spec is already a valid union member sans id; stamping the id reconstructs it.
       const id = ids.nextLayerId();
       let { colormapBindings } = get();
       // Every renderable layer needs a binding — mint one for its field if the spec carries none.
@@ -53,7 +52,7 @@ export function createLayersSlice({ get, set, ids, retrace }: LayersSliceHost): 
           colormapOps.makeDefaultBinding(bindingId, spec.field, window),
         );
       }
-      const layer = { ...spec, id, colormapBindingId: bindingId } as Layer;
+      const layer = layerOps.makeLayer(spec, id, bindingId);
       set({
         layers: layerOps.addLayer(get().layers, layer),
         selectedLayerId: layer.id,

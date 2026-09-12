@@ -38,13 +38,13 @@ function makeRow(doc: Document, label: string): { row: HTMLElement; valueCell: H
   return { row, valueCell };
 }
 
-function makeFolder(doc: Document, opts: FolderOptions): Folder {
+function makeFolder(doc: Document, options: FolderOptions): Folder {
   const element = makeEl(doc, "div", "webpic-folder");
   const bar = makeEl(doc, "button", "webpic-folder_bar");
   bar.type = "button";
-  bar.textContent = opts.title;
+  bar.textContent = options.title;
   const body = makeEl(doc, "div", "webpic-folder_body");
-  if (opts.expanded === false) body.hidden = true;
+  if (options.expanded === false) body.hidden = true;
   const ac = new AbortController();
   const onBar = (): void => {
     body.hidden = !body.hidden;
@@ -157,15 +157,15 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
   };
 }
 
-export function createPane(opts: { parent: HTMLElement; title?: string }): Pane {
-  const doc = opts.parent.ownerDocument;
+export function createPane(options: { parent: HTMLElement; title?: string }): Pane {
+  const doc = options.parent.ownerDocument;
   const element = makeEl(doc, "div", "webpic-pane");
-  if (opts.title !== undefined) {
+  if (options.title !== undefined) {
     const header = makeEl(doc, "div", "webpic-pane_title");
-    header.textContent = opts.title;
+    header.textContent = options.title;
     element.appendChild(header);
   }
-  opts.parent.appendChild(element);
+  options.parent.appendChild(element);
 
   const folders: Folder[] = [];
   return {

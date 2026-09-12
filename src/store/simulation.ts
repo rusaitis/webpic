@@ -33,17 +33,17 @@ export type SimulationStore = ReturnType<typeof createSimulationStore>;
 export function createSimulationStore() {
   return createStore<SimulationState>()(
     subscribeWithSelector((set, get) => {
-      const ctx: SliceContext = { set, get };
+      const context: SliceContext = { set, get };
       const ids = createSceneIds();
-      const retrace = createRetrace(ctx);
-      const recompute = createRecompute({ ...ctx, ids, retrace });
+      const retrace = createRetrace(context);
+      const recompute = createRecompute({ ...context, ids, retrace });
       return {
-        ...createDataSlice({ ...ctx, recompute }),
-        ...createLayersSlice({ ...ctx, ids, retrace }),
-        ...createBindingsSlice(ctx),
-        ...createCameraSlice(ctx),
-        ...createPickerSlice(ctx),
-        ...createOverlaySlice(ctx),
+        ...createDataSlice({ ...context, recompute }),
+        ...createLayersSlice({ ...context, ids, retrace }),
+        ...createBindingsSlice(context),
+        ...createCameraSlice(context),
+        ...createPickerSlice(context),
+        ...createOverlaySlice(context),
       };
     }),
   );

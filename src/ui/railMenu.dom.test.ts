@@ -29,9 +29,9 @@ function setup(initial: RailMenuItem[] = [{ id: "a", label: "Alpha" }]) {
   });
   disposers.push(handle.dispose);
   const menu = (): HTMLElement => {
-    const el = parent.querySelector<HTMLElement>(".webpic-railmenu");
-    if (el === null) throw new Error("menu not mounted");
-    return el;
+    const element = parent.querySelector<HTMLElement>(".webpic-railmenu");
+    if (element === null) throw new Error("menu not mounted");
+    return element;
   };
   return {
     parent,

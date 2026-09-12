@@ -9,13 +9,13 @@ import type { InstalledRenderer } from "./renderer.ts";
 const png = new Blob(["png"], { type: "image/png" });
 vi.mock("./screenshot.ts", () => ({ pixelsToPngBlob: vi.fn(async () => png) }));
 
-function makeRig(opts: { readonly renderer?: boolean; readonly fail?: boolean } = {}) {
+function makeRig(options: { readonly renderer?: boolean; readonly fail?: boolean } = {}) {
   const log: string[] = [];
   const pixels = new Uint8Array([1, 2, 3, 4]);
   const renderer = {
     readCompositePixels: vi.fn(async () => {
       log.push("read");
-      if (opts.fail === true) throw new Error("device lost");
+      if (options.fail === true) throw new Error("device lost");
       return pixels;
     }),
     readbackSize: () => ({ width: 2, height: 1 }),
@@ -26,7 +26,7 @@ function makeRig(opts: { readonly renderer?: boolean; readonly fail?: boolean } 
   // Only the two readback members are exercised, so the fake omits the rest of the renderer.
   const live = renderer as unknown as InstalledRenderer;
   const readback = createReadback({
-    renderer: () => (opts.renderer === false ? undefined : live),
+    renderer: () => (options.renderer === false ? undefined : live),
     paintItems: () => [],
     beginReadback: () => {
       log.push("begin");

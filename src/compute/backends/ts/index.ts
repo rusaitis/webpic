@@ -16,7 +16,7 @@ interface TsOpContext {
   readonly component: number | null;
 }
 
-export type TsFieldOp = (inputs: readonly FieldArray[], ctx: TsOpContext) => FloatArray;
+export type TsFieldOp = (inputs: readonly FieldArray[], context: TsOpContext) => FloatArray;
 
 // func-name → TS implementation. Each backend binds the codegen'd recipe `func` strings to its own
 // kernels; the WebGPU backend binds the same names to WGSL. The op set mirrors the WGSL backend's, so

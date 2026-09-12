@@ -22,13 +22,13 @@ export function makeIconButton(
   doc: Document,
   className: string,
   svg: string,
-  opts: { title?: string; control?: string; ariaLabel?: string } = {},
+  options: { title?: string; control?: string; ariaLabel?: string } = {},
 ): HTMLButtonElement {
   const button = makeEl(doc, "button", className);
   button.type = "button";
-  if (opts.control !== undefined) button.dataset.control = opts.control;
-  if (opts.title !== undefined) button.title = opts.title;
-  if (opts.ariaLabel !== undefined) button.setAttribute("aria-label", opts.ariaLabel);
+  if (options.control !== undefined) button.dataset.control = options.control;
+  if (options.title !== undefined) button.title = options.title;
+  if (options.ariaLabel !== undefined) button.setAttribute("aria-label", options.ariaLabel);
   button.innerHTML = svg;
   return button;
 }
@@ -48,7 +48,7 @@ export function makeCaret(doc: Document, className: string, svg: string): HTMLSp
 // component's lifetime. Returns a disposer.
 export function installOutsideClickDismiss(
   doc: Document,
-  opts: {
+  options: {
     overlay: HTMLElement;
     trigger: HTMLElement;
     isOpen: () => boolean;
@@ -56,15 +56,15 @@ export function installOutsideClickDismiss(
   },
 ): Disposer {
   const onDown = (event: MouseEvent): void => {
-    if (!opts.isOpen()) return;
+    if (!options.isOpen()) return;
     const target = event.target;
     if (
       target instanceof Node &&
-      (opts.overlay.contains(target) || opts.trigger.contains(target))
+      (options.overlay.contains(target) || options.trigger.contains(target))
     ) {
       return;
     }
-    opts.onDismiss();
+    options.onDismiss();
   };
   doc.addEventListener("mousedown", onDown);
   return () => doc.removeEventListener("mousedown", onDown);

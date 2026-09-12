@@ -1,3 +1,4 @@
+import { transferableBuffer } from "@schema/transfer.ts";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "../messages.ts";
 import type { CompositeItem, InstalledRenderer } from "./renderer.ts";
 import { pixelsToPngBlob } from "./screenshot.ts";
@@ -44,8 +45,7 @@ export function createReadback(host: ReadbackHost): Readback {
         // The readback target's physical size (logical × DPR) — the dimensions the buffer actually
         // holds; the worker's logical dims disagree at DPR ≠ 1.
         const size = renderer.readbackSize();
-        // Freshly allocated readback buffer (never shared) — safe to transfer.
-        const buffer = pixels.buffer as ArrayBuffer;
+        const buffer = transferableBuffer(pixels);
         host.post(
           {
             kind: "frame",

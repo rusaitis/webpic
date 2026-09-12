@@ -57,7 +57,7 @@ export interface RaymarchSceneOptions {
   /** Per-layer opacity multiplier on the composited alpha (composite fade), [0,1]; default 1. */
   readonly opacity?: number;
   /** Device supports R32F linear sampling — picks the volume texture format. */
-  readonly float32Filterable?: boolean;
+  readonly hasFloat32Filterable?: boolean;
   /** Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (the unit cube). A non-cubic
    *  grid scales the mesh to this so the volume renders at true physical aspect — object/texture space
    *  stays canonical [-0.5,0.5]/[0,1], so the raymarch math (ray-box clip, sampling) is unchanged. */
@@ -307,21 +307,25 @@ export const buildRaymarchMaterial: RaymarchMaterialBuilder = (g) => {
 };
 
 /** Build a themed single-pass raymarch scene from a 3D scalar field. */
-export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
-  const volume = createVolumeTexture(opts.field, opts.float32Filterable, opts.ledgerKey);
-  const tf = createTransferFunctionTexture(opts.colormap);
-  const steps = opts.steps ?? DEFAULT_STEPS;
+export function createRaymarchScene(options: RaymarchSceneOptions): RaymarchScene {
+  const volume = createVolumeTexture(
+    options.field,
+    options.hasFloat32Filterable,
+    options.ledgerKey,
+  );
+  const tf = createTransferFunctionTexture(options.colormap);
+  const steps = options.steps ?? DEFAULT_STEPS;
 
   // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const norm = createNormalization(volume.min, volume.max, opts.windowLevel, opts.scale);
+  const norm = createNormalization(volume.min, volume.max, options.windowLevel, options.scale);
   const graph = buildRaymarchGraph(
     { volume, tf, norm },
     {
       steps,
-      density: opts.density ?? 1,
-      opacity: opts.opacity ?? 1,
-      shaded: opts.shaded ?? false,
-      fieldShape: opts.field.shape,
+      density: options.density ?? 1,
+      opacity: options.opacity ?? 1,
+      shaded: options.shaded ?? false,
+      fieldShape: options.field.shape,
     },
   );
 
@@ -332,7 +336,7 @@ export function createRaymarchScene(opts: RaymarchSceneOptions): RaymarchScene {
   // model scale stretches it to the dataset's physical aspect in world space. Cubic → (1,1,1), so the
   // flux rope is byte-identical. (Phong normals skew slightly under non-uniform scale — shading is
   // already non-quantitative + default-off, so this is acceptable.)
-  const half = opts.worldHalfExtent ?? UNIT_BOX_HALF_EXTENT;
+  const half = options.worldHalfExtent ?? UNIT_BOX_HALF_EXTENT;
   mesh.scale.set(2 * half[0], 2 * half[1], 2 * half[2]);
 
   // No scene.background — the renderer owns the clear color so layers composite over one

@@ -13,7 +13,7 @@ import {
 const CPU_ENCODE_MS = 3; // the fake paint advances the clock by this much
 const GPU_MS = 7;
 
-function makeRig(opts: { readonly timer?: boolean } = {}) {
+function makeRig(options: { readonly timer?: boolean } = {}) {
   let clock = 0;
   const samples: PerfSampleMessage[] = [];
   const timings: FrameTimingMessage[] = [];
@@ -28,7 +28,7 @@ function makeRig(opts: { readonly timer?: boolean } = {}) {
   };
   const sampler = createPerfSampler({
     now: () => clock,
-    frameTimer: () => (opts.timer === false ? undefined : timer),
+    frameTimer: () => (options.timer === false ? undefined : timer),
     governorScale: () => 0.85,
     vramSnapshot: () => ({
       totalBytes: 42,

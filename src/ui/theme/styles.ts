@@ -320,7 +320,7 @@ const UI_CSS = `
 .webpic-gnomon_tip.is-pz { background: var(--webpic-axis-z); }
 .webpic-gnomon_tip.is-nz { border-color: var(--webpic-axis-z); }
 /* Centered bottom button rail (ui/cameraRail): subtle magviz-style icon toggles. pointer-events:
-   none on the bar so it never blocks the canvas — each button opts back in. has-gnomon reserves the
+   none on the bar so it never blocks the canvas — each button options back in. has-gnomon reserves the
    bottom-left gnomon's footprint (12 + 56 + 12) symmetrically, keeping the cluster centered + clear. */
 .webpic-rail { position: fixed; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: var(--webpic-z-chrome); pointer-events: none;

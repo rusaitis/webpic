@@ -95,7 +95,7 @@ interface CompositeEntry {
 // *full* prospective composite (layers + overlay + marker), so it lives in the worker (the registry
 // doesn't own overlay/marker/cameras).
 export interface LayerHost extends RenderModuleContext {
-  float32Filterable(): boolean;
+  hasFloat32Filterable(): boolean;
   stepScale(): number;
   isOrthographic(): boolean;
   warmComposite(override: {
@@ -195,7 +195,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       colormap: source.colormap,
       scale: source.scale,
       opacity: source.opacity,
-      float32Filterable: host.float32Filterable(),
+      hasFloat32Filterable: host.hasFloat32Filterable(),
       ledgerKey: id,
       ...(source.windowLevel !== undefined ? { windowLevel: source.windowLevel } : {}),
     };

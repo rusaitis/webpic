@@ -30,19 +30,19 @@ export interface RailMenuHandle {
   dispose(): void;
 }
 
-export function installRailMenu(opts: RailMenuOptions): RailMenuHandle {
-  const { anchor, parent } = opts;
+export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
+  const { anchor, parent } = options;
   const doc = parent.ownerDocument;
   const ac = new AbortController();
   const { signal } = ac;
 
   const panel = makeEl(doc, "div", "webpic-railmenu");
   panel.setAttribute("role", "menu");
-  panel.setAttribute("aria-label", opts.title);
+  panel.setAttribute("aria-label", options.title);
   panel.hidden = true;
   const arrow = makeEl(doc, "div", "webpic-railmenu_arrow");
   const heading = makeEl(doc, "div", "webpic-railmenu_title");
-  heading.textContent = opts.title;
+  heading.textContent = options.title;
   const list = makeEl(doc, "div", "webpic-railmenu_list");
   panel.append(arrow, heading, list);
   parent.appendChild(panel);
@@ -63,8 +63,8 @@ export function installRailMenu(opts: RailMenuOptions): RailMenuHandle {
   const build = (): void => {
     list.replaceChildren();
     items = [];
-    const selected = opts.getSelected();
-    for (const item of opts.getItems()) {
+    const selected = options.getSelected();
+    for (const item of options.getItems()) {
       const row = makeEl(doc, "button", "webpic-railmenu_item");
       row.type = "button";
       row.setAttribute("role", "menuitem");
@@ -75,7 +75,7 @@ export function installRailMenu(opts: RailMenuOptions): RailMenuHandle {
       label.textContent = item.label;
       row.append(dot, label);
       row.addEventListener("click", () => {
-        opts.onPick(item.id);
+        options.onPick(item.id);
         close();
       });
       list.appendChild(row);
@@ -91,7 +91,7 @@ export function installRailMenu(opts: RailMenuOptions): RailMenuHandle {
     addLabel.textContent = "Add new";
     add.append(plus, addLabel);
     add.addEventListener("click", () => {
-      opts.onAddNew();
+      options.onAddNew();
       close();
     });
     list.appendChild(add);

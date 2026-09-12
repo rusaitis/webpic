@@ -116,7 +116,7 @@ export function installCameraChrome(
       state.requestCameraFly({ kind: "pose", pose: axisViewPose(spec.view, state.cameraPose) });
     });
     scene.appendChild(tip);
-    return { el: tip, offset: spec.offset };
+    return { element: tip, offset: spec.offset };
   });
   gnomon.appendChild(scene);
 
@@ -136,7 +136,7 @@ export function installCameraChrome(
     const counter = gnomonCounterTransform(pose);
     for (const tip of tips) {
       const [x, y, z] = tip.offset;
-      tip.el.style.transform = `translate3d(${x}px, ${y}px, ${z}px) ${counter}`;
+      tip.element.style.transform = `translate3d(${x}px, ${y}px, ${z}px) ${counter}`;
     }
   };
   const subs = createSubscriptions();

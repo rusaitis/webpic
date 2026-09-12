@@ -25,7 +25,7 @@ vi.mock("@gpu", () => ({
 const { createDeviceRecovery } = await import("./deviceRecovery.ts");
 
 function lossEvent(over: Partial<DeviceLossEvent> = {}): DeviceLossEvent {
-  return { kind: "unknown", message: "reset", terminal: false, ...over };
+  return { kind: "unknown", message: "reset", isTerminal: false, ...over };
 }
 
 function harness({ hasCanvas = true }: { hasCanvas?: boolean } = {}) {
@@ -76,9 +76,10 @@ describe("createDeviceRecovery", () => {
     expect(order).toEqual(["supersede", "teardown", "rebuildOnDevice", "warm", "requestRender"]);
   });
 
-  it("a terminal loss halts the loop + reports failure, and never rebuilds", () => {
+  it("a isTerminal loss halts the loop + reports failure, and never rebuilds", () => {
     const { recovery, order } = harness();
-    for (const cb of gpu.lostCbs) cb(lossEvent({ message: "no GPUAdapter found", terminal: true }));
+    for (const cb of gpu.lostCbs)
+      cb(lossEvent({ message: "no GPUAdapter found", isTerminal: true }));
     expect(recovery.isDeviceLost()).toBe(true);
     expect(order).toEqual(["stopLoop", "recoveryFailed:no-adapter"]);
   });
@@ -86,7 +87,7 @@ describe("createDeviceRecovery", () => {
   it("derives repeated-loss when the failure is not an adapter loss", () => {
     const { order } = harness();
     for (const cb of gpu.lostCbs)
-      cb(lossEvent({ message: "device reset too often", terminal: true }));
+      cb(lossEvent({ message: "device reset too often", isTerminal: true }));
     expect(order).toEqual(["stopLoop", "recoveryFailed:repeated-loss"]);
   });
 

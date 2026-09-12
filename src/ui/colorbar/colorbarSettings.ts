@@ -26,8 +26,8 @@ export interface ColorbarSettingsOptions {
   readonly store: SimulationStore;
 }
 
-export function installColorbarSettings(opts: ColorbarSettingsOptions): ColorbarSettings {
-  const doc = opts.parent.ownerDocument;
+export function installColorbarSettings(options: ColorbarSettingsOptions): ColorbarSettings {
+  const doc = options.parent.ownerDocument;
   const ac = new AbortController();
   const pop = makeEl(doc, "div", "webpic-cbar-pop");
   pop.setAttribute("role", "dialog");
@@ -36,21 +36,21 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
 
   const body = makeEl(doc, "div", "webpic-cbar-pop_body");
   pop.append(body);
-  opts.parent.appendChild(pop);
+  options.parent.appendChild(pop);
   installRaise(pop, ac.signal); // clicking the dialog keeps it above the floating windows
 
-  const controlsDispose = installColormapControls(body, opts.store);
+  const controlsDispose = installColormapControls(body, options.store);
 
   let isOpen = false;
 
   const reposition = (): void => {
-    const cb = opts.colorbar.getBoundingClientRect();
-    const a = opts.anchor.getBoundingClientRect();
+    const cb = options.colorbar.getBoundingClientRect();
+    const a = options.anchor.getBoundingClientRect();
     const vw = doc.documentElement.clientWidth;
     const vh = doc.documentElement.clientHeight;
     const w = pop.offsetWidth;
     const h = pop.offsetHeight;
-    const edge = opts.colorbar.dataset.edge ?? "bottom";
+    const edge = options.colorbar.dataset.edge ?? "bottom";
     let left: number;
     let top: number;
     if (edge === "left") {
@@ -79,7 +79,7 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
   const setOpen = (next: boolean): void => {
     isOpen = next;
     pop.hidden = !next;
-    opts.anchor.setAttribute("aria-expanded", String(next));
+    options.anchor.setAttribute("aria-expanded", String(next));
     if (next) {
       bringToFront(pop); // opening lifts it over any floating windows
       reposition(); // offsetWidth/Height are valid only once shown
@@ -89,7 +89,7 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
   const onDocKeyDown = (e: KeyboardEvent): void => {
     if (e.key === "Escape" && isOpen) {
       setOpen(false);
-      opts.anchor.focus();
+      options.anchor.focus();
     }
   };
   const onResize = (): void => {
@@ -99,7 +99,7 @@ export function installColorbarSettings(opts: ColorbarSettingsOptions): Colorbar
   // Shared mousedown-outside dismiss (not ac.signal-bound — its disposer runs in dispose()).
   const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
     overlay: pop,
-    trigger: opts.anchor,
+    trigger: options.anchor,
     isOpen: () => isOpen,
     onDismiss: () => setOpen(false),
   });

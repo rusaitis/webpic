@@ -17,7 +17,7 @@ import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 // The cheap store→render-worker control channel (app-only glue: store and render can't import each
 // other). Pose, projection, camera-motion, and the timing panel's continuous-measure toggle each ride a
 // guarded one-line post; a pick request marches a cursor ray (with a pre-ready geometric fallback) and
-// its reply (handlePickResult) places the marker + retargets a focus fly. Gated on `workerReady` via
+// its reply (applyPickResult) places the marker + retargets a focus fly. Gated on `workerReady` via
 // the shared store bridge; pose/projection get a ready-time catch-up via flushAll, mirroring layerSync.
 
 export interface RenderWorkerSyncOptions extends RenderWorkerLink {
@@ -30,14 +30,14 @@ export interface RenderWorkerSync {
   /** Replay the live pose (+ a non-default projection) once the worker is ready (catch-up). */
   readonly flushAll: () => void;
   /** Route a worker pick reply: place the marker, and for "focus" retarget the running fly. */
-  readonly handlePickResult: (
+  readonly applyPickResult: (
     message: Extract<RenderWorkerResponse, { kind: "pickResult" }>,
   ) => void;
   readonly dispose: () => void;
 }
 
-export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWorkerSync {
-  const { store, perfStore, worker, isReady } = opts;
+export function installRenderWorkerSync(options: RenderWorkerSyncOptions): RenderWorkerSync {
+  const { store, perfStore, worker, isReady } = options;
   const bridge = createStoreBridge(store, isReady);
 
   const postPose = (pose: CameraPose): void => {
@@ -89,7 +89,7 @@ export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWo
   );
 
   // Pick-to-place / pick-to-focus: forward the cursor NDC to the worker's opacity-weighted ray march
-  // (its pickResult routes through handlePickResult). It runs in BOTH ready states — pre-ready there's
+  // (its pickResult routes through applyPickResult). It runs in BOTH ready states — pre-ready there's
   // no field to weight by, so it falls back to the box-chord midpoint (the same store math ui used for
   // the hit test) — so it's a raw subscription with its own branch, not the plain isReady gate.
   bridge.subscribe(
@@ -138,7 +138,7 @@ export function installRenderWorkerSync(opts: RenderWorkerSyncOptions): RenderWo
       // Catch-up posts a non-default projection only — perspective is the worker's init default.
       if (state.projection !== "perspective") postProjection(state.projection);
     },
-    handlePickResult(message) {
+    applyPickResult(message) {
       // null = the ray missed the box; ui already handled background double-clicks synchronously.
       if (message.point === null) return;
       // Both purposes move the marker; "focus" retargets the fly ui already started toward the chord

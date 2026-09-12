@@ -107,7 +107,7 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
       cornerClearRight: cornerWidgetRight(),
     });
     setRailShift(dock.railShift);
-    if (dock.grouped && dock.colorbarLeft !== null) {
+    if (dock.isGrouped && dock.colorbarLeft !== null) {
       // Override the dock's horizontal placement with the grouped slot. The strip is center-anchored
       // on the bottom edge (CSS translateX(-50%)), so the inline left is the slot's center; the
       // bottom (flush) anchor stays untouched.

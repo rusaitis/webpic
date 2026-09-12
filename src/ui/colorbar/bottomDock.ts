@@ -36,7 +36,7 @@ export interface BottomDockResult {
   readonly railShift: number;
   /** Left for the colorbar when grouped; null → leave it where the dock placed it. */
   readonly colorbarLeft: number | null;
-  readonly grouped: boolean;
+  readonly isGrouped: boolean;
   readonly side: "left" | "right";
 }
 
@@ -53,8 +53,8 @@ export function bottomDockLayout(input: BottomDockInput): BottomDockResult {
   // Gap from the colorbar to the rail's natural (centered) cluster band; negative = overlapping it.
   const gap =
     side === "right" ? colorbar.left - naturalClusterRight : naturalClusterLeft - colorbar.right;
-  const grouped = cluster > 0 && gap < DOCK_PROXIMITY_PX;
-  if (!grouped) return { railShift: 0, colorbarLeft: null, grouped: false, side };
+  const isGrouped = cluster > 0 && gap < DOCK_PROXIMITY_PX;
+  if (!isGrouped) return { railShift: 0, colorbarLeft: null, isGrouped: false, side };
 
   const total = cluster + GROUP_GAP_PX + colorbar.width;
   const minLeft = cornerClearRight > 0 ? cornerClearRight + CORNER_GAP_PX : VIEWPORT_MARGIN_PX;
@@ -66,7 +66,7 @@ export function bottomDockLayout(input: BottomDockInput): BottomDockResult {
     return {
       railShift: groupLeft - naturalClusterLeft,
       colorbarLeft: groupLeft + cluster + GROUP_GAP_PX,
-      grouped: true,
+      isGrouped: true,
       side,
     };
   }
@@ -75,7 +75,7 @@ export function bottomDockLayout(input: BottomDockInput): BottomDockResult {
   return {
     railShift: clusterLeft - naturalClusterLeft,
     colorbarLeft: groupLeft,
-    grouped: true,
+    isGrouped: true,
     side,
   };
 }
