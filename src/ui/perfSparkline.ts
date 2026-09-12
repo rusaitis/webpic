@@ -8,6 +8,7 @@ import { makeEl } from "./controls/dom.ts";
 const SPARK_LEN = 64; // ring length (~13 s of samples at 5 Hz)
 export const SPARK_W = 196;
 export const SPARK_H = 40;
+const SAMPLE_SPACING = SPARK_W / (SPARK_LEN - 1); // x-advance per ring slot
 export const FRAME_BUDGET_MS = 1000 / 60; // 60 fps budget — reference line and frame-health threshold
 export const FRAME_30_MS = 1000 / 30; // 30 fps — the amber/red threshold
 export const CPU_COLOR = "#7ee08a"; // CPU-encode sparkline (green)
@@ -34,7 +35,7 @@ export function createSparkline(doc: Document, devicePixelRatio: number): Sparkl
   const frameRing = new Float32Array(SPARK_LEN).fill(Number.NaN);
   let ringIndex = 0;
 
-  const xAt = (j: number): number => xAt(j);
+  const xAt = (j: number): number => j * SAMPLE_SPACING;
 
   const drawSeries = (ring: Float32Array, color: string, yMax: number): void => {
     if (context === null) return;
@@ -101,12 +102,11 @@ export function createSparkline(doc: Document, devicePixelRatio: number): Sparkl
     }
     // Background highlight over time-regions that missed the 60 fps budget — amber for 30–60 fps,
     // red below 30 — so over-budget stretches read at a glance, not just the latest value.
-    const segW = SPARK_W / (SPARK_LEN - 1);
     for (let j = 0; j < SPARK_LEN; j++) {
       const v = frameRing[(ringIndex + j) % SPARK_LEN];
       if (v === undefined || !Number.isFinite(v) || v <= FRAME_BUDGET_MS) continue;
       context.fillStyle = v <= FRAME_30_MS ? WARN_BAND : BAD_BAND;
-      context.fillRect(xAt(j) - segW / 2, 0, segW, SPARK_H);
+      context.fillRect(xAt(j) - SAMPLE_SPACING / 2, 0, SAMPLE_SPACING, SPARK_H);
     }
     // 60 fps budget reference.
     const budgetY = SPARK_H - (FRAME_BUDGET_MS / peak) * SPARK_H;
