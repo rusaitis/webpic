@@ -2,7 +2,7 @@ import { type MarkerConfig, REQUEST_IDS, type RenderWorkerRequest } from "@rende
 import type { Rgba01, Theme } from "@schema/theme.ts";
 import type { SimulationStore } from "@store";
 import { resolveOverlayColors } from "./sceneSync.ts";
-import { createStoreBridge } from "./storeBridge.ts";
+import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 // Bridges the store's point-picker state to the render worker (app-only glue: store and render can't
 // import each other). Mirrors sceneSync: the build config (theme colors + guide plane) is low-
@@ -26,10 +26,8 @@ function buildMarkerConfig(theme?: Theme): MarkerConfig {
   };
 }
 
-export interface PickerSyncOptions {
+export interface PickerSyncOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
-  readonly worker: Pick<Worker, "postMessage">;
-  readonly isReady: () => boolean;
   /** The boot theme; a runtime switch rides setTheme (the app theme bridge). */
   readonly theme?: Theme;
 }

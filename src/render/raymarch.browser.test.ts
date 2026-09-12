@@ -44,33 +44,12 @@ function rampAlongFastestAxis(): ScalarField {
   return { data, shape: [n0, n1, n2] };
 }
 
-// A unit-valued ball at the volume center, exactly 0 outside `radius` — most of the volume is empty,
-// so a small brick size skips it while one brick (≥ the volume) marches every lattice step. The
-// zero exterior makes the two output-identical (a skipped brick and a marched-but-zero brick both
-// contribute nothing), giving an exact image-parity reference for empty-space skipping.
-function centralBallField(n: number, radius: number): ScalarField {
-  const data = new Float32Array(n * n * n);
-  for (let z = 0; z < n; z++) {
-    for (let y = 0; y < n; y++) {
-      for (let x = 0; x < n; x++) {
-        const dx = (x + 0.5) / n - 0.5;
-        const dy = (y + 0.5) / n - 0.5;
-        const dz = (z + 0.5) / n - 0.5;
-        data[x + n * (y + n * z)] = Math.sqrt(dx * dx + dy * dy + dz * dz) < radius ? 1 : 0;
-      }
-    }
-  }
-  return { data, shape: [n, n, n] };
-}
-
 // Render a field, optionally from a straight-on camera (object-x → screen-x) instead of the
 // scene's default oblique view, so the orientation case can assert a screen-space direction.
-// `march` opts in to empty-space skipping (default off — the fixed march) and tunes its brick size.
 // `orthographic` renders with the matched-frustum ortho volume camera + parallel-ray generation.
 async function renderVolume(
   field: ScalarField,
   straightOn = false,
-  march: { readonly skipEmptySpace?: boolean; readonly brickSize?: number } = {},
   orthographic = false,
 ): Promise<Uint8Array> {
   const { installRenderer } = await import("./runtime/renderer.ts");
@@ -82,7 +61,7 @@ async function renderVolume(
     width: SIZE,
     height: SIZE,
   });
-  const volume = createRaymarchScene({ field, colormap: "inferno", density: 4, ...march });
+  const volume = createRaymarchScene({ field, colormap: "inferno", density: 4 });
   volume.setProjection(orthographic);
   // Pinned poses, not DEFAULT_POSE: the assertions index the center pixel, so the target must be
   // the box center — the app default trades that for screen composition (offset target).
@@ -149,7 +128,7 @@ describe("raymarch scene render", () => {
 
   it("orthographic projection renders the same bright core at matched framing", async () => {
     const persp = await renderVolume(blobField());
-    const ortho = await renderVolume(blobField(), false, {}, true);
+    const ortho = await renderVolume(blobField(), false, true);
     const center = pixelAt(ortho, SIZE >> 1, SIZE >> 1);
     const corner = pixelAt(ortho, 0, 0);
     // Parallel rays still accumulate the centered blob; the corner stays background.
@@ -159,25 +138,5 @@ describe("raymarch scene render", () => {
     // the same chord through the blob either way, so the core brightness is close.
     const perspCenter = pixelAt(persp, SIZE >> 1, SIZE >> 1);
     expect(Math.abs(lum(center) - lum(perspCenter))).toBeLessThan(40);
-  });
-
-  it("empty-space skipping matches the fixed march pixel-for-pixel", async () => {
-    const field = centralBallField(32, 0.18); // most of the 32³ volume is empty around the ball
-    const skipped = await renderVolume(field, false, { skipEmptySpace: true, brickSize: 4 });
-    const fixed = await renderVolume(field, false, {}); // default fixed march — the reference
-
-    expect(skipped.length).toBe(fixed.length);
-    // Snapping keeps occupied samples on the same lattice and the exterior is exactly 0, so the two
-    // accumulate the identical non-zero sequence — equal within byte rounding, not merely close.
-    let maxDiff = 0;
-    let nonBackground = 0;
-    for (let i = 0; i < fixed.length; i += 4) {
-      for (let c = 0; c < 3; c++) {
-        maxDiff = Math.max(maxDiff, Math.abs((skipped[i + c] ?? 0) - (fixed[i + c] ?? 0)));
-      }
-      if ((fixed[i] ?? 0) > 40) nonBackground++; // the ball must actually render, else parity is vacuous
-    }
-    expect(nonBackground).toBeGreaterThan(20);
-    expect(maxDiff).toBeLessThanOrEqual(2);
   });
 });

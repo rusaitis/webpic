@@ -81,7 +81,7 @@ describe("installViewportTracking", () => {
       isReady: () => true,
       logicalSize: () => ({ width: 10, height: 10 }),
     });
-    tracking.dispose();
+    tracking();
     expect(obs.disconnected()).toBe(1);
   });
 
@@ -93,6 +93,6 @@ describe("installViewportTracking", () => {
       isReady: () => true,
       logicalSize: () => ({ width: 10, height: 10 }),
     });
-    expect(() => tracking.dispose()).not.toThrow();
+    expect(() => tracking()).not.toThrow();
   });
 });

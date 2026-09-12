@@ -22,8 +22,6 @@ export const BUNDLED_THEME_NAMES = [
   "synthwave",
 ] as const;
 
-export type BundledThemeName = (typeof BUNDLED_THEME_NAMES)[number];
-
 function themeNameFromPath(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1).replace(/\.toml$/, "");
 }
@@ -39,4 +37,4 @@ export function loadBundledThemes(): Map<string, Theme> {
   return themes;
 }
 
-export { parseTheme, type Theme } from "@schema";
+export type { Theme } from "@schema";

@@ -1,14 +1,14 @@
 // Interaction-quality wiring through the REAL display loop: a manually pumped rAF stub (installed
 // before the worker module loads) keeps `rafId` defined, so the settle ramp takes the production
 // path — one painted frame per level — instead of the Node collapse that worker.streaming.test.ts
-// asserts. Mocks come from testing/workerHarness.ts (three/webgpu can't load in node).
+// asserts. Mocks come from tests/renderWorkerHarness.ts (three/webgpu can't load in node).
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(() =>
-  import("./testing/workerHarness.ts").then((m) => m.createWorkerHarness()),
+  import("../../tests/renderWorkerHarness.ts").then((m) => m.createWorkerHarness()),
 );
 
 vi.mock("@gpu", () => h.gpu);

@@ -1,12 +1,12 @@
 // The dispose round trip: every RenderModule, the renderer, and the GPU handle release, the stream
 // port closes, and `disposed` acks — the teardown that a bare terminate() would leave unexercised.
-// Mocks come from testing/workerHarness.ts (three/webgpu can't load in node).
+// Mocks come from tests/renderWorkerHarness.ts (three/webgpu can't load in node).
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(() =>
-  import("./testing/workerHarness.ts").then((m) => m.createWorkerHarness()),
+  import("../../tests/renderWorkerHarness.ts").then((m) => m.createWorkerHarness()),
 );
 
 vi.mock("@gpu", () => h.gpu);

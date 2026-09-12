@@ -185,7 +185,7 @@ const DEFAULT_AXIS_LABELS: Record<GeometryType, readonly string[]> = {
   thetaMode: ["r", "z"],
 };
 
-export function decodeStagger(raw: unknown): StaggerInfo | null {
+function decodeStagger(raw: unknown): StaggerInfo | null {
   if (raw === undefined || raw === null) return null;
   const s = parseBlock(StaggerAttrsSchema, raw, "grid.stagger");
   const position =

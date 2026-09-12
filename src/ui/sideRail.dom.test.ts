@@ -96,7 +96,7 @@ describe("installSideRail", () => {
     const add = menu.querySelector<HTMLButtonElement>(".webpic-railmenu_add");
     if (add === null) throw new Error("no Add new row");
     add.dispatchEvent(new MouseEvent("click"));
-    // addVolumeLayer adds synchronously (recompute is fire-and-forget) → two volumes now.
+    // addLayerOfKind adds synchronously (recompute is fire-and-forget) → two volumes now.
     expect(store.getState().layers).toHaveLength(2);
     expect(store.getState().layers[1]?.kind).toBe("volume");
     expect(menu.hidden).toBe(true); // the menu closes on commit

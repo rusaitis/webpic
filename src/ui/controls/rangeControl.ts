@@ -26,7 +26,7 @@ import {
   tickPositions,
   translateInterval,
 } from "./rangeMath.ts";
-import type { RangeValue, Widget } from "./types.ts";
+import type { ControlHandle, RangeValue } from "./types.ts";
 
 type Pair = readonly [number, number];
 
@@ -63,7 +63,10 @@ export interface RangeWidgetOptions {
   readonly onChange?: (v: RangeValue) => void;
 }
 
-export function createRangeControl(doc: Document, config: RangeWidgetOptions): Widget<RangeValue> {
+export function createRangeControl(
+  doc: Document,
+  config: RangeWidgetOptions,
+): ControlHandle<RangeValue> {
   const { min, max } = config;
   const step = config.step;
   const initRange = config.range;

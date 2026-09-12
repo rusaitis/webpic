@@ -24,8 +24,6 @@ export type FieldState =
   | { readonly kind: "ready"; readonly computed: FieldArray; readonly dataRange: DataRange | null }
   | { readonly kind: "error"; readonly message: string };
 
-export type SimulationStatus = FieldState["kind"];
-
 /** Per-layer outcome of a field-line retrace. `traced < requested` means seeds were skipped (a field
  *  null, or outside the domain after a dataset switch); `error` is a genuine trace failure. */
 export interface TraceNotice {
@@ -47,7 +45,7 @@ export interface TraceNotice {
 // setPickerPoint; focus → setPickerPoint + cameraFlyRequest). `focusDistance` is the goal distance
 // the focus gesture committed to at double-click time — ui starts the fly immediately, so recomputing
 // ×0.7 when the refined pick lands would compound against the already-flying pose.
-export interface PickRequest {
+interface PickRequest {
   readonly ndcX: number;
   readonly ndcY: number;
   readonly aspect: number;
@@ -110,11 +108,7 @@ export interface LayersSlice {
    *  field-line layer is seeded with a default rake over the dataset and traced. No-op without a
    *  dataset. */
   addLayerOfKind(kind: LayerKind): void;
-  /** `addLayerOfKind("volume")` — the `V` shortcut. */
-  addVolumeLayer(): void;
-  /** `addLayerOfKind("slice")`. */
-  addSliceLayer(): void;
-  /** `addLayerOfKind("fieldlines")` — the DESIGN-reserved `T` shortcut. */
+  // The `T` shortcut and the `?fieldlines` boot flag.
   addFieldlinesLayer(): void;
   removeLayer(id: string): void;
   selectLayer(id: string | null): void;
@@ -214,8 +208,8 @@ export type SimulationState = DataSlice &
 
 // What a slice factory is handed: the composed store's setter + getter (a slice may read any field —
 // the layers slice reads the dataset to rake seeds — but writes only its own).
-export type StoreSet = (partial: Partial<SimulationState>) => void;
-export type StoreGet = () => SimulationState;
+type StoreSet = (partial: Partial<SimulationState>) => void;
+type StoreGet = () => SimulationState;
 export interface SliceContext {
   readonly set: StoreSet;
   readonly get: StoreGet;

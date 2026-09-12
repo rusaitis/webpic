@@ -10,7 +10,7 @@ import type { CompositeItem } from "./renderer.ts";
 // overrides splice a not-yet-committed scene in so a warm can compile the *prospective* composite's
 // pipelines before its commit makes it paintable; the scratch list keeps the per-frame paint path
 // allocation-free.
-export interface LayerOverride {
+interface LayerOverride {
   readonly id: string;
   readonly entry: LayerEntry;
 }

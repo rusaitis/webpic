@@ -2,14 +2,14 @@
 // posts streamStep messages over it; the worker routes them through swapLayerField — an in-place
 // ping-pong upload onto the existing scene (scene.setField), keeping its retained look and avoiding a
 // pipeline rebuild. When setField declines (shape change / skip-grid volume) it falls back to a full
-// rebuild. Mocks come from testing/workerHarness.ts. Flow: init → upsert layer-0 → pair → streamStep.
+// rebuild. Mocks come from tests/renderWorkerHarness.ts. Flow: init → upsert layer-0 → pair → streamStep.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(() =>
-  import("./testing/workerHarness.ts").then((m) => m.createWorkerHarness()),
+  import("../../tests/renderWorkerHarness.ts").then((m) => m.createWorkerHarness()),
 );
 
 vi.mock("@gpu", () => h.gpu);

@@ -8,10 +8,10 @@ import { LAYERS, type LayerName } from "../scripts/layers.ts";
 // tree, so it lands as a ceiling per layer: today's count, never higher. Lower the number in the
 // commit that removes the blocks; a layer that reaches 0 is the strict rule.
 const JSDOC_CEILING = {
-  render: 167,
+  render: 158,
   ui: 110,
-  app: 56,
-  store: 52,
+  app: 53,
+  store: 49,
   gpu: 27,
   shaders: 0,
   workers: 0,

@@ -11,9 +11,8 @@ import { quantile } from "./harness/stats.ts";
 // Raymarch perf instrument (not a CI gate): drives real Chrome stable with the `?n=256` synthetic
 // override so the auto-seeded volume layer raymarches a full 256³ field at the gate's 256 steps,
 // ticks the timing panel's "Measure (continuous)" toggle, and samples the sustained per-frame time the
-// panel reports against the 8 ms gate. It measures the *default* (fixed-march) path — empty-space
-// skipping is opt-in and default-off (M2.6: it regresses space-filling |B|, helps only sparse data).
-// This is the M2 exit-gate / "profile before tuning" instrument. Run on the target GPU:
+// panel reports against the 8 ms gate. This is the exit-gate / "profile before tuning" instrument.
+// Run on the target GPU:
 //   node scripts/profile-raymarch.ts [size]   (size defaults to 256)
 //
 // The clock is wall-clock (render-pass timestamp-query was removed — it loses the Metal device), so
@@ -78,7 +77,7 @@ async function main(): Promise<void> {
         );
         console.log(`\n  gate:       ${GATE_MS} ms/frame`);
         console.log(
-          `  verdict:    p50 ${p50.toFixed(2)} ms ${pass ? "≤" : ">"} ${GATE_MS} ms → ${pass ? "PASS (under gate on this surface)" : "OVER gate — needs a gate lever (steps / resolution cap / LOD) or an M2 Pro re-run; empty-space skipping won't help space-filling |B|"}`,
+          `  verdict:    p50 ${p50.toFixed(2)} ms ${pass ? "≤" : ">"} ${GATE_MS} ms → ${pass ? "PASS (under gate on this surface)" : "OVER gate — needs a gate lever (steps / resolution cap / LOD) or an M2 Pro re-run"}`,
         );
         if (errors.length > 0) console.error(`\n  page errors: ${errors.join(" | ")}`);
         return 0;

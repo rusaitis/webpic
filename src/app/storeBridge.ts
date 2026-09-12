@@ -5,6 +5,16 @@ import type { SimulationState, SimulationStore } from "@store";
 // sync), and folds in the common "drop posts until the worker is live" gate via `subscribeWhenReady`.
 // Bridges whose gate isn't the plain isReady() check — layerSync keeps a snapshot while not ready,
 // streamingBridge gates on its own `opened` flag — use the raw `subscribe` and keep their own guard.
+
+// Every store→render-worker bridge posts through the same pair: the worker port and the bootstrap
+// `workerReady` flag that gates it. One name so a new bridge inherits both, and the gate can't be
+// forgotten in the options type.
+export interface RenderWorkerLink {
+  readonly worker: Pick<Worker, "postMessage">;
+  // Reads the bootstrap `workerReady` flag — nothing is posted until the worker is live.
+  readonly isReady: () => boolean;
+}
+
 export interface StoreBridge {
   /** Subscribe; the listener runs only once `isReady()` — the common store→worker gate. */
   subscribeWhenReady<T>(

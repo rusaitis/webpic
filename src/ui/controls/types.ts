@@ -6,17 +6,10 @@ import type { ScaleKind } from "./rangeMath.ts";
 
 export type Disposer = () => void;
 
-// `element` is the labeled row (the shell appends/removes whole rows); `set` reflects a
+// One shape for both ends of a control: what a builder returns (`element` is its root node) and
+// what a Folder hands back (`element` is the labeled row it appends/removes). `set` reflects a
 // store value without echoing onChange.
 export interface ControlHandle<T> {
-  readonly element: HTMLElement;
-  set(value: T): void;
-  setDisabled(disabled: boolean): void;
-  dispose(): void;
-}
-
-// A control builder's root node + set/dispose seam; the Folder wraps it in a labeled row.
-export interface Widget<T> {
   readonly element: HTMLElement;
   set(value: T): void;
   setDisabled(disabled: boolean): void;
@@ -29,12 +22,7 @@ export interface SelectOption<V extends string = string> {
 }
 
 // A select's option list can change at runtime (e.g. a new dataset's fields); `setOptions`
-// rebuilds it and keeps the current value if it survives. The handle is a select-specific
-// `ControlHandle` so callers that need this stay typed.
-export interface SelectWidget<V extends string> extends Widget<V> {
-  setOptions(options: ReadonlyArray<SelectOption<V>>): void;
-}
-
+// rebuilds it and keeps the current value if it survives.
 export interface SelectHandle<V extends string> extends ControlHandle<V> {
   setOptions(options: ReadonlyArray<SelectOption<V>>): void;
 }

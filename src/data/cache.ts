@@ -1,6 +1,8 @@
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import { isNotFound, resolveDir } from "./opfs.ts";
 
+// STAGED: activates when a real reader's re-read cost justifies OPFS scrub-back caching.
+//
 // OPFS-backed key→bytes cache. Reads run async on the main thread; writes dispatch to data.worker.ts,
 // which holds the worker-only createSyncAccessHandle() fast path under an exclusive web-lock for
 // multi-tab safety. See docs/DESIGN.md §Caching.

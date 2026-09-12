@@ -10,7 +10,7 @@ import { OPERATOR_FIELD_OPS } from "./operators.ts";
 
 // The grid + component context a field op needs beyond its inputs. The magnitude family ignores it;
 // curl/divergence read spacing + geometry from the grid (and curl its component index).
-export interface TsOpContext {
+interface TsOpContext {
   readonly shape: readonly number[];
   readonly grid: GridInfo;
   readonly component: number | null;

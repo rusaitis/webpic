@@ -19,11 +19,7 @@ export interface ThemeBridgeOptions {
   readonly persist: (name: string) => Promise<void>;
 }
 
-export interface ThemeBridge {
-  readonly dispose: () => void;
-}
-
-export function installThemeBridge(opts: ThemeBridgeOptions): ThemeBridge {
+export function installThemeBridge(opts: ThemeBridgeOptions): () => void {
   const { uiStore, themes, applyTheme, persist } = opts;
   const names = [...themes.keys()];
 
@@ -53,10 +49,8 @@ export function installThemeBridge(opts: ThemeBridgeOptions): ThemeBridge {
   // visually; persisting the resolved name heals a stale/foreign pref in place.
   uiStore.getState().setThemeName(opts.initialName);
 
-  return {
-    dispose() {
-      unsubscribeName();
-      unsubscribeCycle();
-    },
+  return () => {
+    unsubscribeName();
+    unsubscribeCycle();
   };
 }

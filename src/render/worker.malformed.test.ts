@@ -1,13 +1,13 @@
 // The worker's wire boundary under bad input: an unknown `kind` (the `default:` never-arm, reachable
 // only from an untyped sender) and a field payload whose buffer size disagrees with its dtype/shape.
 // Both must come back as an `error` response naming the offender — never a silent no-op, and never a
-// texture uploaded from a reinterpreted buffer. Mocks come from testing/workerHarness.ts.
+// texture uploaded from a reinterpreted buffer. Mocks come from tests/renderWorkerHarness.ts.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(() =>
-  import("./testing/workerHarness.ts").then((m) => m.createWorkerHarness()),
+  import("../../tests/renderWorkerHarness.ts").then((m) => m.createWorkerHarness()),
 );
 
 vi.mock("@gpu", () => h.gpu);

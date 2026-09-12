@@ -9,7 +9,7 @@ import {
 import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import { FALLBACK_AXIS, type Rgba01, type Theme } from "@schema/theme.ts";
 import type { OverlayState, SimulationStore } from "@store";
-import { createStoreBridge } from "./storeBridge.ts";
+import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 // Bridges the store's scene-overlay flags + the dataset GridInfo + the resolved theme palette to the
 // render worker's setSceneOverlay (app-only glue: store and render can't import each other). Low-
@@ -77,10 +77,8 @@ export function buildOverlayPayload(
   };
 }
 
-export interface SceneSyncOptions {
+export interface SceneSyncOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
-  readonly worker: Pick<Worker, "postMessage">;
-  readonly isReady: () => boolean;
   /** The boot theme; a runtime switch rides setTheme (the app theme bridge). */
   readonly theme?: Theme;
 }

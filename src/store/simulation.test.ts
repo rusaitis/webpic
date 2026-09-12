@@ -106,11 +106,11 @@ describe("simulationStore", () => {
     });
   });
 
-  it("addVolumeLayer appends a volume on the active field, auto-selects it, mints a binding", async () => {
+  it("addLayerOfKind appends a volume on the active field, auto-selects it, mints a binding", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
     await flushAsync(); // seeds the first volume layer
-    store.getState().addVolumeLayer();
+    store.getState().addLayerOfKind("volume");
     await flushAsync(); // recompute refills `computed` so the new layer can render
     const { layers, selectedLayerId } = store.getState();
     expect(layers).toHaveLength(2);
@@ -122,11 +122,11 @@ describe("simulationStore", () => {
     expect(activeBinding(store)).toMatchObject({ field: "|B|" });
   });
 
-  it("addSliceLayer appends a mid-plane z slice on the active field", async () => {
+  it("addLayerOfKind appends a mid-plane z slice on the active field", async () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
     await flushAsync();
-    store.getState().addSliceLayer();
+    store.getState().addLayerOfKind("slice");
     await flushAsync();
     const added = store.getState().layers[1];
     expect(added).toMatchObject({ kind: "slice", field: "|B|", axis: "z", position: 0.5 });
@@ -134,8 +134,8 @@ describe("simulationStore", () => {
 
   it("add-layer intents are no-ops with no dataset", () => {
     const store = createSimulationStore();
-    store.getState().addVolumeLayer();
-    store.getState().addSliceLayer();
+    store.getState().addLayerOfKind("volume");
+    store.getState().addLayerOfKind("slice");
     expect(store.getState().layers).toHaveLength(0);
   });
 
@@ -144,7 +144,7 @@ describe("simulationStore", () => {
     expect(selectVisibleBindings(store.getState())).toEqual([]); // no layers yet
     store.getState().setDataset(bDataset());
     await flushAsync();
-    store.getState().addVolumeLayer();
+    store.getState().addLayerOfKind("volume");
     await flushAsync();
     const [first, second] = store.getState().layers;
     expect(selectVisibleBindings(store.getState()).map((b) => b.id)).toEqual([

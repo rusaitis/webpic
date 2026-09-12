@@ -9,7 +9,7 @@ import { isTypingTarget } from "./keyboard.ts";
 // overlay renders — keep it in step with the registrations until the theme-shortcut system
 // (schema/theme.ts) drives both.
 
-export interface ShortcutOptions {
+interface ShortcutOptions {
   /** Shift requirement: "none" (default) fires only unshifted, "shift" only shifted, "any" ignores it. */
   readonly modifiers?: "none" | "shift" | "any";
 }
@@ -62,7 +62,7 @@ export function createShortcutRegistry(doc: Document, signal?: AbortSignal): Sho
   };
 }
 
-export interface Shortcut {
+interface Shortcut {
   readonly keys: string;
   readonly action: string;
 }

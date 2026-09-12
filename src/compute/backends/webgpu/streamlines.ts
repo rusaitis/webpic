@@ -1,3 +1,5 @@
+// STAGED: activates when trace dispatch moves off the main thread.
+//
 // WebGPU field-line tracer — the GPU twin of numerics/tracing.ts `traceFieldLinesAdaptive`. Fans the
 // adaptive Dormand-Prince 5(4) trace out across one GPU invocation per (seed, direction) work-item, then
 // reuses the CPU `stitch` + `makeFieldLine` for the "both"/backward join and FieldLine assembly so the

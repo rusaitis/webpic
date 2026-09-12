@@ -1,13 +1,13 @@
 // Render-side device-loss recovery: when gpu/ re-acquires the device after a loss and fires
 // onDeviceRestored, the worker must rebuild the renderer on the new device and rebuild every layer
-// scene from its retained CPU source (no main↔worker reseed). Mocks come from testing/workerHarness.ts;
+// scene from its retained CPU source (no main↔worker reseed). Mocks come from tests/renderWorkerHarness.ts;
 // camera.ts / frameTimer.ts / messages.ts are the real (pure-three / pure-JS) modules. One stateful flow: init → upsert → loss → restore.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(() =>
-  import("./testing/workerHarness.ts").then((m) => m.createWorkerHarness()),
+  import("../../tests/renderWorkerHarness.ts").then((m) => m.createWorkerHarness()),
 );
 
 vi.mock("@gpu", () => h.gpu);

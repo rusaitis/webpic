@@ -86,7 +86,7 @@ describe("installLayersPanel", () => {
   it("the reorder buttons move a layer in the draw order", async () => {
     const { store, rows, open } = setup();
     await seed(store); // layer-0
-    store.getState().addVolumeLayer(); // layer-1 (recompute is async)
+    store.getState().addLayerOfKind("volume"); // layer-1 (recompute is async)
     await flushAsync();
     open();
     const [first, second] = [store.getState().layers[0]?.id, store.getState().layers[1]?.id];
@@ -99,7 +99,7 @@ describe("installLayersPanel", () => {
   it("disables reorder at the ends of the list", async () => {
     const { store, rows, open } = setup();
     await seed(store);
-    store.getState().addVolumeLayer();
+    store.getState().addLayerOfKind("volume");
     await flushAsync();
     open();
     const top = rows()[0]?.querySelector<HTMLButtonElement>('[aria-label="Move up"]');

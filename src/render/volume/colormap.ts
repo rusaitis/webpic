@@ -3,10 +3,4 @@
 // gradient paints from it) without a boundary violation. Re-exported here so render-internal
 // importers and render/index.ts keep their `./colormap.ts` import site.
 
-export {
-  COLORMAP_COEFFS,
-  type ColormapName,
-  colormapColor,
-  type Rgb,
-  resolveColormapName,
-} from "@schema/colormap.ts";
+export { colormapColor } from "@schema/colormap.ts";

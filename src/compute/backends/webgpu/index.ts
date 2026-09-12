@@ -74,7 +74,7 @@ function validateGridOp(shape: readonly number[], grid: GridInfo, func: string):
  * kernel, and package the result. Output is always `Float32Array` (the GPU is f32). Grid ops
  * (curl/divergence) validate the grid like the TS reference; the magnitude family ignores it.
  */
-export async function computeRecipeWebgpu(
+async function computeRecipeWebgpu(
   name: RecipeKey,
   dataset: FieldDataset,
   signal?: AbortSignal,

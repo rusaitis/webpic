@@ -58,7 +58,7 @@ describe("installThemeBridge", () => {
 
   it("stops reacting after dispose", () => {
     const { uiStore, applied, bridge } = harness(["dark", "light"], "dark");
-    bridge.dispose();
+    bridge();
     uiStore.getState().requestThemeCycle();
     expect(applied).toEqual(["dark"]);
   });

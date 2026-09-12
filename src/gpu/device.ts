@@ -12,7 +12,7 @@ import {
   selectFeatures,
 } from "./capabilities.ts";
 
-export type GpuUnsupportedReason = "no-navigator-gpu" | "no-adapter" | "no-device";
+type GpuUnsupportedReason = "no-navigator-gpu" | "no-adapter" | "no-device";
 
 export type GpuSupport =
   | { readonly ok: true; readonly adapter: GPUAdapter; readonly device: GPUDevice }
@@ -33,7 +33,7 @@ export interface InstalledGpu {
   readonly dispose: () => void; // install*() => () => void teardown contract
 }
 
-export type DeviceLossKind = "intentional" | "destroyed" | "unknown";
+type DeviceLossKind = "intentional" | "destroyed" | "unknown";
 
 export interface DeviceLossEvent {
   readonly kind: DeviceLossKind;

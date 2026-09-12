@@ -43,7 +43,7 @@ Goal: single-scalar volume raymarcher hitting the perf gate; time-series scrub.
 - [x] 4b. Orbit/dolly/pan as pure pose helpers + pointer input on the main-thread canvas; CSS-3D gnomon HUD
 - [x] 5a. Layer model — ordered `layers` registry + worker composite of visible layers (≤1-layer fast path = old direct path)
 - [x] 5b. `ColormapBinding` (`@schema/colormap.ts` is the authority) — layers share or split bindings; all three scales on-GPU with a pure-TS `windowedT` twin
-- [x] 6. Min-max empty-space skipping — shipped **default-off**: regresses space-filling |B| ~1.7× (skip-grid fetch + branch); enable only for sparse data
+- [x] 6. Min-max empty-space skipping — built, measured **1.7× slower** on space-filling |B| (skip-grid fetch + branch buys no skips), and removed; the plain march is the only path
 - [x] 7. Central-difference Phong shading — per-layer toggle, off by default; taps gated on opacity + `uShade`; render-local, not a physics operator
 - [x] 8. Frame-time diagnostics — Metal render-pass timestamp-query intermittently returns garbage → adaptive demote to wall-clock for the session
 - [x] 9. Time cursor + scrub control — index-walking scrub over `availableSteps`, robust to sparse/non-contiguous steps

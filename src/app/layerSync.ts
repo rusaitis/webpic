@@ -14,7 +14,7 @@ import {
   selectComputed,
   type UiStore,
 } from "@store";
-import { createStoreBridge } from "./storeBridge.ts";
+import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 // The loading pill raised while a layer upsert warms its GPU pipeline off the render path (the warm is
 // async — compileAsync); the worker's layerCompiled ack drops it. A flat key (v0.1 draws one volume
@@ -56,13 +56,10 @@ function upsertParams(layer: FieldLayer, worldHalfExtent: Vec3): FieldLayerParam
   }
 }
 
-export interface LayerSyncOptions {
+export interface LayerSyncOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
   /** Raises/drops the render-loading pill across the upsert → layerCompiled round-trip. */
   readonly uiStore: UiStore;
-  readonly worker: Pick<Worker, "postMessage">;
-  /** Reads the bootstrap `workerReady` flag — nothing is posted until the worker is live. */
-  readonly isReady: () => boolean;
 }
 
 export interface LayerSync {

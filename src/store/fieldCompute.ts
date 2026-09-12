@@ -24,7 +24,7 @@ const DEFAULT_LAYER_KIND: LayerKind = "volume";
 // followed the selector, but a dataset switch invalidates every layer drawing the active field — the
 // new run can span a different order of magnitude (flux-rope |B| ~1 vs dipole |B| ~1e4 nT), and a
 // stale window paints the whole volume saturated.
-export type Rebind = "selected" | "activeField";
+type Rebind = "selected" | "activeField";
 
 export type Recompute = (rebind?: Rebind, signal?: AbortSignal) => Promise<void>;
 

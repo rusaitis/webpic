@@ -9,8 +9,8 @@ import { createSubscriptions } from "../subscriptions.ts";
 
 // The frame-timing panel: a rolling GPU frame-time readout + the "Measure" toggle that drives the
 // worker's continuous-repaint mode for sustained timing. It's the instrument for the 8 ms raymarch
-// budget and the empty-space-skipping contingency call. It dispatches perf-store intents only (ui →
-// store; never render); the app forwards the worker's frameTiming replies into the perf store.
+// budget. It dispatches perf-store intents only (ui → store; never render); the app forwards the
+// worker's frameTiming replies into the perf store.
 
 // Rolling window over the most recent valid samples — long enough to smooth per-frame jitter, short
 // enough to track a workload change (camera move, dataset swap) within a fraction of a second.

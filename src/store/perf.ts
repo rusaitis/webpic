@@ -26,7 +26,7 @@ export interface PerfSample {
   readonly vramByKey?: readonly (readonly [string, number])[];
 }
 
-export type PerfWorkerRole = "main" | "render" | "data";
+type PerfWorkerRole = "main" | "render" | "data";
 
 /** A row in the logical worker topology. Browsers can't enumerate OS processes, so this is
  *  the app's known thread set: main + render + (optional) data. `heapBytes` is null off-Chrome
@@ -40,13 +40,13 @@ export interface PerfWorker {
 }
 
 /** Longest Long-Animation-Frame and count over the observed window (Chromium-only). */
-export interface LoafSummary {
+interface LoafSummary {
   readonly longestMs: number;
   readonly count: number;
 }
 
 /** Main-thread metrics the bridge pumps at their own (low) cadences. */
-export interface MainPerfMetrics {
+interface MainPerfMetrics {
   readonly mainHeapBytes?: number | null;
   readonly pageMemoryBytes?: number | null;
   readonly loaf?: LoafSummary | null;

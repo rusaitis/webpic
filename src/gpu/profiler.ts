@@ -6,7 +6,7 @@
 
 import type { GpuCapabilities } from "./capabilities.ts";
 
-export type GpuProfilerMode = "timestamp" | "wallclock";
+type GpuProfilerMode = "timestamp" | "wallclock";
 
 export interface GpuProfiler {
   readonly mode: GpuProfilerMode;

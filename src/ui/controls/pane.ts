@@ -19,11 +19,9 @@ import type {
   SegmentedOptions,
   SelectHandle,
   SelectOptions,
-  SelectWidget,
   SliderOptions,
   SwatchSelectOptions,
   TextOptions,
-  Widget,
 } from "./types.ts";
 
 // Dependency-free Pane/Folder: callback-based add* (no two-way binding, no `typeof value`
@@ -62,11 +60,11 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
     return dispose;
   };
 
-  // Wrap a widget in a labeled row.
+  // Re-root a built control into a labeled row: the returned handle's `element` is the row.
   function attach<T>(
     row: HTMLElement,
     valueCell: HTMLElement,
-    widget: Widget<T>,
+    widget: ControlHandle<T>,
   ): ControlHandle<T> {
     valueCell.appendChild(widget.element);
     body.appendChild(row);
@@ -83,12 +81,12 @@ function makeFolder(doc: Document, opts: FolderOptions): Folder {
     };
   }
 
-  // A SelectWidget is a Widget plus setOptions; attach() handles the Widget half, this forwards
-  // setOptions — so both select variants hand back the same SelectHandle shape from one place.
+  // A SelectHandle is a ControlHandle plus setOptions; attach() handles the handle half, this
+  // forwards setOptions — so both select variants come back the same shape from one place.
   function attachSelectable<V extends string>(
     row: HTMLElement,
     valueCell: HTMLElement,
-    widget: SelectWidget<V>,
+    widget: SelectHandle<V>,
   ): SelectHandle<V> {
     return { ...attach(row, valueCell, widget), setOptions: (next) => widget.setOptions(next) };
   }

@@ -8,10 +8,10 @@ import type { FrameTimer } from "./frameTimer.ts";
 // GPU wall-clock sync (onSubmittedWorkDone) is throttled to PERF_GPU_SAMPLE_MS so it can't perturb a
 // sustained gesture, and only ever rides frames already painting — it never forces one
 // (renderLoop.setPerfActive deliberately doesn't re-dirty).
-export const PERF_GPU_SAMPLE_MS = 200; // ≤5 Hz GPU sync
+const PERF_GPU_SAMPLE_MS = 200; // ≤5 Hz GPU sync
 export const PERF_EMA_ALPHA = 0.2; // painted-frame interval smoothing
 export const PERF_IDLE_GAP_MS = 500; // a longer gap means we resumed after idle — don't fold it into the EMA
-export const VRAM_TOP_N = 5; // largest tracked allocations surfaced in the HUD detail panel
+const VRAM_TOP_N = 5; // largest tracked allocations surfaced in the HUD detail panel
 
 export type PerfSampleMessage = Extract<RenderWorkerResponse, { kind: "perfSample" }>;
 export type FrameTimingMessage = Extract<RenderWorkerResponse, { kind: "frameTiming" }>;

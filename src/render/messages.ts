@@ -1,12 +1,12 @@
 import type { CameraMotion, CameraPose, CameraProjection } from "@schema/camera.ts";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
-import type { FieldLayerKind, LayerKind, SliceAxis } from "@schema/layers.ts";
+import type { FieldLayerKind, SliceAxis } from "@schema/layers.ts";
 import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
 import type { Rgba01 } from "@schema/theme.ts";
 import type { FrameClock } from "@schema/timing.ts";
 import type { Vec3 } from "@schema/types.ts";
 
-export type { CameraMotion, CameraPose, CameraProjection, MarkerPart, PickPurpose, WindowLevel };
+export type { CameraMotion, CameraPose, CameraProjection, MarkerPart };
 
 // Typed protocol for the OffscreenCanvas render worker. Discriminated unions both
 // ways; `requestId` correlates a response to its request and pre-stages the
@@ -54,9 +54,8 @@ export interface SliceFieldPayload {
 
 // The layer discriminants (@schema/layers) — one home for store, wire, and render. Field layers carry
 // a 3D scalar texture (slice/volume, one upsert path); field lines carry packed polylines (a separate
-// upsert + scene), so the field-only upsertLayer message can't be handed a fieldlines kind. LayerKind
-// still names every renderable layer (the composite camera picks by it).
-export type { FieldLayerKind, LayerKind, SliceAxis };
+// upsert + scene), so the field-only upsertLayer message can't be handed a fieldlines kind.
+export type { FieldLayerKind };
 
 // The per-kind build params of a field layer — what a slice needs (its held axis + plane) and what
 // a volume needs (march + look + box aspect), each only on its own kind. Omitted volume params fall

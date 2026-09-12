@@ -1,5 +1,5 @@
 import { makeEl } from "./dom.ts";
-import type { SelectOption, Widget } from "./types.ts";
+import type { ControlHandle, SelectOption } from "./types.ts";
 
 // A sliding-pill segmented control: N equal-width radio buttons with one highlight pill that slides
 // to the active segment. Pure-CSS motion — the pill position is a `--seg-index` custom property the
@@ -11,7 +11,7 @@ export function createSegmented<V extends string>(
   value: V,
   options: ReadonlyArray<SelectOption<V>>,
   onChange: (value: V) => void,
-): Widget<V> {
+): ControlHandle<V> {
   const root = makeEl(doc, "div", "webpic-segmented");
   root.setAttribute("role", "radiogroup");
   root.style.setProperty("--seg-count", String(options.length));

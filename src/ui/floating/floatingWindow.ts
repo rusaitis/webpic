@@ -18,7 +18,7 @@ const DEFAULT_MIN_HEIGHT_PX = 140;
 const DEFAULT_TOP_PX = 64; // clear of the top bar
 const DEFAULT_RIGHT_PX = 16;
 
-export interface FloatingWindowInitial {
+interface FloatingWindowInitial {
   readonly top?: number;
   readonly right?: number;
   readonly bottom?: number;

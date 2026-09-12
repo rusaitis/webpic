@@ -68,12 +68,6 @@ export function createLayersSlice({ get, set, ids, retrace }: LayersSliceHost): 
       get().addLayer(descriptor.makeDefaultSpec(activeField, dataset.grid));
       if (descriptor.tracesLines) void retrace(); // total (owns its abort + generation guard)
     },
-    addVolumeLayer() {
-      get().addLayerOfKind("volume");
-    },
-    addSliceLayer() {
-      get().addLayerOfKind("slice");
-    },
     addFieldlinesLayer() {
       get().addLayerOfKind("fieldlines");
     },

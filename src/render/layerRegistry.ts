@@ -32,7 +32,7 @@ import { NO_FINITE_RANGE, type ScalarField } from "./volume/volumeTexture.ts";
 // current state (the live timestep + look), not the stale upsert-time one. Retaining the field doubles
 // its residency (CPU + GPU); fine for v0.1's one small volume, and the price of self-contained
 // recovery (no reseed wire).
-export interface FieldSource {
+interface FieldSource {
   readonly layerKind: FieldLayerKind;
   field: ScalarField; // mutable: a streamed timestep swaps it in place (see swapField)
   colormap: string;
@@ -47,14 +47,14 @@ export interface FieldSource {
 // A field-line layer's retained source: packed world-space polylines (positions + per-line counts) +
 // solid color + opacity. The CPU buffers survive a device loss, so a restore rebuild redraws the same
 // lines with no re-trace — the line analogue of FieldSource retaining the decoded field.
-export interface FieldlinesSource {
+interface FieldlinesSource {
   readonly layerKind: "fieldlines";
   lines: { positions: Float32Array; counts: Uint32Array };
   color: Rgba01; // mutable so a device-restore rebuild keeps the live color
   opacity: number;
 }
 
-export type LayerSource = FieldSource | FieldlinesSource;
+type LayerSource = FieldSource | FieldlinesSource;
 
 // Which camera composites each kind: slices are screen-aligned (ortho); volumes and field lines live in
 // the box under the pose camera. A complete record, so a new kind must declare its camera.
@@ -336,9 +336,8 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     // The layer is created by main's initial upsert; a step arriving before it (or after a remove) is
     // ignored — it heals on the next upsert. The swap is an in-place ping-pong (the scene uploads into
     // its inactive Data3DTexture and re-binds — no 64 MiB rebuild). We retain the field so a
-    // device-restore rebuild reproduces the live timestep. If the scene declines the in-place swap (a
-    // shape change, or an empty-space-skip volume whose acceleration grid would go stale), fall back to
-    // a full rebuild.
+    // device-restore rebuild reproduces the live timestep. A scene that declines the in-place swap (a
+    // shape change) falls back to a full rebuild.
     swapField(message) {
       const entry = layers.get(message.id);
       if (entry === undefined || entry.kind === "fieldlines") return; // streams target field layers only

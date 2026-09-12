@@ -13,7 +13,7 @@ export const DESIRED_FEATURES = [
   "float32-filterable",
 ] as const satisfies readonly GPUFeatureName[];
 
-export interface GpuLimitsSummary {
+interface GpuLimitsSummary {
   readonly maxTextureDimension2D: number;
   readonly maxTextureDimension3D: number; // gates 256³/512³ volume textures
   readonly maxBufferSize: number;

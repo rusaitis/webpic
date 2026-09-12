@@ -186,7 +186,7 @@ describe("installLayerSync", () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset()); // layer-0 (volume)
     await flushAsync();
-    store.getState().addSliceLayer(); // layer-1 (slice)
+    store.getState().addLayerOfKind("slice"); // layer-1 (slice)
     await flushAsync();
     posts.length = 0; // ignore the add traffic (axis/position ride the upsert)
     store.getState().setSlicePosition("layer-1", 0.2);
@@ -209,7 +209,7 @@ describe("installLayerSync", () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset());
     await flushAsync();
-    store.getState().addSliceLayer();
+    store.getState().addLayerOfKind("slice");
     await flushAsync();
     expect(kinds(posts)).not.toContain("setSliceParams");
   });
@@ -244,7 +244,7 @@ describe("installLayerSync", () => {
     store.getState().setDataset(beDataset()); // seeds layer-0
     await flushAsync();
     posts.length = 0; // ignore the seed traffic
-    store.getState().addVolumeLayer(); // adds layer-1; the seed's buffer was transferred above
+    store.getState().addLayerOfKind("volume"); // adds layer-1; the seed's buffer was transferred above
     await flushAsync();
     // The bridge sees a new field layer whose buffer was transferred → recomputeField → the field
     // channel upserts every active-field layer; layer-1 must be among them.

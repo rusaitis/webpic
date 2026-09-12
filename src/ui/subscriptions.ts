@@ -8,7 +8,7 @@ import type { Disposer } from "./controls/index.ts";
 
 /** The selector-subscribe surface the vanilla `subscribeWithSelector` stores share (SimulationStore,
  *  UiStore, PerfStore). Structural, so it never names a store type. */
-export interface SelectorStore<S> {
+interface SelectorStore<S> {
   getState(): S;
   subscribe<U>(
     selector: (state: S) => U,
@@ -20,7 +20,7 @@ export interface SelectorStore<S> {
   ): () => void;
 }
 
-export interface SubscribeOptions<U> {
+interface SubscribeOptions<U> {
   /** Run the listener once with the current slice on subscribe (the usual "apply, then track"). */
   readonly fireNow?: boolean;
   /** Slice comparison; default is `Object.is`. Pass zustand's `shallow` for fresh-array selectors. */

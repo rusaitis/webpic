@@ -1,11 +1,11 @@
 import { makeEl } from "./dom.ts";
-import type { Widget } from "./types.ts";
+import type { ControlHandle } from "./types.ts";
 
 export function createTextInput(
   doc: Document,
   value: string,
   onChange: (value: string) => void,
-): Widget<string> {
+): ControlHandle<string> {
   const input = makeEl(doc, "input", "webpic-text");
   input.type = "text";
   input.spellcheck = false;

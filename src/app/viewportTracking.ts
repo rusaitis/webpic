@@ -1,4 +1,5 @@
 import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
+import type { RenderWorkerLink } from "./storeBridge.ts";
 
 // Tracks the canvas viewport + device-pixel-ratio and posts `resize` to the render worker (app-only
 // glue). transferControlToOffscreen() moves the drawing surface, but the <canvas> still lays out on
@@ -20,19 +21,13 @@ export function currentDevicePixelRatio(): number {
   return Math.max(1, Math.min(window.devicePixelRatio || 1, cap));
 }
 
-export interface ViewportTrackingOptions {
+export interface ViewportTrackingOptions extends RenderWorkerLink {
   readonly canvas: HTMLCanvasElement;
-  readonly worker: Pick<Worker, "postMessage">;
-  readonly isReady: () => boolean;
   /** Logical (CSS) size of the mounted canvas — the worker scales it by devicePixelRatio. */
   readonly logicalSize: () => { width: number; height: number };
 }
 
-export interface ViewportTracking {
-  readonly dispose: () => void;
-}
-
-export function installViewportTracking(opts: ViewportTrackingOptions): ViewportTracking {
+export function installViewportTracking(opts: ViewportTrackingOptions): () => void {
   const { canvas, worker, isReady, logicalSize } = opts;
 
   // ResizeObserver is frame-aligned, so post directly (no extra debounce). A pre-ready resize is
@@ -51,7 +46,7 @@ export function installViewportTracking(opts: ViewportTrackingOptions): Viewport
 
   // The headless handshake test's fake canvas has no addEventListener — install nothing, return a
   // no-op disposer so bootstrap's teardown stays uniform.
-  if (typeof canvas.addEventListener !== "function") return { dispose: () => {} };
+  if (typeof canvas.addEventListener !== "function") return () => {};
 
   let disposeResize: (() => void) | undefined;
   if (typeof ResizeObserver === "function") {
@@ -78,10 +73,8 @@ export function installViewportTracking(opts: ViewportTrackingOptions): Viewport
     disposeDprWatch = () => query?.removeEventListener("change", onDprChange);
   }
 
-  return {
-    dispose() {
-      disposeResize?.();
-      disposeDprWatch?.();
-    },
+  return () => {
+    disposeResize?.();
+    disposeDprWatch?.();
   };
 }

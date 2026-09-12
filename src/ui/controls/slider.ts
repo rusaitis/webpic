@@ -1,5 +1,5 @@
 import { createRangeControl } from "./rangeControl.ts";
-import type { RangeValue, Widget } from "./types.ts";
+import type { ControlHandle, RangeValue } from "./types.ts";
 
 // Single-value linear slider: the same RangeControl primitive as the Window/Step sliders (track,
 // grip, coupled text field), narrowed to the number-in/number-out facade panels bind against.
@@ -12,7 +12,7 @@ export function createSlider(
   step: number | undefined,
   format: ((value: number) => string) | undefined,
   onChange: (value: number) => void,
-): Widget<number> {
+): ControlHandle<number> {
   // Live emit on both edit paths (drag/keys via onInput, text/release via onChange), deduped so
   // the release commit of an unchanged value doesn't double-fire the panel callback.
   let last = value;

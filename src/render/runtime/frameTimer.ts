@@ -10,8 +10,6 @@ import type { FrameClock } from "@schema/timing.ts";
 // Metal. The measurement is coarser (includes JS/queue latency), so the panel labels it distinctly
 // and never reads it as pure GPU time.
 
-export type { FrameClock };
-
 export interface FrameTimer {
   readonly mode: FrameClock;
   /** Call before the render submit; stamps the wall clock. */

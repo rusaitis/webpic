@@ -1,5 +1,5 @@
 import { makeEl } from "./dom.ts";
-import type { Widget } from "./types.ts";
+import type { ControlHandle } from "./types.ts";
 
 // Sibling order matters: the `.webpic-checkbox_input:checked + .webpic-checkbox_box svg`
 // rule toggles the checkmark, so the input must precede the box.
@@ -11,7 +11,7 @@ export function createCheckbox(
   value: boolean,
   ariaLabel: string,
   onChange: (value: boolean) => void,
-): Widget<boolean> {
+): ControlHandle<boolean> {
   const label = makeEl(doc, "label", "webpic-checkbox");
   label.setAttribute("aria-label", ariaLabel);
 

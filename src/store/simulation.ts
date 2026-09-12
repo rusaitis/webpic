@@ -10,7 +10,6 @@ import { createOverlaySlice } from "./overlaySlice.ts";
 import { createPickerSlice } from "./pickerSlice.ts";
 import { createSceneIds, type SimulationState, type SliceContext } from "./state.ts";
 
-export type { WindowLevel } from "@schema/colormap.ts";
 export {
   selectActiveBinding,
   selectActiveLayer,
@@ -18,20 +17,7 @@ export {
   selectDataRange,
   selectVisibleBindings,
 } from "./selectors.ts";
-export type {
-  BindingsSlice,
-  CameraSlice,
-  DataRange,
-  DataSlice,
-  FieldState,
-  LayersSlice,
-  OverlaySlice,
-  PickerSlice,
-  PickRequest,
-  SimulationState,
-  SimulationStatus,
-  TraceNotice,
-} from "./state.ts";
+export type { DataRange, SimulationState, TraceNotice } from "./state.ts";
 
 // The simulation store: ONE zustand store (subscribers read dataset + layers + camera off a single
 // object, and pypic-parity favors a single "simulation" value) composed from per-concern slices —

@@ -11,8 +11,6 @@ import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 // One orthogonal slice sampling the shared `uVolume` 3D texture (the raymarcher and further
 // slices sample the same texture).
 
-export type { SliceAxis };
-
 export interface SliceSceneOptions {
   readonly field: ScalarField;
   /** Theme colormap name (`theme.colormaps.sequential`); unknown → inferno. */

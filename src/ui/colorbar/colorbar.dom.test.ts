@@ -122,7 +122,7 @@ describe("floating colorbar", () => {
     expect(bar.querySelectorAll(".webpic-cbar_sec")).toHaveLength(1);
 
     // A second layer mints a second binding → a second captioned strip, no warn.
-    store.getState().addVolumeLayer();
+    store.getState().addLayerOfKind("volume");
     await flushAsync();
     const sections = bar.querySelectorAll<HTMLElement>(".webpic-cbar_sec");
     expect(sections).toHaveLength(2);
@@ -149,8 +149,8 @@ describe("floating colorbar", () => {
     store.getState().setDataset(bTriple());
     await flushAsync();
     const dispose = installColorbar(document.body, store, createUiStore());
-    store.getState().addVolumeLayer();
-    store.getState().addSliceLayer(); // third distinct binding — over the two-strip cap
+    store.getState().addLayerOfKind("volume");
+    store.getState().addLayerOfKind("slice"); // third distinct binding — over the two-strip cap
     await flushAsync();
 
     const bar = el(document.body, ".webpic-cbar");

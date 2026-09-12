@@ -1,14 +1,14 @@
 // Dev shader hot-reload, worker side: a `rebuildShader` request re-imports the raymarch scene
 // factory fresh (mocked here via shaderReload.ts) and swaps every volume layer's material in place
 // through the registry — no scene rebuild, no field re-transfer — then re-warms the composite and
-// repaints. Mocks come from testing/workerHarness.ts plus the reload helper. Flow: init → upsert
+// repaints. Mocks come from tests/renderWorkerHarness.ts plus the reload helper. Flow: init → upsert
 // volume → rebuildShader.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(async () => {
-  const { createWorkerHarness } = await import("./testing/workerHarness.ts");
+  const { createWorkerHarness } = await import("../../tests/renderWorkerHarness.ts");
   // The fresh material builder the re-import hands back; loadFreshRaymarchBuilder resolves to it.
   const freshBuilder = vi.fn(() => ({}));
   return {

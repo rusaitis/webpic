@@ -44,14 +44,11 @@ export interface TraceFieldsOptions extends AdaptiveTraceOptions {
 }
 
 // Field-line trace facade — the trace analogue of computeField, same `(…, signal?)` shape. Threads an
-// AbortSignal into the CPU DP5(4) tracer (numerics/tracing), which checks it per integration step; a
-// superseded trace aborts mid-line once the tracer runs off-main. Async so the contract is stable for
-// the deferred GPU/worker backend — routing to the WebGPU streamline tracer (traceFieldLinesWebgpu)
-// stays deferred until a main-thread GPUDevice exists (the worker-reads/main-computes device seam).
-// Keeping the store→tracer hop behind this facade is the DAG-clean seam (store → compute, never
-// store → numerics) and the single place to swap the backend. The skip policy lives here rather than
-// in numerics (which keeps pypic's strict validate-then-throw batch), so it will cover the WebGPU
-// tracer once traceFieldLinesWebgpu routes through here — that one still validates strictly today.
+// AbortSignal into the CPU DP5(4) tracer (numerics/tracing), which checks it per integration step.
+// Async so the contract is stable for a backend that runs off-main. Keeping the store→tracer hop
+// behind this facade is the DAG-clean seam (store → compute, never store → numerics) and the single
+// place to swap the backend. The skip policy lives here rather than in numerics, which keeps pypic's
+// strict validate-then-throw batch.
 export async function traceFields(
   dataset: FieldDataset,
   seeds: ReadonlyArray<Vec3>,

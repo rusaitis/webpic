@@ -35,7 +35,7 @@ import { installSceneSync } from "./sceneSync.ts";
 import { installScreenshotBridge } from "./screenshotBridge.ts";
 import { installStreamingBridge, type StreamingBridge } from "./streamingBridge.ts";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
-import { installThemeBridge, type ThemeBridge } from "./themeBridge.ts";
+import { installThemeBridge } from "./themeBridge.ts";
 import { currentDevicePixelRatio, installViewportTracking } from "./viewportTracking.ts";
 
 const DEFAULT_SIZE = 256;
@@ -185,7 +185,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const perfStore = createPerfStore(); // render timing for the timing panel + the dev HUD
   const renderSync = installRenderWorkerSync({ store, perfStore, worker, isReady });
   const screenshotBridge = installScreenshotBridge({ store, uiStore, worker, isReady });
-  const viewport = installViewportTracking({ canvas, worker, isReady, logicalSize });
+  const disposeViewport = installViewportTracking({ canvas, worker, isReady, logicalSize });
 
   // Withdraws every store load bootstrap started (the boot seed, a dataset switch) when it's disposed
   // mid-flight, so no compute lands on a torn-down app.
@@ -338,13 +338,13 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // Runtime theme switcher: the rail button cycles the catalog; every switch re-applies the CSS
   // vars + the worker overlay/marker palettes live and persists the choice. Layout/shortcuts stay
   // from the boot theme (identical across the bundled color themes).
-  let themeBridge: ThemeBridge | undefined;
+  let disposeThemeBridge: (() => void) | undefined;
   const themeCatalog = options.themeCatalog;
   if (themeCatalog !== undefined && themeCatalog.size > 0 && uiParent !== undefined) {
     const firstName = themeCatalog.keys().next().value;
     const initialName = options.theme?.name ?? firstName;
     if (initialName !== undefined) {
-      themeBridge = installThemeBridge({
+      disposeThemeBridge = installThemeBridge({
         uiStore,
         themes: themeCatalog,
         initialName,
@@ -395,14 +395,14 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     bootAbort.abort();
     perfDisposed = true;
     perfBridge?.dispose();
-    themeBridge?.dispose();
+    disposeThemeBridge?.();
     shaderHmrDisposed = true;
     disposeShaderHmr?.();
     disposeUi?.();
     disposeSeedPlacer?.();
     disposePointer?.();
     disposePicker?.();
-    viewport.dispose();
+    disposeViewport();
     layerSync.dispose();
     sceneSync.dispose();
     pickerSync.dispose();

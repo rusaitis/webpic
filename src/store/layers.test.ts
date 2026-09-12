@@ -315,7 +315,7 @@ describe("simulationStore layers", () => {
     const store = createSimulationStore();
     store.getState().setDataset(bDataset());
     await flushAsync();
-    store.getState().addSliceLayer(); // layer-1 (slice, selected)
+    store.getState().addLayerOfKind("slice"); // layer-1 (slice, selected)
     await flushAsync();
     store.getState().setSliceAxis("layer-1", "x");
     store.getState().setSlicePosition("layer-1", 0.2);

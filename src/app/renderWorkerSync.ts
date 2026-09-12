@@ -12,7 +12,7 @@ import {
   type SimulationStore,
   unitBoxChordMidpoint,
 } from "@store";
-import { createStoreBridge } from "./storeBridge.ts";
+import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 // The cheap store→render-worker control channel (app-only glue: store and render can't import each
 // other). Pose, projection, camera-motion, and the timing panel's continuous-measure toggle each ride a
@@ -20,13 +20,10 @@ import { createStoreBridge } from "./storeBridge.ts";
 // its reply (handlePickResult) places the marker + retargets a focus fly. Gated on `workerReady` via
 // the shared store bridge; pose/projection get a ready-time catch-up via flushAll, mirroring layerSync.
 
-export interface RenderWorkerSyncOptions {
+export interface RenderWorkerSyncOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
   /** Owns the timing panel's "Measure" toggle the worker's continuous-repaint mode follows. */
   readonly perfStore: PerfStore;
-  readonly worker: Pick<Worker, "postMessage">;
-  /** Reads the bootstrap `workerReady` flag — nothing is posted until the worker is live. */
-  readonly isReady: () => boolean;
 }
 
 export interface RenderWorkerSync {
