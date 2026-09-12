@@ -156,21 +156,27 @@ export async function installRenderer(options: RendererOptions): Promise<Install
     renderer.autoClear = true;
   };
 
+  // Read whatever was just drawn into readTarget, unbind, and hand back a compact offset-0 buffer
+  // so the worker can transfer pixels.buffer wholesale. Both read paths end here; they differ only
+  // in what they draw first.
+  const drainReadTarget = async (): Promise<Uint8Array> => {
+    const data = await renderer.readRenderTargetPixelsAsync(
+      readTarget,
+      0,
+      0,
+      readTarget.width,
+      readTarget.height,
+    );
+    renderer.setRenderTarget(null);
+    return toTransferablePixels(compactPaddedRows(data, readTarget.width, readTarget.height));
+  };
+
   return {
     renderer,
     async readPixels(scene, camera) {
       renderer.setRenderTarget(readTarget);
       renderer.render(scene, camera);
-      const data = await renderer.readRenderTargetPixelsAsync(
-        readTarget,
-        0,
-        0,
-        readTarget.width,
-        readTarget.height,
-      );
-      renderer.setRenderTarget(null);
-      // Compact, offset-0 buffer so the worker can transfer pixels.buffer wholesale.
-      return toTransferablePixels(compactPaddedRows(data, readTarget.width, readTarget.height));
+      return drainReadTarget();
     },
     renderComposite(items) {
       // ≤1 layer: the direct swapchain path (the common single-layer case).
@@ -210,15 +216,7 @@ export async function installRenderer(options: RendererOptions): Promise<Install
     },
     async readCompositePixels(items) {
       compositeInto(readTarget, items); // leaves readTarget bound
-      const data = await renderer.readRenderTargetPixelsAsync(
-        readTarget,
-        0,
-        0,
-        readTarget.width,
-        readTarget.height,
-      );
-      renderer.setRenderTarget(null);
-      return toTransferablePixels(compactPaddedRows(data, readTarget.width, readTarget.height));
+      return drainReadTarget();
     },
     readbackSize() {
       return { width: readTarget.width, height: readTarget.height };

@@ -1,5 +1,6 @@
 import { clamp } from "@schema/math.ts";
 import { VIEWPORT_MARGIN_PX } from "../layout.ts";
+import { coalesceFrame } from "../pointerMath.ts";
 import { installPressDrag } from "./pressDrag.ts";
 
 // Pointer-driven drag + magnetic edge/corner snap for a single floating element (the colorbar).
@@ -604,16 +605,7 @@ export function installDragSnap(
 
   element.addEventListener("click", onClick, { capture: true, signal });
 
-  // Coalesce reflow triggers (window resize, chrome resize) to one per frame.
-  let reflowScheduled = false;
-  const scheduleReflow = (): void => {
-    if (reflowScheduled || !view) return;
-    reflowScheduled = true;
-    view.requestAnimationFrame(() => {
-      reflowScheduled = false;
-      reflow();
-    });
-  };
+  const scheduleReflow = coalesceFrame(view, reflow);
   view?.addEventListener("resize", scheduleReflow, { signal });
   // Re-clear when a chrome obstacle changes size — e.g. the coords chip widens once a dataset loads,
   // after the strip already docked against its old (empty) width. obstacles() registers each node;

@@ -50,7 +50,7 @@ interface ActiveDrag {
   readonly rect: DOMRect;
 }
 
-function distToSegment(p: ClientPoint, a: ClientPoint, b: ClientPoint): number {
+function distanceToSegment(p: ClientPoint, a: ClientPoint, b: ClientPoint): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len2 = dx * dx + dy * dy;
@@ -96,17 +96,17 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     );
     if (Math.hypot(clientX - corePx.x, clientY - corePx.y) <= hitPx) return "core";
     const handles = markerHandlePositions(cameraPose, pickerPoint, ortho);
-    if (handles.vertical !== null) {
-      const k = worldToScreen(cameraPose, handles.vertical, aspect, ortho);
-      if (!k.behind && distToSegment(cursor, corePx, clientOf(k.ndcX, k.ndcY, rect)) <= hitPx) {
-        return "vertical";
-      }
-    }
-    if (handles.horizontal !== null) {
-      const k = worldToScreen(cameraPose, handles.horizontal.position, aspect, ortho);
-      if (!k.behind && distToSegment(cursor, corePx, clientOf(k.ndcX, k.ndcY, rect)) <= hitPx) {
-        return "horizontal";
-      }
+    // Each handle is a stem from the core to its knob; the grab target is the whole segment.
+    const stems = [
+      ["vertical", handles.vertical],
+      ["horizontal", handles.horizontal?.position ?? null],
+    ] as const satisfies ReadonlyArray<readonly [MarkerPart, Vec3 | null]>;
+    for (const [part, knob] of stems) {
+      if (knob === null) continue;
+      const knobScreen = worldToScreen(cameraPose, knob, aspect, ortho);
+      if (knobScreen.behind) continue;
+      const knobPx = clientOf(knobScreen.ndcX, knobScreen.ndcY, rect);
+      if (distanceToSegment(cursor, corePx, knobPx) <= hitPx) return part;
     }
     return "none";
   };
@@ -195,20 +195,17 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     state.setPickerHover(part);
   };
 
-  const onPointerUp = (event: PointerEvent): void => {
+  // A completed drag swallows the event so the camera never also reads it as a click; a cancel
+  // (pointer stolen by the browser) has nothing to swallow.
+  const endDrag = (event: PointerEvent, { shouldSwallow }: { shouldSwallow: boolean }): void => {
     if (drag === undefined || event.pointerId !== drag.pointerId) return;
-    event.stopImmediatePropagation();
+    if (shouldSwallow) event.stopImmediatePropagation();
     target.releasePointerCapture?.(event.pointerId);
     drag = undefined;
     store.getState().setPickerActive(false);
   };
-
-  const onPointerCancel = (event: PointerEvent): void => {
-    if (drag === undefined || event.pointerId !== drag.pointerId) return;
-    target.releasePointerCapture?.(event.pointerId);
-    drag = undefined;
-    store.getState().setPickerActive(false);
-  };
+  const onPointerUp = (event: PointerEvent): void => endDrag(event, { shouldSwallow: true });
+  const onPointerCancel = (event: PointerEvent): void => endDrag(event, { shouldSwallow: false });
 
   // Held arrows integrate in a rAF loop (dt-scaled, constant speed). pickerActive rides the hold:
   // the marker shows its grab affordance, and the move reads as a drag, not a stream of placements

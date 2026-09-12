@@ -51,14 +51,9 @@ export interface SwatchSelectOptions<V extends string = string> extends SelectOp
   readonly paintSwatch: (canvas: HTMLCanvasElement, value: V) => void;
 }
 
-// A segmented (sliding-pill) single-select over a small fixed option set — same shape as a select,
+// A segmented (sliding-pill) single-select over a small fixed option set: a select's options,
 // rendered as N inline radio buttons with a highlight that slides to the active one.
-export interface SegmentedOptions<V extends string = string> {
-  readonly label: string;
-  readonly value: V;
-  readonly options: ReadonlyArray<SelectOption<V>>;
-  readonly onChange: (value: V) => void;
-}
+export type SegmentedOptions<V extends string = string> = SelectOptions<V>;
 
 // A range slider emits a single value or an [lo, hi] interval. The window/level control reads
 // the interval and converts to the store's {center, width} at the boundary (see rangeMath).

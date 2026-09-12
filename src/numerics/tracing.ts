@@ -577,9 +577,10 @@ export function traceFieldLinesAdaptive(
   signal?: AbortSignal,
 ): FieldLine[] {
   signal?.throwIfAborted();
-  const components = options.fieldComponents ?? DEFAULT_COMPONENTS;
+  // One resolve for the whole batch: the per-seed defaults must be the ones the single-seed tracer
+  // will use, so they come from the same place it reads them.
+  const { components, nullThreshold } = resolveTraceParams(data, options);
   const interp = options.interpolator ?? interpolatorFromDataset(data, components);
-  const nullThreshold = options.nullThreshold ?? 1e-12;
   const seedList = toSeedList(seeds);
   for (const s of seedList) validateSeed(interp, s, nullThreshold);
   // Each per-seed trace re-checks `signal` at entry + per integration step, so a cancel lands between

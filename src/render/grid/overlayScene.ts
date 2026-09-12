@@ -183,12 +183,9 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
   };
 
   // Grid planes — one batched LineSegments per enabled plane, shared major material.
-  const gridMaterial = config.show.grid
-    ? lineMaterial(config.grid.color, config.grid.majorOpacity)
-    : undefined;
-  if (gridMaterial !== undefined) materials.push(gridMaterial);
-
-  if (config.show.grid && gridMaterial !== undefined) {
+  if (config.show.grid) {
+    const gridMaterial = lineMaterial(config.grid.color, config.grid.majorOpacity);
+    materials.push(gridMaterial);
     for (const plane of PLANES) {
       if (!config.planes[plane.key]) continue;
       const ticksA = axisData[plane.a]?.ticks ?? [];

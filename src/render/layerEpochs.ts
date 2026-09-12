@@ -32,15 +32,17 @@ export function createLayerEpochs(): LayerEpochs {
   const building = new Map<string, LayerEntry>();
   let deferred: LayerEntry | undefined;
 
+  const bump = (id: string): number => {
+    const next = (epochs.get(id) ?? 0) + 1;
+    epochs.set(id, next);
+    return next;
+  };
+
   return {
-    begin(id) {
-      const next = (epochs.get(id) ?? 0) + 1;
-      epochs.set(id, next);
-      return next;
-    },
+    begin: bump,
     isCurrent: (id, epoch) => epochs.get(id) === epoch,
     supersedeAll(ids) {
-      for (const id of ids) epochs.set(id, (epochs.get(id) ?? 0) + 1);
+      for (const id of ids) bump(id);
     },
     warming: (id) => building.get(id),
     hold(id, entry) {

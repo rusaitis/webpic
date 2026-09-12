@@ -2,6 +2,7 @@ import type { SimulationStore, UiStore } from "@store";
 import { bottomDockLayout, colorbarFitMode, railGnomonCramped } from "./colorbar/bottomDock.ts";
 import type { Box, PaneEdge, Viewport } from "./floating/dragSnap.ts";
 import { readEdge } from "./floating/dragSnap.ts";
+import { coalesceFrame } from "./pointerMath.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
 // The bottom band coordinator: the one place that knows the bottom row's occupants — the centered
@@ -58,7 +59,6 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
   let collapsedWidth = COLLAPSED_WIDTH_ESTIMATE_PX;
   let naturalCluster = NATURAL_CLUSTER_ESTIMATE_PX;
   let settleTimer: number | undefined;
-  let isAdaptScheduled = false;
 
   const viewportWidth = (): number => doc.documentElement.clientWidth;
   const isOnBottomRow = (): boolean =>
@@ -178,14 +178,7 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
     }
   };
 
-  const scheduleAdapt = (): void => {
-    if (isAdaptScheduled || !view) return;
-    isAdaptScheduled = true;
-    view.requestAnimationFrame(() => {
-      isAdaptScheduled = false;
-      adapt();
-    });
-  };
+  const scheduleAdapt = coalesceFrame(view, adapt);
 
   // The band reshapes on a window resize, the gnomon toggle (corner footprint), and a new dataset
   // (the coords chip widens the cluster) — re-fit on each. The gnomon's own show/hide handles the

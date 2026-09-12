@@ -368,7 +368,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
         next = { ...next, position: request.position };
       }
       const axisChanged = request.axis !== undefined && request.axis !== params.axis;
-      if (request.axis !== undefined && axisChanged) next = { ...next, axis: request.axis };
+      if (axisChanged) next = { ...next, axis: request.axis };
       entry.source.params = next; // retained for a device-restore rebuild
       if (axisChanged) {
         // Fire-and-forget rebuild from the retained field; a failed rebuild is reported and the next

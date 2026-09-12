@@ -22,3 +22,17 @@ const MAX_FRAME_DT_MS = 100;
 export function frameDt(lastMs: number | undefined, nowMs: number): number {
   return lastMs === undefined ? NOMINAL_FRAME_MS : Math.min(nowMs - lastMs, MAX_FRAME_DT_MS);
 }
+
+// Collapse a burst of triggers (resize, ResizeObserver, a settle chain) into one call on the next
+// frame. Returns a no-op when the element is detached — no view, no rAF, nothing to schedule.
+export function coalesceFrame(view: Window | null, run: () => void): () => void {
+  let isScheduled = false;
+  return () => {
+    if (isScheduled || view === null) return;
+    isScheduled = true;
+    view.requestAnimationFrame(() => {
+      isScheduled = false;
+      run();
+    });
+  };
+}

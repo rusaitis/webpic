@@ -179,6 +179,20 @@ export function tickValues(
   return values;
 }
 
+// Tick VALUES → normalized positions: two values a micro-step apart land on the same pixel, so
+// round to 1e-6 and drop the collisions before sorting — otherwise a log axis stacks labels.
+function uniqueSortedPositions(scale: Scale, values: readonly number[]): number[] {
+  const seen = new Set<number>();
+  const positions: number[] = [];
+  for (const value of values) {
+    const t = Math.round(scale.toT(value) * 1e6) / 1e6;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    positions.push(t);
+  }
+  return positions.sort((a, b) => a - b);
+}
+
 // Tick positions in normalized [0, 1]. Linear → evenly by `step` (or `count`); log/symlog →
 // decade lines. Empty when the count would exceed MAX_TICKS (renders as a solid bar).
 export function tickPositions(
@@ -191,16 +205,7 @@ export function tickPositions(
   if (scale.kind === "linear" && values.length < 3) return [];
   if (values.length > MAX_TICKS) return [];
 
-  const seen = new Set<number>();
-  const ts: number[] = [];
-  for (const v of values) {
-    const t = Math.round(scale.toT(v) * 1e6) / 1e6;
-    if (!seen.has(t)) {
-      seen.add(t);
-      ts.push(t);
-    }
-  }
-  return ts.sort((a, b) => a - b);
+  return uniqueSortedPositions(scale, values);
 }
 
 // Sub-decade minor-tick positions in normalized [0, 1] for log/symlog (the 2..9 ×10ᵏ marks
@@ -231,16 +236,7 @@ export function minorTickPositions(scale: Scale): number[] {
   }
   if (values.length === 0 || values.length > MINOR_MAX_TICKS) return [];
 
-  const seen = new Set<number>();
-  const ts: number[] = [];
-  for (const v of values) {
-    const t = Math.round(scale.toT(v) * 1e6) / 1e6;
-    if (!seen.has(t)) {
-      seen.add(t);
-      ts.push(t);
-    }
-  }
-  return ts.sort((a, b) => a - b);
+  return uniqueSortedPositions(scale, values);
 }
 
 // Decimal places to render a {1,2,5}×10ᵏ `step` exactly: the negative decade of the step (0 for
