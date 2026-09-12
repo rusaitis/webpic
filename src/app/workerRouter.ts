@@ -4,12 +4,11 @@ import type { PerfStore, UiStore } from "@store";
 import { showBlockingBanner } from "./blockingBanner.ts";
 
 // Every render-worker reply, routed to whoever owns it. Bootstrap wires the seams; the switch lives
-// here so its exhaustiveness — a new response kind is a compile error until it is handled — reads
-// without the rest of boot around it.
+// here so its exhaustiveness — a new response kind is a compile error until handled — reads without
+// the rest of boot around it.
 //
 // Two replies are terminal rather than routed: a pre-first-frame `error` and `gpuRecoveryFailed` put
-// up a blocking banner, because the status pill auto-clears and the user would otherwise be left
-// staring at an empty canvas.
+// up a blocking banner, because the status pill auto-clears and the canvas would be left empty.
 
 export interface WorkerRouterHost {
   readonly uiStore: UiStore;

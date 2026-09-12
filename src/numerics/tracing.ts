@@ -1,12 +1,9 @@
 // Adaptive field-line tracing — integrates dr/ds = B̂(r) with the Dormand-Prince 5(4) step from
 // ./integrators.ts, arc-length parameterized. Mirrors pypic.traces (trace_field_line[s]_adaptive,
 // TerminationReason, FieldLine + the closed-loop arc-length gate). Pure leaf — typed arrays in/out,
-// no THREE/DOM/GPU; imports only @containers types + the same-layer integrator/interpolator.
-//
-// The vectorized multi-seed DP kernel is deferred to the GPU (the WGSL twin); traceFieldLinesAdaptive
-// here loops the single-seed tracer with a shared interpolator — the CPU-available slice of pypic's
-// batching win. `?? 0` on the buffer reads only satisfies noUncheckedIndexedAccess; every index is in
-// bounds by construction.
+// no THREE/DOM/GPU. The multi-seed form loops the single-seed tracer with a shared interpolator; the
+// vectorized fan-out is the WGSL twin's job. `?? 0` on buffer reads only satisfies
+// noUncheckedIndexedAccess — every index is in bounds by construction.
 
 import type { FieldDataset, Normalization } from "@containers/field_dataset.ts";
 import {
@@ -369,9 +366,10 @@ function resolveLoopKwargs(
     if (loopMinArclen !== null) throw new Error("loopMinArclen requires loopTol to be set");
     return { loopTol: null, loopMinArclen: 0 };
   }
-  if (loopTol <= 0) throw new Error(`loopTol must be positive, got ${loopTol}`);
+  if (loopTol <= 0) throw new Error(`resolveTraceParams: loopTol must be positive, got ${loopTol}`);
   if (loopMinArclen === null) return { loopTol, loopMinArclen: 10 * stepSizeInit };
-  if (loopMinArclen <= 0) throw new Error(`loopMinArclen must be positive, got ${loopMinArclen}`);
+  if (loopMinArclen <= 0)
+    throw new Error(`resolveTraceParams: loopMinArclen must be positive, got ${loopMinArclen}`);
   return { loopTol, loopMinArclen };
 }
 
@@ -427,9 +425,9 @@ export function validateSeed(
   if (rejection === null) return;
   const at = `(${seed[0]}, ${seed[1]}, ${seed[2]})`;
   if (rejection === "outside_domain") {
-    throw new Error(`seed ${at} is outside the interpolation domain`);
+    throw new Error(`validateSeed: seed ${at} is outside the interpolation domain`);
   }
-  throw new Error(`seed ${at} is at a field null (|B| < ${nullThreshold})`);
+  throw new Error(`validateSeed: seed ${at} is at a field null (|B| < ${nullThreshold})`);
 }
 
 /** Split a seed list into the traceable ones and the rejected ones (original indices kept, order

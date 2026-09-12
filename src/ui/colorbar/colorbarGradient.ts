@@ -47,12 +47,18 @@ export interface ColorbarTick {
   readonly label: string;
 }
 
+// Outside this magnitude band, fixed notation either loses every significant digit or runs past the
+// strip's width, so the readout switches to exponential. One pair of bounds for the value readout
+// and the tick set, so the strip and the slider never disagree about which notation a number gets.
+const NOTATION_MIN = 1e-3;
+const NOTATION_MAX = 1e4;
+
 // Compact readout: exponential for very small/large magnitudes, ~4 sig figs otherwise. Shared
 // with the colormap controls so the strip and the slider format identically.
 export function formatValue(v: number): string {
   if (!Number.isFinite(v)) return String(v);
   const a = Math.abs(v);
-  if (a !== 0 && (a < 1e-3 || a >= 1e4)) return v.toExponential(2);
+  if (a !== 0 && (a < NOTATION_MIN || a >= NOTATION_MAX)) return v.toExponential(2);
   return Number(v.toPrecision(4)).toString();
 }
 
@@ -65,7 +71,9 @@ export function formatTicks(values: readonly number[], step: number): string[] {
   let maxAbs = 0;
   for (const v of values) maxAbs = Math.max(maxAbs, Math.abs(v));
   const extreme =
-    step > 0 ? step < 1e-3 || maxAbs >= 1e4 : maxAbs !== 0 && (maxAbs < 1e-3 || maxAbs >= 1e4);
+    step > 0
+      ? step < NOTATION_MIN || maxAbs >= NOTATION_MAX
+      : maxAbs !== 0 && (maxAbs < NOTATION_MIN || maxAbs >= NOTATION_MAX);
   const decimals = Math.min(stepDecimals(step), 12);
   return values.map((v) => {
     const z = Object.is(v, -0) ? 0 : v;

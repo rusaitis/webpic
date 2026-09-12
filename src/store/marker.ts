@@ -26,6 +26,16 @@ export interface ScreenPoint {
 // Project a world point to NDC (x right, y up) — the inverse of cursorRay, reusing its orthonormal
 // orbit basis (forward, screenRight = (−sa, ca, 0), screenUp = (−ca·se, −sa·se, ce)). Perspective
 // divides by the forward depth; orthographic by the constant orbit distance (parallel rays).
+// A point this close to the eye plane has no meaningful screen position — the perspective divide
+// would explode. Report it as behind rather than projecting a wild NDC.
+const EYE_PLANE_EPSILON = 1e-9;
+
+// Ray ∥ plane / ray ∥ axis: the solve degenerates, so the caller keeps the marker where it is.
+// Looser for the plane case, where a grazing hit is already numerically useless well before it is
+// exactly parallel.
+const PARALLEL_PLANE_EPSILON = 1e-6;
+const PARALLEL_AXIS_EPSILON = 1e-9;
+
 export function worldToScreen(
   pose: CameraPose,
   point: Vec3,
@@ -48,7 +58,7 @@ export function worldToScreen(
   const xr = vx * -sa + vy * ca; // along screenRight
   const yu = vx * -ca * se + vy * -sa * se + vz * ce; // along screenUp
   const denom = isOrthographic ? d : zc;
-  if (denom <= 1e-9) return { ndcX: 0, ndcY: 0, behind: true };
+  if (denom <= EYE_PLANE_EPSILON) return { ndcX: 0, ndcY: 0, behind: true };
   return {
     ndcX: xr / (denom * CAMERA_HALF_FOV_TAN * aspect),
     ndcY: yu / (denom * CAMERA_HALF_FOV_TAN),
@@ -107,7 +117,7 @@ export function markerEdgePoint(pose: CameraPose, point: Vec3, isOrthographic: b
 export function dragOnPlane(ray: CursorRay, planePoint: Vec3, planeNormal: Vec3): Vec3 | null {
   const { origin, dir } = ray;
   const denom = dir[0] * planeNormal[0] + dir[1] * planeNormal[1] + dir[2] * planeNormal[2];
-  if (Math.abs(denom) < 1e-6) return null;
+  if (Math.abs(denom) < PARALLEL_PLANE_EPSILON) return null;
   const wx = planePoint[0] - origin[0];
   const wy = planePoint[1] - origin[1];
   const wz = planePoint[2] - origin[2];
@@ -123,7 +133,7 @@ export function dragAlongAxis(ray: CursorRay, axisOrigin: Vec3, axisDir: Vec3): 
   const b = axisDir[0] * dir[0] + axisDir[1] * dir[1] + axisDir[2] * dir[2];
   const denom = 1 - b * b;
   let s = 0;
-  if (Math.abs(denom) > 1e-9) {
+  if (Math.abs(denom) > PARALLEL_AXIS_EPSILON) {
     const rx = axisOrigin[0] - origin[0];
     const ry = axisOrigin[1] - origin[1];
     const rz = axisOrigin[2] - origin[2];

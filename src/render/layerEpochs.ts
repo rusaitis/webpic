@@ -1,12 +1,11 @@
 import type { LayerEntry } from "./layerRegistry.ts";
 
-// Who wins when two layer builds race, and when a replaced scene's GPU memory is actually freed.
-// Both answers are timing, not rendering, so they live apart from the registry's scene logic.
+// Who wins when two layer builds race, and when a replaced scene's GPU memory is actually freed. Both
+// answers are timing, not rendering, so they live apart from the registry's scene logic.
 //
-// An id's epoch bumps on every replace/remove and on a device rebuild, so an async warm that loses
-// the race discards its scene instead of committing a stale one. A replaced scene's dispose is
-// deferred by one swap: the rAF loop must never sample a GPUTexture a replace just released, which
-// reads back as the magenta sentinel.
+// An id's epoch bumps on every replace/remove and on a device rebuild, so an async warm that loses the
+// race discards its scene. A replaced scene's dispose is deferred by one swap: the rAF loop must never
+// sample a GPUTexture a replace just released, which reads back as the magenta sentinel.
 
 export interface LayerEpochs {
   // Open a build for `id`, invalidating any warm already in flight for it. The returned epoch is the

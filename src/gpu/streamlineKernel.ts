@@ -1,12 +1,11 @@
 import { createBufferPool } from "./bufferPool.ts";
 
 // One-shot WebGPU runner for the streamline kernel — the GPU twin of `computeKernel.ts`, but for the
-// fixed 7-binding streamline layout (3 field buffers + params + seeds + two read-write outputs) with two
-// readbacks (the vec4 point buffer and the per-work-item meta). Recipe-agnostic: the `compute` backend
-// supplies the WGSL, entry point, packed params, and f32 field/seed buffers. Deliberately minimal — no
-// pipeline cache, no vramLedger entry (these scratch buffers live for one dispatch and are destroyed
-// here). Dispatch is 1-D over work-items (one invocation per (seed, direction)); `nWork` is small, so no
-// grid-stride loop is needed.
+// fixed 7-binding streamline layout (3 field buffers + params + seeds + two read-write outputs) with
+// two readbacks. Recipe-agnostic: the `compute` backend supplies the WGSL, entry point, packed params,
+// and f32 buffers. Deliberately minimal — no pipeline cache, no vramLedger entry, because these
+// scratch buffers live for one dispatch. Dispatch is 1-D over work-items (one per (seed, direction));
+// `nWork` is small, so no grid-stride loop is needed.
 
 const WORKGROUP_SIZE = 64;
 const BYTES_PER_F32 = 4;

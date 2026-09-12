@@ -15,15 +15,12 @@ import type {
 } from "@data/streamMessages.ts";
 import { transferableBuffer } from "@schema/transfer.ts";
 
-// The data worker owns all off-main data I/O (DESIGN §Package shape): OPFS writes (below) and time-series
+// The data worker owns all off-main data I/O (DESIGN §Package shape): OPFS writes and time-series
 // streaming. On `open` it resolves a reader and reports the timestep domain; on `setCursor` it drives
-// a ring buffer (data/stream.ts) that reads + computes the scalar OFF the main thread and transfers it
-// straight to the render worker over a paired MessagePort (no main hop), so scrubbing never stalls the
-// UI. The reader/compute imports run only in this worker chunk.
-//
-// OPFS writes: createSyncAccessHandle() is the synchronous fast path and is worker-only in every
-// engine (and the only write path at all on Safari <26). The main thread reads async and dispatches
-// writes here. See docs/DESIGN.md §Caching.
+// a ring buffer (data/stream.ts) that reads + computes the scalar off the main thread and transfers
+// it straight to the render worker over a paired MessagePort, so scrubbing never stalls the UI.
+// OPFS writes live here because createSyncAccessHandle() is worker-only in every engine — main reads
+// async and dispatches writes to us. DESIGN §Caching.
 
 // This chunk typechecks under the WebWorker lib (tsconfig.worker.json), so `self` is the worker
 // global; the annotation just pins the message types on the wire.
@@ -37,7 +34,8 @@ async function cacheWrite(
 ): Promise<void> {
   const { dirs, name } = splitPath(request.path);
   const dir = await resolveDir(dirs, { create: true });
-  if (dir === undefined) throw new Error(`could not open cache directory for ${request.path}`);
+  if (dir === undefined)
+    throw new Error(`cacheWrite: could not open the cache directory for ${request.path}`);
   const fileHandle = await dir.getFileHandle(name, { create: true });
   const handle = await fileHandle.createSyncAccessHandle();
   try {
@@ -142,7 +140,7 @@ function buildRing(): void {
 // stream is the user's first scrub.
 async function resolveReader(h: DataHandle): Promise<void> {
   if (!isReaderRegistered) {
-    registerSyntheticReader(); // synthetic-only for v0.1 streaming; real readers register here later
+    registerSyntheticReader(); // synthetic-only streaming; real readers register here alongside it
     isReaderRegistered = true;
   }
   reader = await openSimulation(h);

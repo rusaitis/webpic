@@ -30,15 +30,12 @@ import { finishCanvasTexture } from "../canvasTexture.ts";
 import type { MarkerConfig } from "../messages.ts";
 import { createEasedChannels } from "./easedChannels.ts";
 
-// The draggable point-picker marker scene (worker-owned, composited last with the volume camera, like
-// the grid overlay). A z-up selection marker: an accent core
-// sphere, a billboarded two-tone outline ring (reads on any background), ↕ (z) and ↔ (x|y) drag-handle
-// knobs that gate on camera elevation, and a drop line + crosshair guide to the equatorial plane.
-//
-// The core (+ its ring/handle children) scales by the zoom-aware factor so its apparent size holds at
-// any dolly; the guides stay world-fixed. The geometry constants + gating live in @schema/marker so the
-// main-thread hit-test (store/marker) projects exactly these positions. Hover/pulse/active easing runs
-// in tick() — the worker keeps painting while it returns true, then the on-demand loop goes idle.
+// The draggable point-picker marker scene (worker-owned, composited last with the volume camera):
+// an accent core sphere, a billboarded two-tone outline ring that reads on any background, ↕ (z) and
+// ↔ (x|y) drag-handle knobs gated on camera elevation, and a guide to the equatorial plane. The core
+// scales by the zoom-aware factor so its apparent size holds at any dolly; the guides stay
+// world-fixed. Geometry constants + gating live in @schema/marker, so the main-thread hit-test
+// (store/marker) projects exactly these positions.
 
 export interface MarkerScene {
   readonly scene: Scene;

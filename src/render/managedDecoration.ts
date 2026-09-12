@@ -2,13 +2,11 @@ import { warmScene } from "./managedScene.ts";
 import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
 
 // The shared lifecycle skeleton behind every "single optional scene, replayed on device-restore"
-// manager — the axes/grid overlay and the point-picker marker today, any further chrome (clip planes,
-// selection widgets) tomorrow. It owns the committed scene + the config it was built from + the
-// superseding epoch, and runs the warm-then-commit on build / the replay on rebuild / the teardown.
-// The caller supplies the scene factory, the warm (which compiles the *full* composite with this scene
-// spliced in — the worker owns that), and an optional `prepare` that seeds a fresh scene with live
-// state before it goes visible (build pre-warm + rebuild). Managers compose their domain methods over
-// `current()`; see managedMarker for the interaction-state + easing extras layered on top.
+// manager — the axes/grid overlay and the point-picker marker today. It owns the committed scene, the
+// config it was built from, and the superseding epoch, and runs warm-then-commit on build, the replay
+// on rebuild, and the teardown. The caller supplies the scene factory, the warm (which compiles the
+// *full* composite with this scene spliced in — the worker owns that), and an optional `prepare` that
+// seeds a fresh scene with live state before it goes visible.
 export interface DecorationSpec<TScene extends { dispose(): void }, TConfig> {
   create(config: TConfig): TScene;
   warm(scene: TScene): Promise<unknown> | undefined;

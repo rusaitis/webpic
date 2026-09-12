@@ -12,13 +12,12 @@ import {
 import { createShortcutRegistry } from "./shortcuts.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
-// Centered bottom button rail: subtle
-// icon controls for the gnomon, orbit/fly mode, projection, and a momentary fit-to-view (the one
-// touch path to Z, since iPads have no keyboard), a text "coords" chip that names the loaded
-// coordinate frame + its spatial units and opens a grid-info card, and a help button.
-// ui → store only — every button dispatches a typed intent or reads a slice; no render import.
-// "Gnomon-aware": it reserves the bottom-left gnomon's footprint (the has-gnomon inset) so the centered
-// cluster never slides under it. Hides with the global UI toggle, like ui/cameraChrome.
+// Centered bottom button rail: icon controls for the gnomon, orbit/fly mode, projection, and a
+// momentary fit-to-view (the one touch path to Z, since iPads have no keyboard), a text "coords" chip
+// naming the loaded coordinate frame and its units, and a help button. ui → store only — every button
+// dispatches a typed intent; no render import. Gnomon-aware: it reserves the bottom-left gnomon's
+// footprint (the has-gnomon inset) so the centered cluster never slides under it. Hides with the
+// global UI toggle, like ui/cameraChrome.
 
 // 16×16 inline SVGs (no icon-font dep). `stroke: currentColor; fill: none` come from the rail CSS, so
 // the whole button tints together; per-icon fills opt back in where a glyph wants a solid mark.

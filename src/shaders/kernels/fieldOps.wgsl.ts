@@ -1,10 +1,9 @@
 // WGSL compute kernels for the field operators magnitude / curl / divergence, shared with the rustpic
 // simulator (standalone WGSL — a strict WESL subset; no preprocessor yet, so the shared prelude is
 // concatenated as TS strings). One module, one bind-group layout, one `Params` struct, three entry
-// points, so the byte layout has a single source: binding 0/1/2 = the three component inputs,
-// 3 = params, 4 = output. Indexing matches coordinates/operators.ts — row-major (nx,ny,nz),
-// strideX = ny*nz, strideY = nz, strideZ = 1 — over a grid-stride loop, so one X dispatch under the
-// guaranteed 65535-workgroup limit still covers a 256³ field.
+// points, so the byte layout has a single source: binding 0/1/2 = the component inputs, 3 = params,
+// 4 = output. Indexing matches coordinates/operators.ts — row-major (nx,ny,nz) — over a grid-stride
+// loop, so one X dispatch under the guaranteed 65535-workgroup limit still covers a 256³ field.
 
 import { PARAMS_STRUCT, STENCIL_PRELUDE } from "./prelude.wgsl.ts";
 

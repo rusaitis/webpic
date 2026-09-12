@@ -1,14 +1,11 @@
 import type { FrameClock } from "@schema/timing.ts";
 
-// Per-frame GPU timing for the diagnostics panel, render-local (like raymarchScene.ts) — NOT the
-// gpu/profiler.ts path, which times an *owned* compute pass and can't reach three's internally
-// managed render encoder.
+// Per-frame GPU timing for the diagnostics panel, render-local — NOT gpu/profiler.ts, which times an
+// *owned* compute pass and cannot reach three's internally managed render encoder.
 //
 // Wall-clock only: performance.now() bracketing device.queue.onSubmittedWorkDone(). Render-pass
-// timestamp-query was removed — three writes timestampWrites into every pass incl. the swapchain
-// present, and resolving them (resolveTimestampsAsync → resultBuffer.mapAsync) loses the device on
-// Metal. The measurement is coarser (includes JS/queue latency), so the panel labels it distinctly
-// and never reads it as pure GPU time.
+// timestamp-query was removed because resolving it loses the device on Metal. The measurement is
+// coarser (it includes JS/queue latency), so the panel labels it distinctly.
 
 export interface FrameTimer {
   readonly mode: FrameClock;

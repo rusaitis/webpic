@@ -61,7 +61,7 @@ export function createCompositeAssembler(host: CompositeAssemblerHost): Composit
     const volume = host.volumeCamera();
     const ortho = host.orthoCamera();
     if (volume === undefined || ortho === undefined) {
-      throw new Error("render before init");
+      throw new Error("compositeAssembler: render before init — no renderer installed yet");
     }
     const items = host.layerItems(volume, ortho, layerOverride, into);
     // The overlay + marker composite last (on top), paired with the SAME pose-driven camera as the
@@ -93,7 +93,7 @@ export function createCompositeAssembler(host: CompositeAssemblerHost): Composit
   function paintInto(into: CompositeDrawItem[] | undefined): CompositeDrawItem[] {
     const ortho = host.orthoCamera();
     if (ortho === undefined) {
-      throw new Error("render before init");
+      throw new Error("compositeAssembler: render before init — no renderer installed yet");
     }
     if (into !== undefined) into.length = 0;
     const items = assemble(undefined, undefined, undefined, into);

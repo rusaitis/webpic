@@ -1,12 +1,9 @@
 // Dormand-Prince 5(4) adaptive ODE step — the CPU reference the field-line tracer is built on.
 // Seven-stage FSAL Runge-Kutta: the 5th-order weights (DP_B5) propagate the solution, the embedded
 // 4th-order weights (DP_B4) give the error estimate that drives step-size control. State-vector-
-// agnostic (any dimension); the RHS may return null to flag an invalid point (magnetic null,
-// out-of-domain) so the caller classifies the stop in its own vocabulary. Mirrors pypic.numerics
-// (_rk + _step_control) — the tableau is written as exact fractions so the f64 rounding matches
-// numpy. Batched multi-seed forms are deferred (the WGSL twin fans out on the GPU). Pure leaf —
-// typed arrays in/out, no THREE/DOM/GPU. The `?? 0` / `?.` on indexed reads only satisfy
-// noUncheckedIndexedAccess; every index is in-bounds by construction.
+// agnostic; the RHS may return null to flag an invalid point (magnetic null, out-of-domain) so the
+// caller classifies the stop in its own vocabulary. Mirrors pypic.numerics — the tableau is written
+// as exact fractions so the f64 rounding matches numpy. Pure leaf, no THREE/DOM/GPU.
 
 /** RHS of the ODE `dy/dt = f(y)`. Returns a same-length vector, or null to signal an invalid point. */
 export type Rhs = (y: Float64Array) => Float64Array | null;

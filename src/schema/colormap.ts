@@ -5,7 +5,7 @@ import type { FieldName } from "./types.ts";
 // canonical {center, width} form; a discriminated scale. No per-binding units/min,max (units come
 // from the registry/theme; the range is the window) or linthresh (symlog's half-width is auto-derived).
 
-// The colormaps webpic ships in v0.1 — the keys the analytic fits below cover. A ColormapBinding
+// The colormaps webpic ships — the keys the analytic fits below cover. A ColormapBinding
 // stores one of these; theme strings + arbitrary labels resolve to one (resolveColormapName),
 // falling back to inferno.
 export type ColormapId = "inferno" | "viridis" | "plasma" | "magma";

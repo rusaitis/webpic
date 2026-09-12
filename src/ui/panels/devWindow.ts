@@ -6,13 +6,11 @@ import { installDevPanel } from "./devPanel.ts";
 import { installTimingPanel } from "./timingPanel.ts";
 
 // The Developer tool as a small, free-floating window (grip-dragged, corner-resized) rather than a
-// full-height docked panel. Reuses the createFloatingWindow template for the chrome and hosts the
-// in-development controls: the frame-timing panel (the 8 ms raymarch-gate instrument + its
-// sustained-measurement toggle) and the volume Phong toggle. Hides with the global UI toggle, like the
-// colorbar. Opens compact in the top-right (the window's defaults).
-// Visibility is the `panels.dev` flag, default *closed*: it is a developer instrument, and an
-// open dev window is the wrong first frame for someone who just opened the app. The rail's
-// Developer button toggles it and the header × clears it, both without the F UI toggle.
+// docked panel. Reuses createFloatingWindow for the chrome and hosts the in-development controls: the
+// frame-timing panel and the volume Phong toggle. Hides with the global UI toggle, like the colorbar.
+// Visibility is the `panels.dev` flag, default *closed*: it is a developer instrument, and an open dev
+// window is the wrong first frame for someone who just opened the app. The rail's Developer button
+// toggles it and the header × clears it, both without the F UI toggle.
 
 export function installDevWindow(
   parent: HTMLElement,

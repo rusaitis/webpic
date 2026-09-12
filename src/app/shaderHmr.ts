@@ -1,14 +1,11 @@
 import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 
 // Dev-only shader HMR bridge. The render worker imports the raymarch scene factory but isn't
-// HMR-self-accepting, so a normal edit to its WGSL/TSL would bubble to a full page reload (losing the
-// camera pose + the uploaded volume). The `webpic:shader-hmr` Vite plugin (vite.config.ts) intercepts
-// that edit and fires a custom HMR event instead; this bridge forwards it to the worker as a
-// `rebuildShader` request, which re-imports the edited module and swaps the volume material in place —
-// no reload, the pose + uploaded texture survive.
-//
-// `import.meta.hot` is undefined in production, so installShaderHmr is a no-op there; main.ts only
-// dynamic-imports this module when `import.meta.hot` is truthy, so it never ships in the prod bundle.
+// HMR-self-accepting, so an edit to its WGSL/TSL would bubble to a full page reload, losing the camera
+// pose and the uploaded volume. The `webpic:shader-hmr` Vite plugin intercepts that edit and fires a
+// custom event; this forwards it to the worker as `rebuildShader`, which swaps the material in place.
+// `import.meta.hot` is undefined in production and main.ts only dynamic-imports this behind it, so
+// none of it ships in the prod bundle.
 
 // The custom HMR event the Vite plugin emits on a raymarch-shader edit (kept in sync with the literal
 // in vite.config.ts's shaderHmr plugin — a stable protocol string, not imported across the config seam).

@@ -6,12 +6,9 @@ import { BACKEND_IDS, type BackendId } from "./backend.ts";
 // STAGED: not installed — field.ts picks backends first-wins until a second dispatcher backend
 // (WASM) gives these scores something to rank; see docs/DESIGN.md §Compute dispatcher.
 //
-// Background backend microbench + calibration cache. On install: warm-start from cached
-// per-adapter scores, else seed hardcoded heuristics so the dispatcher has scores immediately
-// while a background bench refines and writes them back. See docs/DESIGN.md §Caching.
-//
-// `compute` may not import `data` (DAG), so the OPFS cache is injected as a structural port
-// (CalibrationCache) — the real @data Cache is assignable; the app wires it.
+// Background backend microbench + calibration cache: warm-start from cached per-adapter scores, else
+// seed heuristics so the dispatcher has scores immediately while a background bench refines them.
+// `compute` may not import `data`, so the OPFS cache is injected as a structural port. DESIGN §Caching.
 
 export const CALIBRATION_VERSION = "1"; // bump on kernel/bench change → silent invalidation
 const CALIBRATION_NAMESPACE = "calibration";

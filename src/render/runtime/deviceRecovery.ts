@@ -2,12 +2,11 @@ import { type DeviceLossEvent, onDeviceLost, onDeviceRestored } from "@gpu";
 import type { GpuRecoveryReason } from "../messages.ts";
 
 // GPU device-loss recovery. gpu/ re-acquires the device after a loss and fires onDeviceRestored;
-// render/ must then rebuild the renderer + every scene on the new device (the old ones hold dead GPU
-// handles), or a recoverable loss becomes a permanently frozen swapchain. This owns the loss policy
-// (recoverable vs terminal), the isDeviceLost flag the loop pauses on, and the rebuild ORDER — the
-// most consequence-laden sequence in render/, where a wrong order leaves a magenta/frozen swapchain.
-// The worker keeps every GPU resource the steps touch and exposes them as cohesive capabilities, so
-// this sequences the recovery without owning any three/renderer handle.
+// render/ must then rebuild the renderer and every scene on the new device, or a recoverable loss
+// becomes a permanently frozen swapchain. This owns the loss policy (recoverable vs terminal), the
+// isDeviceLost flag the loop pauses on, and the rebuild ORDER — the most consequence-laden sequence in
+// render/, where a wrong order leaves a magenta or frozen swapchain. The worker owns the GPU resources
+// and exposes them as capabilities, so this sequences the recovery without holding a three handle.
 export interface DeviceRecoveryHost {
   // Has the first renderer been built? A pre-init loss has nothing to rebuild.
   hasCanvas(): boolean;

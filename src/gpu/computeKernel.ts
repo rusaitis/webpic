@@ -1,13 +1,11 @@
 import { createBufferPool } from "./bufferPool.ts";
 
-// A thin, one-shot WebGPU compute runner: upload N read-only f32 input buffers + a params buffer,
+// A thin, one-shot WebGPU compute runner: upload N read-only f32 input buffers plus a params buffer,
 // dispatch a single-output kernel, read the result back. Recipe-agnostic — the WebGPU compute backend
 // supplies the WGSL, entry point, and packed params. Deliberately minimal: no pipeline cache and no
-// vramLedger entry (these scratch buffers live for one dispatch and are destroyed here, so they must
-// not flicker the steady-state VRAM HUD; pooling + caching arrive with live routing).
-//
-// Dispatch is 1-D and capped at the WebGPU-guaranteed `maxComputeWorkgroupsPerDimension` minimum
-// (65535); the kernel's grid-stride loop covers any element count above that single-pass reach.
+// vramLedger entry, because these scratch buffers live for one dispatch and would otherwise flicker
+// the steady-state VRAM HUD. Dispatch is 1-D and capped at the WebGPU-guaranteed 65535 workgroups;
+// the kernel's grid-stride loop covers any element count above that.
 
 const WORKGROUP_SIZE = 256;
 const MAX_WORKGROUPS_PER_DIM = 65535; // WebGPU spec guaranteed minimum; the kernel loops past it

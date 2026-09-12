@@ -30,7 +30,7 @@ import { NO_FINITE_RANGE, type ScalarField } from "./volume/volumeTexture.ts";
 // CPU buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity
 // are mutable — swapField/setColormap/setComposite update them so a device-loss rebuild reproduces the
 // current state (the live timestep + look), not the stale upsert-time one. Retaining the field doubles
-// its residency (CPU + GPU); fine for v0.1's one small volume, and the price of self-contained
+// its residency (CPU + GPU); fine for one small volume, and the price of self-contained
 // recovery (no reseed wire).
 export interface FieldSource {
   readonly layerKind: FieldLayerKind;

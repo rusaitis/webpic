@@ -78,6 +78,10 @@ export function focusDistance(distance: number): number {
 // along the live target→camera ray each frame). An off-axis pick therefore swivels the view
 // toward the point as it approaches; a centered pick reduces to a pure dolly. The existing
 // flyTo tween animates the returned pose, shortest-arc on the swivel.
+// The picked point sits on the camera itself (the camera is inside the box), so there is no aim
+// direction to derive — keep the current angles rather than dividing by ~0.
+const DEGENERATE_AIM_LENGTH = 1e-9;
+
 export function focusPoseOnPoint(
   pose: CameraPose,
   point: Vec3,
@@ -90,7 +94,7 @@ export function focusPoseOnPoint(
   const vz = tz + pose.distance * Math.sin(pose.elevation) - point[2];
   const len = Math.hypot(vx, vy, vz);
   // Picked point at the camera itself (camera inside the box) — no aim direction; keep the angles.
-  if (len < 1e-9) {
+  if (len < DEGENERATE_AIM_LENGTH) {
     return {
       target: point,
       azimuth: pose.azimuth,

@@ -1,6 +1,6 @@
 // A task whose every call supersedes the one before it: the prior run's signal aborts (stopping its
 // in-flight work) and its pending commit is discarded, so only the newest call's result lands — the
-// pull-based invalidation counter (DESIGN §Compute dispatcher) in its v0.1 shape. The body checks
+// pull-based invalidation counter (DESIGN §Compute dispatcher). The body checks
 // `isCurrent()` after every await and returns silently when it is false; supersession never rejects.
 
 export interface TaskRun {

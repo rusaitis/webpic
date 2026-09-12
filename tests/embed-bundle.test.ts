@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 // The built artifact, not the source facade (tests/embed.test.ts covers that): a headless embedder
 // gets whatever the bundle actually contains. Three.js leaking in would double the download, and a
-// DOM or v0.2-reader reference would break `import "@webpic/embed"` in node. Needs `npm run
+// DOM or heavy-reader reference would break `import "@webpic/embed"` in node. Needs `npm run
 // build:embed` first — `npm run check` and CI build before testing; a bare `vitest` run skips.
 const DIST = join(import.meta.dirname, "..", "dist-embed");
 const built = existsSync(DIST);

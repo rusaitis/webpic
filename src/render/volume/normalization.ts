@@ -30,7 +30,7 @@ function scaleMode(scale: ColorScale): number {
 }
 
 // symlog linear half-width: |v|≤L is linear, beyond it logarithmic. Auto-derived from the window
-// (the binding carries no linthresh in v0.1); matches rangeMath's guess (max|extent|/100).
+// (the binding carries no linthresh yet); matches rangeMath's guess (max|extent|/100).
 function symlogThresh(lo: number, hi: number, override?: number): number {
   return Math.max(override ?? Math.max(Math.abs(lo), Math.abs(hi)) / 100, LOG_EPS);
 }

@@ -5,8 +5,9 @@ import { LAYERS, type LayerName } from "../scripts/layers.ts";
 
 // An API-doc block outside the published surface restates a signature that is already the spec, and a
 // file header longer than six lines is design rationale that belongs in docs/DESIGN.md (CLAUDE.md
-// §Comments & docs). The JSDoc rule is strict — every layer below is at zero. The header rule is still
-// a ratchet: HEADER_CEILING holds today's worst file per layer and only ever falls.
+// §Comments & docs). Both are strict now: every undocumented layer is at zero JSDoc blocks, and the
+// per-layer header ratchet reached the six-line limit on every layer, so it became the rule it was
+// converging on.
 const UNDOCUMENTED_LAYERS = [
   "render",
   "ui",
@@ -34,27 +35,6 @@ const DOCUMENTED_LAYERS = [
 ] as const satisfies readonly LayerName[];
 
 const HEADER_LIMIT = 6;
-
-const HEADER_CEILING = {
-  schema: 6,
-  containers: 6,
-  coordinates: 6,
-  numerics: 9,
-  reductions: 6,
-  derived: 6,
-  diagnostics: 6,
-  gpu: 8,
-  shaders: 7,
-  compute: 9,
-  data: 8,
-  remote: 6,
-  render: 9,
-  store: 7,
-  ui: 9,
-  app: 9,
-  workers: 9,
-  embed: 6,
-} as const satisfies Record<LayerName, number>;
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -102,7 +82,6 @@ describe("comment budget", () => {
   it("accounts for every layer", () => {
     const covered = new Set<string>([...UNDOCUMENTED_LAYERS, ...DOCUMENTED_LAYERS]);
     expect([...covered].sort()).toEqual([...LAYERS].sort());
-    expect(Object.keys(HEADER_CEILING).sort()).toEqual([...LAYERS].sort());
   });
 
   for (const layer of UNDOCUMENTED_LAYERS) {
@@ -111,21 +90,10 @@ describe("comment budget", () => {
     });
   }
 
-  for (const [layer, ceiling] of Object.entries(HEADER_CEILING)) {
-    it(`keeps every ${layer} file header at or below ${ceiling} lines`, () => {
-      const worst = longestHeader(layer as LayerName);
-      expect(worst.length, worst.file).toBeLessThanOrEqual(ceiling);
+  for (const layer of LAYERS) {
+    it(`keeps every ${layer} file header at or below ${HEADER_LIMIT} lines`, () => {
+      const worst = longestHeader(layer);
+      expect(worst.length, worst.file).toBeLessThanOrEqual(HEADER_LIMIT);
     });
   }
-
-  it("never raises a header ceiling above the file that set it", () => {
-    // A ceiling loosened to admit a new preamble defeats the ratchet; the slack is the tell.
-    for (const [layer, ceiling] of Object.entries(HEADER_CEILING)) {
-      const worst = longestHeader(layer as LayerName);
-      const floor = Math.max(HEADER_LIMIT, worst.length);
-      expect(ceiling - floor, `${layer} ceiling ${ceiling} vs ${worst.length} lines`).toBeLessThan(
-        3,
-      );
-    }
-  });
 });

@@ -1,11 +1,9 @@
-// Buffer bookkeeping shared by the two compute kernel runners. Every GPUBuffer a dispatch allocates
-// is tracked so one `destroyAll()` in a finally frees them on every path — success, abort, a captured
-// validation error, or a device-loss readback rejection.
-//
-// The three allocations have exactly three shapes, so they are named rather than re-spelled: a
-// storage input (created and written in one step), a storage output the pass writes, and the
-// MAP_READ staging buffer the output is copied into — MAP_READ and STORAGE are mutually exclusive,
-// which is why a readback is always a second buffer.
+// Buffer bookkeeping shared by the two compute kernel runners. Every GPUBuffer a dispatch allocates is
+// tracked so one `destroyAll()` in a finally frees them on every path — success, abort, a captured
+// validation error, or a device-loss readback rejection. The three allocations have exactly three
+// shapes, so they are named rather than re-spelled: a storage input (created and written in one step),
+// a storage output the pass writes, and the MAP_READ staging buffer the output is copied into —
+// MAP_READ and STORAGE are mutually exclusive, which is why a readback is always a second buffer.
 
 const BYTES_PER_F32 = 4;
 

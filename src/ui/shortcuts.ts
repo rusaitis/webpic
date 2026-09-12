@@ -1,13 +1,12 @@
 import type { Disposer } from "./controls/index.ts";
 import { isTypingTarget } from "./keyboard.ts";
 
-// Bare-key shortcuts: one registry implementation with the single guard set every binding shares —
-// a typing surface keeps its keystrokes, a Meta/Ctrl/Alt chord is never a shortcut, an already-
-// handled event (defaultPrevented) stays handled. Each subsystem creates its own registry on the
-// document (ui/install, ui/pointerCamera, the panels); a matched key is claimed (preventDefault) so
-// the page gets no quick-find / scroll side effect. SHORTCUTS below is the cheat-sheet the help
-// overlay renders — keep it in step with the registrations until the theme-shortcut system
-// (schema/theme.ts) drives both.
+// Bare-key shortcuts: one registry implementation with the guard set every binding shares — a typing
+// surface keeps its keystrokes, a Meta/Ctrl/Alt chord is never a shortcut, an already-handled event
+// stays handled. Each subsystem creates its own registry on the document; a matched key is claimed
+// (preventDefault) so the page gets no quick-find or scroll side effect. SHORTCUTS below is the
+// cheat-sheet the help overlay renders — keep it in step with the registrations until the
+// theme-shortcut system (schema/theme.ts) drives both.
 
 interface ShortcutOptions {
   // Shift requirement: "none" (default) fires only unshifted, "shift" only shifted, "any" ignores it.

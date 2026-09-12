@@ -1,10 +1,9 @@
 // Trilinear vector-field interpolation — the sampler the field-line tracer's dr/ds = B̂(r) RHS
 // evaluates at arbitrary positions. Mirrors pypic's traces.VectorFieldInterpolator (scipy
-// RegularGridInterpolator, method="linear", bounds_error=False, fill_value=nan) over a uniform grid.
+// RegularGridInterpolator, linear, fill_value=nan) over a uniform grid.
 //
-// pypic grids are CELL-CENTERED: sample i sits at origin + (i + 0.5)·dx (GridInfo.coordinate_arrays),
-// so the physical→index map carries a −0.5 offset and the in-domain range is t ∈ [0, dim−1], i.e.
-// physical [origin + 0.5·dx, origin + (dim − 0.5)·dx].
+// pypic grids are CELL-CENTERED: sample i sits at origin + (i + 0.5)·dx, so the physical→index map
+// carries a −0.5 offset and the in-domain range is t ∈ [0, dim−1].
 
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 

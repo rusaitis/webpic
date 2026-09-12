@@ -3,13 +3,12 @@ import { logWarn } from "@schema/log.ts";
 import type { SliceContext, TraceNotice } from "./state.ts";
 import { createSupersedingTask } from "./supersedingTask.ts";
 
-// Re-trace every field-line layer's seeds from the vector field its `field` names
-// (compute/vectorComponentsForField), publishing FieldLine[] + a TraceNotice per layer id. Seed
-// failure is per seed, not per batch: a seed at a null or outside the domain is skipped and counted
-// in the notice, so one bad seed in a rake can't discard the rest. A per-layer try/catch still guards
-// a genuine failure — a dataset without the components, a degenerate grid — recorded as the notice's
-// `error`. Total (never rejects), so callers fire it with `void`. Off-main + GPU dispatch + scrub
-// re-trace stay deferred behind the worker/main-device seam.
+// Re-trace every field-line layer's seeds from the vector field its `field` names, publishing
+// FieldLine[] + a TraceNotice per layer id. Seed failure is per seed, not per batch: a seed at a null
+// or outside the domain is skipped and counted in the notice, so one bad seed in a rake cannot discard
+// the rest. A per-layer try/catch still guards a genuine failure — a dataset without the components,
+// a degenerate grid — recorded as the notice's `error`. Total (never rejects), so callers fire it
+// with `void`.
 
 export type Retrace = () => Promise<void>;
 

@@ -1,11 +1,9 @@
 // STAGED: activates when trace dispatch moves off the main thread.
 //
-// WebGPU field-line tracer — the GPU twin of numerics/tracing.ts `traceFieldLinesAdaptive`. Fans the
-// adaptive Dormand-Prince 5(4) trace out across one GPU invocation per (seed, direction) work-item, then
-// reuses the CPU `stitch` + `makeFieldLine` for the "both"/backward join and FieldLine assembly so the
-// output is shape-identical to the goldens. Like the field-op backend it is a standalone function, NOT
-// a `ComputeBackend` (its output is `FieldLine[]`, not a scalar/vector field) — wired onto the
-// store's `recompute()` AbortController seam.
+// WebGPU field-line tracer — the GPU twin of numerics/tracing.ts. Fans the adaptive Dormand-Prince
+// 5(4) trace across one invocation per (seed, direction), then reuses the CPU `stitch` +
+// `makeFieldLine` so the output is shape-identical to the goldens. A standalone function, not a
+// `ComputeBackend`: its output is `FieldLine[]`, not a field.
 
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import { getDevice } from "@gpu/device.ts";

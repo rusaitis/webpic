@@ -38,10 +38,14 @@ export function snapToStep(raw: number, min: number, max: number, step?: number)
   return clamp(min + Math.round((c - min) / step) * step, min, max);
 }
 
-// `minStep` floors the granularity near 0; the +ε guards log10's just-under-integer powers.
+// FP slack for log10 comparisons: 10**k comes back as 0.9999999999999999·k often enough that a bare
+// floor() drops a whole decade, and a value sitting exactly on a decade reads as just under it.
+const LOG_DECADE_SLACK = 1e-9;
+
+// `minStep` floors the granularity near 0; the slack guards log10's just-under-integer powers.
 function decadeStep(a: number, minStep: number): number {
   if (!(a > 0)) return minStep > 0 ? minStep : 0;
-  const d = 10 ** Math.floor(Math.log10(a) + 1e-9);
+  const d = 10 ** Math.floor(Math.log10(a) + LOG_DECADE_SLACK);
   return minStep > 0 ? Math.max(d, minStep) : d;
 }
 
@@ -71,7 +75,7 @@ export function stepDecade(
   const a = Math.abs(c);
   let d = decadeStep(a, minStep);
   const towardZero = c !== 0 && dir !== Math.sign(c);
-  if (towardZero && a > 0 && Math.abs(a / d - 1) < 1e-9) {
+  if (towardZero && a > 0 && Math.abs(a / d - 1) < LOG_DECADE_SLACK) {
     d = minStep > 0 ? Math.max(d / 10, minStep) : d / 10;
   }
   return snapToDecade(c + dir * d, min, max, minStep);
@@ -277,8 +281,8 @@ export function niceLinearTicks(lo: number, hi: number, targetCount: number): Ni
   const step = niceStep(max - min, targetCount);
   if (!(step > 0)) return { values: [], step: 0 };
   const decimals = Math.min(stepDecimals(step), 20);
-  const kStart = Math.ceil(min / step - 1e-9); // ε includes an endpoint sitting exactly on the grid
-  const kEnd = Math.floor(max / step + 1e-9);
+  const kStart = Math.ceil(min / step - LOG_DECADE_SLACK); // includes an endpoint sitting exactly on the grid
+  const kEnd = Math.floor(max / step + LOG_DECADE_SLACK);
   const values: number[] = [];
   for (let k = kStart; k <= kEnd; k++) {
     values.push(Number((k * step).toFixed(decimals))); // snap to the grid, killing FP drift

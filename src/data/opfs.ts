@@ -11,7 +11,8 @@ export function isNotFound(error: unknown): boolean {
 export function splitPath(path: string): { dirs: readonly string[]; name: string } {
   const segments = path.split("/");
   const name = segments.pop();
-  if (name === undefined || name === "") throw new Error(`invalid cache path: ${path}`);
+  if (name === undefined || name === "")
+    throw new Error(`splitPath: invalid cache path, expected "dir/.../name", got "${path}"`);
   return { dirs: segments, name };
 }
 

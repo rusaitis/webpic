@@ -146,7 +146,7 @@ export type RenderWorkerRequest =
     }
   // Build or rebuild a field-line layer's scene from packed world-space polylines. Transfers both
   // buffers: `positions` is flat f32 xyz for every vertex of every line concatenated in line order,
-  // `counts` is the u32 vertex count per line (partitions positions). v0.1 colors the set solid
+  // `counts` is the u32 vertex count per line (partitions positions). The set is drawn solid
   // (`color`, derived by the app from the layer's colormap).
   | {
       readonly kind: "upsertFieldlines";
@@ -337,7 +337,7 @@ export type RenderWorkerResponse =
   // A layer upsert finished warming its GPU pipelines (renderer.compileAsync over the prospective
   // composite, DESIGN §Worker message protocol) — its first paint won't hitch on a sync driver compile,
   // so the app drops the loading pill it raised on the upsert. Echoes the layer `id` (all upserts share
-  // REQUEST_IDS.layer, so the id — not requestId — addresses the layer; v0.1's one-layer app coalesces
+  // REQUEST_IDS.layer, so the id — not requestId — addresses the layer; a one-layer scene coalesces
   // them under a single pill). Fires on success, supersede, OR warm failure (the first paint then
   // sync-compiles), so the pill never strands.
   | { readonly kind: "layerCompiled"; readonly requestId: number; readonly id: string }

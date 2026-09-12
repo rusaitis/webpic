@@ -45,12 +45,16 @@ function trackTicks(options: RangeDomOptions): { major: number[]; minor: number[
   }
   if (!options.isInterval && options.origin > options.min && options.origin < options.max) {
     const originT = options.scale.toT(options.origin);
-    if (!major.some((t) => Math.abs(t - originT) < 1e-6)) major.push(originT);
+    if (!major.some((t) => Math.abs(t - originT) < SAME_TICK_POSITION)) major.push(originT);
   }
   const minor =
     options.ticks && options.hasMinorTicks ? [...minorTickPositions(options.scale)] : [];
   return { major, minor };
 }
+
+// Two normalized tick positions closer than this land on the same pixel — the origin tick is
+// already drawn, so do not add a duplicate on top of it.
+const SAME_TICK_POSITION = 1e-6;
 
 export function buildRangeDom(doc: Document, options: RangeDomOptions): RangeParts {
   const { min, max, isInterval } = options;

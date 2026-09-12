@@ -1,11 +1,9 @@
-// Tracked-allocation byte ledger backing the perf HUD's VRAM estimate. WebGPU exposes no
-// device-level allocation total, so this sums only the large buffers webpic creates
-// explicitly — the volume 3D texture + the swapchain render targets — and is honestly an
-// *estimate* (it excludes three.js internal pipeline/uniform/depth buffers and the swapchain).
-// trackAlloc overwrites a key, so a resize/realloc replaces the prior figure instead of
-// double-counting. One ledger per worker scope, like the GPU device singleton, so a module
-// singleton is the right shape; resetLedger drops everything on device loss before the fresh
-// allocations re-register.
+// Tracked-allocation byte ledger backing the perf HUD's VRAM estimate. WebGPU exposes no device-level
+// allocation total, so this sums only the large buffers webpic creates explicitly — the volume 3D
+// texture and the swapchain render targets — and is honestly an *estimate*: three.js internal
+// pipeline/uniform/depth buffers and the swapchain are not in it. trackAlloc overwrites a key, so a
+// resize replaces the prior figure instead of double-counting. One ledger per worker scope, like the
+// device singleton; resetLedger drops everything on device loss before fresh allocations re-register.
 
 const allocations = new Map<string, number>();
 

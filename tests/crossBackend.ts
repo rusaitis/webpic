@@ -7,7 +7,7 @@ import { TOL, type Tolerance } from "./tolerances.ts";
 
 // Backend-agnostic equivalence harness: run a recipe through two ComputeBackends and assert they
 // produce the same field — data within the kernel's f32 tolerance, metadata exactly. Parameterized on
-// the backend pair, so M9's WASM backend reuses it (ts-vs-wasm, wasm-vs-webgpu) without a rewrite.
+// the backend pair, so a future WASM backend reuses it (ts-vs-wasm, wasm-vs-webgpu) without a rewrite.
 
 export interface CrossBackendCase {
   readonly label: string;

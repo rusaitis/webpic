@@ -2,15 +2,12 @@ import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import type { RecipeMeta } from "./recipe.ts";
 import type { RecipeKey } from "./recipes.generated.ts";
 
-// A pluggable compute backend: it binds the codegen'd recipe `func` names to one engine's kernels (the
-// TS reference ops today, a standalone WGSL backend and `@rustpic/plasma-wasm` to follow) and reports which recipes
-// it can evaluate. `compute` is async to admit GPU dispatch + readback — the TS backend resolves
-// immediately, but the uniform Promise lets an async backend share the dispatcher without the sync ones
-// faking a hop. The dispatcher (computeField) picks the first registered backend that `supports` a
-// recipe; a `context.prefer` override + calibration scoring (DESIGN §Compute dispatcher) will refine the choice once
-// more than one backend qualifies.
-// The id universe, single-sourced: the `BackendId` type and calibration's runtime Zod enum both
-// derive from this, so adding a backend (WebGPU shipped, WASM planned) is one edit here — no skew.
+// A pluggable compute backend: it binds the codegen'd recipe `func` names to one engine's kernels and
+// reports which recipes it can evaluate. `compute` is async to admit GPU dispatch + readback — the TS
+// backend resolves immediately, but the uniform Promise lets an async backend share the dispatcher.
+// The dispatcher picks the first registered backend that `supports` a recipe; a `context.prefer`
+// override + calibration scoring refine that once more than one qualifies (DESIGN §Compute dispatcher).
+// `BackendId` is the id universe — calibration's runtime Zod enum derives from it, so there is no skew.
 export const BACKEND_IDS = ["ts", "wasm", "webgpu"] as const;
 export type BackendId = (typeof BACKEND_IDS)[number];
 

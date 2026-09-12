@@ -13,7 +13,7 @@ export type { FrameClock };
 // Per-frame render metrics posted by the render worker (≤5 Hz while the HUD is open). All
 // wall-clock — `frameWallMs` is NaN on ticks where the throttled GPU sync didn't run, and
 // `frameIntervalMs` is NaN while the on-demand loop is idle (nothing painting). `computeMs`
-// is null until a timed compute pass exists (the v0.1 |B| op runs on the TS backend).
+// is null until a timed compute pass exists (the |B| op runs on the TS backend).
 export interface PerfSample {
   readonly cpuEncodeMs: number;
   readonly frameWallMs: number;

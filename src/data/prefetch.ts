@@ -2,10 +2,8 @@
 // createStreamRing and raise `capacity` to ≥ MAX_COUNT + 2, else evict() drops the farthest-ahead
 // prefetch first (data.worker.ts owns that wiring).
 //
-// Directional scrub predictor — a stateful, pure twin of the ring's symmetric ±1 prefetch. It watches
-// the cursor's recent motion and biases the prefetch window toward travel, so a fast directional scrub
-// reads *ahead* instead of spending a symmetric budget on steps already behind it. Time is injected
-// via `observe(step, nowMs)`, so it fuzzes deterministically in Node. DESIGN §Time-series playback.
+// Directional scrub predictor: it biases the prefetch window toward travel, so a fast directional
+// scrub reads ahead. Time is injected, so it fuzzes deterministically. DESIGN §Time-series playback.
 
 import { clamp } from "@schema/math.ts";
 

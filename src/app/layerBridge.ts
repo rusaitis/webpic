@@ -12,7 +12,7 @@ import { createLayerUpserts, RENDER_PHASE_KEY } from "./layerUpserts.ts";
 import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 // The loading pill raised while a layer upsert warms its GPU pipeline off the render path (the warm is
-// async — compileAsync); the worker's layerCompiled ack drops it. A flat key (v0.1 draws one volume
+// async — compileAsync); the worker's layerCompiled ack drops it. A flat key (today's scene draws one volume
 // layer): a second upsert retitles the same pill, any layerCompiled drops it — like the streaming
 // bridge's flat "open"/"step" keys.
 

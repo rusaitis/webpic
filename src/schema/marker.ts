@@ -85,11 +85,15 @@ export function horizontalDragAllowed(pose: CameraPose): boolean {
 // the view sits in the ~45° diagonal band (neither axis is cleanly cross-screen). Depends only on
 // azimuth: the forward horizontal direction is (cos az, sin az); the larger component is into-screen,
 // so the smaller-component axis is the cross-screen one to drag.
+// Both azimuth components ~0 means neither axis is a usable horizontal drag direction. Unreachable
+// in the equatorial regime (cos²+sin²=1), but the guard keeps atan2 out of the 0/0 corner.
+const DEGENERATE_AZIMUTH = 1e-4;
+
 export function horizontalDragAxis(pose: CameraPose): HandleAxis | null {
   const ax = Math.abs(Math.cos(pose.azimuth));
   const ay = Math.abs(Math.sin(pose.azimuth));
   const hi = Math.max(ax, ay);
-  if (hi < 1e-4) return null; // degenerate (shouldn't occur in the equatorial regime) — no axis
+  if (hi < DEGENERATE_AZIMUTH) return null;
   const phi = Math.atan2(Math.min(ax, ay), hi) * DEG_PER_RAD;
   if (phi > AZIMUTH_ALIGN_MAX_DEG) return null;
   return ax >= ay ? "y" : "x";

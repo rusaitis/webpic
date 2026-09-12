@@ -1,7 +1,7 @@
 import type { Vec3 } from "@schema/types.ts";
 import type { ScalarFn } from "./analyticFieldCore.ts";
 
-// Closed-form MHD configurations for the M3 compute-parity tests: Orszag–Tang, Harris, GEM. Each is a
+// Closed-form MHD configurations for the compute-parity tests: Orszag–Tang, Harris, GEM. Each is a
 // physically divergence-free magnetic field (∇·B = 0 by construction) with analytic curl and magnitude,
 // so the numeric kernels validate against KNOWN physics — no external oracle, no pypic (DESIGN
 // §Testing). Alias-free (only type-only imports, erased at runtime) so scripts/gen-synthetic.ts loads

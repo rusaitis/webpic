@@ -9,13 +9,12 @@ import {
   qualityLevel,
 } from "./interactionQuality.ts";
 
-// The camera-motion quality tier (full → interacting → animating → settling) wired to the scenes +
+// The camera-motion quality tier (full → interacting → animating → settling) wired to the scenes and
 // swapchain. It owns the live QualityState + the applied-level cache and drives the pure transitions
-// in interactionQuality.ts; the worker holds the machine through this seam so the render loop
-// (advanceSettling, once per painted frame) and device-restore (resyncAfterRebuild) talk to a stable
-// API instead of raw module state. Levels apply through the host — the per-layer step scale (the
-// registry) and the swapchain render scale (the renderer) — and only a real level change kicks a
-// repaint, so a no-op transition (same-reference per interactionQuality) costs nothing.
+// in interactionQuality.ts; the worker holds the machine through this seam so the render loop and
+// device-restore talk to a stable API instead of raw module state. Levels apply through the host — the
+// per-layer step scale and the swapchain render scale — and only a real level change kicks a repaint,
+// so a no-op transition costs nothing.
 export interface QualityHost {
   // Is the display loop live? When false (Node one-shot) a settle ramp collapses straight to full.
   hasLoop(): boolean;

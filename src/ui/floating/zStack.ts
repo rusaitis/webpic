@@ -1,12 +1,9 @@
-// One shared, monotonically rising z-order for floating chrome — windows, the colorbar + its settings
-// dialog, anything that should jump to the top when opened or clicked. Each raise grabs the next value
-// off a single counter, so the most recently touched panel always sits above the rest. The band starts
-// above docked chrome (≤14) and stays well below the fixed higher bands in styles.ts (so they win no
-// matter how many raises happen): menu chrome + its panels — topbar, side rail, rail flyout — at ~800,
-// the help modal at 1000, anchored control menus at 1100.
-//
-// Every stacked element installs a raiser, so once the last raiser releases nothing holds a z-index
-// and the counter returns to the base — a full teardown (tests, embed dispose) leaves no drift behind.
+// One shared, monotonically rising z-order for floating chrome — windows, the colorbar, its settings
+// dialog. Each raise takes the next value off a single counter, so the most recently touched panel
+// sits above the rest. The band starts above docked chrome (≤14) and stays below the fixed bands in
+// styles.ts, which must win regardless of how many raises happen: menu chrome ~800, help modal 1000,
+// anchored control menus 1100. Every stacked element installs a raiser, so once the last one releases
+// the counter returns to base and a full teardown leaves no drift behind.
 
 export const Z_FLOATING_BASE = 15;
 let zTop = Z_FLOATING_BASE;

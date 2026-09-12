@@ -17,13 +17,12 @@ import {
 import { createHeldKeys } from "./heldKeys.ts";
 import { frameDt } from "./pointerMath.ts";
 
-// The camera's animation loop: one rAF that releases drag momentum through stepMomentum (the damped
-// glide), integrates the held nudge keys at constant velocity, and runs the eased fly-to tween —
-// applying eased *increments* on top of the live pose so concurrent input blends with the flight
-// instead of canceling it. It is also the single writer of setCameraMotion, the worker's quality
-// tier: "gesture" while the hand is on the camera (pointer down, key held, unsettled glide, fresh
-// wheel notch), "fly" while only a tween runs, idle on the quiet frame. Gestures (ui/cameraGestures)
-// feed it deltas; the composer (ui/pointerCamera) feeds it flights.
+// The camera's animation loop: one rAF that releases drag momentum through stepMomentum, integrates
+// the held nudge keys at constant velocity, and runs the eased fly-to tween — applying eased
+// *increments* on top of the live pose so concurrent input blends with the flight instead of
+// canceling it. It is also the single writer of setCameraMotion, the worker's quality tier: "gesture"
+// while the hand is on the camera, "fly" while only a tween runs, idle on the quiet frame. Gestures
+// feed it deltas; ui/pointerCamera feeds it flights.
 
 // Eased fly-to duration (reset / axis snap / pick-to-focus).
 const FLY_MS = 450;
