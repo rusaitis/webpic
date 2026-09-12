@@ -139,6 +139,20 @@ export interface LayerRegistry extends RenderModule {
   // RenderModule (supersedeWarms / disposeForRebuild / rebuild / dispose) — the worker iterates these.
 }
 
+// The wire boundary for field data: a buffer read at the wrong dtype (or against the wrong shape)
+// silently reinterprets the field instead of failing, so the sizes are checked here, once.
+function decodeSliceField(payload: SliceFieldPayload): ScalarField {
+  const Ctor = payload.dtype === "f64" ? Float64Array : Float32Array;
+  const cells = payload.shape.reduce((product, dim) => product * dim, 1);
+  const wanted = cells * Ctor.BYTES_PER_ELEMENT;
+  if (payload.buffer.byteLength !== wanted) {
+    throw new Error(
+      `decodeSliceField: ${payload.dtype} buffer is ${payload.buffer.byteLength} bytes, shape [${payload.shape.join(", ")}] needs ${wanted}`,
+    );
+  }
+  return { data: new Ctor(payload.buffer), shape: payload.shape };
+}
+
 export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // The instance-first layer registry: per-id scenes + the ordered visibility/opacity view. The worker
   // composites the visible layers; the app drives exactly one for now.
@@ -160,12 +174,6 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     const next = (epochs.get(id) ?? 0) + 1;
     epochs.set(id, next);
     return next;
-  }
-
-  function decodeSliceField(payload: SliceFieldPayload): ScalarField {
-    const data =
-      payload.dtype === "f64" ? new Float64Array(payload.buffer) : new Float32Array(payload.buffer);
-    return { data, shape: payload.shape };
   }
 
   // Build one layer's scene from its retained source — the single build path, shared by upsert and the
