@@ -41,4 +41,46 @@ describe("data worker message routing", () => {
     await flushAsync();
     expect(errors().at(-1)).toMatch(/no reader recognized/);
   });
+
+  // A dataset switch tears the stream down and rebuilds it; the UI keeps scrubbing and selecting
+  // fields across that gap, so these must land as no-ops rather than as errors nobody can act on.
+  it("absorbs a cursor move that arrives before the stream is open", () => {
+    const before = errors().length;
+    onmessage({ data: { kind: "setCursor", requestId: 9, step: 3 } });
+    expect(errors()).toHaveLength(before);
+  });
+
+  it("absorbs a field switch that arrives before the stream is open", () => {
+    const before = errors().length;
+    onmessage({ data: { kind: "setActiveField", requestId: 10, field: "|E|" } });
+    expect(errors()).toHaveLength(before);
+  });
+
+  it("reports a cache write it cannot land instead of rejecting into the void", async () => {
+    onmessage({
+      data: { kind: "cacheWrite", requestId: 11, path: "a/b.bin", bytes: new ArrayBuffer(4) },
+    });
+    await flushAsync();
+    const failures = postMessage.mock.calls
+      .map(([message]) => message as { kind: string; requestId?: number })
+      .filter((message) => message.kind === "error");
+    expect(failures.at(-1)?.requestId).toBe(11); // no OPFS in node: it must come back as an error
+  });
+
+  it("starts and stops the perf self-report on demand", () => {
+    vi.useFakeTimers();
+    const samples = (): number =>
+      postMessage.mock.calls.filter(([m]) => (m as { kind: string }).kind === "perfSample").length;
+
+    onmessage({ data: { kind: "setPerfActive", requestId: 12, active: true } });
+    expect(samples()).toBe(1); // the first sample lands immediately, not one interval later
+    vi.advanceTimersByTime(2500);
+    expect(samples()).toBeGreaterThan(1);
+
+    const whileActive = samples();
+    onmessage({ data: { kind: "setPerfActive", requestId: 13, active: false } });
+    vi.advanceTimersByTime(5000);
+    expect(samples()).toBe(whileActive);
+    vi.useRealTimers();
+  });
 });

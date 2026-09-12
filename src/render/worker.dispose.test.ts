@@ -67,4 +67,16 @@ it("releases the scenes, renderer, gpu and stream port, then acks `disposed`", a
   expect(port.close).toHaveBeenCalledTimes(1);
   const gpu = await h.gpu.installGpu.mock.results[0]?.value;
   expect(gpu?.dispose).toHaveBeenCalledTimes(1);
+
+  // Idempotence: main sends dispose and then terminates on a grace timer, so a second dispose can
+  // race in. It must ack again without double-releasing a GPU handle that is already gone.
+  postMessage.mockClear();
+  onmessage({ data: { kind: "dispose", requestId: 17 } });
+  await vi.waitFor(() =>
+    expect(postMessage).toHaveBeenCalledWith({ kind: "disposed", requestId: 17 }),
+  );
+  expect(scene?.dispose).toHaveBeenCalledTimes(1);
+  expect(h.renderers[0]?.dispose).toHaveBeenCalledTimes(1);
+  expect(gpu?.dispose).toHaveBeenCalledTimes(1);
+  expect(port.close).toHaveBeenCalledTimes(1);
 });

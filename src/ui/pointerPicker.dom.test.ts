@@ -112,3 +112,91 @@ describe("installPointerPicker arrow keys", () => {
     expect(store.getState().pickerActive).toBe(false);
   });
 });
+
+// The pointer path: a drag on the marker core. happy-dom measures every rect as 0×0, so the target's
+// geometry is stubbed — the marker projects to the middle of a 800×600 canvas at the default pose.
+function stubCanvasRect(target: HTMLElement): void {
+  target.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600 }) as DOMRect;
+  target.setPointerCapture = () => {};
+  target.releasePointerCapture = () => {};
+}
+
+// `buttons` matters: the hover branch bails while a button is held, because a camera drag owns the
+// gesture then. 0 is a plain hover; 1 is the primary button held through a drag.
+function pointer(target: HTMLElement, type: string, x: number, y: number, buttons = 0): void {
+  const event = new Event(type, { bubbles: true, cancelable: true }) as PointerEvent;
+  Object.assign(event, {
+    clientX: x,
+    clientY: y,
+    pointerId: 1,
+    isPrimary: true,
+    button: 0,
+    buttons,
+  });
+  target.dispatchEvent(event);
+}
+
+describe("installPointerPicker pointer drag", () => {
+  it("grabs the marker core, moves it across the view plane, and releases", () => {
+    const { target, store } = setup([0, 0, 0]);
+    stubCanvasRect(target);
+    const start = store.getState().pickerPoint;
+
+    pointer(target, "pointerdown", 400, 300); // the marker projects to the canvas centre
+    expect(store.getState().pickerActive).toBe(true);
+
+    pointer(target, "pointermove", 460, 300);
+    const dragged = store.getState().pickerPoint;
+    expect(dragged).not.toEqual(start); // the drag moved it
+
+    pointer(target, "pointerup", 460, 300);
+    expect(store.getState().pickerActive).toBe(false);
+    expect(store.getState().pickerPoint).toEqual(dragged); // release commits where it landed
+  });
+
+  it("ignores a press that misses the marker, leaving the camera to handle it", () => {
+    const { target, store } = setup([0, 0, 0]);
+    stubCanvasRect(target);
+    const start = store.getState().pickerPoint;
+
+    pointer(target, "pointerdown", 780, 20); // far corner — nowhere near the marker
+    expect(store.getState().pickerActive).toBe(false);
+    pointer(target, "pointermove", 700, 100);
+    expect(store.getState().pickerPoint).toEqual(start);
+  });
+
+  it("reports hover on the core so the cursor and the marker can respond", () => {
+    const { target, store } = setup([0, 0, 0]);
+    stubCanvasRect(target);
+
+    pointer(target, "pointermove", 400, 300);
+    expect(store.getState().pickerHover).toBe("core");
+
+    pointer(target, "pointermove", 780, 20);
+    expect(store.getState().pickerHover).toBe("none");
+  });
+
+  it("ends a drag the browser cancels without stranding the active flag", () => {
+    const { target, store } = setup([0, 0, 0]);
+    stubCanvasRect(target);
+
+    pointer(target, "pointerdown", 400, 300);
+    expect(store.getState().pickerActive).toBe(true);
+    pointer(target, "pointercancel", 400, 300);
+    expect(store.getState().pickerActive).toBe(false);
+  });
+
+  it("stops driving the marker once disposed mid-drag", () => {
+    const { target, store } = setup([0, 0, 0]);
+    stubCanvasRect(target);
+
+    pointer(target, "pointerdown", 400, 300);
+    pointer(target, "pointermove", 440, 300);
+    const midDrag = store.getState().pickerPoint;
+
+    for (const dispose of disposers.splice(0)) dispose();
+    pointer(target, "pointermove", 600, 300);
+    expect(store.getState().pickerPoint).toEqual(midDrag);
+  });
+});
