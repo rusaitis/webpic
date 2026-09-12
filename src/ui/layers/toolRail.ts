@@ -84,11 +84,11 @@ export function installToolRail(
       getSelected: () => store.getState().selectedLayerId,
       onPick: (id) => {
         store.getState().selectLayer(id);
-        uiStore.getState().setLayersPanelVisible(true);
+        uiStore.getState().setLayersPanelOpen(true);
       },
       onAddNew: () => {
         store.getState().addLayerOfKind(kind); // selects the new layer; open settings on it
-        uiStore.getState().setLayerSettingsVisible(true);
+        uiStore.getState().setLayerSettingsOpen(true);
       },
     });
     menus.push(menu);

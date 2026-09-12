@@ -21,7 +21,7 @@ function setup() {
   disposers.push(installLayerSettings(parent, store, uiStore));
   const win = parent.querySelector<HTMLElement>(".webpic-window");
   if (win === null) throw new Error("settings window not mounted");
-  const open = () => uiStore.getState().setLayerSettingsVisible(true);
+  const open = () => uiStore.getState().setLayerSettingsOpen(true);
   return { parent, store, uiStore, win, open };
 }
 

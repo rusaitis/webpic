@@ -67,7 +67,7 @@ export interface PerfState {
   readonly loaf: LoafSummary | null;
   togglePerfHud(): void;
   setPerfHudVisible(visible: boolean): void;
-  toggleDetail(): void;
+  togglePerfDetail(): void;
   setSample(sample: PerfSample): void;
   setTopology(topology: readonly PerfWorker[]): void;
   setMainMetrics(metrics: MainPerfMetrics): void;
@@ -98,7 +98,7 @@ export function createPerfStore() {
       setPerfHudVisible(visible) {
         if (get().isPerfHudVisible !== visible) set({ isPerfHudVisible: visible });
       },
-      toggleDetail() {
+      togglePerfDetail() {
         set({ isPerfDetailOpen: !get().isPerfDetailOpen });
       },
       setSample(sample) {

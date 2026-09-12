@@ -53,7 +53,7 @@ function pickPoints(): Promise<{ persp: readonly number[]; ortho: readonly numbe
             [buffer],
           );
           post({
-            kind: "setComposite",
+            kind: "setLayerOrder",
             requestId: 3,
             order: [{ id: "vol", visible: true, opacity: 1 }],
           });

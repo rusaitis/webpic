@@ -77,7 +77,7 @@ export function installLayersPanel(
     });
     gear.addEventListener("click", () => {
       getState().selectLayer(layer.id);
-      uiStore.getState().setLayerSettingsVisible(true);
+      uiStore.getState().setLayerSettingsOpen(true);
     });
 
     const reorder = makeEl(doc, "div", "webpic-layers_reorder");
@@ -139,7 +139,7 @@ export function installLayersPanel(
     root.style.left = `${Math.round(left)}px`;
   };
 
-  closeBtn.addEventListener("click", () => uiStore.getState().setLayersPanelVisible(false), {
+  closeBtn.addEventListener("click", () => uiStore.getState().setLayersPanelOpen(false), {
     signal,
   });
 

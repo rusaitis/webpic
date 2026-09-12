@@ -156,7 +156,7 @@ export function createLayerMessages(options: LayerUpsertsOptions): LayerMessages
       .getState()
       .layers.map((layer) => ({ id: layer.id, visible: layer.visible, opacity: layer.opacity }));
     const request: RenderWorkerRequest = {
-      kind: "setComposite",
+      kind: "setLayerOrder",
       requestId: REQUEST_IDS.layer,
       order,
     };

@@ -1,6 +1,6 @@
 import { transferableBuffer } from "@schema/transfer.ts";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "../messages.ts";
-import type { CompositeDrawItem, InstalledRenderer } from "./renderer.ts";
+import type { DrawItem, InstalledRenderer } from "./renderer.ts";
 import { pixelsToPngBlob } from "./screenshot.ts";
 
 // Deterministic readbacks: render the composite to the offscreen target, await the GPU, post the
@@ -11,7 +11,7 @@ export interface ReadbackHost {
   // The live renderer; undefined pre-init / post-dispose (the request then fails loudly).
   renderer(): InstalledRenderer | undefined;
   // What the next paint draws, freshly allocated — the paint scratch would mutate under the await.
-  paintItems(): CompositeDrawItem[];
+  paintItems(): DrawItem[];
   // Pause / resume the display loop around the borrowed renderer (resume re-dirties).
   beginReadback(): void;
   endReadback(): void;

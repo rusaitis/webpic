@@ -14,7 +14,7 @@ import { createMarkerScene, type MarkerScene } from "./markerScene.ts";
 export interface MarkerHost extends RenderModuleContext {
   pose(): CameraPose;
   isOrthographic(): boolean;
-  // Compile the full prospective composite (the worker splices this marker in via compositeItems).
+  // Compile the full prospective composite (the worker splices this marker in via drawItems).
   warmComposite(prospective: MarkerScene): Promise<unknown> | undefined;
 }
 

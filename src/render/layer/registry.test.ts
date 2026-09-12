@@ -151,14 +151,14 @@ describe("createLayerRegistry", () => {
     const { registry } = harness();
     await registry.upsert(upsert("a", "volume"));
     await registry.upsert(upsert("b", "slice"));
-    registry.setComposite([
+    registry.setLayerOrder([
       { id: "a", visible: true, opacity: 1 },
       { id: "b", visible: true, opacity: 1 },
     ]);
     const items = registry.layerItems(VOLUME, ORTHO);
     expect(items.map((i) => i.camera)).toEqual([VOLUME, ORTHO]); // volume→volume cam, slice→ortho cam
 
-    registry.setComposite([
+    registry.setLayerOrder([
       { id: "a", visible: false, opacity: 1 },
       { id: "b", visible: true, opacity: 1 },
     ]);
@@ -168,7 +168,7 @@ describe("createLayerRegistry", () => {
   it("appends a not-yet-committed override layer the composite doesn't list yet", async () => {
     const { registry, created } = harness();
     await registry.upsert(upsert("a", "volume"));
-    registry.setComposite([{ id: "a", visible: true, opacity: 1 }]);
+    registry.setLayerOrder([{ id: "a", visible: true, opacity: 1 }]);
     const overrideEntry = { scene: created[0], kind: "volume" as const, source: {} } as never;
     const items = registry.layerItems(VOLUME, ORTHO, { id: "z", entry: overrideEntry });
     expect(items).toHaveLength(2); // committed a + appended override z
@@ -254,7 +254,7 @@ describe("createLayerRegistry", () => {
     const { registry } = harness();
     await registry.upsert(upsert("vol", "volume"));
     await registry.upsert(upsert("sl", "slice"));
-    registry.setComposite([
+    registry.setLayerOrder([
       { id: "vol", visible: true, opacity: 0.5 },
       { id: "sl", visible: true, opacity: 1 },
     ]);

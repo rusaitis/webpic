@@ -3,7 +3,7 @@ import type { DebugTriangle } from "../debugTriangle.ts";
 import type { LayerEntry } from "../layer/registry.ts";
 import type { MarkerScene } from "../marker/markerScene.ts";
 import type { OverlayScene } from "../overlay/overlayScene.ts";
-import type { CompositeDrawItem } from "./renderer.ts";
+import type { DrawItem } from "./renderer.ts";
 
 // Composite assembly: the visible layers in draw order, each paired with the camera its projection
 // needs (perspective for volumes, orthographic for slices), the overlay + marker chrome on top. The
@@ -15,14 +15,14 @@ interface LayerOverride {
   readonly entry: LayerEntry;
 }
 
-export interface CompositeAssemblerHost {
+export interface DrawListHost {
   // The visible layers in draw order paired with their cameras (registry.layerItems).
   layerItems(
     volume: Camera,
     ortho: Camera,
     override?: LayerOverride,
-    into?: CompositeDrawItem[],
-  ): CompositeDrawItem[];
+    into?: DrawItem[],
+  ): DrawItem[];
   overlay(): OverlayScene | undefined;
   marker(): MarkerScene | undefined;
   // The pose-driven volume camera for the live projection; undefined before init.
@@ -33,31 +33,31 @@ export interface CompositeAssemblerHost {
   testScene(): DebugTriangle | undefined;
 }
 
-export interface CompositeAssembler {
+export interface DrawList {
   // The composite a warm compiles: `layerOverride` swaps in (or appends, when the composite doesn't
-  // list the id yet — the boot upsert precedes setComposite) a not-yet-committed layer scene;
+  // list the id yet — the boot upsert precedes setLayerOrder) a not-yet-committed layer scene;
   // `overlayOverride` / `markerOverride` a not-yet-committed decoration (null = none).
-  compositeItems(
+  drawItems(
     layerOverride?: LayerOverride,
     overlayOverride?: OverlayScene | null,
     markerOverride?: MarkerScene | null,
-  ): CompositeDrawItem[];
+  ): DrawItem[];
   // What the next paint draws, freshly allocated — for the async warms and readbacks.
-  paintItems(): CompositeDrawItem[];
+  paintItems(): DrawItem[];
   // The same list refilled in place, for the synchronous paint path only: warms and readbacks are
   // async and would see it mutate under them, so they take the allocating paintItems().
-  scratchPaintItems(): readonly CompositeDrawItem[];
+  scratchPaintItems(): readonly DrawItem[];
 }
 
-export function createCompositeAssembler(host: CompositeAssemblerHost): CompositeAssembler {
-  const paintScratch: CompositeDrawItem[] = [];
+export function createDrawList(host: DrawListHost): DrawList {
+  const paintScratch: DrawItem[] = [];
 
   function assemble(
     layerOverride: LayerOverride | undefined,
     overlayOverride: OverlayScene | null | undefined,
     markerOverride: MarkerScene | null | undefined,
-    into: CompositeDrawItem[] | undefined,
-  ): CompositeDrawItem[] {
+    into: DrawItem[] | undefined,
+  ): DrawItem[] {
     const volume = host.volumeCamera();
     const ortho = host.orthoCamera();
     if (volume === undefined || ortho === undefined) {
@@ -90,7 +90,7 @@ export function createCompositeAssembler(host: CompositeAssemblerHost): Composit
 
   // The composited layers, the opt-in debug triangle when empty, else nothing — renderComposite([])
   // presents the bare clear color, the flash-free boot/empty frame.
-  function paintInto(into: CompositeDrawItem[] | undefined): CompositeDrawItem[] {
+  function paintInto(into: DrawItem[] | undefined): DrawItem[] {
     const ortho = host.orthoCamera();
     if (ortho === undefined) {
       throw new Error("compositeAssembler: render before init — no renderer installed yet");
@@ -105,7 +105,7 @@ export function createCompositeAssembler(host: CompositeAssemblerHost): Composit
   }
 
   return {
-    compositeItems: (layerOverride, overlayOverride, markerOverride) =>
+    drawItems: (layerOverride, overlayOverride, markerOverride) =>
       assemble(layerOverride, overlayOverride, markerOverride, undefined),
     paintItems: () => paintInto(undefined),
     scratchPaintItems: () => paintInto(paintScratch),

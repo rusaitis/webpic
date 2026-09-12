@@ -37,8 +37,8 @@ describe("uiStore", () => {
     expect(store.getState().isLayersPanelOpen).toBe(false);
     store.getState().toggleLayersPanel();
     expect(store.getState().isLayersPanelOpen).toBe(true);
-    store.getState().setLayersPanelVisible(true); // unchanged → no fire
-    store.getState().setLayersPanelVisible(false);
+    store.getState().setLayersPanelOpen(true); // unchanged → no fire
+    store.getState().setLayersPanelOpen(false);
     unsubscribe();
     expect(seen).toEqual([true, false]);
   });

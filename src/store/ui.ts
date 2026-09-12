@@ -62,9 +62,9 @@ export interface UiState {
   toggleCoordsInfo(): void;
   setCoordsInfoVisible(visible: boolean): void;
   toggleLayersPanel(): void;
-  setLayersPanelVisible(visible: boolean): void;
+  setLayersPanelOpen(visible: boolean): void;
   toggleLayerSettings(): void;
-  setLayerSettingsVisible(visible: boolean): void;
+  setLayerSettingsOpen(visible: boolean): void;
   setGnomonSuppressed(suppressed: boolean): void;
   togglePanel(name: string): void;
   setPanelVisible(name: string, visible: boolean): void;
@@ -130,13 +130,13 @@ export function createUiStore(initialPanels: Readonly<Record<string, boolean>> =
       toggleLayersPanel() {
         set({ isLayersPanelOpen: !get().isLayersPanelOpen });
       },
-      setLayersPanelVisible(visible) {
+      setLayersPanelOpen(visible) {
         if (get().isLayersPanelOpen !== visible) set({ isLayersPanelOpen: visible });
       },
       toggleLayerSettings() {
         set({ isLayerSettingsOpen: !get().isLayerSettingsOpen });
       },
-      setLayerSettingsVisible(visible) {
+      setLayerSettingsOpen(visible) {
         if (get().isLayerSettingsOpen !== visible) set({ isLayerSettingsOpen: visible });
       },
       setGnomonSuppressed(suppressed) {

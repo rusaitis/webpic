@@ -84,7 +84,7 @@ describe("bootstrap OffscreenCanvas handshake", () => {
 });
 
 describe("bootstrap store → compute → render", () => {
-  it("computes |B| and posts an upsertLayer + setComposite once the worker is ready", async () => {
+  it("computes |B| and posts an upsertLayer + setLayerOrder once the worker is ready", async () => {
     const offscreen = { tag: "offscreen" } as unknown as OffscreenCanvas;
     const canvas = {
       width: 0,
@@ -123,9 +123,9 @@ describe("bootstrap store → compute → render", () => {
     expect(upsert.transfer).toEqual([upsert.message.field.buffer]);
 
     // The composite carries the one visible, full-opacity layer in draw order.
-    const composite = posts.find((p) => p.message.kind === "setComposite");
-    if (composite === undefined || composite.message.kind !== "setComposite") {
-      throw new Error("expected a setComposite message");
+    const composite = posts.find((p) => p.message.kind === "setLayerOrder");
+    if (composite === undefined || composite.message.kind !== "setLayerOrder") {
+      throw new Error("expected a setLayerOrder message");
     }
     expect(composite.message.order).toEqual([{ id: upsert.message.id, visible: true, opacity: 1 }]);
 

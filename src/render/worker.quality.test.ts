@@ -77,7 +77,7 @@ it("a gesture end ramps quality back over painted frames, not in one pop", async
   };
   onmessage({
     data: {
-      kind: "setComposite",
+      kind: "setLayerOrder",
       requestId: 3,
       order: [{ id: "layer-0", visible: true, opacity: 1 }],
     },

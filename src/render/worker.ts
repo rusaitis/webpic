@@ -26,8 +26,8 @@ import { createManagedOverlay } from "./overlay/managedOverlay.ts";
 import { pickPointOnRay } from "./pickRay.ts";
 import type { RenderModule } from "./renderModule.ts";
 import { unprojectRay } from "./runtime/cameraRay.ts";
-import { createCompositeAssembler } from "./runtime/composite.ts";
 import { createDeviceRecovery } from "./runtime/deviceRecovery.ts";
+import { createDrawList } from "./runtime/drawList.ts";
 import { createFrameTimer, type FrameTimer } from "./runtime/frameTimer.ts";
 import { createPerfSampler } from "./runtime/perfSampler.ts";
 import { createQualityController } from "./runtime/qualityController.ts";
@@ -142,14 +142,13 @@ function createWorkerWorld(context: WorkerContext): {
     requestRender,
     reportFault,
     warmComposite: ({ id, entry }) =>
-      renderer?.compileComposite(composite.compositeItems({ id, entry })),
+      renderer?.compileComposite(composite.drawItems({ id, entry })),
   });
 
   const overlay = createManagedOverlay({
     requestRender,
     reportFault,
-    warmComposite: (scene) =>
-      renderer?.compileComposite(composite.compositeItems(undefined, scene)),
+    warmComposite: (scene) => renderer?.compileComposite(composite.drawItems(undefined, scene)),
   });
 
   const marker = createManagedMarker({
@@ -158,7 +157,7 @@ function createWorkerWorld(context: WorkerContext): {
     requestRender,
     reportFault,
     warmComposite: (scene) =>
-      renderer?.compileComposite(composite.compositeItems(undefined, undefined, scene)),
+      renderer?.compileComposite(composite.drawItems(undefined, undefined, scene)),
   });
 
   // Device-restore and dispose() iterate this instead of naming each manager. ORDER IS LOAD-BEARING:
@@ -166,7 +165,7 @@ function createWorkerWorld(context: WorkerContext): {
   // rebuild sequence deviceRecovery depends on.
   const modules: readonly RenderModule[] = [registry, overlay, marker];
 
-  const composite = createCompositeAssembler({
+  const composite = createDrawList({
     layerItems: (volume, ortho, override, into) =>
       registry.layerItems(volume, ortho, override, into),
     overlay: () => overlay.current(),
@@ -436,8 +435,8 @@ function createWorkerWorld(context: WorkerContext): {
         return compileLayer(request, () => registry.upsertFieldlines(request));
       case "removeLayer":
         return registry.remove(request.id);
-      case "setComposite":
-        return registry.setComposite(request.order);
+      case "setLayerOrder":
+        return registry.setLayerOrder(request.order);
       case "setLayerColormap":
         liveRenderer(request.kind);
         return registry.setColormap(request);

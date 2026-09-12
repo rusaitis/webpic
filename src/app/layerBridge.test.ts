@@ -84,9 +84,9 @@ describe("installLayerBridge", () => {
     expect(upsert.message.scale).toBe("linear");
     expect(upsert.message.windowLevel).toEqual({ center: 5.5, width: 1 }); // |B| = 5 → [5, 6]
 
-    const composite = posts.find((p) => p.message.kind === "setComposite");
-    if (composite === undefined || composite.message.kind !== "setComposite") {
-      throw new Error("expected a setComposite");
+    const composite = posts.find((p) => p.message.kind === "setLayerOrder");
+    if (composite === undefined || composite.message.kind !== "setLayerOrder") {
+      throw new Error("expected a setLayerOrder");
     }
     expect(composite.message.order).toEqual([{ id: "layer-0", visible: true, opacity: 1 }]);
   });
@@ -105,16 +105,16 @@ describe("installLayerBridge", () => {
     expect(upserts[0]?.transfer).toHaveLength(1);
   });
 
-  it("rides visibility/opacity changes on setComposite (no field re-transfer)", async () => {
+  it("rides visibility/opacity changes on setLayerOrder (no field re-transfer)", async () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(beDataset());
     await flushAsync();
     posts.length = 0;
     store.getState().setLayerVisible("layer-0", false);
     store.getState().setLayerOpacity("layer-0", 0.5);
-    expect(kinds(posts)).toEqual(["setComposite", "setComposite"]);
+    expect(kinds(posts)).toEqual(["setLayerOrder", "setLayerOrder"]);
     const last = posts[posts.length - 1];
-    if (last?.message.kind !== "setComposite") throw new Error("expected setComposite");
+    if (last?.message.kind !== "setLayerOrder") throw new Error("expected setLayerOrder");
     expect(last.message.order[0]).toEqual({ id: "layer-0", visible: false, opacity: 0.5 });
   });
 

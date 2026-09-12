@@ -115,7 +115,7 @@ describe("installPerfHud", () => {
       { role: "main", live: true, heapBytes: 1024 * 1024 },
       { role: "data", live: false, heapBytes: null, note: "read 12 ms" },
     ]);
-    perfStore.getState().toggleDetail();
+    perfStore.getState().togglePerfDetail();
     const detail = host.querySelector(".webpic-perf_detail");
     expect(detail?.textContent).toContain("● main");
     expect(detail?.textContent).toContain("1.0 MB");

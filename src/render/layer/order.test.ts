@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createLayerComposite } from "./composite.ts";
+import { createLayerOrder } from "./order.ts";
 import type { FieldSource, LayerEntry } from "./registry.ts";
 
 const POSE = { name: "pose" } as unknown as Parameters<
-  ReturnType<typeof createLayerComposite>["items"]
+  ReturnType<typeof createLayerOrder>["items"]
 >[1];
 const ORTHO = { name: "ortho" } as unknown as typeof POSE;
 
@@ -19,7 +19,7 @@ const WINDOW = { center: 0.5, width: 1 };
 
 describe("createLayerComposite", () => {
   it("reports only the ids whose opacity moved", () => {
-    const composite = createLayerComposite();
+    const composite = createLayerOrder();
     composite.setOrder([
       { id: "a", visible: true, opacity: 1 },
       { id: "b", visible: true, opacity: 1 },
@@ -32,14 +32,14 @@ describe("createLayerComposite", () => {
   });
 
   it("treats a newly listed id as retuned so its scene gets the opacity", () => {
-    const composite = createLayerComposite();
+    const composite = createLayerOrder();
     expect(composite.setOrder([{ id: "a", visible: true, opacity: 0.25 }])).toEqual(["a"]);
     expect(composite.opacityOf("a")).toBe(0.25);
     expect(composite.opacityOf("missing")).toBeUndefined();
   });
 
   it("draws visible layers in order, each under its kind's camera", () => {
-    const composite = createLayerComposite();
+    const composite = createLayerOrder();
     const entries = new Map([
       ["vol", entry("volume")],
       ["sl", entry("slice")],
@@ -57,13 +57,13 @@ describe("createLayerComposite", () => {
   });
 
   it("skips an ordered id whose upsert has not landed yet", () => {
-    const composite = createLayerComposite();
+    const composite = createLayerOrder();
     composite.setOrder([{ id: "pending", visible: true, opacity: 1 }]);
     expect(composite.items(() => undefined, POSE, ORTHO)).toEqual([]);
   });
 
   it("substitutes an override for its id, and appends one the order does not list", () => {
-    const composite = createLayerComposite();
+    const composite = createLayerOrder();
     const committed = entry("volume");
     const warming = entry("volume");
     composite.setOrder([{ id: "vol", visible: true, opacity: 1 }]);
@@ -75,7 +75,7 @@ describe("createLayerComposite", () => {
   });
 
   it("appends into a caller-supplied array so the paint path allocates nothing", () => {
-    const composite = createLayerComposite();
+    const composite = createLayerOrder();
     composite.setOrder([{ id: "vol", visible: true, opacity: 1 }]);
     const scratch: Parameters<typeof composite.items>[4] = [];
     expect(composite.items(() => entry("volume"), POSE, ORTHO, undefined, scratch)).toBe(scratch);
@@ -83,7 +83,7 @@ describe("createLayerComposite", () => {
   });
 
   it("picks only visible volume layers, carrying each one's look and the box extent", () => {
-    const composite = createLayerComposite();
+    const composite = createLayerOrder();
     const volume = entry("volume", {
       field: { data: new Float32Array(1), shape: [1, 1, 1] },
       params: { layerKind: "volume", density: 3, worldHalfExtent: [1, 2, 3] },
@@ -106,7 +106,7 @@ describe("createLayerComposite", () => {
   });
 
   it("falls back to the unit box when no visible volume declares an extent", () => {
-    const composite = createLayerComposite();
+    const composite = createLayerOrder();
     composite.setOrder([{ id: "vol", visible: false, opacity: 1 }]);
     const { layers, halfExtent } = composite.pickLayers(
       () => undefined,

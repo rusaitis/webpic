@@ -20,7 +20,7 @@ function setup() {
   const root = parent.querySelector<HTMLElement>(".webpic-layers");
   if (root === null) throw new Error("layers panel not mounted");
   const rows = (): HTMLElement[] => [...root.querySelectorAll<HTMLElement>(".webpic-layers_row")];
-  const open = () => uiStore.getState().setLayersPanelVisible(true);
+  const open = () => uiStore.getState().setLayersPanelOpen(true);
   return { parent, store, uiStore, root, rows, open, dispose };
 }
 

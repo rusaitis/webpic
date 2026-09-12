@@ -21,14 +21,14 @@ import type {
 } from "../messages.ts";
 import type { PickLayer } from "../pickRay.ts";
 import type { RenderModule, RenderModuleContext } from "../renderModule.ts";
-import type { CompositeDrawItem } from "../runtime/renderer.ts";
+import type { DrawItem } from "../runtime/renderer.ts";
 import { warmScene } from "../warmScene.ts";
-import { type CompositeOrderEntry, createLayerComposite } from "./composite.ts";
 import { createLayerEpochs } from "./epochs.ts";
+import { createLayerOrder, type LayerOrderEntry } from "./order.ts";
 
 // Everything needed to rebuild a field layer's scene without the main thread: the decoded field (its
 // CPU buffer survives a GPU device loss) plus the live build params. field/colormap/scale/window/opacity
-// are mutable — swapField/setColormap/setComposite update them so a device-loss rebuild reproduces the
+// are mutable — swapField/setColormap/setLayerOrder update them so a device-loss rebuild reproduces the
 // current state (the live timestep + look), not the stale upsert-time one. Retaining the field doubles
 // its residency (CPU + GPU); fine for one small volume, and the price of self-contained
 // recovery (no reseed wire).
@@ -92,7 +92,7 @@ export interface LayerRegistry extends RenderModule {
   ): Promise<void>;
   remove(id: string): void;
   swapField(message: StreamStepMessage): void;
-  setComposite(order: readonly CompositeOrderEntry[]): void;
+  setLayerOrder(order: readonly LayerOrderEntry[]): void;
   setColormap(request: Extract<RenderWorkerRequest, { kind: "setLayerColormap" }>): void;
   setShading(request: Extract<RenderWorkerRequest, { kind: "setLayerShading" }>): void;
   setSliceParams(request: Extract<RenderWorkerRequest, { kind: "setSliceParams" }>): void;
@@ -110,8 +110,8 @@ export interface LayerRegistry extends RenderModule {
     volume: Camera,
     ortho: Camera,
     override?: { readonly id: string; readonly entry: LayerEntry },
-    into?: CompositeDrawItem[],
-  ): CompositeDrawItem[];
+    into?: DrawItem[],
+  ): DrawItem[];
   // The visible volume layers' CPU fields + look, for the worker's opacity-weighted ray pick.
   pickLayers(): { layers: PickLayer[]; halfExtent: Vec3 };
   // Registry-only step of the restore teardown: drop the deferred-dispose entry. The worker calls it
@@ -187,7 +187,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // The instance-first layer registry: per-id scenes + the ordered visibility/opacity view. The worker
   // composites the visible layers; the app drives exactly one.
   const layers = new Map<string, LayerEntry>();
-  const composite = createLayerComposite();
+  const composite = createLayerOrder();
   const epochs = createLayerEpochs();
   const lookup = (id: string): LayerEntry | undefined => layers.get(id);
 
@@ -316,7 +316,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
 
     // Cheap reorder/visibility/opacity over the full ordered list — retune per-layer opacity uniforms
     // (no rebuild). Field data rides the heavier upsert.
-    setComposite(order) {
+    setLayerOrder(order) {
       for (const id of composite.setOrder(order)) {
         const layer = layers.get(id);
         const opacity = composite.opacityOf(id);

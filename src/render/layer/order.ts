@@ -4,14 +4,14 @@ import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
 import type { WindowLevel } from "../field/normalization.ts";
 import type { PickLayer } from "../pickRay.ts";
-import type { CompositeDrawItem } from "../runtime/renderer.ts";
+import type { DrawItem } from "../runtime/renderer.ts";
 import type { FieldSource, LayerEntry } from "./registry.ts";
 
 // The ordered visibility/opacity view of the layer stack, and the two reads that walk it: the draw
 // items the renderer composites, and the volume fields the opacity-weighted ray pick integrates.
 // Draw order is array order. The registry owns the scenes; this owns the order.
 
-export interface CompositeOrderEntry {
+export interface LayerOrderEntry {
   readonly id: string;
   readonly visible: boolean;
   readonly opacity: number;
@@ -29,26 +29,26 @@ function cameraFor(kind: LayerKind, pose: Camera, ortho: Camera): Camera {
   return LAYER_CAMERA[kind] === "ortho" ? ortho : pose;
 }
 
-export interface LayerComposite {
+export interface LayerOrder {
   // Re-order / re-tune. Returns the ids whose opacity actually moved, so the caller pushes a uniform
   // write to exactly those scenes (field data rides the heavier upsert).
-  setOrder(order: readonly CompositeOrderEntry[]): readonly string[];
+  setOrder(order: readonly LayerOrderEntry[]): readonly string[];
   opacityOf(id: string): number | undefined;
   items(
     lookup: (id: string) => LayerEntry | undefined,
     volume: Camera,
     ortho: Camera,
     override?: { readonly id: string; readonly entry: LayerEntry },
-    into?: CompositeDrawItem[],
-  ): CompositeDrawItem[];
+    into?: DrawItem[],
+  ): DrawItem[];
   pickLayers(
     lookup: (id: string) => LayerEntry | undefined,
     windowOf: (source: FieldSource) => WindowLevel,
   ): { layers: PickLayer[]; halfExtent: Vec3 };
 }
 
-export function createLayerComposite(): LayerComposite {
-  let order: readonly CompositeOrderEntry[] = [];
+export function createLayerOrder(): LayerOrder {
+  let order: readonly LayerOrderEntry[] = [];
 
   return {
     setOrder(next) {

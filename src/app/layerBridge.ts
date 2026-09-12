@@ -19,7 +19,7 @@ import { createLayerMessages } from "./layerMessages.ts";
 
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
 // render can't import each other). Two channels: `field` carries field DATA (heavy, transfers the
-// buffer), `layers` carries STRUCTURE (removals + the cheap composite of order/visibility/opacity).
+// buffer), `layers` carries STRUCTURE (removals + the cheap layer order of visibility/opacity).
 // The transfer detaches the store's buffer, so a layer added later gets its data by asking the store
 // to recompute (recomputeField) — this bridge, the one that transferred, owns that call; per-layer
 // compute will generalize it.
@@ -36,7 +36,7 @@ export interface LayerBridgeOptions extends RenderWorkerLink {
 }
 
 export interface LayerBridge {
-  // Send the full current state (upsert each active-field layer + the composite). Catch-up on ready.
+  // Send the full current state (upsert each active-field layer + the order). Catch-up on ready.
   readonly flushAll: () => void;
   // Drop the render-loading pill when the worker acks a layer's pipeline warm (the layerCompiled
   // response). Coalesced (flat key), so any acked layer clears the shared pill.
@@ -95,7 +95,7 @@ export function installLayerBridge(options: LayerBridgeOptions): LayerBridge {
   };
 
   // Data channel — registered before the structure channel so the worker has a layer's scene
-  // before any composite references it (a stray reference self-heals on the upsert repaint anyway).
+  // before any order entry references it (a stray reference self-heals on the upsert repaint anyway).
   bridge.subscribe(
     (state) => state.field,
     (field) => {
@@ -106,7 +106,7 @@ export function installLayerBridge(options: LayerBridgeOptions): LayerBridge {
   );
 
   // Structure channel — removals, a new layer's field data, the per-layer shading/slice edits, and
-  // the cheap composite. The seed layer's data rides the same-tick `field` change (that channel is
+  // the cheap order. The seed layer's data rides the same-tick `field` change (that channel is
   // registered first, so it has already upserted here); a layer added later needs its own supply.
   bridge.subscribe(
     (state) => state.layers,

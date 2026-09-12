@@ -125,7 +125,7 @@ export type RenderWorkerRequest =
       readonly height: number;
       readonly devicePixelRatio: number;
     }
-  // Build or rebuild one layer's scene (instance-first composite). Transfers the field buffer; the
+  // Build or rebuild one layer's scene (instance-first). Transfers the field buffer; the
   // kind-specific build params ride `params`, discriminated on the renderable kind.
   | {
       readonly kind: "upsertLayer";
@@ -154,7 +154,7 @@ export type RenderWorkerRequest =
   | { readonly kind: "removeLayer"; readonly requestId: number; readonly id: string }
   // Cheap reorder/visibility/opacity over the full ordered list — no field transfer.
   | {
-      readonly kind: "setComposite";
+      readonly kind: "setLayerOrder";
       readonly requestId: number;
       readonly order: readonly {
         readonly id: string;

@@ -71,7 +71,7 @@ export function installPerfHud(
   const caret = makeEl(doc, "button", "webpic-perf_caret");
   caret.type = "button";
   caret.title = "Toggle details";
-  caret.addEventListener("click", () => perfStore.getState().toggleDetail());
+  caret.addEventListener("click", () => perfStore.getState().togglePerfDetail());
   head.append(title, fpsEl, caret);
 
   // The frame sparkline owns its rings and its canvas; the HUD only feeds it new samples.

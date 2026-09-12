@@ -45,7 +45,7 @@ export function installLayerSettings(
     // the window — not the default top-right, which collides with the Developer window.
     initial: { top: 64, left: 320 },
     onClose: () => {
-      uiStore.getState().setLayerSettingsVisible(false);
+      uiStore.getState().setLayerSettingsOpen(false);
       getState().setSeedPlacement(null); // don't leave the canvas in place-mode behind a closed window
     },
   });
