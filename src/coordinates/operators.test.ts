@@ -183,4 +183,12 @@ describe("operator guards", () => {
   it("rejects a component-length mismatch", () => {
     expect(() => divergence(f, zeros(8), f, shape, [1, 1, 1])).toThrow(/grid volume/);
   });
+
+  it("rejects a singleton axis, naming the axis (a pypic reduced dataset)", () => {
+    const flat: Shape3 = [8, 8, 1];
+    const g = zeros(64);
+    expect(() => divergence(g, g, g, flat, [1, 1, 1])).toThrow(/axis 2 needs ≥2 samples/);
+    expect(() => curl(g, g, g, flat, [1, 1, 1])).toThrow(/axis 2 needs ≥2 samples/);
+    expect(() => gradient(g, flat, [1, 1, 1])).toThrow(/axis 2 needs ≥2 samples/);
+  });
 });

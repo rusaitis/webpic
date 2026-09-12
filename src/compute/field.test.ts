@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { smoothVectorField } from "../../tests/analyticField.ts";
-import { makeDataset, makeField, vectorTriple } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid, vectorTriple } from "../../tests/fixtures.ts";
 import { computableFields, computeField } from "./field.ts";
 
 describe("computeField", () => {
@@ -12,6 +12,21 @@ describe("computeField", () => {
 
   it("rejects an unknown recipe name loudly", () => {
     expect(() => computeField("not-a-recipe", vectorTriple("B"))).toThrow(/unknown recipe/);
+  });
+
+  it("rejects a grid op on a reduced dataset at the dispatcher, not inside the operator", () => {
+    // A z-integrated pypic dataset: rank 3, but one sample on the collapsed axis. The failure must
+    // name computeField and the grid — partialAlongAxis' message would mean the gate leaked.
+    const flat: readonly number[] = [8, 8, 1];
+    const component = (name: string) => makeField(name, new Float64Array(64), flat);
+    const reduced = makeDataset(
+      { B_1: component("B_1"), B_2: component("B_2"), B_3: component("B_3") },
+      { grid: makeGrid(flat) },
+    );
+    expect(computableFields(reduced)).toEqual(["|B|"]); // the selector hides it...
+    expect(() => computeField("div_B", reduced)).toThrow(
+      /computeField: recipe "div_B" needs a 3-D cartesian grid with ≥2 samples per axis, got cartesian \[8, 8, 1\]/,
+    ); // ...and the dispatcher refuses it
   });
 });
 

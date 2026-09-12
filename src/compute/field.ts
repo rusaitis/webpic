@@ -23,16 +23,25 @@ export function computeField(
   }
   // Object.hasOwn guarantees membership but doesn't narrow the string; the cast is sound.
   const key = name as RecipeKey;
-  const backend = BACKENDS.find((candidate) => candidate.supports(RECIPES[key]));
+  const recipe = RECIPES[key];
+  const backend = BACKENDS.find((candidate) => candidate.supports(recipe));
   if (backend === undefined) {
     throw new Error(`computeField: no backend supports recipe "${name}"`);
+  }
+  // The same predicate computableFields filters on, so what the selector hides the dispatcher
+  // refuses — and a reduced dataset fails here, named, instead of deep inside partialAlongAxis.
+  if (!gridCanEvaluate(recipe, dataset.grid)) {
+    const { geometry, dimensions } = dataset.grid;
+    throw new Error(
+      `computeField: recipe "${name}" needs a 3-D cartesian grid with ≥2 samples per axis, got ${geometry} [${dimensions.join(", ")}]`,
+    );
   }
   return backend.compute(key, dataset, signal);
 }
 
 // A needsGrid recipe (curl/divergence) is only evaluable on a 3-D Cartesian grid with the ≥2
-// samples/axis np.gradient needs; otherwise the op throws at compute. A non-throwing mirror of the
-// backends' grid validation, so the field selector never offers a grid op that can't run on this grid.
+// samples/axis np.gradient needs. The single grid predicate: computeField rejects on it, and
+// computableFields filters on it, so the selector never offers an op the dispatcher would refuse.
 function gridCanEvaluate(recipe: RecipeMeta, grid: GridInfo): boolean {
   if (!recipe.needsGrid) return true;
   return (
