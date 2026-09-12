@@ -1,8 +1,8 @@
 import type { RenderWorkerRequest } from "@render";
 import { afterEach, describe, expect, it } from "vitest";
-import { currentDevicePixelRatio, installViewportTracking } from "./viewportTracking.ts";
+import { currentDevicePixelRatio, installViewportBridge } from "./viewportBridge.ts";
 
-// installViewportTracking reads `ResizeObserver`/`matchMedia`/`window` as bare globals (browser-only);
+// installViewportBridge reads `ResizeObserver`/`matchMedia`/`window` as bare globals (browser-only);
 // in node we stub them, capture the observer callback, and restore after each test.
 const g = globalThis as unknown as Record<string, unknown>;
 const original = { ResizeObserver: g.ResizeObserver, matchMedia: g.matchMedia, window: g.window };
@@ -51,13 +51,13 @@ describe("currentDevicePixelRatio", () => {
   });
 });
 
-describe("installViewportTracking", () => {
+describe("installViewportBridge", () => {
   it("posts a resize on an observer fire, but only once ready", () => {
     const obs = stubObservers(2);
     const posts: RenderWorkerRequest[] = [];
     const worker = { postMessage: (m: RenderWorkerRequest) => posts.push(m) } as unknown as Worker;
     let ready = false;
-    installViewportTracking({
+    installViewportBridge({
       canvas: liveCanvas(),
       worker,
       isReady: () => ready,
@@ -75,7 +75,7 @@ describe("installViewportTracking", () => {
   it("disconnects the observer on dispose", () => {
     const obs = stubObservers(1);
     const worker = { postMessage: () => {} } as unknown as Worker;
-    const tracking = installViewportTracking({
+    const tracking = installViewportBridge({
       canvas: liveCanvas(),
       worker,
       isReady: () => true,
@@ -88,7 +88,7 @@ describe("installViewportTracking", () => {
   it("posts nothing and disposes cleanly for a canvas without addEventListener (headless)", () => {
     const posts: RenderWorkerRequest[] = [];
     const worker = { postMessage: (m: RenderWorkerRequest) => posts.push(m) } as unknown as Worker;
-    const tracking = installViewportTracking({
+    const tracking = installViewportBridge({
       canvas: {} as unknown as HTMLCanvasElement,
       worker,
       isReady: () => true,

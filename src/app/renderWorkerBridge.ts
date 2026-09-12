@@ -12,7 +12,7 @@ import {
   type SimulationStore,
   unitBoxChordMidpoint,
 } from "@store";
-import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
+import { createStoreBridge, type RenderWorkerLink } from "./_storeBridge.ts";
 
 // The cheap store→render-worker control channel (app-only glue: store and render can't import each
 // other). Pose, projection, camera-motion, and the timing panel's continuous-measure toggle each ride a

@@ -1,6 +1,6 @@
 import { REQUEST_IDS } from "@render/messages.ts";
 import { describe, expect, it, vi } from "vitest";
-import { installShaderHmr, SHADER_HMR_EVENT, type ShaderHmrEvent } from "./shaderHmr.ts";
+import { installShaderHmr, SHADER_HMR_EVENT, type ShaderHmrEvent } from "./shaderHmrBridge.ts";
 
 // The dev shader-HMR bridge: a fake HMR client stands in for `import.meta.hot` (undefined in
 // node), and a recording worker captures the forwarded request. Verifies the event→message contract

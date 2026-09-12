@@ -1,6 +1,6 @@
 import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import { clamp } from "@schema/math.ts";
-import type { RenderWorkerLink } from "./storeBridge.ts";
+import type { RenderWorkerLink } from "./_storeBridge.ts";
 
 // Tracks the canvas viewport + device-pixel-ratio and posts `resize` to the render worker (app-only
 // glue). transferControlToOffscreen() moves the drawing surface, but the <canvas> still lays out on
@@ -28,7 +28,7 @@ export interface ViewportTrackingOptions extends RenderWorkerLink {
   readonly logicalSize: () => { width: number; height: number };
 }
 
-export function installViewportTracking(options: ViewportTrackingOptions): () => void {
+export function installViewportBridge(options: ViewportTrackingOptions): () => void {
   const { canvas, worker, isReady, logicalSize } = options;
 
   // ResizeObserver is frame-aligned, so post directly (no extra debounce). A pre-ready resize is

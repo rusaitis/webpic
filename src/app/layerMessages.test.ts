@@ -3,7 +3,7 @@ import { createSimulationStore, createUiStore } from "@store";
 import { describe, expect, it } from "vitest";
 import { makeField, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
-import { createLayerUpserts } from "./layerUpserts.ts";
+import { createLayerMessages } from "./layerMessages.ts";
 
 function rig() {
   const posts: Array<{ message: Record<string, unknown>; transfer?: unknown[] }> = [];
@@ -14,7 +14,7 @@ function rig() {
   } as unknown as Pick<Worker, "postMessage">;
   const store = createSimulationStore();
   const uiStore = createUiStore();
-  const upserts = createLayerUpserts({ store, uiStore, worker });
+  const upserts = createLayerMessages({ store, uiStore, worker });
   return { posts, store, uiStore, upserts };
 }
 
@@ -31,7 +31,7 @@ const volumeLayer = (id = "layer-0") =>
     shaded: true,
   }) as const;
 
-describe("createLayerUpserts", () => {
+describe("createLayerMessages", () => {
   it("transfers a field layer's scalar and raises the render pill", async () => {
     const { posts, uiStore, upserts } = rig();
     const field = makeField("|B|", new Float32Array(8), [2, 2, 2]);

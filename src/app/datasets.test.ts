@@ -2,7 +2,7 @@ import { computeField } from "@compute";
 import { describe, expect, it } from "vitest";
 import { assertAllclose } from "../../tests/helpers.ts";
 import { TOL } from "../../tests/tolerances.ts";
-import { createSyntheticDataset } from "./syntheticDataset.ts";
+import { createSyntheticDataset } from "./datasets.ts";
 
 const N = 32;
 const idx = (ix: number, iy: number, iz: number): number => iz + N * (iy + N * ix);

@@ -27,7 +27,8 @@ import {
   installPointerSeedPlacer,
   installUi,
 } from "@ui";
-import type { DatasetEntry } from "./datasets.ts";
+import { routeWorkerResponse } from "./_workerRouter.ts";
+import { createSyntheticDataset, type DatasetEntry } from "./datasets.ts";
 import { installLayerBridge } from "./layerBridge.ts";
 import type { PerfBridge } from "./perfBridge.ts";
 import { installPickerBridge } from "./pickerBridge.ts";
@@ -35,10 +36,8 @@ import { installRenderWorkerBridge } from "./renderWorkerBridge.ts";
 import { installSceneBridge } from "./sceneBridge.ts";
 import { installScreenshotBridge } from "./screenshotBridge.ts";
 import { installStreamingBridge, type StreamingBridge } from "./streamingBridge.ts";
-import { createSyntheticDataset } from "./syntheticDataset.ts";
 import { installThemeBridge } from "./themeBridge.ts";
-import { currentDevicePixelRatio, installViewportTracking } from "./viewportTracking.ts";
-import { routeWorkerResponse } from "./workerRouter.ts";
+import { currentDevicePixelRatio, installViewportBridge } from "./viewportBridge.ts";
 
 const DEFAULT_SIZE = 256;
 // The worker's orderly teardown normally acks in a few ms; terminate regardless after this so a wedged
@@ -216,7 +215,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const screenshotBridge = installScreenshotBridge({ store, uiStore, worker, isReady });
   teardown.add(renderBridge.dispose);
   teardown.add(screenshotBridge.dispose);
-  teardown.add(installViewportTracking({ canvas, worker, isReady, logicalSize }));
+  teardown.add(installViewportBridge({ canvas, worker, isReady, logicalSize }));
 
   // Withdraws every store load bootstrap started (the boot seed, a dataset switch) when it's disposed
   // mid-flight, so no compute lands on a torn-down app.
@@ -388,7 +387,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   if (import.meta.hot) {
     teardown.add(
       installLazy(
-        () => import("./shaderHmr.ts"),
+        () => import("./shaderHmrBridge.ts"),
         ({ installShaderHmr }) => installShaderHmr(worker),
         "shader HMR chunk failed to load",
       ),

@@ -9,8 +9,8 @@ import {
   selectComputed,
   type UiStore,
 } from "@store";
-import { createLayerUpserts } from "./layerUpserts.ts";
-import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
+import { createStoreBridge, type RenderWorkerLink } from "./_storeBridge.ts";
+import { createLayerMessages } from "./layerMessages.ts";
 
 // The loading pill raised while a layer upsert warms its GPU pipeline off the render path (the warm is
 // async — compileAsync); the worker's layerCompiled ack drops it. A flat key (today's scene draws one volume
@@ -61,7 +61,7 @@ export function installLayerBridge(options: LayerBridgeOptions): LayerBridge {
     sendRemove,
     sendUpsertFieldlines,
     fieldUpserted,
-  } = createLayerUpserts({ store, uiStore, worker });
+  } = createLayerMessages({ store, uiStore, worker });
 
   // Upsert every field-line layer that has traced lines (catch-up + structure-change replay).
   const flushFieldlines = (): void => {

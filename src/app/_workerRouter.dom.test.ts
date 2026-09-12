@@ -2,7 +2,7 @@ import type { RenderWorkerResponse } from "@render/messages.ts";
 import { setLogSink } from "@schema/log.ts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type CapturedLog, recordingSink } from "../../tests/helpers.ts";
-import { routeWorkerResponse, type WorkerRouterHost } from "./workerRouter.ts";
+import { routeWorkerResponse, type WorkerRouterHost } from "./_workerRouter.ts";
 
 function makeHost(overrides: Partial<WorkerRouterHost> = {}) {
   const setFrameTiming = vi.fn();

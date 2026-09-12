@@ -5,7 +5,7 @@ import {
 } from "@render/messages.ts";
 import type { SimulationStore, UiStore } from "@store";
 import { PHASE_KEYS } from "@store";
-import type { RenderWorkerLink } from "./storeBridge.ts";
+import type { RenderWorkerLink } from "./_storeBridge.ts";
 
 // PNG-screenshot glue (app-only: ui dispatches the store intent, the worker captures). Subscribes
 // to uiStore.screenshotSerial → posts the capture request; deliverScreenshot (routed from main.ts

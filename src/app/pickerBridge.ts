@@ -1,8 +1,8 @@
 import { type MarkerConfig, REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import type { Rgba01, Theme } from "@schema/theme.ts";
 import type { SimulationStore } from "@store";
+import { createStoreBridge, type RenderWorkerLink } from "./_storeBridge.ts";
 import { resolveOverlayColors } from "./sceneBridge.ts";
-import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 // Bridges the store's point-picker state to the render worker (app-only glue: store and render can't
 // import each other). Mirrors sceneBridge: the build config (theme colors + guide plane) is low-

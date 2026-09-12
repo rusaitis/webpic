@@ -15,7 +15,7 @@ import {
   type SimulationStore,
   type UiStore,
 } from "@store";
-import type { RenderWorkerLink } from "./storeBridge.ts";
+import type { RenderWorkerLink } from "./_storeBridge.ts";
 
 // Every store layer → render-worker message, in one place: what each wire request carries and when a
 // field transfer is involved. installLayerBridge owns *when* to send; this owns *what* is sent, so the
@@ -59,7 +59,7 @@ interface SliceChange {
   readonly position: boolean;
 }
 
-export interface LayerUpserts {
+export interface LayerMessages {
   // Post a field layer's scalar. The buffer is TRANSFERRED — the caller must not read it after.
   sendUpsert(layer: Layer, field: FieldArray): void;
   sendLayerColormap(layer: Layer, binding: ColormapBinding): void;
@@ -72,7 +72,7 @@ export interface LayerUpserts {
   readonly fieldUpserted: Set<string>;
 }
 
-export function createLayerUpserts(options: LayerUpsertsOptions): LayerUpserts {
+export function createLayerMessages(options: LayerUpsertsOptions): LayerMessages {
   const { store, uiStore, worker } = options;
   const fieldUpserted = new Set<string>();
 
