@@ -35,6 +35,18 @@ describe("parseTheme", () => {
     expect(theme.colors.background).toEqual([17 / 255, 17 / 255, 17 / 255, 1]);
   });
 
+  it("rejects malformed TOML with the theme named, not smol-toml's bare syntax error", () => {
+    expect(() => parseTheme('name = "broken"\n[colors\n', "half-open")).toThrow(
+      /Invalid theme in "half-open"/,
+    );
+  });
+
+  it("names the source on a wrong-typed key too", () => {
+    expect(() => parseTheme("[colors]\naccent = 42\n", "numeric-accent")).toThrow(
+      /Invalid theme in "numeric-accent"/,
+    );
+  });
+
   it("rejects an invalid docked-side enum loudly", () => {
     expect(() => parseTheme(`[webpic.layout]\ndocked-side = "up"`)).toThrow(/Invalid theme/);
   });

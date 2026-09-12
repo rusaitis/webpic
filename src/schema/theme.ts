@@ -244,14 +244,22 @@ const DEFAULT_DIVERGING = "RdBu_r";
 
 /**
  * Parse + validate a theme TOML into a normalized {@link Theme}. Pure (no I/O) — the
- * entry point for both bundled themes and user-supplied custom themes. Throws a
- * {@link z.ZodError} (annotated with `sourceName`) on a structurally invalid theme;
- * a missing `[webpic]` block is not invalid — it yields {@link DEFAULT_WEBPIC_CONFIG}.
+ * entry point for both bundled themes and user-supplied custom themes. Throws
+ * `Invalid theme in "<sourceName>": …` for malformed TOML and for a structurally invalid
+ * one alike; a missing `[webpic]` block is not invalid — it yields {@link DEFAULT_WEBPIC_CONFIG}.
  */
 export function parseTheme(tomlText: string, sourceName?: string): Theme {
-  const parsed = ThemeFileSchema.safeParse(parseToml(tomlText));
+  const where = sourceName ? ` in "${sourceName}"` : "";
+  let document: unknown;
+  try {
+    document = parseToml(tomlText);
+  } catch (error) {
+    // smol-toml's own SyntaxError names neither the theme nor this function — a user-supplied theme
+    // has to fail the same way whether it is malformed TOML or a wrong-typed key.
+    throw new Error(`Invalid theme${where}: ${error instanceof Error ? error.message : error}`);
+  }
+  const parsed = ThemeFileSchema.safeParse(document);
   if (!parsed.success) {
-    const where = sourceName ? ` in theme "${sourceName}"` : "";
     throw new Error(`Invalid theme${where}: ${parsed.error.message}`);
   }
   const { raw } = parsed.data;
