@@ -56,7 +56,7 @@ npm run dev
 | **Layers** | Volumes, slices, and field lines co-display as an ordered, individually-configurable layer stack |
 | **Time series** | Scrub through timesteps with a prefetching ring buffer and ping-pong texture upload — no pipeline recompile per step |
 | **Data** | Zarr v3 read and write (via [zarrita](https://github.com/manzt/zarrita.js)), OPFS-backed caching, Yee-grid destaggering on load |
-| **Derived quantities** | Magnitudes, curl, divergence, and gradient, computed in TypeScript or WGSL against the same reference implementation |
+| **Derived quantities** | Magnitudes, curl and divergence, computed in TypeScript or WGSL against the same reference implementation; gradient is TypeScript-only |
 
 Everything renders off the main thread: the scene lives on an `OffscreenCanvas` in a render
 worker, data reads and scrub-path compute in a data worker.
@@ -101,6 +101,7 @@ npm run check:boundaries # layer-DAG enforcement (ts-morph)
 npm run gen:check        # schema codegen drift guard
 npm run lint             # Biome
 npm run test             # Vitest (node + dom projects)
+npm run check            # the full gate — exactly what CI runs
 npm run build            # production build
 npm run test:gpu         # real-GPU suites, headed Chrome (local only)
 npm run test:coverage    # Vitest + v8 coverage report (coverage/)
@@ -109,7 +110,7 @@ npm run perf:gate        # M0/M2 acceptance numbers, headed Chrome (local only)
 npm run gen              # regenerate schema/recipe codegen from pypic (needs uv + ../pypic)
 npm run gen:themes       # re-vendor pypic's theme TOMLs (gen:themes:check diffs against ../pypic — local-only, like test:parity)
 npm run docs:api         # TypeDoc for @webpic/embed → docs/api (published under /api/ on Pages)
-npm run size             # size-limit budgets (needs build + build:embed first)
+npm run check:size       # size-limit budgets (needs build + build:embed first)
 ```
 
 CI runs everything except `test:gpu`, `perf:gate` (both need a real adapter) and `test:parity` (needs a pypic checkout). A `lefthook` pre-commit runs Biome on staged files and pre-push runs typecheck + tests; skip once with `LEFTHOOK=0`.

@@ -1,4 +1,4 @@
-# Editor defaults matching biome.json (Biome is the authority for formatting *.ts/*.json).
+# Editor defaults matching biome.jsonc (Biome is the authority for formatting *.ts/*.json).
 root = true
 
 [*]

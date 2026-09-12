@@ -289,24 +289,28 @@ webpic/
     embed/                        # @webpic/embed — headless library export
       src/
         index.ts                  #   public API; no UI imports
-  tests/
-    unit/
-    cross-validation/             #   webpic vs pypic numerical agreement
+  tests/                          # cross-layer meta-guards + shared fixtures; layer tests sit beside
+                                  #   their source (foo.test.ts), so nothing here is a unit test
+    boundaries / aliases / codegen / comment-budget / design-citations / embed / embed-bundle /
+      live-modules / manifest / tolerances / wgsl        #   the guards
+    goldens / schema-parity / writer-parity / traces.golden / synthetic / seedPick
+                                  #   webpic vs pypic numerical agreement
     fixtures/v1/                  #   pypic-generated golden outputs
     fixtures/synthetic/           #   Orszag-Tang, Harris, GEM (analytical)
     tolerances.ts                 #   per-kernel, per-precision tolerance table
-    migration.test.ts             #   schema-version migration guards
-    prefetch.test.ts              #   EWMA direction fuzz scrubber
   scripts/
-    codegen/                      #   M0 — bundle.ts (pypic export bundle → JSON) + emit.ts +
+    codegen/                      #   bundle.ts (pypic export bundle → JSON) + emit.ts +
                                   #     render-{schema,aliases,recipes,registry}.ts (`npm run gen`)
-    check-boundaries.ts           #   M0 — primary layer enforcement (ts-morph)
-    sync-themes.ts                #   M0 — pull pypic theme TOMLs into the bundle
-    perf-gate.ts                  #   M0 — Playwright cold-start perf gate
-    gen-fixtures.ts               #   dev-only (no milestone) — refresh fixtures via pypic
-    gen-synthetic.ts              #   M3 — Orszag-Tang/Harris/GEM analytical fields
-    sync-shaders.ts               #   rustpic-gated — lands when @rustpic/shaders npm publishes
-    bench.ts                      #   v0.2 — per-kernel benchmarking
+    harness/                      #   shared headed-Chrome session + page probes for the instruments
+    check-boundaries.ts           #   primary layer enforcement (ts-morph)
+    sync-themes.ts                #   pull pypic theme TOMLs into the bundle
+    perf-gate.ts                  #   cold-start perf gate (`npm run perf:gate`)
+    profile-raymarch.ts           #   sustained raymarch frame time (`npm run perf:raymarch`)
+    verify-streaming-render.ts    #   streamed steps reach the GPU under scrub (`npm run verify:streaming`)
+    verify-orientation.ts         #   z-up + camera-feel screenshots for review (`npm run verify:orientation`)
+    shot-readme.ts                #   regenerate the README hero (`npm run shot:readme`)
+    gen-fixtures.ts / gen-synthetic.ts / gen-trace-fixtures.ts   #   refresh fixtures via pypic
+    sync-shaders.ts               #   NOT BUILT — rustpic-gated, lands when @rustpic/shaders publishes
 ```
 
 #### Public library export
@@ -1011,7 +1015,7 @@ Cross-cutting concerns and explicitly deferred items. Milestone-bound work lives
 
 ## Critical files & references
 
-**Codegen + scripts.** Shipped (M0): `scripts/codegen/{bundle,emit,render-schema,render-aliases,render-recipes,render-registry}.ts` (driven by `npm run gen`), `scripts/check-boundaries.ts`, `scripts/sync-themes.ts`, `scripts/perf-gate.ts`. Shipped since: `tests/tolerances.ts` (per-kernel × per-precision `{rtol,atol}` matrix `TOL.<kernel>.<precision>` + structural guard `tests/tolerances.test.ts` — landed M3.2). To create: `gen-synthetic.ts` (M3 analytical fields), `gen-fixtures.ts` (dev), `sync-shaders.ts` (rustpic-gated). See §Package shape for the full file inventory.
+**Codegen + scripts.** Shipped (M0): `scripts/codegen/{bundle,emit,render-schema,render-aliases,render-recipes,render-registry}.ts` (driven by `npm run gen`), `scripts/check-boundaries.ts`, `scripts/sync-themes.ts`, `scripts/perf-gate.ts`. Shipped since: `tests/tolerances.ts` (per-kernel × per-precision `{rtol,atol}` matrix `TOL.<kernel>.<precision>` + structural guard `tests/tolerances.test.ts` — landed M3.2), `gen-synthetic.ts` (analytical fields), `gen-fixtures.ts` + `gen-trace-fixtures.ts` (dev), and the four headed-Chrome instruments (`perf:raymarch`, `verify:streaming`, `verify:orientation`, `shot:readme`). Not built: `sync-shaders.ts` (rustpic-gated). See §Package shape for the full file inventory.
 
 **Upstream PR.** pypic theme TOMLs — `[webpic]` section (shipped M0; see §UI for schema).
 

@@ -1,5 +1,8 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  // `scripts/**` and `tests/**` are entry points, so nothing in either tree can be reported unused —
+  // a green check:dead is not evidence that there are no orphan scripts. tests/live-modules.test.ts
+  // covers the src side of that blind spot (a module only its own test imports).
   "entry": [
     "src/render/worker.ts",
     "src/workers/*.worker.ts",

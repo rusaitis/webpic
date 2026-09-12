@@ -32,7 +32,7 @@ import { createFrameTimer, type FrameTimer } from "./runtime/frameTimer.ts";
 import { createPerfSampler } from "./runtime/perfSampler.ts";
 import { createQualityController } from "./runtime/qualityController.ts";
 import { createReadback } from "./runtime/readback.ts";
-import { type InstalledRenderer, installRenderer } from "./runtime/renderer.ts";
+import { type InstalledRenderer, installRenderer, requireRenderer } from "./runtime/renderer.ts";
 import { createRenderLoop } from "./runtime/renderLoop.ts";
 
 // The dedicated-worker surface the world posts through (`self`, narrowed at the module tail).
@@ -89,12 +89,6 @@ function createWorkerWorld(context: WorkerContext): {
   // Hoisted so every manager host can reference the loop's dirty-flag entry before `loop` exists.
   function requestRender(): void {
     loop.requestRender();
-  }
-
-  // Post-dispose (or before any init) the renderer is gone: a message must fail loudly, never no-op.
-  function liveRenderer(kind: RenderWorkerRequest["kind"]): InstalledRenderer {
-    if (renderer === undefined) throw new Error(`${kind} before init`);
-    return renderer;
   }
 
   function aspect(): number {
@@ -297,7 +291,7 @@ function createWorkerWorld(context: WorkerContext): {
     request: Request<"upsertLayer" | "upsertFieldlines">,
     build: () => Promise<void>,
   ): Promise<void> {
-    liveRenderer(request.kind);
+    requireRenderer(renderer, request.kind);
     try {
       await build();
     } finally {
@@ -309,7 +303,7 @@ function createWorkerWorld(context: WorkerContext): {
   // visibility toggles, leaving the 3D view stale while the store-driven gnomon keeps turning. Slices
   // stay pose-invariant via the ortho camera, so the repaint just re-presents them.
   function setCameraPose(request: Request<"setCameraPose">): void {
-    liveRenderer(request.kind);
+    requireRenderer(renderer, request.kind);
     pose = request.pose;
     applyVolumePose();
     requestRender();
@@ -327,7 +321,7 @@ function createWorkerWorld(context: WorkerContext): {
   }
 
   function resize(request: Request<"resize">): void {
-    const live = liveRenderer(request.kind);
+    const live = requireRenderer(renderer, request.kind);
     canvasSize = { width: request.width, height: request.height };
     devicePixelRatio = request.devicePixelRatio;
     live.setSize(request.width, request.height, request.devicePixelRatio);
@@ -438,7 +432,7 @@ function createWorkerWorld(context: WorkerContext): {
       case "setLayerOrder":
         return registry.setLayerOrder(request.order);
       case "setLayerColormap":
-        liveRenderer(request.kind);
+        requireRenderer(renderer, request.kind);
         return registry.setColormap(request);
       case "setLayerShading":
         return registry.setShading(request);
@@ -459,10 +453,10 @@ function createWorkerWorld(context: WorkerContext): {
         cameraMotion = request.motion;
         return syncQualityMotion();
       case "setSceneOverlay":
-        liveRenderer(request.kind);
+        requireRenderer(renderer, request.kind);
         return overlay.build(request.overlay);
       case "setMarker":
-        liveRenderer(request.kind);
+        requireRenderer(renderer, request.kind);
         return marker.build(request.marker);
       case "setPickerPoint":
         return setPickerPoint(request);

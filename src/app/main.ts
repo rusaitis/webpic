@@ -28,6 +28,8 @@ import {
   installUi,
 } from "@ui";
 import { routeWorkerResponse } from "./_workerRouter.ts";
+import { createCanvasHost } from "./canvasHost.ts";
+import { installDatasetSwitch } from "./datasetSwitch.ts";
 import { createSyntheticDataset, type DatasetEntry } from "./datasets.ts";
 import { installLayerBridge } from "./layerBridge.ts";
 import type { PerfBridge } from "./perfBridge.ts";
@@ -39,7 +41,6 @@ import { installStreamingBridge, type StreamingBridge } from "./streamingBridge.
 import { installThemeBridge } from "./themeBridge.ts";
 import { currentDevicePixelRatio, installViewportBridge } from "./viewportBridge.ts";
 
-const DEFAULT_SIZE = 256;
 // The worker's orderly subscriptions normally acks in a few ms; terminate regardless after this so a wedged
 // worker can't hold the page's own subscriptions hostage.
 export const DISPOSE_GRACE_MS = 250;
@@ -123,39 +124,13 @@ function installLazy<M>(
 }
 
 export function bootstrap(options: BootstrapOptions = {}): () => void {
-  const width = options.width ?? DEFAULT_SIZE;
-  const height = options.height ?? DEFAULT_SIZE;
-
-  const createCanvas =
-    options.createCanvas ??
-    (() => {
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      return canvas;
-    });
-  const mount =
-    options.mount ??
-    ((canvas: HTMLCanvasElement) => {
-      // The FCP splash pill lives outside #app and survives this; installStatusPill adopts it.
-      (document.getElementById("app") ?? document.body).replaceChildren(canvas);
-    });
   const spawnWorker =
     options.spawnWorker ??
     // Literal `new Worker(new URL(...))` so Vite emits the worker as its own chunk.
     (() => new Worker(new URL("../render/worker.ts", import.meta.url), { type: "module" }));
 
-  const canvas = createCanvas();
-  mount(canvas);
-
-  // Logical (CSS) size from the mounted, full-viewport element; explicit options win for the headless
-  // handshake test. The worker scales these by devicePixelRatio for the drawing buffer.
-  const logicalSize = (): { width: number; height: number } => ({
-    width: options.width ?? (canvas.clientWidth || DEFAULT_SIZE),
-    height: options.height ?? (canvas.clientHeight || DEFAULT_SIZE),
-  });
+  const { canvas, offscreen, logicalSize } = createCanvasHost(options);
   const initial = logicalSize();
-  const offscreen = canvas.transferControlToOffscreen();
 
   const worker = spawnWorker();
   const store = options.store ?? createSimulationStore();
@@ -221,37 +196,13 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // mid-flight, so no compute lands on a torn-down app.
   const bootAbort = new AbortController();
 
-  // Dataset switch (the dropdown): the store records `datasetId`; rebuild the dataset here (the app
-  // owns the catalog — store/ui can't reach `data`), seed it on the main thread for an instant frame,
-  // reset the look to the dataset's default color scale, and re-open the stream onto the new handle.
-  // Inert when no catalog was wired; `reopen` is a no-op when there's no stream.
   subscriptions.add(
-    store.subscribe(
-      (state) => state.datasetId,
-      (id) => {
-        const entry = options.datasetCatalog?.get(id);
-        if (entry === undefined) return;
-        // setDataset re-seeds asynchronously; apply the dataset's default scale to the retargeted binding
-        // and re-open the stream onto the new handle once that lands.
-        void store
-          .getState()
-          .setDataset(entry.makeDataset(), bootAbort.signal)
-          .then(() => {
-            const state = store.getState();
-            // Every field-drawing layer, not just the selected one — a field-lines layer is selected by
-            // its own add, and its binding only tints a line color, so scoping the scale to the
-            // selection can leave the volume linear (all-black on the dipole). setBindingScale
-            // identity-skips, so shared bindings cost nothing.
-            for (const layer of state.layers) {
-              if (layer.kind !== "volume" && layer.kind !== "slice") continue;
-              if (layer.colormapBindingId !== null)
-                state.setBindingScale(layer.colormapBindingId, entry.defaultScale);
-            }
-            streaming?.reopen(entry.streamSource);
-          })
-          .catch(rejectionLogger("app", "dataset switch failed"));
-      },
-    ),
+    installDatasetSwitch({
+      store,
+      ...(options.datasetCatalog !== undefined ? { catalog: options.datasetCatalog } : {}),
+      signal: bootAbort.signal,
+      reopen: (entry) => streaming?.reopen(entry.streamSource),
+    }),
   );
 
   // Catch-up once the renderer is live: the gated subscriptions dropped their pre-ready posts, so push

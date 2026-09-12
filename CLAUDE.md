@@ -7,6 +7,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 - **CLAUDE.md** (this file) — conventions + layer model + commands. Always loaded; keep it lean.
 - **TASKS.md** — milestone checklist; check off `[ ]` as you go. `/tasks` summarizes.
 - **docs/DESIGN.md** — full design rationale (layer DAG, schema codegen, remote protocol, tolerances, risks). Read on demand — *not* `@`-imported, so it never bloats session context.
+- **docs/cleanup.md** — the record of the code-health passes: what each decided, what landed, and what was rejected after inspection. Read before re-proposing a cleanup.
 - `../pypic/CLAUDE.md` — sibling ground truth for canonical names + physics equations (read when needed).
 
 ## Architecture
@@ -14,6 +15,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 - **Hard layer boundaries (pypic-mirrored).** 18 layers; `scripts/layers.ts` is the authority for the list and the allowed-import DAG (DESIGN §Layered dependency DAG). Rule of thumb: `schema` depends on nothing (root + canonical-name authority + shared scalar/geometry primitives — `@schema/math`'s `clamp`, `vec3`, `UNIT_BOX_HALF_EXTENT`); the math layers (`coordinates`/`numerics`/`reductions`/`derived`/`diagnostics`) are pure leaves; `ui` → `store` → `render`, and `ui` never imports `render` or calls `scene.add(...)` — it dispatches typed store intents. Boundary violations are CI errors (`scripts/check-boundaries.ts`, ts-morph).
 - **Reserved layers** (`diagnostics`, `remote`) are a 3-line `export {}` stub whose header names the DESIGN section that activates them. The DAG is wired for all 18.
 - **Single package, `src/<layer>/`;** path aliases (`@schema/*`, `@compute/*`, …) pre-stage the `@webpic/<layer>` split (DESIGN §Package shape). Never deep relatives.
+- **A layer's root holds its infrastructure; its surfaces live in folders** named for what they are — `ui/{camera,layers,topbar,perf,picking,keys,status,colorbar,controls,floating,panels,theme}`, `render/{layer,field,overlay,marker,camera,runtime,fieldlines}`, `store/{slices,interaction}`. A surface's CSS sits beside it (`ui/<surface>/*.css`), assembled in cascade order by `ui/theme/styles.ts`. `controls/` is the one ui subfolder with a barrel, because `@ui` re-exports it.
 - **The math layers are pure.** Typed arrays in, typed arrays out. No `THREE.*`, no DOM, no `GPUDevice`. One TS reference impl per operator lives in `coordinates/` (e.g. `curl`); `compute/backends/ts` delegates to it, and cross-backend tests compare the WGSL kernel against it — never a duplicate.
 - **Canonical names everywhere.** `B_1`, `B_2`, `B_3`, `|B|`, `beta`, `v_A`, `omega_p_s0` — same keys as `pypic.compute.RECIPES`. Aliases (`B_mag`, `plasma_beta`) resolve at boundaries only. Field component labels are **1-indexed**; array indices **0-indexed** (`B_1` ↔ component=0). `grep B_1` works across pypic, magviz, webpic.
 - **Workers own their domain.** Each worker owns reads, compute, or trace — the main thread orchestrates only (DESIGN §Worker message protocol, §Compute dispatcher).
@@ -51,7 +53,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 - **Parameters:** short scientific — `bx`, `rho`, `dt`, `qOverM`. The doc has the full description.
 - **Variables in code:** descriptive — `electronDensity` not `ne`. Math symbols belong in docstrings, not identifiers.
 - **Constants:** `UPPER_SNAKE_CASE`.
-- **Booleans are questions** — `isPeriodic`, `hasField`, `shouldRetrace` — for fields, params and locals. Exceptions, all on the store→render wire where they mirror three.js or a shader uniform: `visible`, `shaded`, `continuous`, `active`.
+- **Booleans are questions** — `isPeriodic`, `hasField`, `shouldRetrace` — for fields, params and locals. Two exceptions, both because the name is a wire name someone else owns: the store→render fields mirroring three.js or a shader uniform (`visible`, `shaded`, `continuous`, `active`), and a field mirroring a pypic schema/TOML key 1:1 (`arrows`, `fps-overlay`, `relativistic`).
 - **One spelling per concept:** `options` (never `opts`), `element` (never `el`), `context` (never `ctx`; `ctx` only for a `CanvasRenderingContext2D`/`GPUCanvasContext` local), `signal`, `dispose` (never `teardown`), `abortController` (never `ac`), `subscriptions` (never `subs`). Store→worker glue in `app/` is a `*Bridge`, never a `*Sync`.
 - **Log scopes** are a closed union in `@schema/log` (`LogScope`): layer names for layers (`"zarr"`, `"theme"`), `"<x> worker"` for workers, `"boot"`/`"app"` for the main thread.
 - No `handleX` — name the verb: `openDataset`, not `handleOpen`.
@@ -106,18 +108,23 @@ Don't add without justification matching `docs/DESIGN.md` §Build system & tooli
 npm run check       # the full gate — exactly what CI runs
 npm run dev         # Vite dev server
 npm run dev:lan     # HTTPS + LAN-exposed (iPad testing; certs via scripts/setup-lan-certs.sh)
-npm run build       # production build
+npm run build       # production build   ·   build:embed — the @webpic/embed bundle
 npm run typecheck   # app + worker + node tsconfigs
-npm run lint        # Biome check
+npm run lint        # Biome check   ·   lint:ci — the CI form   ·   format — Biome --write
 npm run test        # Vitest (node + dom projects)
-npm run test:coverage # Vitest + v8 coverage (report only, no gate)
+npm run test:coverage # Vitest + v8 coverage (report only, no gate) — what `check` runs
+npm run check:boundaries # the layer DAG (ts-morph)
 npm run check:dead  # knip — unused files, exports, deps
+npm run check:size  # size-limit budgets (needs build + build:embed first)
 npm run docs:api    # TypeDoc, treatWarningsAsErrors — a CI gate
-npm run format      # Biome format --write
+npm run gen         # schema/recipe codegen from pypic (gen:export + gen:emit; gen:check diffs it)
+npm run gen:fixtures / gen:synthetic / gen:trace-fixtures  # refresh test fixtures via pypic
 npm run gen:themes:check # local-only (needs ../pypic)
 npm run test:parity # schema + writer parity vs live pypic — local-only (needs ../pypic)
 npm run test:gpu    # real-GPU suites in headed system Chrome — local-only (needs a real GPU)
 npm run perf:gate   # cold-paint / first-frame gate — local-only (needs a real GPU)
+npm run perf:raymarch / verify:streaming / verify:orientation / shot:readme
+                    # headed-Chrome instruments — local-only; run them alone (load-sensitive)
 ```
 
 ## Progress

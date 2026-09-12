@@ -1,6 +1,6 @@
 import { transferableBuffer } from "@schema/transfer.ts";
 import type { RenderWorkerRequest, RenderWorkerResponse } from "../messages.ts";
-import type { DrawItem, InstalledRenderer } from "./renderer.ts";
+import { type DrawItem, type InstalledRenderer, requireRenderer } from "./renderer.ts";
 import { pixelsToPngBlob } from "./screenshot.ts";
 
 // Deterministic readbacks: render the composite to the offscreen target, await the GPU, post the
@@ -29,15 +29,9 @@ export interface Readback {
 }
 
 export function createReadback(host: ReadbackHost): Readback {
-  function liveRenderer(kind: "renderFrame" | "screenshot"): InstalledRenderer {
-    const renderer = host.renderer();
-    if (renderer === undefined) throw new Error(`${kind} before init`);
-    return renderer;
-  }
-
   return {
     async frame(request) {
-      const renderer = liveRenderer(request.kind);
+      const renderer = requireRenderer(host.renderer(), request.kind);
       const items = host.paintItems();
       host.beginReadback();
       try {
@@ -64,7 +58,7 @@ export function createReadback(host: ReadbackHost): Readback {
     // The failure arm posts blob:null so the app's pending state never strands (layerCompiled's
     // never-strand contract); the rethrow still surfaces the message on the error channel.
     async screenshot(request) {
-      const renderer = liveRenderer(request.kind);
+      const renderer = requireRenderer(host.renderer(), request.kind);
       try {
         let pixels: Uint8Array;
         host.beginReadback();

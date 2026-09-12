@@ -95,10 +95,10 @@ describe("createReadback", () => {
   it("fails loudly before init without touching the loop", async () => {
     const rig = makeRig({ renderer: false });
     await expect(rig.readback.frame({ kind: "renderFrame", requestId: 7 })).rejects.toThrow(
-      "renderFrame before init",
+      "renderFrame: renderer is not installed",
     );
     await expect(rig.readback.screenshot({ kind: "screenshot", requestId: 8 })).rejects.toThrow(
-      "screenshot before init",
+      "screenshot: renderer is not installed",
     );
     expect(rig.log).toEqual([]);
   });

@@ -29,6 +29,16 @@ export interface DrawItem {
   readonly camera: Camera;
 }
 
+// Post-dispose, or before any init, the renderer is gone: a message must fail loudly rather than
+// no-op, so the caller names the request it was serving.
+export function requireRenderer(
+  renderer: InstalledRenderer | undefined,
+  kind: string,
+): InstalledRenderer {
+  if (renderer === undefined) throw new Error(`${kind}: renderer is not installed`);
+  return renderer;
+}
+
 export interface InstalledRenderer {
   readonly renderer: WebGPURenderer;
   readPixels(scene: Object3D, camera: Camera): Promise<Uint8Array>;
