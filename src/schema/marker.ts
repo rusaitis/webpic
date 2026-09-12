@@ -47,9 +47,9 @@ const DEG_PER_RAD = 180 / Math.PI;
 // Zoom-tracking world scale for the core (and its ring/handle children). Perspective keys off the
 // true camera→point distance; orthographic keys off the orbit distance alone — its matched frustum
 // (halfH = d·tan(fov/2)) makes apparent size depend on d, not on the point's depth.
-export function markerCoreScale(pose: CameraPose, point: Vec3, orthographic: boolean): number {
+export function markerCoreScale(pose: CameraPose, point: Vec3, isOrthographic: boolean): number {
   let dist: number;
-  if (orthographic) {
+  if (isOrthographic) {
     dist = pose.distance;
   } else {
     const cam = cameraPosition(pose);
@@ -60,8 +60,8 @@ export function markerCoreScale(pose: CameraPose, point: Vec3, orthographic: boo
 
 // Knob distance from the core in world units (the handle stem length), accounting for the zoom scale
 // the handle inherits as a child of the core.
-export function markerHandleOffset(pose: CameraPose, point: Vec3, orthographic: boolean): number {
-  return MARKER_SPHERE_RADIUS * HANDLE_OFFSET_SCALE * markerCoreScale(pose, point, orthographic);
+export function markerHandleOffset(pose: CameraPose, point: Vec3, isOrthographic: boolean): number {
+  return MARKER_SPHERE_RADIUS * HANDLE_OFFSET_SCALE * markerCoreScale(pose, point, isOrthographic);
 }
 
 // Camera elevation above the equatorial plane, degrees: 0° edge-on, 90° top-down. The pose carries

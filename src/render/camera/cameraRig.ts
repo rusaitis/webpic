@@ -15,7 +15,7 @@ import {
 // flip never shows a stale frustum; the screen-aligned ortho is pose-invariant.
 export interface CameraRig {
   // The active volume camera for the projection (perspective, or the matched-frustum ortho).
-  volumeCamera(orthographic: boolean): PerspectiveCamera | OrthographicCamera;
+  volumeCamera(isOrthographic: boolean): PerspectiveCamera | OrthographicCamera;
   // The screen-aligned ortho camera (slices + boot triangle); pose-invariant.
   readonly orthoCamera: OrthographicCamera;
   // Re-aim both volume cameras at the pose + aspect (a pose change or a resize).
@@ -27,7 +27,7 @@ export function createCameraRig(aspect: number): CameraRig {
   const orthoVolumeCamera = createVolumeOrthographicCamera(aspect);
   const orthoCamera = createOrthographicCamera();
   return {
-    volumeCamera: (orthographic) => (orthographic ? orthoVolumeCamera : perspCamera),
+    volumeCamera: (isOrthographic) => (isOrthographic ? orthoVolumeCamera : perspCamera),
     orthoCamera,
     apply(pose, aspect) {
       applyPose(perspCamera, pose, aspect);

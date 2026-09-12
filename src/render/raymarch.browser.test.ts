@@ -50,7 +50,7 @@ function rampAlongFastestAxis(): ScalarField {
 async function renderVolume(
   field: ScalarField,
   straightOn = false,
-  orthographic = false,
+  isOrthographic = false,
 ): Promise<Uint8Array> {
   const { installRenderer } = await import("./runtime/renderer.ts");
   const { createRaymarchScene } = await import("./volume/raymarchScene.ts");
@@ -62,7 +62,7 @@ async function renderVolume(
     height: SIZE,
   });
   const volume = createRaymarchScene({ field, colormap: "inferno", density: 4 });
-  volume.setProjection(orthographic);
+  volume.setProjection(isOrthographic);
   // Pinned poses, not DEFAULT_POSE: the assertions index the center pixel, so the target must be
   // the box center — the app default trades that for screen composition (offset target).
   const pose = straightOn
@@ -75,7 +75,7 @@ async function renderVolume(
         roll: 0,
       } as const);
   let camera: import("three").PerspectiveCamera | import("three").OrthographicCamera;
-  if (orthographic) {
+  if (isOrthographic) {
     camera = createVolumeOrthographicCamera();
     applyPoseOrtho(camera, pose);
   } else {

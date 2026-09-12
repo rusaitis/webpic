@@ -17,7 +17,7 @@ interface FakeScene {
   setFieldResult: boolean;
   fieldSwaps: number;
   stepScale?: number;
-  orthographic?: boolean;
+  isOrthographic?: boolean;
   position?: number;
   shaderRebuilds: number;
   scale?: string;
@@ -67,7 +67,7 @@ function makeFake(
             fake.stepScale = s;
           },
           setProjection: (o: boolean) => {
-            fake.orthographic = o;
+            fake.isOrthographic = o;
           },
           setShading: () => {},
           rebuildShader: () => {
@@ -271,7 +271,7 @@ describe("createLayerRegistry", () => {
     registry.applyProjection(true);
     const volume = created.find((s) => s.kind === "volume");
     expect(volume?.stepScale).toBe(0.5);
-    expect(volume?.orthographic).toBe(true);
+    expect(volume?.isOrthographic).toBe(true);
   });
 
   it("rebuildShaders swaps volume materials only (dev shader HMR), skipping slices", async () => {

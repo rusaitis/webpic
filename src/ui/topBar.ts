@@ -82,7 +82,7 @@ export function installTopBar(
   const datasetItems = DATASET_CATALOG.map((d) => ({ value: d.id, label: d.label }));
   const datasetPopover = createPopover<{ value: string; label: string }>({
     anchor: datasetBtn,
-    dismissOnOutside: false,
+    shouldDismissOnOutside: false,
     onOpen: () => closeOverlaysExcept("dataset"),
     getItems: () => datasetItems,
     getSelected: () => store.getState().datasetId,
@@ -118,7 +118,7 @@ export function installTopBar(
   const fieldPopover = createPopover<{ value: FieldName }>({
     anchor: fieldBtn,
     className: "is-fields",
-    dismissOnOutside: false,
+    shouldDismissOnOutside: false,
     onOpen: () => closeOverlaysExcept("field"),
     getItems: fieldItems,
     getSelected: () => store.getState().activeField,

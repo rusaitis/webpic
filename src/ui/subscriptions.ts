@@ -22,7 +22,7 @@ interface SelectorStore<S> {
 
 interface SubscribeOptions<U> {
   // Run the listener once with the current slice on subscribe (the usual "apply, then track").
-  readonly fireNow?: boolean;
+  readonly shouldFireNow?: boolean;
   // Slice comparison; default is `Object.is`. Pass zustand's `shallow` for fresh-array selectors.
   readonly equalityFn?: (a: U, b: U) => boolean;
 }
@@ -45,7 +45,7 @@ export function createSubscriptions(): Subscriptions {
       disposers.push(
         store.subscribe(selector, listener, {
           equalityFn: options?.equalityFn,
-          fireImmediately: options?.fireNow,
+          fireImmediately: options?.shouldFireNow,
         }),
       );
     },

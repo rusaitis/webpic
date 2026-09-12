@@ -14,33 +14,16 @@ export interface NiceTicks {
 // Runaway guard: a pathological bounds/targetCount can't allocate an unbounded tick list.
 const MAX_TICKS = 1000;
 
-// round=false snaps up to the next 1/2/5×10ᵏ; round=true snaps to the nearest.
-function niceNum(value: number, round: boolean): number {
-  if (!(value > 0)) return 0;
-  const exp = Math.floor(Math.log10(value));
-  const frac = value / 10 ** exp; // ∈ [1, 10)
-  const nice = round
-    ? frac < 1.5
-      ? 1
-      : frac < 3
-        ? 2
-        : frac < 7
-          ? 5
-          : 10
-    : frac <= 1
-      ? 1
-      : frac <= 2
-        ? 2
-        : frac <= 5
-          ? 5
-          : 10;
-  return nice * 10 ** exp;
-}
-
-// The 1/2/5×10ᵏ major step for a span targeting ~`targetCount` divisions (0 for a degenerate span).
+// The 1/2/5×10ᵏ major step for a span targeting ~`targetCount` divisions (0 for a degenerate span):
+// snap the raw span/count to the nearest number on that lattice (Heckbert's nice-number rule), which
+// is what makes tick labels read as round.
 export function niceStep(span: number, targetCount: number): number {
-  const count = Math.max(1, Math.floor(targetCount));
-  return niceNum(span / count, true);
+  const raw = span / Math.max(1, Math.floor(targetCount));
+  if (!(raw > 0)) return 0;
+  const exponent = Math.floor(Math.log10(raw));
+  const fraction = raw / 10 ** exponent; // ∈ [1, 10)
+  const nice = fraction < 1.5 ? 1 : fraction < 3 ? 2 : fraction < 7 ? 5 : 10;
+  return nice * 10 ** exponent;
 }
 
 // Ascending major ticks at a *given* step within [min, max] (inclusive, clipped). Lets several axes

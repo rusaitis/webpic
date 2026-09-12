@@ -140,13 +140,13 @@ export function installCameraChrome(
     }
   };
   const subscriptions = createSubscriptions();
-  subscriptions.on(store, (s) => s.cameraPose, render, { fireNow: true });
+  subscriptions.on(store, (s) => s.cameraPose, render, { shouldFireNow: true });
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
     if (visible) render(store.getState().cameraPose); // catch up — the pose moved while hidden
   };
-  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible, { shouldFireNow: true });
 
   // The gnomon is independently toggleable (the bottom rail's "Gnomon" control) so it can be hidden
   // once the in-scene 3D axes suffice. Effective visibility = that preference AND not responsively

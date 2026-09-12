@@ -210,33 +210,53 @@ export interface SingleDirResult {
   readonly maxLocalError: number;
 }
 
+// Has the newest point come back within `loopTol` of an earlier one at least `loopMinArclen` of arc
+// behind it? The arc-length gate is the whole trick: without it the immediate predecessor, always
+// within a step, reads as a closure. Mirrors pypic's closed-loop gate.
+function closesLoop(
+  points: Float64Array,
+  arclen: Float64Array,
+  n: number,
+  loopTol: number,
+  loopMinArclen: number,
+): boolean {
+  const jEnd = searchSortedRight(arclen, n, (arclen[n] ?? 0) - loopMinArclen);
+  const nx = points[3 * n] ?? 0;
+  const ny = points[3 * n + 1] ?? 0;
+  const nz = points[3 * n + 2] ?? 0;
+  for (let j = 0; j < jEnd; j++) {
+    const dx = (points[3 * j] ?? 0) - nx;
+    const dy = (points[3 * j + 1] ?? 0) - ny;
+    const dz = (points[3 * j + 2] ?? 0) - nz;
+    if (Math.hypot(dx, dy, dz) <= loopTol) return true;
+  }
+  return false;
+}
+
+// One direction of one trace. Everything the integrator needs beyond the seed and the sign already
+// travels together as ResolvedTraceParams — passing it whole keeps eight consecutive `number`
+// arguments (any two of which would swap silently) off the call site.
 function traceSingleDirectionAdaptive(
-  interp: VectorFieldInterpolator,
+  interpolator: VectorFieldInterpolator,
   seed: Float64Array,
   sign: number,
-  atol: number,
-  rtol: number,
-  stepSizeInit: number,
-  minStep: number,
-  maxStep: number,
-  maxSteps: number,
-  nullThreshold: number,
+  params: ResolvedTraceParams,
   terminate: ((point: Float64Array) => boolean) | null,
-  loopTol: number | null,
-  loopMinArclen: number,
   signal?: AbortSignal,
 ): SingleDirResult {
-  const buf = new Float64Array((maxSteps + 1) * 3);
-  buf[0] = seed[0] ?? 0;
-  buf[1] = seed[1] ?? 0;
-  buf[2] = seed[2] ?? 0;
+  const { atol, rtol, stepSizeInit, minStep, maxStep, maxSteps, nullThreshold } = params;
+  const { loopTol, loopMinArclen } = params;
+  const points = new Float64Array((maxSteps + 1) * 3);
+  points[0] = seed[0] ?? 0;
+  points[1] = seed[1] ?? 0;
+  points[2] = seed[2] ?? 0;
   let n = 0;
   let reason: TerminationReason = "max_steps";
   let h = stepSizeInit;
   let maxLocalError = 0;
   let kCarry: Float64Array | null = null; // FSAL carry; survives a rejection (y unchanged)
   const arclen = loopTol !== null ? new Float64Array(maxSteps + 1) : null;
-  const rhs = makeRhs(interp, sign, nullThreshold);
+  const rhs = makeRhs(interpolator, sign, nullThreshold);
   const control: StepControl = { minStep, maxStep };
 
   while (n < maxSteps) {
@@ -245,10 +265,10 @@ function traceSingleDirectionAdaptive(
     // main thread today this fires only for an already-aborted signal; true mid-flight preemption
     // arrives once the tracer runs off-main (worker), where this is the durable hook.
     signal?.throwIfAborted();
-    const cur = buf.subarray(3 * n, 3 * n + 3); // alias — dormandPrinceStep never mutates y
+    const cur = points.subarray(3 * n, 3 * n + 3); // alias — dormandPrinceStep never mutates y
     const result = dormandPrinceStep(rhs, cur, h, kCarry);
     if (!result.ok) {
-      reason = classifyFailure(interp, result.failedPoint);
+      reason = classifyFailure(interpolator, result.failedPoint);
       break;
     }
 
@@ -261,33 +281,20 @@ function traceSingleDirectionAdaptive(
       const nx = result.yNew[0] ?? 0;
       const ny = result.yNew[1] ?? 0;
       const nz = result.yNew[2] ?? 0;
-      buf[3 * n] = nx;
-      buf[3 * n + 1] = ny;
-      buf[3 * n + 2] = nz;
+      points[3 * n] = nx;
+      points[3 * n + 1] = ny;
+      points[3 * n + 2] = nz;
       kCarry = result.kLast;
       h = hNew;
 
       if (arclen !== null && loopTol !== null) {
-        const px = buf[3 * (n - 1)] ?? 0;
-        const py = buf[3 * (n - 1) + 1] ?? 0;
-        const pz = buf[3 * (n - 1) + 2] ?? 0;
+        const px = points[3 * (n - 1)] ?? 0;
+        const py = points[3 * (n - 1) + 1] ?? 0;
+        const pz = points[3 * (n - 1) + 2] ?? 0;
         arclen[n] = (arclen[n - 1] ?? 0) + Math.hypot(nx - px, ny - py, nz - pz);
-        const cutoff = (arclen[n] ?? 0) - loopMinArclen;
-        const jEnd = searchSortedRight(arclen, n, cutoff);
-        if (jEnd > 0) {
-          let minDist = Number.POSITIVE_INFINITY;
-          for (let j = 0; j < jEnd; j++) {
-            const d = Math.hypot(
-              (buf[3 * j] ?? 0) - nx,
-              (buf[3 * j + 1] ?? 0) - ny,
-              (buf[3 * j + 2] ?? 0) - nz,
-            );
-            if (d < minDist) minDist = d;
-          }
-          if (minDist <= loopTol) {
-            reason = "closed_loop";
-            break;
-          }
+        if (closesLoop(points, arclen, n, loopTol, loopMinArclen)) {
+          reason = "closed_loop";
+          break;
         }
       }
 
@@ -300,7 +307,7 @@ function traceSingleDirectionAdaptive(
     }
   }
 
-  return { points: buf.slice(0, 3 * (n + 1)), reason, maxLocalError };
+  return { points: points.slice(0, 3 * (n + 1)), reason, maxLocalError };
 }
 
 function reversePoints(flat: Float64Array): Float64Array {
@@ -513,22 +520,7 @@ export function traceFieldLineAdaptive(
   const seedPoint: SeedPoint = [seedArr[0] ?? 0, seedArr[1] ?? 0, seedArr[2] ?? 0];
 
   const adapt = (sign: number): SingleDirResult =>
-    traceSingleDirectionAdaptive(
-      interp,
-      seedArr,
-      sign,
-      p.atol,
-      p.rtol,
-      p.stepSizeInit,
-      p.minStep,
-      p.maxStep,
-      p.maxSteps,
-      p.nullThreshold,
-      terminate,
-      p.loopTol,
-      p.loopMinArclen,
-      signal,
-    );
+    traceSingleDirectionAdaptive(interp, seedArr, sign, p, terminate, signal);
 
   const empty: SingleDirResult = {
     points: new Float64Array(0),

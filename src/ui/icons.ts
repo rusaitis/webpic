@@ -10,7 +10,11 @@ export const ICON_CLOSE = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="
 // The ✓ selected-row check (single-select popover).
 export const ICON_CHECK = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>`;
 
-// Dropdown carets — two deliberately distinct shapes: a deep symmetric chevron (swatch/select) and a
-// flatter one (the topbar's pill buttons). Kept separate so neither surface's glyph shifts.
+// Dropdown carets — two deliberately distinct shapes: a deep symmetric chevron (swatch/select, and
+// the reorder-down button, which is the same mark) and a flatter one (the topbar's pill buttons).
+// Kept separate so neither surface's glyph shifts.
 export const ICON_CARET = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>`;
 export const ICON_CARET_FLAT = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10l4-3.5"/></svg>`;
+
+// ICON_CARET mirrored, for the "move layer up" half of a reorder pair.
+export const ICON_CARET_UP = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg>`;

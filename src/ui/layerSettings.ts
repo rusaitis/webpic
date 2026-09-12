@@ -20,7 +20,7 @@ import {
   type SelectHandle,
 } from "./controls/index.ts";
 import { createFloatingWindow } from "./floating/floatingWindow.ts";
-import { ICON_CARET_DOWN, ICON_CARET_UP } from "./layerIcons.ts";
+import { ICON_CARET, ICON_CARET_UP } from "./icons.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
 // The per-layer settings window (DESIGN §"Layers & navigation"): ONE component, opened from two entry
@@ -167,7 +167,7 @@ export function installLayerSettings(
       const index = getState().layers.findIndex((l) => l.id === layer.id);
       if (index > 0) getState().reorderLayer(layer.id, index - 1);
     });
-    const down = makeIconButton(doc, "webpic-layerset_move", ICON_CARET_DOWN, {
+    const down = makeIconButton(doc, "webpic-layerset_move", ICON_CARET, {
       ariaLabel: "Move down",
     });
     down.addEventListener("click", () => {

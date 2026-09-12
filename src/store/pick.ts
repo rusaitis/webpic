@@ -29,13 +29,13 @@ export function cursorRay(
   ndcX: number,
   ndcY: number,
   aspect: number,
-  orthographic: boolean,
+  isOrthographic: boolean,
 ): CursorRay {
   const d = pose.distance;
   const camera = cameraPosition(pose);
   const forward = viewForward(pose);
   const o = viewPlaneOffset(pose, CAMERA_HALF_FOV_TAN * ndcX * aspect, CAMERA_HALF_FOV_TAN * ndcY);
-  if (orthographic) {
+  if (isOrthographic) {
     return {
       origin: [camera[0] + d * o[0], camera[1] + d * o[1], camera[2] + d * o[2]],
       dir: forward,

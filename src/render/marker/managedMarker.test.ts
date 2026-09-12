@@ -15,7 +15,7 @@ interface FakeMarker {
   hovered: MarkerPart;
   active: boolean;
   pose?: CameraPose;
-  orthographic?: boolean;
+  isOrthographic?: boolean;
   ticks: number[];
   tickResult: boolean;
 }
@@ -43,9 +43,9 @@ vi.mock("./markerScene.ts", () => ({
         fake.hovered = hovered;
         fake.active = active;
       },
-      updateForPose(pose: CameraPose, orthographic: boolean) {
+      updateForPose(pose: CameraPose, isOrthographic: boolean) {
         fake.pose = pose;
-        fake.orthographic = orthographic;
+        fake.isOrthographic = isOrthographic;
       },
       tick(dt: number) {
         fake.ticks.push(dt);
@@ -66,10 +66,10 @@ function harness() {
   created.length = 0;
   let warm: Promise<void> = Promise.resolve();
   let pose: CameraPose = POSE;
-  let orthographic = false;
+  let isOrthographic = false;
   const marker = createManagedMarker({
     pose: () => pose,
-    isOrthographic: () => orthographic,
+    isOrthographic: () => isOrthographic,
     requestRender: () => {},
     reportFault: () => {},
     warmComposite: () => warm,
@@ -84,7 +84,7 @@ function harness() {
       pose = p;
     },
     setOrtho: (o: boolean) => {
-      orthographic = o;
+      isOrthographic = o;
     },
   };
 }
@@ -154,7 +154,7 @@ describe("createManagedMarker", () => {
     setOrtho(true);
     marker.applyPose();
     expect(created[0]?.pose).toBe(moved);
-    expect(created[0]?.orthographic).toBe(true);
+    expect(created[0]?.isOrthographic).toBe(true);
   });
 
   it("discards a scene superseded mid-warm", async () => {

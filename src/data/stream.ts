@@ -6,7 +6,7 @@
 // space over the sorted `steps`, so a sparse domain still prefetches real adjacent steps.
 
 type Entry<T> =
-  | { state: "loading"; controller: AbortController; display: boolean }
+  | { state: "loading"; controller: AbortController; shouldDisplayOnComplete: boolean }
   | { state: "ready"; value: T };
 
 export interface StreamRingOptions<T> {
@@ -90,7 +90,7 @@ export function createStreamRing<T>(options: StreamRingOptions<T>): StreamRing {
       entries.delete(step);
       return;
     }
-    if (entry.display && step === cursor) {
+    if (entry.shouldDisplayOnComplete && step === cursor) {
       entries.delete(step); // consumed — the worker transfers the buffer (it detaches)
       options.onDisplay(step, value);
     } else {
@@ -110,14 +110,15 @@ export function createStreamRing<T>(options: StreamRingOptions<T>): StreamRing {
 
   // Start a read unless the step is already loading/ready (no duplicate concurrent reads). A pending
   // load that's now the cursor is upgraded to display-on-complete.
-  function startRead(step: number, display: boolean): void {
+  function startRead(step: number, shouldDisplayOnComplete: boolean): void {
     const existing = entries.get(step);
     if (existing !== undefined) {
-      if (existing.state === "loading" && display) existing.display = true;
+      if (existing.state === "loading" && shouldDisplayOnComplete)
+        existing.shouldDisplayOnComplete = true;
       return;
     }
     const controller = new AbortController();
-    entries.set(step, { state: "loading", controller, display });
+    entries.set(step, { state: "loading", controller, shouldDisplayOnComplete });
     options.readStep(step, controller.signal).then(
       (value) => onRead(step, value, controller),
       (error: unknown) => onReadError(step, error, controller),
@@ -132,7 +133,7 @@ export function createStreamRing<T>(options: StreamRingOptions<T>): StreamRing {
       entries.delete(step); // cached neighbour became the cursor → display instantly + consume
       options.onDisplay(step, entry.value);
     } else if (entry?.state === "loading") {
-      entry.display = true; // display when it lands (if still the cursor)
+      entry.shouldDisplayOnComplete = true; // display when it lands (if still the cursor)
     } else {
       startRead(step, true);
     }

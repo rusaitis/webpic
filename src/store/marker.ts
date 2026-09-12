@@ -10,7 +10,7 @@ import {
 } from "@schema/marker.ts";
 import { clamp, UNIT_BOX_HALF_EXTENT, vec3 } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
-import { cursorRay } from "./pick.ts";
+import type { CursorRay } from "./pick.ts";
 
 // Main-thread point-picker math: project the marker / its handles to screen for hit-testing, and
 // solve the cursor ray against a drag plane or axis. Pure (no DOM, no THREE) — ui/pointerPicker owns
@@ -30,7 +30,7 @@ export function worldToScreen(
   pose: CameraPose,
   point: Vec3,
   aspect: number,
-  orthographic: boolean,
+  isOrthographic: boolean,
 ): ScreenPoint {
   const ce = Math.cos(pose.elevation);
   const se = Math.sin(pose.elevation);
@@ -47,7 +47,7 @@ export function worldToScreen(
   const zc = vx * -ce * ca + vy * -ce * sa + vz * -se; // along forward
   const xr = vx * -sa + vy * ca; // along screenRight
   const yu = vx * -ca * se + vy * -sa * se + vz * ce; // along screenUp
-  const denom = orthographic ? d : zc;
+  const denom = isOrthographic ? d : zc;
   if (denom <= 1e-9) return { ndcX: 0, ndcY: 0, behind: true };
   return {
     ndcX: xr / (denom * CAMERA_HALF_FOV_TAN * aspect),
@@ -68,9 +68,9 @@ export interface HandlePositions {
 export function markerHandlePositions(
   pose: CameraPose,
   point: Vec3,
-  orthographic: boolean,
+  isOrthographic: boolean,
 ): HandlePositions {
-  const offset = markerHandleOffset(pose, point, orthographic);
+  const offset = markerHandleOffset(pose, point, isOrthographic);
   const vertical: Vec3 | null = verticalDragAllowed(pose)
     ? vec3(point[0], point[1], point[2] + offset)
     : null;
@@ -93,8 +93,8 @@ export function markerHandlePositions(
 // World point one zoom-scaled core radius to the screen-right of the marker. Projecting it beside
 // the core measures the marker's on-screen radius, so the hover hit target can track the rendered
 // size across dolly. screenRight matches worldToScreen's basis.
-export function markerEdgePoint(pose: CameraPose, point: Vec3, orthographic: boolean): Vec3 {
-  const radius = MARKER_SPHERE_RADIUS * markerCoreScale(pose, point, orthographic);
+export function markerEdgePoint(pose: CameraPose, point: Vec3, isOrthographic: boolean): Vec3 {
+  const radius = MARKER_SPHERE_RADIUS * markerCoreScale(pose, point, isOrthographic);
   return [
     point[0] - radius * Math.sin(pose.azimuth),
     point[1] + radius * Math.cos(pose.azimuth),
@@ -104,16 +104,8 @@ export function markerEdgePoint(pose: CameraPose, point: Vec3, orthographic: boo
 
 // Cursor-ray ∩ plane through `planePoint` with unit `planeNormal`. null when the ray is parallel to
 // the plane (grazing view) — the caller keeps the marker put.
-export function dragOnPlane(
-  pose: CameraPose,
-  ndcX: number,
-  ndcY: number,
-  aspect: number,
-  orthographic: boolean,
-  planePoint: Vec3,
-  planeNormal: Vec3,
-): Vec3 | null {
-  const { origin, dir } = cursorRay(pose, ndcX, ndcY, aspect, orthographic);
+export function dragOnPlane(ray: CursorRay, planePoint: Vec3, planeNormal: Vec3): Vec3 | null {
+  const { origin, dir } = ray;
   const denom = dir[0] * planeNormal[0] + dir[1] * planeNormal[1] + dir[2] * planeNormal[2];
   if (Math.abs(denom) < 1e-6) return null;
   const wx = planePoint[0] - origin[0];
@@ -125,16 +117,8 @@ export function dragOnPlane(
 
 // Closest point on the world line {axisOrigin + s·axisDir} to the cursor ray — the 1-DOF axis drag
 // (the ↕/↔ handles and Shift-vertical). `axisDir` must be unit. Parallel rays pin s = 0.
-export function dragAlongAxis(
-  pose: CameraPose,
-  ndcX: number,
-  ndcY: number,
-  aspect: number,
-  orthographic: boolean,
-  axisOrigin: Vec3,
-  axisDir: Vec3,
-): Vec3 {
-  const { origin, dir } = cursorRay(pose, ndcX, ndcY, aspect, orthographic);
+export function dragAlongAxis(ray: CursorRay, axisOrigin: Vec3, axisDir: Vec3): Vec3 {
+  const { origin, dir } = ray;
   // L1 = axisOrigin + s·u, L2 = origin + t·v; closest s with a=u·u=1, c=v·v=1.
   const b = axisDir[0] * dir[0] + axisDir[1] * dir[1] + axisDir[2] * dir[2];
   const denom = 1 - b * b;

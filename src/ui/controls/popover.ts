@@ -20,7 +20,7 @@ export interface PopoverOptions<T extends PopoverItem> {
   readonly renderRow: (doc: Document, item: T, selected: boolean) => HTMLElement; // the row's content
   readonly className?: string; // extra class on the popover root (e.g. "is-fields")
   readonly onOpen?: () => void; // fired after the panel opens (lets callers close sibling overlays)
-  readonly dismissOnOutside?: boolean; // outside pointerdown closes it (default true; false → sticky)
+  readonly shouldDismissOnOutside?: boolean; // outside pointerdown closes it (default true; false → sticky)
 }
 
 export interface PopoverHandle {
@@ -39,7 +39,7 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
   const { anchor } = options;
   const doc = anchor.ownerDocument;
   const win = doc.defaultView;
-  const dismissOnOutside = options.dismissOnOutside ?? true;
+  const shouldDismissOnOutside = options.shouldDismissOnOutside ?? true;
 
   let panel: HTMLElement | null = null; // the listbox; built lazily on first open
   let rows: HTMLElement[] = []; // option elements, parallel to `items`
@@ -171,7 +171,7 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
     reposition();
     openAc = new AbortController();
     const { signal } = openAc;
-    if (dismissOnOutside) {
+    if (shouldDismissOnOutside) {
       doc.addEventListener("pointerdown", onOutside, { capture: true, signal });
     }
     doc.addEventListener("keydown", onKeyDown, { signal });

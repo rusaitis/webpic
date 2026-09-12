@@ -19,7 +19,7 @@ const n = Number.isInteger(requested) && requested >= 2 && requested <= 512 ? re
 
 // `?pose=` (+ `&proj=ortho`) restores a shared camera view; invalid → default.
 const pose = parsePoseParam(params.get("pose") ?? "");
-const orthographic = params.get("proj") === "ortho";
+const isOrthographic = params.get("proj") === "ortho";
 
 // The selectable datasets (the Dataset dropdown); the default (flux rope) seeds the boot dataset +
 // stream. Seed step 0 on the main thread (instant first frame) and stream the rest over the data
@@ -47,5 +47,5 @@ bootstrap({
   ...(params.has("debugScene") ? { showDebugScene: true } : {}),
   ...(params.has("fieldlines") ? { fieldlines: true } : {}),
   ...(pose !== null ? { initialPose: pose } : {}),
-  ...(orthographic ? { initialProjection: "orthographic" as const } : {}),
+  ...(isOrthographic ? { initialProjection: "orthographic" as const } : {}),
 });

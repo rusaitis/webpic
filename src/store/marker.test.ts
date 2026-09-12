@@ -77,7 +77,11 @@ describe("markerEdgePoint", () => {
 
 describe("dragOnPlane", () => {
   it("lands the hit exactly on the plane", () => {
-    const hit = dragOnPlane(THREE_QUARTER, 0.3, -0.1, 1.6, false, [0, 0, 0.2], [0, 0, 1]);
+    const hit = dragOnPlane(
+      cursorRay(THREE_QUARTER, 0.3, -0.1, 1.6, false),
+      [0, 0, 0.2],
+      [0, 0, 1],
+    );
     expect(hit).not.toBeNull();
     expect(hit?.[2]).toBeCloseTo(0.2, 12); // on the z = 0.2 plane
   });
@@ -86,14 +90,14 @@ describe("dragOnPlane", () => {
     // A level view (elevation 0) looks horizontally; the cursor ray is ⟂ to +z, so it never meets a
     // horizontal (normal +z) plane.
     const level: CameraPose = { target: [0, 0, 0], azimuth: 0, elevation: 0, distance: 2, roll: 0 };
-    expect(dragOnPlane(level, 0, 0, 1, false, [0, 0, 0], [0, 0, 1])).toBeNull();
+    expect(dragOnPlane(cursorRay(level, 0, 0, 1, false), [0, 0, 0], [0, 0, 1])).toBeNull();
   });
 });
 
 describe("dragAlongAxis", () => {
   it("constrains the result to the axis line", () => {
     const origin: [number, number, number] = [0.1, 0.2, 0.0];
-    const hit = dragAlongAxis(THREE_QUARTER, 0.2, 0.3, 1.6, false, origin, [0, 0, 1]);
+    const hit = dragAlongAxis(cursorRay(THREE_QUARTER, 0.2, 0.3, 1.6, false), origin, [0, 0, 1]);
     expect(hit[0]).toBeCloseTo(origin[0], 12); // only z varies along the +z axis
     expect(hit[1]).toBeCloseTo(origin[1], 12);
   });

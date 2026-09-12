@@ -348,8 +348,8 @@ export function createRaymarchScene(options: RaymarchSceneOptions): RaymarchScen
       graph.uJitter.value = clamped < 1 ? 1 : 0; // jitter only the coarse march (see uJitter)
     },
     setField: (field) => graph.volume.setField(field),
-    setProjection(orthographic) {
-      graph.uOrtho.value = orthographic ? 1 : 0;
+    setProjection(isOrthographic) {
+      graph.uOrtho.value = isOrthographic ? 1 : 0;
     },
     rebuildShader(build) {
       // Dev shader hot-reload: compose a fresh material over the SAME preserved graph (uploaded volume

@@ -35,5 +35,5 @@ export interface VolumeLayerScene extends LayerScene {
   setStepScale(scale: number): void;
   // Switch ray generation between perspective and orthographic (parallel rays) in place — a uniform
   // flip, no rebuild.
-  setProjection(orthographic: boolean): void;
+  setProjection(isOrthographic: boolean): void;
 }

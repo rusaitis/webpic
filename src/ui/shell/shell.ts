@@ -43,8 +43,8 @@ export function createShell(options: ShellOptions): Shell {
   };
 
   const subscriptions = createSubscriptions();
-  subscriptions.on(options.uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
-  subscriptions.on(options.uiStore, (s) => s.panels, applyPanels, { fireNow: true });
+  subscriptions.on(options.uiStore, (s) => s.isUiVisible, applyVisible, { shouldFireNow: true });
+  subscriptions.on(options.uiStore, (s) => s.panels, applyPanels, { shouldFireNow: true });
 
   return {
     root,

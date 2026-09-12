@@ -2,6 +2,7 @@ import { horizontalDragAllowed, type MarkerPart, verticalDragAllowed } from "@sc
 import type { Vec3 } from "@schema/types.ts";
 import {
   clampToBox,
+  cursorRay,
   dragAlongAxis,
   dragOnPlane,
   markerEdgePoint,
@@ -114,7 +115,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   // Build the drag mode for the grabbed part: handles + Shift lock to a single axis, a steep view
   // forces vertical, the equatorial regime drags on a screen-facing vertical plane, and the common
   // mid-elevation core grab drags on the horizontal (xy) plane at the marker's height.
-  const buildMode = (part: MarkerPart, point: Vec3, shift: boolean): DragMode => {
+  const buildMode = (part: MarkerPart, point: Vec3, isShiftHeld: boolean): DragMode => {
     const { cameraPose, projection } = store.getState();
     const ortho = projection === "orthographic";
     if (part === "vertical") return { kind: "axis", origin: point, dir: [0, 0, 1] };
@@ -122,7 +123,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       const axis = markerHandlePositions(cameraPose, point, ortho).horizontal?.axis ?? "x";
       return { kind: "axis", origin: point, dir: axis === "y" ? [0, 1, 0] : [1, 0, 0] };
     }
-    if (shift && verticalDragAllowed(cameraPose))
+    if (isShiftHeld && verticalDragAllowed(cameraPose))
       return { kind: "axis", origin: point, dir: [0, 0, 1] };
     if (horizontalDragAllowed(cameraPose)) {
       return { kind: "plane", planePoint: point, normal: [0, 0, 1] };
@@ -137,11 +138,10 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   const solve = (mode: DragMode, ndcX: number, ndcY: number, rect: DOMRect): Vec3 | null => {
     const { cameraPose, projection } = store.getState();
     const ortho = projection === "orthographic";
-    const aspect = rect.width / rect.height;
-    if (mode.kind === "plane") {
-      return dragOnPlane(cameraPose, ndcX, ndcY, aspect, ortho, mode.planePoint, mode.normal);
-    }
-    return dragAlongAxis(cameraPose, ndcX, ndcY, aspect, ortho, mode.origin, mode.dir);
+    const ray = cursorRay(cameraPose, ndcX, ndcY, rect.width / rect.height, ortho);
+    return mode.kind === "plane"
+      ? dragOnPlane(ray, mode.planePoint, mode.normal)
+      : dragAlongAxis(ray, mode.origin, mode.dir);
   };
 
   const onPointerDown = (event: PointerEvent): void => {
@@ -247,15 +247,14 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       return;
     }
     const held = arrows.codes;
-    const shift = arrows.isShiftHeld;
     const lr = (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
     const ud = (held.has("ArrowUp") ? 1 : 0) - (held.has("ArrowDown") ? 1 : 0);
     const sa = Math.sin(state.cameraPose.azimuth);
     const ca = Math.cos(state.cameraPose.azimuth);
     // screenRight = (−sa, ca, 0) — worldToScreen's basis; into-screen horizontal = (−ca, −sa, 0).
-    const dx = lr * -sa + (shift ? 0 : ud * -ca);
-    const dy = lr * ca + (shift ? 0 : ud * -sa);
-    const dz = shift ? ud : 0;
+    const dx = lr * -sa + (arrows.isShiftHeld ? 0 : ud * -ca);
+    const dy = lr * ca + (arrows.isShiftHeld ? 0 : ud * -sa);
+    const dz = arrows.isShiftHeld ? ud : 0;
     const len = Math.hypot(dx, dy, dz);
     if (len > 0) {
       const step = (MARKER_KEY_SPEED * dtMs) / 1000 / len; // unit direction — diagonals same speed

@@ -63,7 +63,7 @@ describe("createLayerUpserts", () => {
       axis: "z",
       position: 0.25,
     } as unknown as Parameters<typeof upserts.sendSliceParams>[0];
-    upserts.sendSliceParams(slice, false, true);
+    upserts.sendSliceParams(slice, { axis: false, position: true });
     expect(posts[0]?.message).toMatchObject({ kind: "setSliceParams", position: 0.25 });
     expect(posts[0]?.message).not.toHaveProperty("axis");
   });

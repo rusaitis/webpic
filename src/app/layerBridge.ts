@@ -158,7 +158,8 @@ export function installLayerBridge(options: LayerBridgeOptions): LayerBridge {
         if (before === undefined || before.kind !== "slice") continue; // new layer → rides the upsert
         const axisChanged = before.axis !== layer.axis;
         const positionChanged = before.position !== layer.position;
-        if (axisChanged || positionChanged) sendSliceParams(layer, axisChanged, positionChanged);
+        if (axisChanged || positionChanged)
+          sendSliceParams(layer, { axis: axisChanged, position: positionChanged });
       }
       lastLayers = layers;
       sendComposite();

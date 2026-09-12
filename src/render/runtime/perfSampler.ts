@@ -58,7 +58,7 @@ export function createPerfSampler(host: PerfSamplerHost): PerfSampler {
     cpuEncodeMs: number,
     frameWallMs: number,
     frameIntervalMs: number,
-    isContinuous: boolean,
+    { isContinuous }: { isContinuous: boolean },
   ): void {
     const vram = host.vramSnapshot();
     host.post({
@@ -79,7 +79,7 @@ export function createPerfSampler(host: PerfSamplerHost): PerfSampler {
   async function sampleGpu(cpuEncodeMs: number, frameIntervalMs: number): Promise<void> {
     const timer = host.frameTimer();
     const frameWallMs = timer === undefined ? Number.NaN : await timer.sampleAfterSubmit();
-    postSample(cpuEncodeMs, frameWallMs, frameIntervalMs, false);
+    postSample(cpuEncodeMs, frameWallMs, frameIntervalMs, { isContinuous: false });
   }
 
   // The continuous path's read: skip an in-flight/rejected sample rather than back up the loop.
@@ -94,7 +94,7 @@ export function createPerfSampler(host: PerfSamplerHost): PerfSampler {
 
   // A HUD open alongside continuous timing reads the same wall-clock.
   function postContinuousSample(gpuTimeMs: number): void {
-    if (isActive) postSample(Number.NaN, gpuTimeMs, Number.NaN, true);
+    if (isActive) postSample(Number.NaN, gpuTimeMs, Number.NaN, { isContinuous: true });
   }
 
   return {

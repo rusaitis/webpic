@@ -1,15 +1,8 @@
 import { LAYER_KINDS, type Layer, type SimulationStore, type UiStore } from "@store";
 import { makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
-import { ICON_CLOSE } from "./icons.ts";
-import {
-  ICON_CARET_DOWN,
-  ICON_CARET_UP,
-  ICON_EYE,
-  ICON_EYE_OFF,
-  ICON_GEAR,
-  LAYER_KIND_ICON,
-} from "./layerIcons.ts";
+import { ICON_CARET, ICON_CARET_UP, ICON_CLOSE } from "./icons.ts";
+import { ICON_EYE, ICON_EYE_OFF, ICON_GEAR, LAYER_KIND_ICON } from "./layerIcons.ts";
 import { POPOVER_GAP_PX } from "./layout.ts";
 import { createShortcutRegistry } from "./shortcuts.ts";
 import { createSubscriptions } from "./subscriptions.ts";
@@ -93,7 +86,7 @@ export function installLayersPanel(
       pendingFocus = { id: layer.id, dir: "up" };
       getState().reorderLayer(layer.id, index - 1);
     });
-    const down = makeIconButton(doc, "webpic-layers_move", ICON_CARET_DOWN, {
+    const down = makeIconButton(doc, "webpic-layers_move", ICON_CARET, {
       ariaLabel: "Move down",
     });
     down.disabled = index === count - 1;

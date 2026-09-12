@@ -57,7 +57,7 @@ export function installPointerSeedPlacer(target: HTMLElement, store: SimulationS
   target.addEventListener("pointerdown", onPointerDown, { signal, capture: true });
   doc.addEventListener("keydown", onKeyDown, { signal });
   const subscriptions = createSubscriptions();
-  subscriptions.on(store, (s) => s.seedPlacementLayerId, applyCursor, { fireNow: true });
+  subscriptions.on(store, (s) => s.seedPlacementLayerId, applyCursor, { shouldFireNow: true });
 
   return () => {
     abortController.abort();

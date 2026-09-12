@@ -28,7 +28,7 @@ describe("createSubscriptions", () => {
       store,
       (s) => s.isHelpVisible,
       (visible) => seen.push(visible),
-      { fireNow: true },
+      { shouldFireNow: true },
     );
     expect(seen).toEqual([false]);
     subscriptions.dispose();

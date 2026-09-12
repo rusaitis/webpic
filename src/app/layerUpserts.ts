@@ -51,12 +51,19 @@ export interface LayerUpsertsOptions extends Pick<RenderWorkerLink, "worker"> {
   readonly uiStore: UiStore;
 }
 
+// Which of a slice's two params moved. Named rather than two positional booleans: at the call site
+// `(layer, false, true)` says nothing, and the two are swappable without a type error.
+export interface SliceChange {
+  readonly axis: boolean;
+  readonly position: boolean;
+}
+
 export interface LayerUpserts {
   // Post a field layer's scalar. The buffer is TRANSFERRED — the caller must not read it after.
   sendUpsert(layer: Layer, field: FieldArray): void;
   sendLayerColormap(layer: Layer, binding: ColormapBinding): void;
   sendLayerShading(layer: Layer): void;
-  sendSliceParams(layer: Layer, axisChanged: boolean, positionChanged: boolean): void;
+  sendSliceParams(layer: Layer, changed: SliceChange): void;
   sendComposite(): void;
   sendRemove(id: string): void;
   sendUpsertFieldlines(layer: Layer, lines: readonly FieldLine[]): void;
@@ -126,14 +133,14 @@ export function createLayerUpserts(options: LayerUpsertsOptions): LayerUpserts {
   // Live per-layer slice plane edit (slice-only) — only the changed field rides the wire. position is
   // a render-side uniform write (the drag hot path); axis rebuilds from the retained field. The store
   // SliceAxis ("x"|"y"|"z") is structurally the render SliceAxis, so it crosses verbatim.
-  const sendSliceParams = (layer: Layer, axisChanged: boolean, positionChanged: boolean): void => {
+  const sendSliceParams = (layer: Layer, changed: SliceChange): void => {
     if (layer.kind !== "slice") return;
     const request: RenderWorkerRequest = {
       kind: "setSliceParams",
       requestId: REQUEST_IDS.layer,
       id: layer.id,
-      ...(axisChanged ? { axis: layer.axis } : {}),
-      ...(positionChanged ? { position: layer.position } : {}),
+      ...(changed.axis ? { axis: layer.axis } : {}),
+      ...(changed.position ? { position: layer.position } : {}),
     };
     worker.postMessage(request);
   };

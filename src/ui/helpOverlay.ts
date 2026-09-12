@@ -49,7 +49,7 @@ export function installHelpOverlay(parent: HTMLElement, uiStore: UiStore): Dispo
     (visible) => {
       overlay.hidden = !visible;
     },
-    { fireNow: true },
+    { shouldFireNow: true },
   );
 
   // Backdrop click closes; the panel swallows its own clicks so a click inside doesn't dismiss.

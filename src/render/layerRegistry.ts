@@ -99,7 +99,7 @@ export interface LayerRegistry extends RenderModule {
   // Push a new interaction step-scale to every volume scene (the per-layer half of applyQuality).
   applyStepScale(stepScale: number): void;
   // Flip every volume scene's ray generation (the per-layer half of setProjection).
-  applyProjection(orthographic: boolean): void;
+  applyProjection(isOrthographic: boolean): void;
   // Dev shader hot-reload: swap every volume scene's material from freshly imported builder code,
   // reusing each layer's uploaded texture + live uniforms (no rebuild, no re-upload). Slices have no
   // raymarch shader, so they're skipped.
@@ -385,10 +385,10 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
       }
     },
 
-    applyProjection(orthographic) {
+    applyProjection(isOrthographic) {
       for (const entry of layers.values()) {
         // `setProjection` exists only on RaymarchScene; slices are screen-aligned and pose-invariant.
-        if ("setProjection" in entry.scene) entry.scene.setProjection(orthographic);
+        if ("setProjection" in entry.scene) entry.scene.setProjection(isOrthographic);
       }
     },
 
