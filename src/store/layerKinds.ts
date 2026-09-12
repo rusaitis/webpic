@@ -17,6 +17,9 @@ export interface LayerKindDescriptor {
   readonly drawsField: boolean;
   // Owns traced field lines — adding one triggers a retrace.
   readonly tracesLines: boolean;
+  // Position among the tool rail's add-buttons, ascending. On the descriptor rather than a separate
+  // list, so a new kind cannot compile without claiming a place in the rail.
+  readonly railOrder: number;
   // A fresh instance on `field`: visible, opaque, no binding yet. `grid` seeds a default rake for
   // field lines; null (no dataset) leaves the seed set empty.
   makeDefaultSpec(field: FieldName, grid: GridInfo | null): LayerSpec;
@@ -24,6 +27,7 @@ export interface LayerKindDescriptor {
 
 export const LAYER_KINDS: Readonly<Record<LayerKind, LayerKindDescriptor>> = {
   volume: {
+    railOrder: 0,
     label: "Volume",
     shortLabel: "Volume",
     drawsField: true,
@@ -41,6 +45,7 @@ export const LAYER_KINDS: Readonly<Record<LayerKind, LayerKindDescriptor>> = {
     }),
   },
   slice: {
+    railOrder: 1,
     label: "Slice",
     shortLabel: "Slice",
     drawsField: true,
@@ -57,6 +62,7 @@ export const LAYER_KINDS: Readonly<Record<LayerKind, LayerKindDescriptor>> = {
     }),
   },
   fieldlines: {
+    railOrder: 2,
     label: "Field lines",
     shortLabel: "Lines",
     drawsField: false,
@@ -72,8 +78,9 @@ export const LAYER_KINDS: Readonly<Record<LayerKind, LayerKindDescriptor>> = {
   },
 };
 
-// The rail's add-button order.
-export const LAYER_KIND_ORDER: readonly LayerKind[] = ["volume", "slice", "fieldlines"];
+export const LAYER_KIND_ORDER: readonly LayerKind[] = Object.keys(LAYER_KINDS)
+  .map((kind) => kind as LayerKind) // Object.keys widens to string; the table's keys are the union
+  .sort((a, b) => LAYER_KINDS[a].railOrder - LAYER_KINDS[b].railOrder);
 
 export type FieldLayer = Extract<Layer, { readonly kind: FieldLayerKind }>;
 

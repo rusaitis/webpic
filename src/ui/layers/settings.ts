@@ -1,12 +1,9 @@
-import { clamp } from "@schema/math.ts";
 import type { FieldName } from "@schema/types.ts";
 import {
   LAYER_KINDS,
   type Layer,
   type SimulationStore,
-  type SliceAxis,
   selectActiveLayer,
-  type TraceNotice,
   type UiStore,
 } from "@store";
 import { installChromeVisibility } from "../chromeVisibility.ts";
@@ -16,13 +13,13 @@ import {
   type ControlHandle,
   createPane,
   type Disposer,
-  type NoteHandle,
   type Pane,
   type SelectHandle,
 } from "../controls/index.ts";
 import { createFloatingWindow } from "../floating/floatingWindow.ts";
 import { ICON_CARET, ICON_CARET_UP } from "../icons.ts";
 import { createSubscriptions } from "../subscriptions.ts";
+import { installKindControls } from "./kindControls.ts";
 
 // The per-layer settings window (DESIGN §"Layers & navigation"): ONE component, opened from two entry
 // points (the Layers-panel gear, the rail's "Add new") so a layer is never configured in two places.
@@ -30,63 +27,6 @@ import { createSubscriptions } from "../subscriptions.ts";
 // colormap/scale/window section reuse installColormapControls verbatim (it is already selected-layer-
 // bound). The rest is the field/opacity/visibility/draw-order/remove form plus kind-specific controls
 // (volume: Phong; slice: axis + position; field lines: seed count + click-to-place). ui → store only.
-
-const SLICE_AXES: ReadonlyArray<{ value: SliceAxis; label: string }> = [
-  { value: "x", label: "x" },
-  { value: "y", label: "y" },
-  { value: "z", label: "z" },
-];
-
-// Seed-rake bounds for the count slider (defaultSeedRake floors at 2). 32 keeps the CPU re-trace snappy.
-const MIN_SEEDS = 2;
-const MAX_SEEDS = 32;
-
-// The slider's range is narrower than a placed rake may be, so the displayed count is the clamped
-// one — the layer keeps its real seeds either way.
-const seedCountFor = (layer: { readonly seeds: ReadonlyArray<unknown> }): number =>
-  clamp(layer.seeds.length, MIN_SEEDS, MAX_SEEDS);
-
-const PLACE_HINT = 'toggle "Place seeds", then click the volume';
-
-// The field-lines status line: seeds asked for, lines drawn, the vector they followed, and why any
-// seed was dropped. `notice` is undefined until the layer's first retrace lands.
-function seedSummary(n: number, notice: TraceNotice | undefined): string {
-  const seeds = `${n} seed${n === 1 ? "" : "s"}`;
-  if (notice === undefined) return `${seeds} · ${PLACE_HINT}`;
-  if (notice.error !== null) return `${seeds} · ${notice.error}`;
-  const drawn =
-    notice.traced === 0 ? "no lines" : `${notice.traced} line${notice.traced === 1 ? "" : "s"}`;
-  const parts = [seeds, drawn];
-  if (notice.fieldName !== null) parts.push(notice.fieldName);
-  if (notice.nullSeeds > 0)
-    parts.push(`${notice.nullSeeds} seed${notice.nullSeeds === 1 ? "" : "s"} at a field null`);
-  if (notice.outsideSeeds > 0)
-    parts.push(
-      `${notice.outsideSeeds} seed${notice.outsideSeeds === 1 ? "" : "s"} outside the domain`,
-    );
-  if (notice.failedSeeds > 0)
-    parts.push(`${notice.failedSeeds} seed${notice.failedSeeds === 1 ? "" : "s"} would not trace`);
-  if (notice.traced === n) parts.push(PLACE_HINT);
-  return parts.join(" · ");
-}
-
-// Seeds skipped or nothing drawn — amber, so an empty layer never reads as an empty scene.
-function noticeKind(notice: TraceNotice | undefined): string | null {
-  if (notice === undefined) return null;
-  return notice.error !== null || notice.traced < notice.requested ? "warn" : null;
-}
-
-function applySeedNote(
-  note: NoteHandle | null,
-  layer: Layer,
-  notice: TraceNotice | undefined,
-): void {
-  if (note === null || layer.kind !== "fieldlines") return;
-  note.element.textContent = seedSummary(layer.seeds.length, notice);
-  const kind = noticeKind(notice);
-  if (kind === null) note.element.removeAttribute("data-kind");
-  else note.element.dataset.kind = kind;
-}
 
 export function installLayerSettings(
   parent: HTMLElement,
@@ -124,12 +64,7 @@ export function installLayerSettings(
   let fieldControl: SelectHandle<FieldName> | null = null;
   let opacityControl: ControlHandle<number> | null = null;
   let visibleControl: ControlHandle<boolean> | null = null;
-  let axisControl: ControlHandle<SliceAxis> | null = null;
-  let positionControl: ControlHandle<number> | null = null;
-  let shadedControl: ControlHandle<boolean> | null = null;
-  let seedCountControl: ControlHandle<number> | null = null;
-  let placeControl: ControlHandle<boolean> | null = null;
-  let seedNote: NoteHandle | null = null;
+  let reflectKind: ((layer: Layer) => void) | null = null;
   let upBtn: HTMLButtonElement | null = null;
   let downBtn: HTMLButtonElement | null = null;
 
@@ -142,12 +77,7 @@ export function installLayerSettings(
     fieldControl = null;
     opacityControl = null;
     visibleControl = null;
-    axisControl = null;
-    positionControl = null;
-    shadedControl = null;
-    seedCountControl = null;
-    placeControl = null;
-    seedNote = null;
+    reflectKind = null;
     upBtn = null;
     downBtn = null;
     paneHost.replaceChildren();
@@ -234,51 +164,7 @@ export function installLayerSettings(
       onChange: (value) => getState().setLayerVisible(layer.id, value),
     });
 
-    switch (layer.kind) {
-      case "volume": {
-        shadedControl = folder.addCheckbox({
-          label: "Phong shading",
-          value: layer.shaded,
-          onChange: (value) => getState().setLayerShading(layer.id, value),
-        });
-        break;
-      }
-      case "slice": {
-        axisControl = folder.addSegmented<SliceAxis>({
-          label: "Axis",
-          value: layer.axis,
-          options: SLICE_AXES,
-          onChange: (axis) => getState().setSliceAxis(layer.id, axis),
-        });
-        positionControl = folder.addSlider({
-          label: "Position",
-          value: layer.position,
-          min: 0,
-          max: 1,
-          step: 0.005,
-          onChange: (value) => getState().setSlicePosition(layer.id, value),
-        });
-        break;
-      }
-      case "fieldlines": {
-        seedCountControl = folder.addSlider({
-          label: "Seed count",
-          value: seedCountFor(layer),
-          min: MIN_SEEDS,
-          max: MAX_SEEDS,
-          step: 1,
-          onChange: (count) => getState().setFieldlineSeedCount(layer.id, Math.round(count)),
-        });
-        placeControl = folder.addCheckbox({
-          label: "Place seeds",
-          value: getState().seedPlacementLayerId === layer.id,
-          onChange: (on) => getState().setSeedPlacement(on ? layer.id : null),
-        });
-        seedNote = folder.addNote("");
-        applySeedNote(seedNote, layer, getState().traceNotices[layer.id]);
-        break;
-      }
-    }
+    reflectKind = installKindControls(folder, layer, store);
 
     buildActions(layer);
   };
@@ -300,28 +186,8 @@ export function installLayerSettings(
     fieldControl?.set(layer.field);
     opacityControl?.set(layer.opacity);
     visibleControl?.set(layer.visible);
-    switch (layer.kind) {
-      case "volume":
-        shadedControl?.set(layer.shaded);
-        break;
-      case "slice":
-        axisControl?.set(layer.axis);
-        positionControl?.set(layer.position);
-        break;
-      case "fieldlines":
-        seedCountControl?.set(seedCountFor(layer));
-        placeControl?.set(getState().seedPlacementLayerId === layer.id);
-        applySeedNote(seedNote, layer, getState().traceNotices[layer.id]);
-        break;
-    }
+    reflectKind?.(layer);
     updateReorder();
-  };
-
-  const syncPlacement = (): void => {
-    const layer = selectActiveLayer(getState());
-    if (layer?.kind === "fieldlines") {
-      placeControl?.set(getState().seedPlacementLayerId === layer.id);
-    }
   };
 
   rebuild();
@@ -339,7 +205,7 @@ export function installLayerSettings(
   subscriptions.on(store, (s) => s.selectedLayerId, rebuild);
   subscriptions.on(store, (s) => s.availableFields, rebuild); // new dataset → new field options
   subscriptions.on(store, (s) => s.layers, sync);
-  subscriptions.on(store, (s) => s.seedPlacementLayerId, syncPlacement);
+  subscriptions.on(store, (s) => s.seedPlacementLayerId, sync);
   subscriptions.on(store, (s) => s.traceNotices, sync); // the seed note reports what the last retrace did
   subscriptions.on(uiStore, (s) => s.isLayerSettingsOpen, applyVisible);
 
