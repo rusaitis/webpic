@@ -1,5 +1,6 @@
 import { clamp } from "@schema/math.ts";
-import { GESTURE_THRESHOLD_PX, VIEWPORT_MARGIN_PX } from "../layout.ts";
+import { VIEWPORT_MARGIN_PX } from "../layout.ts";
+import { installPressDrag } from "./pressDrag.ts";
 
 // Pointer-driven drag + magnetic edge/corner snap for a single floating element (the colorbar).
 // Movement during a drag rides CSS custom properties --drag-x / --drag-y consumed by a
@@ -209,6 +210,28 @@ function pushVectors(
   return [...horiz, ...vert];
 }
 
+// The shortest single-axis push that clears `rect` from any one obstacle it currently overlaps, or
+// null when it overlaps none. Pushes are single-axis, so L1 and L2 magnitudes agree.
+function minimalPush(
+  rect: Box,
+  obstacles: readonly Box[],
+  edge: PaneEdge | undefined,
+): { dx: number; dy: number } | null {
+  let push: { dx: number; dy: number } | null = null;
+  let magnitude = Number.POSITIVE_INFINITY;
+  for (const obstacle of obstacles) {
+    if (!overlaps(rect, obstacle)) continue;
+    for (const vector of pushVectors(rect, obstacle, edge)) {
+      const m = Math.abs(vector.dx) + Math.abs(vector.dy);
+      if (m > 0 && m < magnitude) {
+        magnitude = m;
+        push = vector;
+      }
+    }
+  }
+  return push;
+}
+
 // Spring `rect`'s top-left out of every obstacle by the minimum-translation axis, staying inside
 // the viewport, and return the *least-overlapping reachable* position. Greedy push that keeps the
 // best position seen (fewest overlaps, then least displacement) and stops on a revisited position;
@@ -236,18 +259,7 @@ export function pushOutOf(
     if (seen.has(key)) break; // revisited → cycle, no further progress
     seen.add(key);
 
-    let push: { dx: number; dy: number } | null = null;
-    let pushMag = Number.POSITIVE_INFINITY;
-    for (const o of obstacles) {
-      if (!overlaps(cur, o)) continue;
-      for (const v of pushVectors(cur, o, edge)) {
-        const m = Math.abs(v.dx) + Math.abs(v.dy); // single-axis → L1 == L2
-        if (m > 0 && m < pushMag) {
-          pushMag = m;
-          push = v;
-        }
-      }
-    }
+    const push = minimalPush(cur, obstacles, edge);
     if (push === null) break;
     const left = clamp(cur.left + push.dx, VIEWPORT_MARGIN_PX, maxLeft);
     const top = clamp(cur.top + push.dy, VIEWPORT_MARGIN_PX, maxTop);
@@ -350,12 +362,8 @@ export function installDragSnap(
   const ac = new AbortController();
   const { signal } = ac;
 
-  let startX = 0;
-  let startY = 0;
   let baseX = 0;
   let baseY = 0;
-  let active = false;
-  let pointerId: number | null = null;
   let recentlyDragged = false;
   let chromeObserver: ResizeObserver | null = null;
 
@@ -565,43 +573,27 @@ export function installDragSnap(
     options.onSettled?.(edge, settled, vp);
   };
 
-  const onDown = (e: PointerEvent): void => {
-    if (!e.isPrimary) return;
-    const target = e.target as Element | null; // EventTarget → Element narrowing for closest()
-    if (target?.closest("button, input, select, textarea, a, [data-no-drag]")) return;
-    startX = e.clientX;
-    startY = e.clientY;
-    baseX = readVar("--drag-x");
-    baseY = readVar("--drag-y");
-    pointerId = e.pointerId;
-    handle.setPointerCapture?.(e.pointerId);
-  };
-
-  const onMove = (e: PointerEvent): void => {
-    if (pointerId !== e.pointerId) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    if (!active && Math.hypot(dx, dy) < GESTURE_THRESHOLD_PX) return;
-    if (!active) {
-      active = true;
-      element.classList.add("is-dragging");
-    }
-    writeOffset(baseX + dx, baseY + dy);
-  };
-
-  const onUp = (e: PointerEvent): void => {
-    if (pointerId !== e.pointerId) return;
-    handle.releasePointerCapture?.(e.pointerId);
-    pointerId = null;
-    if (!active) return;
-    active = false;
-    element.classList.remove("is-dragging");
-    snap();
-    recentlyDragged = true; // suppress the trailing click; a microtask is too early
-    view?.setTimeout(() => {
-      recentlyDragged = false;
-    }, 0);
-  };
+  installPressDrag({
+    handle,
+    element,
+    activeClass: "is-dragging",
+    signal,
+    onStart: (event) => {
+      const target = event.target as Element | null; // EventTarget → Element narrowing for closest()
+      if (target?.closest("button, input, select, textarea, a, [data-no-drag]")) return false;
+      baseX = readVar("--drag-x");
+      baseY = readVar("--drag-y");
+      return true;
+    },
+    onMove: (dx, dy) => writeOffset(baseX + dx, baseY + dy),
+    onEnd: () => {
+      snap();
+      recentlyDragged = true; // suppress the trailing click; a microtask is too early
+      view?.setTimeout(() => {
+        recentlyDragged = false;
+      }, 0);
+    },
+  });
 
   const onClick = (e: MouseEvent): void => {
     if (!recentlyDragged) return;
@@ -610,10 +602,6 @@ export function installDragSnap(
     recentlyDragged = false;
   };
 
-  handle.addEventListener("pointerdown", onDown, { signal });
-  handle.addEventListener("pointermove", onMove, { signal });
-  handle.addEventListener("pointerup", onUp, { signal });
-  handle.addEventListener("pointercancel", onUp, { signal });
   element.addEventListener("click", onClick, { capture: true, signal });
 
   // Coalesce reflow triggers (window resize, chrome resize) to one per frame.

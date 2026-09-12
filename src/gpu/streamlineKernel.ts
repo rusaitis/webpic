@@ -1,3 +1,5 @@
+import { createBufferPool } from "./bufferPool.ts";
+
 // One-shot WebGPU runner for the streamline kernel — the GPU twin of `computeKernel.ts`, but for the
 // fixed 7-binding streamline layout (3 field buffers + params + seeds + two read-write outputs) with two
 // readbacks (the vec4 point buffer and the per-work-item meta). Recipe-agnostic: the `compute` backend
@@ -47,21 +49,7 @@ export async function runStreamlineKernel(
   const pointsBytes = Math.max(nWork * capacity * FLOATS_PER_POINT * BYTES_PER_F32, BYTES_PER_F32);
   const metaBytes = Math.max(nWork * TRACE_META_BYTES, TRACE_META_BYTES);
 
-  const buffers: GPUBuffer[] = [];
-  const track = (buffer: GPUBuffer): GPUBuffer => {
-    buffers.push(buffer);
-    return buffer;
-  };
-  const storageInput = (array: Float32Array): GPUBuffer => {
-    const buffer = track(
-      device.createBuffer({
-        size: Math.max(array.byteLength, BYTES_PER_F32),
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      }),
-    );
-    device.queue.writeBuffer(buffer, 0, array);
-    return buffer;
-  };
+  const pool = createBufferPool(device);
 
   device.pushErrorScope("validation");
   try {
@@ -72,44 +60,25 @@ export async function runStreamlineKernel(
     });
 
     const [f1, f2, f3] = fields;
-    const paramsBuffer = track(
-      device.createBuffer({
-        size: params.byteLength,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      }),
-    );
-    device.queue.writeBuffer(paramsBuffer, 0, params);
-
-    const outputUsage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC;
-    const pointsBuffer = track(device.createBuffer({ size: pointsBytes, usage: outputUsage }));
-    const metaBuffer = track(device.createBuffer({ size: metaBytes, usage: outputUsage }));
+    const paramsBuffer = pool.storageInput(params);
+    const pointsBuffer = pool.storageOutput(pointsBytes);
+    const metaBuffer = pool.storageOutput(metaBytes);
 
     const bindGroup = device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: storageInput(f1) } },
-        { binding: 1, resource: { buffer: storageInput(f2) } },
-        { binding: 2, resource: { buffer: storageInput(f3) } },
+        { binding: 0, resource: { buffer: pool.storageInput(f1) } },
+        { binding: 1, resource: { buffer: pool.storageInput(f2) } },
+        { binding: 2, resource: { buffer: pool.storageInput(f3) } },
         { binding: 3, resource: { buffer: paramsBuffer } },
-        { binding: 4, resource: { buffer: storageInput(seeds) } },
+        { binding: 4, resource: { buffer: pool.storageInput(seeds) } },
         { binding: 5, resource: { buffer: pointsBuffer } },
         { binding: 6, resource: { buffer: metaBuffer } },
       ],
     });
 
-    // MAP_READ is mutually exclusive with STORAGE → separate readback buffers, copied into below.
-    const pointsReadback = track(
-      device.createBuffer({
-        size: pointsBytes,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-      }),
-    );
-    const metaReadback = track(
-      device.createBuffer({
-        size: metaBytes,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-      }),
-    );
+    const pointsReadback = pool.readback(pointsBytes);
+    const metaReadback = pool.readback(metaBytes);
 
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginComputePass();
@@ -139,6 +108,6 @@ export async function runStreamlineKernel(
 
     return { points, meta };
   } finally {
-    for (const buffer of buffers) buffer.destroy();
+    pool.destroyAll();
   }
 }

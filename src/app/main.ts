@@ -6,7 +6,7 @@ import {
   type RenderWorkerRequest,
   type RenderWorkerResponse,
 } from "@render/messages.ts";
-import { logError, rejectionLogger } from "@schema/log.ts";
+import { rejectionLogger } from "@schema/log.ts";
 import type { Theme } from "@schema/theme.ts";
 import {
   BOOT_PHASE_KEY,
@@ -25,7 +25,6 @@ import {
   installPointerSeedPlacer,
   installUi,
 } from "@ui";
-import { showBlockingBanner } from "./blockingBanner.ts";
 import type { DatasetEntry } from "./datasets.ts";
 import { installLayerSync } from "./layerSync.ts";
 import type { PerfBridge } from "./perfBridge.ts";
@@ -37,6 +36,7 @@ import { installStreamingBridge, type StreamingBridge } from "./streamingBridge.
 import { createSyntheticDataset } from "./syntheticDataset.ts";
 import { installThemeBridge } from "./themeBridge.ts";
 import { currentDevicePixelRatio, installViewportTracking } from "./viewportTracking.ts";
+import { routeWorkerResponse } from "./workerRouter.ts";
 
 const DEFAULT_SIZE = 256;
 // The worker's orderly teardown normally acks in a few ms; terminate regardless after this so a wedged
@@ -142,8 +142,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const uiStore = options.uiStore ?? createUiStore();
   // "webpic" matches the index.html splash text, so the splash→pill adoption is pixel-stable.
   uiStore.getState().beginLoading(BOOT_PHASE_KEY, "webpic");
-  let workerReady = false;
-  const isReady = (): boolean => workerReady; // the bridges gate every post on this
+  let isWorkerReady = false;
+  const isReady = (): boolean => isWorkerReady; // the bridges gate every post on this
 
   let perfBridge: PerfBridge | undefined; // set asynchronously when the perf feature is enabled
   let perfDisposed = false; // guards the async perf chunk landing after an early dispose
@@ -247,56 +247,21 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   };
 
   worker.onmessage = (event: MessageEvent<RenderWorkerResponse>) => {
-    const message = event.data;
-    switch (message.kind) {
-      case "ready":
-        workerReady = true;
+    routeWorkerResponse(event.data, {
+      uiStore,
+      perfStore,
+      endBootPhase: () => uiStore.getState().endLoading(BOOT_PHASE_KEY),
+      isWorkerReady: () => isWorkerReady,
+      onReady: () => {
+        isWorkerReady = true;
         onWorkerReady();
-        return;
-      case "frame":
-        return; // the readback reply of the headless render path — screenshots ride `screenshot`
-      case "frameTiming":
-        perfStore.getState().setFrameTiming(message.gpuTimeMs, message.clock);
-        return;
-      case "perfSample":
-        perfBridge?.ingestRenderSample(message);
-        return;
-      case "pickResult":
-        renderSync.applyPickResult(message);
-        return;
-      case "layerCompiled":
-        layerSync.finishLoading(); // the layer's pipeline is warm → drop the render-loading pill
-        return;
-      case "screenshot":
-        screenshotBridge.deliverScreenshot(message);
-        return;
-      case "error":
-        logError("render worker", message.message);
-        // Pre-first-frame it is fatal (no adapter, no device, pipeline failure): the status pill
-        // auto-clears, so without a banner the user is left staring at an empty canvas.
-        if (!workerReady) {
-          uiStore.getState().endLoading(BOOT_PHASE_KEY);
-          showBlockingBanner("webpic could not start the WebGPU renderer.", {
-            detail: message.message,
-            reload: true,
-          });
-        }
-        return;
-      case "gpuRecoveryFailed":
-        logError("render worker", `GPU unrecoverable (${message.reason}): ${message.message}`);
-        uiStore.getState().endLoading(BOOT_PHASE_KEY); // no spinner behind the terminal banner
-        showBlockingBanner(`GPU device lost and could not recover. ${message.message}`, {
-          reload: true,
-        });
-        return;
-      case "disposed":
-        terminateWorker();
-        return;
-      default: {
-        const unreachable: never = message;
-        logError("render worker", "unknown response", unreachable);
-      }
-    }
+      },
+      ingestRenderSample: (message) => perfBridge?.ingestRenderSample(message),
+      applyPickResult: (message) => renderSync.applyPickResult(message),
+      finishLayerLoading: () => layerSync.finishLoading(),
+      deliverScreenshot: (message) => screenshotBridge.deliverScreenshot(message),
+      onDisposed: terminateWorker,
+    });
   };
 
   const request: RenderWorkerRequest = {
@@ -370,7 +335,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
           uiParent,
           renderWorker: worker,
           setDataPerfActive: (active) => streaming?.setPerfActive(active),
-          isRenderReady: () => workerReady,
+          isRenderReady: () => isWorkerReady,
           isDataPresent: () => streaming !== undefined,
         });
       })

@@ -2,12 +2,12 @@ import type { StreamStepMessage } from "@data";
 import { finiteRange } from "@reductions";
 import type { ColorScale, WindowLevel } from "@schema/colormap.ts";
 import { fullRangeWindow } from "@schema/colormap.ts";
-import type { LayerKind } from "@schema/layers.ts";
-import { UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Rgba01 } from "@schema/theme.ts";
 import type { Vec3 } from "@schema/types.ts";
 import type { Camera } from "three";
 import { createFieldlinesScene, type FieldlinesScene } from "./fieldlines/fieldlinesScene.ts";
+import { type CompositeEntry, createLayerComposite } from "./layerComposite.ts";
+import { createLayerEpochs } from "./layerEpochs.ts";
 import { warmScene } from "./managedScene.ts";
 import type {
   FieldLayerKind,
@@ -32,7 +32,7 @@ import { NO_FINITE_RANGE, type ScalarField } from "./volume/volumeTexture.ts";
 // current state (the live timestep + look), not the stale upsert-time one. Retaining the field doubles
 // its residency (CPU + GPU); fine for v0.1's one small volume, and the price of self-contained
 // recovery (no reseed wire).
-interface FieldSource {
+export interface FieldSource {
   readonly layerKind: FieldLayerKind;
   field: ScalarField; // mutable: a streamed timestep swaps it in place (see swapField)
   colormap: string;
@@ -56,18 +56,6 @@ interface FieldlinesSource {
 
 type LayerSource = FieldSource | FieldlinesSource;
 
-// Which camera composites each kind: slices are screen-aligned (ortho); volumes and field lines live in
-// the box under the pose camera. A complete record, so a new kind must declare its camera.
-const LAYER_CAMERA: Readonly<Record<LayerKind, "ortho" | "pose">> = {
-  slice: "ortho",
-  volume: "pose",
-  fieldlines: "pose",
-};
-
-function cameraFor(kind: LayerKind, pose: Camera, ortho: Camera): Camera {
-  return LAYER_CAMERA[kind] === "ortho" ? ortho : pose;
-}
-
 // One renderable layer's scene + its kind (the kind picks the camera at composite time) + the source
 // it was built from (replayed on device-restore). Discriminated on `kind` so narrowing it narrows the
 // scene + source together (a fieldlines entry has no field/window to touch).
@@ -82,13 +70,6 @@ export type LayerEntry =
       readonly scene: FieldlinesScene;
       readonly source: FieldlinesSource;
     };
-
-// The ordered visibility/opacity view of the layer stack (draw order = array order).
-interface CompositeEntry {
-  readonly id: string;
-  readonly visible: boolean;
-  readonly opacity: number;
-}
 
 // The render-context the layer lifecycle reaches back into: live quality/projection (re-asserted on
 // freshly built scenes), the repaint + fault-report seams, and `warmComposite` — which compiles the
@@ -153,77 +134,62 @@ function decodeSliceField(payload: SliceFieldPayload): ScalarField {
   return { data: new Ctor(payload.buffer), shape: payload.shape };
 }
 
+// Build one layer's scene from its retained source — the single build path, shared by upsert and the
+// device-restore rebuild so both produce an identical scene from the same params.
+// exactOptionalPropertyTypes: only forward params that are set, so the scene factory defaults apply.
+function buildScene(id: string, source: LayerSource, host: LayerHost): LayerEntry {
+  if (source.layerKind === "fieldlines") {
+    const scene = createFieldlinesScene({
+      positions: source.lines.positions,
+      counts: source.lines.counts,
+      color: source.color,
+      opacity: source.opacity,
+      ledgerKey: id,
+    });
+    return { kind: "fieldlines", scene, source };
+  }
+  const common = {
+    field: source.field,
+    colormap: source.colormap,
+    scale: source.scale,
+    opacity: source.opacity,
+    hasFloat32Filterable: host.hasFloat32Filterable(),
+    ledgerKey: id,
+    ...(source.windowLevel !== undefined ? { windowLevel: source.windowLevel } : {}),
+  };
+  const { params } = source;
+  switch (params.layerKind) {
+    case "slice":
+      return {
+        scene: createSliceScene({ ...common, axis: params.axis, position: params.position }),
+        kind: "slice",
+        source,
+      };
+    case "volume": {
+      const scene = createRaymarchScene({
+        ...common,
+        ...(params.steps !== undefined ? { steps: params.steps } : {}),
+        ...(params.density !== undefined ? { density: params.density } : {}),
+        ...(params.shaded !== undefined ? { shaded: params.shaded } : {}),
+        ...(params.worldHalfExtent !== undefined
+          ? { worldHalfExtent: params.worldHalfExtent }
+          : {}),
+      });
+      // A scene built mid-gesture (stream rebuild) inherits the live interaction quality + projection.
+      scene.setStepScale(host.stepScale());
+      scene.setProjection(host.isOrthographic());
+      return { scene, kind: "volume", source };
+    }
+  }
+}
+
 export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // The instance-first layer registry: per-id scenes + the ordered visibility/opacity view. The worker
   // composites the visible layers; the app drives exactly one.
   const layers = new Map<string, LayerEntry>();
-  let composite: readonly CompositeEntry[] = [];
-  // Superseding guard for the async warms: an id's epoch bumps on every replace/remove (and on a device
-  // rebuild), so a warm that loses the race discards its scene instead of committing a stale one.
-  const epochs = new Map<string, number>();
-  // One scene whose dispose is deferred by a swap so the rAF loop can't sample a GPUTexture that a
-  // replace just released mid-rebuild (use-after-free reads back as the magenta sentinel).
-  let pendingDispose: LayerEntry | undefined;
-  // Scenes being warmed but not yet committed. A look edit that lands during the warm would otherwise
-  // reach only the entry about to be discarded, and the incoming scene — built from the source as it
-  // was at upsert time — would silently revert it (a dataset switch does exactly this: the new
-  // dataset's default color scale posts while the new layer is still compiling).
-  const building = new Map<string, LayerEntry>();
-
-  function bumpEpoch(id: string): number {
-    const next = (epochs.get(id) ?? 0) + 1;
-    epochs.set(id, next);
-    return next;
-  }
-
-  // Build one layer's scene from its retained source — the single build path, shared by upsert and the
-  // device-restore rebuild so both produce an identical scene from the same params.
-  // exactOptionalPropertyTypes: only forward params that are set, so the scene factory defaults apply.
-  function buildScene(id: string, source: LayerSource): LayerEntry {
-    if (source.layerKind === "fieldlines") {
-      const scene = createFieldlinesScene({
-        positions: source.lines.positions,
-        counts: source.lines.counts,
-        color: source.color,
-        opacity: source.opacity,
-        ledgerKey: id,
-      });
-      return { kind: "fieldlines", scene, source };
-    }
-    const common = {
-      field: source.field,
-      colormap: source.colormap,
-      scale: source.scale,
-      opacity: source.opacity,
-      hasFloat32Filterable: host.hasFloat32Filterable(),
-      ledgerKey: id,
-      ...(source.windowLevel !== undefined ? { windowLevel: source.windowLevel } : {}),
-    };
-    const { params } = source;
-    switch (params.layerKind) {
-      case "slice":
-        return {
-          scene: createSliceScene({ ...common, axis: params.axis, position: params.position }),
-          kind: "slice",
-          source,
-        };
-      case "volume": {
-        const scene = createRaymarchScene({
-          ...common,
-          ...(params.steps !== undefined ? { steps: params.steps } : {}),
-          ...(params.density !== undefined ? { density: params.density } : {}),
-          ...(params.shaded !== undefined ? { shaded: params.shaded } : {}),
-          ...(params.worldHalfExtent !== undefined
-            ? { worldHalfExtent: params.worldHalfExtent }
-            : {}),
-        });
-        // A scene built mid-gesture (stream rebuild) inherits the live interaction quality + projection.
-        scene.setStepScale(host.stepScale());
-        scene.setProjection(host.isOrthographic());
-        return { scene, kind: "volume", source };
-      }
-    }
-  }
+  const composite = createLayerComposite();
+  const epochs = createLayerEpochs();
+  const lookup = (id: string): LayerEntry | undefined => layers.get(id);
 
   // Install a layer's scene from a fully-specified source, releasing the prior scene's Data3DTexture
   // without leaking. Warm-then-commit (managedScene): the prospective composite's pipelines compile
@@ -233,20 +199,20 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // in-flight rAF frame never samples a destroyed texture. Used by upsert (main) and as swapField's
   // fallback when an in-place ping-pong upload can't apply.
   async function replace(id: string, source: LayerSource): Promise<void> {
-    const epoch = bumpEpoch(id);
-    const next = buildScene(id, source);
-    building.set(id, next);
+    const epoch = epochs.begin(id);
+    const next = buildScene(id, source, host);
+    epochs.hold(id, next);
     let committed: boolean;
     try {
       committed = await warmScene(
         next,
         () => host.warmComposite({ id, entry: next }),
-        () => epochs.get(id) === epoch,
+        () => epochs.isCurrent(id, epoch),
         (entry) => entry.scene.dispose(),
         host.reportFault,
       );
     } finally {
-      if (building.get(id) === next) building.delete(id);
+      epochs.release(id, next);
     }
     if (!committed) return;
     // The warm's await is a real yield: a setProjection / quality change that landed mid-warm only
@@ -255,8 +221,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     if ("setProjection" in next.scene) next.scene.setProjection(host.isOrthographic());
     const previous = layers.get(id);
     layers.set(id, next);
-    pendingDispose?.scene.dispose();
-    pendingDispose = previous;
+    epochs.defer(previous);
     host.requestRender();
   }
 
@@ -321,14 +286,11 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     },
 
     remove(id) {
-      bumpEpoch(id); // an in-flight warm for this id must not resurrect the removed layer
+      epochs.begin(id); // an in-flight warm for this id must not resurrect the removed layer
       const entry = layers.get(id);
       layers.delete(id);
-      if (entry !== undefined) {
-        // Same one-frame deferral as a replace — the old composite may still list this id for a tick.
-        pendingDispose?.scene.dispose();
-        pendingDispose = entry;
-      }
+      // Same one-frame deferral as a replace — the old composite may still list this id for a tick.
+      if (entry !== undefined) epochs.defer(entry);
       host.requestRender();
     },
 
@@ -355,15 +317,13 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     // Cheap reorder/visibility/opacity over the full ordered list — retune per-layer opacity uniforms
     // (no rebuild). Field data rides the heavier upsert.
     setComposite(order) {
-      const previous = new Map(composite.map((entry) => [entry.id, entry.opacity]));
-      for (const entry of order) {
-        if (previous.get(entry.id) === entry.opacity) continue;
-        const layer = layers.get(entry.id);
-        if (layer === undefined) continue;
-        layer.scene.setOpacity(entry.opacity);
-        layer.source.opacity = entry.opacity; // keep the retained source current for a device-restore rebuild
+      for (const id of composite.setOrder(order)) {
+        const layer = layers.get(id);
+        const opacity = composite.opacityOf(id);
+        if (layer === undefined || opacity === undefined) continue;
+        layer.scene.setOpacity(opacity);
+        layer.source.opacity = opacity; // keep the retained source current for a device-restore rebuild
       }
-      composite = order;
       host.requestRender();
     },
 
@@ -373,7 +333,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     // field lines color solid at trace time (no live colormap window/scale), so they ignore this.
     setColormap(request) {
       const committed = layers.get(request.id);
-      const warming = building.get(request.id);
+      const warming = epochs.warming(request.id);
       applyColormap(committed, request);
       if (warming !== committed) applyColormap(warming, request);
       if (committed !== undefined || warming !== undefined) host.requestRender();
@@ -383,7 +343,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     // RaymarchScene; the `in` check narrows the union (and silently no-ops a slice — no normal to light).
     setShading(request) {
       const committed = layers.get(request.id);
-      const warming = building.get(request.id);
+      const warming = epochs.warming(request.id);
       // toggle ahead of its upsert heals on the upsert (carries shaded); field lines have no normal.
       const applied = applyShading(committed, request.shaded);
       const alsoWarming = warming !== committed && applyShading(warming, request.shaded);
@@ -442,71 +402,36 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     },
 
     layerItems(volume, ortho, override, into) {
-      const items = into ?? []; // the worker's paint scratch when given — no allocation per frame
-      let isOverrideListed = false;
-      for (const entry of composite) {
-        if (!entry.visible) continue;
-        const isOverride = override !== undefined && entry.id === override.id;
-        if (isOverride) isOverrideListed = true;
-        const layer = isOverride ? override.entry : layers.get(entry.id);
-        if (layer === undefined) continue; // composite ahead of its upsert — heals on the upsert repaint
-        // Slices are screen-aligned (ortho); volume + field lines live in the box under the pose camera.
-        items.push({ scene: layer.scene.scene, camera: cameraFor(layer.kind, volume, ortho) });
-      }
-      if (override !== undefined && !isOverrideListed) {
-        items.push({
-          scene: override.entry.scene.scene,
-          camera: cameraFor(override.entry.kind, volume, ortho),
-        });
-      }
-      return items;
+      return composite.items(lookup, volume, ortho, override, into);
     },
 
     pickLayers() {
-      const result: PickLayer[] = [];
-      let halfExtent: Vec3 = UNIT_BOX_HALF_EXTENT; // all volume layers share the dataset's box
-      for (const entry of composite) {
-        if (!entry.visible) continue;
-        const layer = layers.get(entry.id);
-        if (layer === undefined || layer.kind !== "volume") continue;
-        const { params } = layer.source;
-        if (params.layerKind !== "volume") continue; // agrees with the entry kind by construction
-        halfExtent = params.worldHalfExtent ?? halfExtent;
-        result.push({
-          field: layer.source.field,
-          windowLevel: pickWindow(layer.source),
-          scale: layer.source.scale,
-          density: params.density ?? 1, // the scene factory default
-          opacity: entry.opacity,
-        });
-      }
-      return { layers: result, halfExtent };
+      return composite.pickLayers(lookup, pickWindow);
     },
 
     supersedeWarms() {
-      for (const id of layers.keys()) bumpEpoch(id);
+      epochs.supersedeAll(layers.keys());
     },
 
     disposeForRebuild() {
       // Best-effort teardown inside the worker's try; a lost device throws and the worker swallows it.
       for (const layer of layers.values()) layer.scene.dispose();
-      pendingDispose?.scene.dispose();
+      epochs.disposeDeferred();
     },
 
     clearPendingDispose() {
-      pendingDispose = undefined;
+      epochs.forgetDeferred();
     },
 
     rebuild() {
       // Replace each layer's scene in place (Map.set on an existing key is safe mid-iteration).
-      for (const [id, entry] of layers) layers.set(id, buildScene(id, entry.source));
+      for (const [id, entry] of layers) layers.set(id, buildScene(id, entry.source, host));
     },
 
     dispose() {
       for (const layer of layers.values()) layer.scene.dispose();
       layers.clear();
-      pendingDispose?.scene.dispose();
-      pendingDispose = undefined;
+      epochs.disposeDeferred();
     },
   };
 }

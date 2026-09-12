@@ -1,12 +1,12 @@
 import { clamp } from "@schema/math.ts";
 import type { Disposer } from "../controls/index.ts";
-import { GESTURE_THRESHOLD_PX, VIEWPORT_MARGIN_PX } from "../layout.ts";
+import { VIEWPORT_MARGIN_PX } from "../layout.ts";
+import { installPressDrag } from "./pressDrag.ts";
 
 // Pointer-driven resize from a corner handle for a floating element. Dragging the handle (the
 // element's bottom-right grip) grows/shrinks width + height while the top-left stays put (the element
-// is anchored top-left), so resizing never moves the window. AbortController-scoped listeners; the
-// dimension math is a pure helper for tests. Same gesture conventions as dragSnap (4px threshold,
-// pointer capture, no-op on sub-threshold taps).
+// is anchored top-left), so resizing never moves the window. The gesture itself is pressDrag's — the
+// same one dragSnap uses — so only the dimension math lives here, as a pure helper for tests.
 
 export interface ResizeBounds {
   readonly minWidth: number;
@@ -51,61 +51,36 @@ export function installCornerResize(
   const minHeight = options.minHeight ?? 120;
   const margin = options.margin ?? VIEWPORT_MARGIN_PX;
 
-  let startX = 0;
-  let startY = 0;
   let startWidth = 0;
   let startHeight = 0;
   let originLeft = 0; // element top-left at gesture start → bounds the far-edge clamp
   let originTop = 0;
-  let active = false;
-  let pointerId: number | null = null;
 
-  const onDown = (e: PointerEvent): void => {
-    if (!e.isPrimary) return;
-    const rect = element.getBoundingClientRect();
-    startX = e.clientX;
-    startY = e.clientY;
-    startWidth = rect.width;
-    startHeight = rect.height;
-    originLeft = rect.left;
-    originTop = rect.top;
-    pointerId = e.pointerId;
-    handle.setPointerCapture?.(e.pointerId);
-  };
-
-  const onMove = (e: PointerEvent): void => {
-    if (pointerId !== e.pointerId) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    if (!active && Math.hypot(dx, dy) < GESTURE_THRESHOLD_PX) return;
-    if (!active) {
-      active = true;
-      element.classList.add("is-resizing");
-    }
-    const { width, height } = resizeDims(startWidth, startHeight, dx, dy, {
-      minWidth,
-      minHeight,
-      maxWidth: doc.documentElement.clientWidth - originLeft - margin,
-      maxHeight: doc.documentElement.clientHeight - originTop - margin,
-    });
-    element.style.width = `${width}px`;
-    element.style.height = `${height}px`;
-    options.onResize?.();
-  };
-
-  const onUp = (e: PointerEvent): void => {
-    if (pointerId !== e.pointerId) return;
-    handle.releasePointerCapture?.(e.pointerId);
-    pointerId = null;
-    if (!active) return;
-    active = false;
-    element.classList.remove("is-resizing");
-  };
-
-  handle.addEventListener("pointerdown", onDown, { signal });
-  handle.addEventListener("pointermove", onMove, { signal });
-  handle.addEventListener("pointerup", onUp, { signal });
-  handle.addEventListener("pointercancel", onUp, { signal });
+  installPressDrag({
+    handle,
+    element,
+    activeClass: "is-resizing",
+    signal,
+    onStart: () => {
+      const rect = element.getBoundingClientRect();
+      startWidth = rect.width;
+      startHeight = rect.height;
+      originLeft = rect.left;
+      originTop = rect.top;
+      return true;
+    },
+    onMove: (dx, dy) => {
+      const { width, height } = resizeDims(startWidth, startHeight, dx, dy, {
+        minWidth,
+        minHeight,
+        maxWidth: doc.documentElement.clientWidth - originLeft - margin,
+        maxHeight: doc.documentElement.clientHeight - originTop - margin,
+      });
+      element.style.width = `${width}px`;
+      element.style.height = `${height}px`;
+      options.onResize?.();
+    },
+  });
 
   return () => ac.abort();
 }

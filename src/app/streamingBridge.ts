@@ -32,7 +32,7 @@ export interface StreamingBridge {
   readonly open: () => void;
   // Pair the streaming port into the render worker (call on the render worker's `ready`).
   readonly pair: () => void;
-  // Swap the source onto a new handle for a dataset switch; no-op until opened.
+  // Swap the source onto a new handle for a dataset switch; no-op until the stream is open.
   readonly reopen: (handle: DataHandle) => void;
   // Dev perf HUD: enable/disable the data worker's self-report.
   readonly setPerfActive: (active: boolean) => void;
@@ -42,7 +42,7 @@ export interface StreamingBridge {
 export function installStreamingBridge(options: StreamingBridgeOptions): StreamingBridge {
   const { store, uiStore, renderWorker, dataWorker, streamSource } = options;
   const channel = new MessageChannel();
-  let opened = false; // gates cursor/field/reopen posts until the worker has its reader
+  let isOpened = false; // gates cursor/field/reopen posts until the worker has its reader
   let hasStreamedStep = false; // the worker only re-streams a field switch after a first scrub
 
   dataWorker.onmessage = (event: MessageEvent<DataStreamResponse>) => {
@@ -77,7 +77,7 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
   const unsubscribeStep = store.subscribe(
     (state) => state.currentStep,
     (step) => {
-      if (!opened) return;
+      if (!isOpened) return;
       dataWorker.postMessage({
         kind: "setCursor",
         requestId: STREAM_REQUEST_ID,
@@ -94,7 +94,7 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
   const unsubscribeActiveField = store.subscribe(
     (state) => state.activeField,
     (field) => {
-      if (!opened) return;
+      if (!isOpened) return;
       dataWorker.postMessage({
         kind: "setActiveField",
         requestId: STREAM_REQUEST_ID,
@@ -123,7 +123,7 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
         } satisfies DataStreamRequest,
         [channel.port1], // transfer the data-side port
       );
-      opened = true;
+      isOpened = true;
     },
     pair() {
       // Buffered until the render worker sets the port's onmessage, so no streamed step is lost.
@@ -137,7 +137,7 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
       );
     },
     reopen(handle) {
-      if (!opened) return;
+      if (!isOpened) return;
       uiStore.getState().beginLoading("open", "opening dataset");
       dataWorker.postMessage({
         kind: "reopen",

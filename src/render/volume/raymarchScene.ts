@@ -1,4 +1,3 @@
-import type { ColorScale } from "@schema/colormap.ts";
 import { clamp, UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
 import { BackSide, BoxGeometry, Mesh, Scene } from "three";
@@ -26,10 +25,11 @@ import {
 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import type { VolumeLayerScene } from "../layerScene.ts";
-import { createNormalization, type Normalization, type WindowLevel } from "./normalization.ts";
+import type { FieldSceneOptions } from "./fieldSceneOptions.ts";
+import { createNormalization, type Normalization } from "./normalization.ts";
 import { GRAD_EPS, PHONG } from "./shading.ts";
 import { createTransferFunctionTexture, type TransferFunctionTexture } from "./transferFunction.ts";
-import { createVolumeTexture, type ScalarField, type VolumeTexture } from "./volumeTexture.ts";
+import { createVolumeTexture, type VolumeTexture } from "./volumeTexture.ts";
 
 // Single-pass volume raymarcher over the shared `uVolume`. The analytic ray-box clip is
 // `wgslFn hitBox` — the WGSL twin of rayBox.ts.
@@ -38,14 +38,7 @@ import { createVolumeTexture, type ScalarField, type VolumeTexture } from "./vol
 // (`buildRaymarchGraph`) so the dev shader hot-reload (`rebuildShader`) can swap the material from
 // freshly imported graph code without re-uploading the 64 MiB volume texture or losing the look/pose.
 
-export interface RaymarchSceneOptions {
-  readonly field: ScalarField;
-  // Theme colormap name (`theme.colormaps.sequential`); unknown → inferno.
-  readonly colormap: string;
-  // Value→color window; absent → the field's full finite range (identity normalization).
-  readonly windowLevel?: WindowLevel;
-  // Value→color scale within the window; default linear.
-  readonly scale?: ColorScale;
+export interface RaymarchSceneOptions extends FieldSceneOptions {
   // Samples per ray across the clipped segment.
   readonly steps?: number;
   // Opacity scale for the emission-absorption transfer.
@@ -54,16 +47,10 @@ export interface RaymarchSceneOptions {
   // gradient — a shape-perception aid, *not* quantitative (the lit surface is a TF-dependent
   // opacity isosurface). The 6 gradient taps/step are gated on sample opacity (see the march).
   readonly shaded?: boolean;
-  // Per-layer opacity multiplier on the composited alpha (composite fade), [0,1]; default 1.
-  readonly opacity?: number;
-  // Device supports R32F linear sampling — picks the volume texture format.
-  readonly hasFloat32Filterable?: boolean;
   // Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (the unit cube). A non-cubic
   // grid scales the mesh to this so the volume renders at true physical aspect — object/texture space
   // stays canonical [-0.5,0.5]/[0,1], so the raymarch math (ray-box clip, sampling) is unchanged.
   readonly worldHalfExtent?: Vec3;
-  // Layer id keying the volume texture into the VRAM ledger (perf HUD); omit to skip tracking.
-  readonly ledgerKey?: string;
 }
 
 // A raymarched volume is the VolumeLayerScene contract plus the dev shader hot-reload seam.

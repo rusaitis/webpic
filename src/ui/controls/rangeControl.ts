@@ -5,18 +5,16 @@
 // dragging the fill between them moves both ends); `step` quantizes drag + keyboard only, while the
 // coupled text field sets a raw value. Pointer Events throughout → touch + desktop share one path.
 
-import { makeEl } from "./dom.ts";
+import { buildRangeDom } from "./rangeDom.ts";
 import {
   clamp,
   clampInterval,
   makeScale,
-  minorTickPositions,
   pointerT,
   type ScaleKind,
   snapToDecade,
   snapToStep,
   stepDecade,
-  tickPositions,
   translateInterval,
 } from "./rangeMath.ts";
 import type { ControlHandle, RangeValue } from "./types.ts";
@@ -97,77 +95,17 @@ export function createRangeControl(
     ? clampInterval(initRange[0], initRange[1], min, max, minGap)
     : [min, max];
 
-  const root = makeEl(doc, "div", "webpic-range");
-  root.dataset.mode = isInterval ? "interval" : "single";
-  const track = makeEl(doc, "div", "webpic-range_track");
-  const fill = makeEl(doc, "div", "webpic-range_fill");
-  root.appendChild(track);
-  track.appendChild(fill);
-
-  // Tick marks paint above the fill so they stay visible over the colored range. Optional
-  // evenly/decade-spaced ticks, plus an always-on tick at an interior fill origin (e.g. 0).
-  const tickTs: number[] = [];
-  if (config.ticks) {
-    const count = typeof config.ticks === "number" ? config.ticks : undefined;
-    tickTs.push(
-      ...tickPositions(scale, {
-        ...(step !== undefined ? { step } : {}),
-        ...(count !== undefined ? { count } : {}),
-      }),
-    );
-  }
-  if (!isInterval && origin > min && origin < max) {
-    const ot = scale.toT(origin);
-    if (!tickTs.some((t) => Math.abs(t - ot) < 1e-6)) tickTs.push(ot);
-  }
-  const minorTs =
-    config.ticks && config.minorTicks !== false && isLogish ? minorTickPositions(scale) : [];
-  if (tickTs.length || minorTs.length) {
-    const layer = makeEl(doc, "div", "webpic-range_ticks");
-    for (const t of minorTs) {
-      const mark = makeEl(doc, "div", "webpic-range_tick is-minor");
-      mark.style.setProperty("--mt", String(t));
-      layer.appendChild(mark);
-    }
-    for (const t of tickTs) {
-      const mark = makeEl(doc, "div", "webpic-range_tick");
-      mark.style.setProperty("--mt", String(t));
-      layer.appendChild(mark);
-    }
-    track.appendChild(layer);
-  }
-
-  const makeGrip = (end: "value" | "lo" | "hi"): HTMLDivElement => {
-    const g = makeEl(doc, "div", "webpic-range_grip");
-    g.dataset.end = end;
-    g.tabIndex = 0;
-    g.setAttribute("role", "slider");
-    g.setAttribute("aria-orientation", "horizontal");
-    g.setAttribute("aria-valuemin", String(min));
-    g.setAttribute("aria-valuemax", String(max));
-    track.appendChild(g);
-    return g;
-  };
-  const gripValue = isInterval ? null : makeGrip("value");
-  const gripLo = isInterval ? makeGrip("lo") : null;
-  const gripHi = isInterval ? makeGrip("hi") : null;
-
-  let inputA: HTMLInputElement | null = null;
-  let inputB: HTMLInputElement | null = null;
-  if (config.text !== false) {
-    const wrap = makeEl(doc, "div", "webpic-range_text");
-    const mkInput = (): HTMLInputElement => {
-      const i = makeEl(doc, "input", "webpic-range_input");
-      i.type = "text";
-      i.inputMode = "decimal";
-      i.spellcheck = false;
-      wrap.appendChild(i);
-      return i;
-    };
-    inputA = mkInput();
-    if (isInterval) inputB = mkInput();
-    root.appendChild(wrap);
-  }
+  const { root, track, fill, gripValue, gripLo, gripHi, inputA, inputB } = buildRangeDom(doc, {
+    min,
+    max,
+    isInterval,
+    hasText: config.text !== false,
+    scale,
+    ...(step !== undefined ? { step } : {}),
+    ...(config.ticks !== undefined ? { ticks: config.ticks } : {}),
+    hasMinorTicks: config.minorTicks !== false && isLogish,
+    origin,
+  });
 
   const setGripAria = (g: HTMLElement | null, v: number): void => {
     if (!g) return;

@@ -87,7 +87,7 @@ let port: MessagePort | undefined; // private channel to the render worker (tran
 let ring: StreamRing | undefined;
 let steps: readonly number[] = [];
 let cursor: number | null = null; // last requested step — re-streamed on a field switch
-let readerRegistered = false;
+let isReaderRegistered = false;
 
 // Dev perf HUD self-report — dormant unless setPerfActive(true). The worker has no frame loop, so it
 // posts its heap + last read time on a ~1 Hz timer while active.
@@ -141,9 +141,9 @@ function buildRing(): void {
 // No initial setCursor: main already rendered step 0 via upsertLayer (the synthetic step 0). The first
 // stream is the user's first scrub.
 async function resolveReader(h: DataHandle): Promise<void> {
-  if (!readerRegistered) {
+  if (!isReaderRegistered) {
     registerSyntheticReader(); // synthetic-only for v0.1 streaming; real readers register here later
-    readerRegistered = true;
+    isReaderRegistered = true;
   }
   reader = await openSimulation(h);
   steps = await reader.availableTimesteps(h);

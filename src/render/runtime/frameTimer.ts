@@ -20,20 +20,20 @@ export interface FrameTimer {
 
 export function createFrameTimer(device: GPUDevice): FrameTimer {
   let startMs = Number.NaN;
-  let reading = false;
+  let isReading = false;
   return {
     mode: "wallclock",
     beginFrame() {
       startMs = performance.now();
     },
     async sampleAfterSubmit() {
-      if (reading) return Number.NaN; // a previous bracket is still draining; skip this frame
-      reading = true;
+      if (isReading) return Number.NaN; // a previous bracket is still draining; skip this frame
+      isReading = true;
       try {
         await device.queue.onSubmittedWorkDone();
         return performance.now() - startMs;
       } finally {
-        reading = false;
+        isReading = false;
       }
     },
   };

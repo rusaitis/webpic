@@ -45,7 +45,10 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
   let rows: HTMLElement[] = []; // option elements, parallel to `items`
   let items: readonly T[] = [];
   let activeIndex = -1;
-  let visible = false;
+  let isVisible = false;
+  // The document/window listeners live for one open-cycle, so they get a controller per open rather
+  // than four paired add/remove calls whose capture flags have to match.
+  let openAc: AbortController | undefined;
 
   const ensurePanel = (): HTMLElement => {
     if (panel !== null) return panel;
@@ -125,7 +128,7 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (!visible) return;
+    if (!isVisible) return;
     switch (event.key) {
       case "Escape":
         event.preventDefault();
@@ -159,23 +162,27 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
   };
 
   function open(): void {
-    if (visible) return;
+    if (isVisible) return;
     const element = ensurePanel();
     buildRows();
     element.hidden = false;
-    visible = true;
+    isVisible = true;
     anchor.setAttribute("aria-expanded", "true");
     reposition();
-    if (dismissOnOutside) doc.addEventListener("pointerdown", onOutside, true);
-    doc.addEventListener("keydown", onKeyDown);
-    win?.addEventListener("resize", reposition);
-    win?.addEventListener("scroll", reposition, true);
+    openAc = new AbortController();
+    const { signal } = openAc;
+    if (dismissOnOutside) {
+      doc.addEventListener("pointerdown", onOutside, { capture: true, signal });
+    }
+    doc.addEventListener("keydown", onKeyDown, { signal });
+    win?.addEventListener("resize", reposition, { signal });
+    win?.addEventListener("scroll", reposition, { capture: true, signal });
     options.onOpen?.();
   }
 
   function close(): void {
-    if (!visible) return;
-    visible = false;
+    if (!isVisible) return;
+    isVisible = false;
     if (panel !== null) {
       panel.hidden = true;
       panel.replaceChildren();
@@ -183,20 +190,18 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
     rows = [];
     activeIndex = -1;
     anchor.setAttribute("aria-expanded", "false");
-    if (dismissOnOutside) doc.removeEventListener("pointerdown", onOutside, true);
-    doc.removeEventListener("keydown", onKeyDown);
-    win?.removeEventListener("resize", reposition);
-    win?.removeEventListener("scroll", reposition, true);
+    openAc?.abort();
+    openAc = undefined;
   }
 
   const toggle = (): void => {
-    if (visible) close();
+    if (isVisible) close();
     else open();
   };
 
   const onAnchorClick = (): void => toggle();
   const onAnchorKeyDown = (event: KeyboardEvent): void => {
-    if (visible) return; // the doc-level handler owns navigation while open
+    if (isVisible) return; // the doc-level handler owns navigation while open
     if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       open();
@@ -211,9 +216,9 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
     open,
     close,
     toggle,
-    isOpen: () => visible,
+    isOpen: () => isVisible,
     refresh: () => {
-      if (visible) buildRows();
+      if (isVisible) buildRows();
     },
     dispose: () => {
       close();

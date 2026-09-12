@@ -1,3 +1,5 @@
+import { createBufferPool } from "./bufferPool.ts";
+
 // A thin, one-shot WebGPU compute runner: upload N read-only f32 input buffers + a params buffer,
 // dispatch a single-output kernel, read the result back. Recipe-agnostic — the WebGPU compute backend
 // supplies the WGSL, entry point, and packed params. Deliberately minimal: no pipeline cache and no
@@ -35,11 +37,7 @@ export async function runFieldKernel(spec: FieldKernelSpec): Promise<Float32Arra
   signal?.throwIfAborted();
 
   const outputBytes = outputElements * BYTES_PER_F32;
-  const buffers: GPUBuffer[] = [];
-  const track = (buffer: GPUBuffer): GPUBuffer => {
-    buffers.push(buffer);
-    return buffer;
-  };
+  const pool = createBufferPool(device);
 
   // Validation errors from createComputePipeline/dispatch surface asynchronously; without this scope
   // a WGSL or bind mismatch yields a zero/garbage buffer that reads as a numeric parity failure.
@@ -51,42 +49,14 @@ export async function runFieldKernel(spec: FieldKernelSpec): Promise<Float32Arra
       compute: { module, entryPoint },
     });
 
-    const entries: GPUBindGroupEntry[] = [];
-    inputs.forEach((array, binding) => {
-      const buffer = track(
-        device.createBuffer({
-          size: Math.max(array.byteLength, BYTES_PER_F32),
-          usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        }),
-      );
-      device.queue.writeBuffer(buffer, 0, array);
-      entries.push({ binding, resource: { buffer } });
-    });
-
-    const paramsBuffer = track(
-      device.createBuffer({
-        size: params.byteLength,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-      }),
-    );
-    device.queue.writeBuffer(paramsBuffer, 0, params);
-    entries.push({ binding: inputs.length, resource: { buffer: paramsBuffer } });
-
-    const outputBuffer = track(
-      device.createBuffer({
-        size: outputBytes,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-      }),
-    );
+    const entries: GPUBindGroupEntry[] = inputs.map((array, binding) => ({
+      binding,
+      resource: { buffer: pool.storageInput(array) },
+    }));
+    entries.push({ binding: inputs.length, resource: { buffer: pool.storageInput(params) } });
+    const outputBuffer = pool.storageOutput(outputBytes);
     entries.push({ binding: inputs.length + 1, resource: { buffer: outputBuffer } });
-
-    // MAP_READ is mutually exclusive with STORAGE → a separate readback buffer, copied into below.
-    const readbackBuffer = track(
-      device.createBuffer({
-        size: outputBytes,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-      }),
-    );
+    const readbackBuffer = pool.readback(outputBytes);
 
     const bindGroup = device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
@@ -117,8 +87,6 @@ export async function runFieldKernel(spec: FieldKernelSpec): Promise<Float32Arra
     readbackBuffer.unmap();
     return result;
   } finally {
-    // Every buffer's map (if any) has settled by here — we always await mapAsync before returning,
-    // and the throw paths above precede it — so destroying is safe.
-    for (const buffer of buffers) buffer.destroy();
+    pool.destroyAll();
   }
 }

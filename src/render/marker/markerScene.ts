@@ -43,7 +43,7 @@ export interface MarkerScene {
   readonly scene: Scene;
   setPoint(point: readonly [number, number, number] | null): void;
   setState(hovered: MarkerPart, active: boolean): void;
-  updateForPose(pose: CameraPose, orthographic: boolean): void;
+  updateForPose(pose: CameraPose, isOrthographic: boolean): void;
   tick(dt: number): boolean; // dt seconds; true while still easing toward targets
   dispose(): void;
 }
@@ -244,7 +244,7 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   // Eased animation state. Gates init to the defaults (vertical enabled, horizontal hidden); the
   // first updateForPose sets the live targets, so a mid-range pose shows no startup animation.
   let pose: CameraPose = DEFAULT_POSE;
-  let orthographic = false;
+  let isOrthographic = false;
   let point: [number, number, number] | null = null;
   let hadPoint = false;
   let wasActive = false;
@@ -269,7 +269,7 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
 
   const applyCoreScale = (): void => {
     if (point === null) return;
-    core.scale.setScalar(markerCoreScale(pose, point, orthographic));
+    core.scale.setScalar(markerCoreScale(pose, point, isOrthographic));
   };
 
   const updateGuides = (): void => {
@@ -325,7 +325,7 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
     },
     updateForPose(nextPose, ortho) {
       pose = nextPose;
-      orthographic = ortho;
+      isOrthographic = ortho;
       applyCoreScale();
       vGateT = verticalDragAllowed(pose) ? 1 : 0;
       const axis = horizontalDragAllowed(pose) ? null : horizontalDragAxis(pose);

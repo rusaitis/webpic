@@ -50,15 +50,15 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
   const { store, uiStore, strip } = host;
   const doc = strip.ownerDocument;
   const view = doc.defaultView;
-  // `autoCollapsed` flags a fit-driven collapse so widening can undo it without clobbering a manual
+  // `isAutoCollapsed` flags a fit-driven collapse so widening can undo it without clobbering a manual
   // one. Both rendered widths are cached at settle time so the predictive fit never measures a
   // mid-collapse strip (and stays monotonic in width — no expand↔collapse oscillation).
-  let autoCollapsed = false;
+  let isAutoCollapsed = false;
   let expandedWidth = 0;
   let collapsedWidth = COLLAPSED_WIDTH_ESTIMATE_PX;
   let naturalCluster = NATURAL_CLUSTER_ESTIMATE_PX;
   let settleTimer: number | undefined;
-  let adaptScheduled = false;
+  let isAdaptScheduled = false;
 
   const viewportWidth = (): number => doc.documentElement.clientWidth;
   const isOnBottomRow = (): boolean =>
@@ -128,7 +128,7 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
     });
   };
   const setCollapsed = (next: boolean, auto: boolean): void => {
-    autoCollapsed = auto ? next : false; // a manual toggle hands collapse control back to the user
+    isAutoCollapsed = auto ? next : false; // a manual toggle hands collapse control back to the user
     host.setCollapsed(next);
     settle();
   };
@@ -168,7 +168,7 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
       collapsedWidth,
     });
     if (mode === "expanded") {
-      if (host.isCollapsed() && autoCollapsed) setCollapsed(false, true);
+      if (host.isCollapsed() && isAutoCollapsed) setCollapsed(false, true);
     } else if (mode === "collapsed") {
       if (!host.isCollapsed()) setCollapsed(true, true);
     } else if (!host.isCollapsed()) {
@@ -179,10 +179,10 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
   };
 
   const scheduleAdapt = (): void => {
-    if (adaptScheduled || !view) return;
-    adaptScheduled = true;
+    if (isAdaptScheduled || !view) return;
+    isAdaptScheduled = true;
     view.requestAnimationFrame(() => {
-      adaptScheduled = false;
+      isAdaptScheduled = false;
       adapt();
     });
   };
@@ -193,8 +193,9 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
   // suppression echo re-fits once the corner footprint has settled; the guarded setter makes it a
   // single no-op rather than a loop.
   const subs = createSubscriptions();
-  view?.addEventListener("resize", scheduleAdapt);
-  subs.add(() => view?.removeEventListener("resize", scheduleAdapt));
+  const ac = new AbortController();
+  view?.addEventListener("resize", scheduleAdapt, { signal: ac.signal });
+  subs.add(() => ac.abort());
   subs.on(store, (s) => s.overlay.showGnomon, scheduleAdapt);
   subs.on(store, (s) => s.dataset, scheduleAdapt);
   subs.on(uiStore, (s) => s.isGnomonSuppressed, scheduleAdapt);

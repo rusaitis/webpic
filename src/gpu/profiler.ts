@@ -41,7 +41,7 @@ function createTimestampProfiler(device: GPUDevice): GpuProfiler {
     size: byteSize,
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
-  let reading = false;
+  let isReading = false;
 
   return {
     mode: "timestamp",
@@ -56,8 +56,8 @@ function createTimestampProfiler(device: GPUDevice): GpuProfiler {
       encoder.copyBufferToBuffer(resolveBuffer, 0, readBuffer, 0, byteSize);
     },
     async readLatencyMs() {
-      if (reading) return Number.NaN; // a map is still in flight; skip this frame
-      reading = true;
+      if (isReading) return Number.NaN; // a map is still in flight; skip this frame
+      isReading = true;
       try {
         await readBuffer.mapAsync(GPUMapMode.READ);
         // Copy out before unmap — getMappedRange()'s view detaches on unmap.
@@ -67,7 +67,7 @@ function createTimestampProfiler(device: GPUDevice): GpuProfiler {
         const endNs = stamps[1] ?? 0n;
         return Number(endNs - beginNs) / 1e6;
       } finally {
-        reading = false;
+        isReading = false;
       }
     },
     dispose() {

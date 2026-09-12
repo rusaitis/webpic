@@ -35,7 +35,7 @@ export function createHeldKeys(
 ): HeldKeys {
   const { signal } = options;
   const codes = new Set<string>();
-  let shiftHeld = false;
+  let isShiftHeld = false;
 
   const drop = (): void => {
     if (codes.size === 0) return;
@@ -44,7 +44,7 @@ export function createHeldKeys(
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    shiftHeld = event.shiftKey;
+    isShiftHeld = event.shiftKey;
     if (event.metaKey || event.ctrlKey || event.altKey) {
       drop();
       return;
@@ -60,7 +60,7 @@ export function createHeldKeys(
   };
 
   const onKeyUp = (event: KeyboardEvent): void => {
-    shiftHeld = event.shiftKey;
+    isShiftHeld = event.shiftKey;
     if (codes.delete(event.code)) options.onRelease();
   };
 
@@ -71,7 +71,7 @@ export function createHeldKeys(
   return {
     codes,
     get isShiftHeld() {
-      return shiftHeld;
+      return isShiftHeld;
     },
     drop,
   };

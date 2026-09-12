@@ -53,17 +53,17 @@ export function createQualityController(host: QualityHost): QualityController {
   function apply(): void {
     const level = qualityLevel(state);
     const renderScale = level.renderScale * governor.scale();
-    let changed = false;
+    let hasChanged = false;
     if (level.stepScale !== appliedLevel.stepScale) {
       host.applyStepScale(level.stepScale);
-      changed = true;
+      hasChanged = true;
     }
     if (renderScale !== appliedLevel.renderScale) {
       host.setRenderScale(renderScale);
-      changed = true;
+      hasChanged = true;
     }
     appliedLevel = { stepScale: level.stepScale, renderScale };
-    if (changed) host.requestRender();
+    if (hasChanged) host.requestRender();
   }
 
   return {

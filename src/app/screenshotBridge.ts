@@ -46,13 +46,13 @@ function downloadBlob(blob: Blob, filename: string): void {
 export function installScreenshotBridge(options: ScreenshotBridgeOptions): ScreenshotBridge {
   const { store, uiStore, worker, isReady } = options;
   const deliver = options.deliver ?? downloadBlob;
-  let inFlight = false;
+  let isInFlight = false;
 
   const unsubscribe = uiStore.subscribe(
     (state) => state.screenshotSerial,
     () => {
-      if (!isReady() || inFlight) return;
-      inFlight = true;
+      if (!isReady() || isInFlight) return;
+      isInFlight = true;
       uiStore.getState().beginLoading(PHASE_KEY, "saving png");
       worker.postMessage({
         kind: "screenshot",
@@ -63,7 +63,7 @@ export function installScreenshotBridge(options: ScreenshotBridgeOptions): Scree
 
   return {
     deliverScreenshot(message) {
-      inFlight = false;
+      isInFlight = false;
       uiStore.getState().endLoading(PHASE_KEY);
       if (message.blob === null) return; // capture failed — reported on the error channel
       const state = store.getState();

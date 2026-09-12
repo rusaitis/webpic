@@ -58,23 +58,26 @@ export function installViewportTracking(options: ViewportTrackingOptions): () =>
   // A monitor move can change devicePixelRatio with no CSS resize — the ResizeObserver never fires and
   // the drawing buffer keeps the stale scale. The standard self-re-arming matchMedia loop: each query
   // matches only the current DPR, so its one `change` means "DPR is now something else".
-  let disposeDprWatch: (() => void) | undefined;
+  // One controller across the re-arms: each new query listens on the same signal, so teardown drops
+  // whichever one is currently armed without tracking it.
+  const dprAc = new AbortController();
   if (typeof matchMedia === "function") {
-    let query: MediaQueryList | undefined;
     const onDprChange = (): void => {
       postResize();
       arm();
     };
     const arm = (): void => {
-      query = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-      query.addEventListener("change", onDprChange, { once: true });
+      matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener(
+        "change",
+        onDprChange,
+        { once: true, signal: dprAc.signal },
+      );
     };
     arm();
-    disposeDprWatch = () => query?.removeEventListener("change", onDprChange);
   }
 
   return () => {
     disposeResize?.();
-    disposeDprWatch?.();
+    dprAc.abort();
   };
 }

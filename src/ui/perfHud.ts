@@ -188,18 +188,18 @@ export function installPerfHud(
   const drawSeries = (ring: Float32Array, color: string, yMax: number): void => {
     if (ctx2d === null) return;
     ctx2d.beginPath();
-    let started = false;
+    let hasStarted = false;
     for (let j = 0; j < SPARK_LEN; j++) {
       const v = ring[(ringIndex + j) % SPARK_LEN];
       if (v === undefined || !Number.isFinite(v)) {
-        started = false; // NaN gap — lift the pen
+        hasStarted = false; // NaN gap — lift the pen
         continue;
       }
       const x = (j / (SPARK_LEN - 1)) * SPARK_W;
       const y = SPARK_H - (Math.min(v, yMax) / yMax) * SPARK_H;
-      if (started) ctx2d.lineTo(x, y);
+      if (hasStarted) ctx2d.lineTo(x, y);
       else ctx2d.moveTo(x, y);
-      started = true;
+      hasStarted = true;
     }
     ctx2d.strokeStyle = color;
     ctx2d.lineWidth = 1;

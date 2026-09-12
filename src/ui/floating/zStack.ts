@@ -24,16 +24,17 @@ export function bringToFront(element: HTMLElement): void {
 export function installRaise(element: HTMLElement, signal?: AbortSignal): () => void {
   if (signal?.aborted) return () => {};
   const onDown = (): void => bringToFront(element);
-  const options: AddEventListenerOptions = { capture: true };
-  if (signal) options.signal = signal;
-  element.addEventListener("pointerdown", onDown, options);
+  // One internal controller behind both release paths: the listener comes off exactly once whether
+  // the caller's signal aborts or the returned disposer runs.
+  const ac = new AbortController();
+  element.addEventListener("pointerdown", onDown, { capture: true, signal: ac.signal });
   raiserCount += 1;
 
-  let released = false;
+  let isReleased = false;
   const release = (): void => {
-    if (released) return;
-    released = true;
-    element.removeEventListener("pointerdown", onDown, true);
+    if (isReleased) return;
+    isReleased = true;
+    ac.abort();
     raiserCount -= 1;
     if (raiserCount === 0) zTop = Z_FLOATING_BASE;
   };

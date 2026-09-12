@@ -1,11 +1,18 @@
 import { DATASET_CATALOG } from "@schema/datasets.ts";
 import type { FieldName } from "@schema/types.ts";
 import type { CameraProjection, SimulationStore, UiStore } from "@store";
-import { makeCaret, makeEl, makeIconButton } from "./controls/dom.ts";
+import { makeEl } from "./controls/dom.ts";
 import { createPopover, type Disposer, type RangeValue } from "./controls/index.ts";
 import { createRangeControl } from "./controls/rangeControl.ts";
 import { ICON_CARET_FLAT } from "./icons.ts";
 import { createSubscriptions } from "./subscriptions.ts";
+import {
+  installReveal,
+  makePickerButton,
+  makeStepButton,
+  makeTopBarCaret,
+  makeTopBarIconButton,
+} from "./topBarChrome.ts";
 import {
   datasetLabel,
   fieldButtonLabel,
@@ -44,54 +51,6 @@ export function installTopBar(
   container.setAttribute("role", "toolbar");
   container.setAttribute("aria-label", "Application");
 
-  const caret = (): HTMLSpanElement => makeCaret(doc, "webpic-topbar_caret", ICON_CARET_FLAT);
-  const iconButton = (control: string, icon: string, title: string): HTMLButtonElement =>
-    makeIconButton(doc, "webpic-topbar_btn webpic-topbar_icon", icon, { control, title });
-  // Compact, borderless step buttons — distinct from the filled picker /
-  // icon buttons; styled by .webpic-topbar_step-btn.
-  const stepButton = (control: string, icon: string, title: string): HTMLButtonElement =>
-    makeIconButton(doc, "webpic-topbar_step-btn", icon, { control, title });
-  const pickerButton = (control: string, extra: string, title: string): HTMLButtonElement => {
-    const btn = makeEl(doc, "button", `webpic-topbar_btn ${extra}`);
-    btn.type = "button";
-    btn.dataset.control = control;
-    btn.title = title;
-    btn.setAttribute("aria-haspopup", "listbox");
-    btn.setAttribute("aria-expanded", "false");
-    return btn;
-  };
-
-  // A click-to-open reveal: clicking the trigger toggles .is-expanded (CSS shows the popover only then
-  // — no hover-open, matching the pickers), with Escape-to-close (returns focus to the trigger). A
-  // pinned reveal is sticky — an outside scene click never dismisses it; only re-clicking the trigger,
-  // Escape, or opening another overlay (onOpen → closeOverlaysExcept) closes it. Shared by the time
-  // chip + the actions chevron.
-  const installReveal = (
-    wrapper: HTMLElement,
-    trigger: HTMLButtonElement,
-    ac: AbortController,
-    onOpen?: () => void,
-  ): { setExpanded: (on: boolean) => void; isExpanded: () => boolean } => {
-    const isExpanded = (): boolean => wrapper.classList.contains("is-expanded");
-    const setExpanded = (on: boolean): void => {
-      wrapper.classList.toggle("is-expanded", on);
-      trigger.setAttribute("aria-expanded", String(on));
-      if (on) onOpen?.();
-    };
-    trigger.addEventListener("click", () => setExpanded(!isExpanded()), { signal: ac.signal });
-    doc.addEventListener(
-      "keydown",
-      (e) => {
-        if (e.key === "Escape" && isExpanded()) {
-          setExpanded(false);
-          trigger.focus();
-        }
-      },
-      { signal: ac.signal },
-    );
-    return { setExpanded, isExpanded };
-  };
-
   // Topbar overlays are mutually exclusive: opening one (a picker popover or a pinned reveal) closes
   // the others, so at most one floats at a time. Each registers a closer once built; with outside-
   // pointerdown dismissal off, this + the trigger toggle + Escape are the only ways one closes.
@@ -111,14 +70,14 @@ export function installTopBar(
 
   // Dataset picker — switches the built-in dataset. The button label prefers the loaded dataset's
   // run name (attrs.run / simulation_toml, via datasetLabel's chain) over the static catalog entry.
-  const datasetBtn = pickerButton("dataset", "webpic-topbar_dataset", "Dataset");
+  const datasetBtn = makePickerButton(doc, "dataset", "webpic-topbar_dataset", "Dataset");
   const datasetLabelEl = makeEl(doc, "span", "webpic-topbar_label");
   const syncDatasetLabel = (): void => {
     const state = store.getState();
     datasetLabelEl.textContent = datasetLabel(state.datasetId, state.dataset?.metadata);
   };
   syncDatasetLabel();
-  datasetBtn.append(datasetLabelEl, caret());
+  datasetBtn.append(datasetLabelEl, makeTopBarCaret(doc));
 
   const datasetItems = DATASET_CATALOG.map((d) => ({ value: d.id, label: d.label }));
   const datasetPopover = createPopover<{ value: string; label: string }>({
@@ -137,10 +96,10 @@ export function installTopBar(
   overlayClosers.set("dataset", () => datasetPopover.close());
 
   // Content picker — the available fields and their metadata; selecting one sets the active field.
-  const fieldBtn = pickerButton("field", "webpic-topbar_field", "Dataset contents");
+  const fieldBtn = makePickerButton(doc, "field", "webpic-topbar_field", "Dataset contents");
   const fieldLabelEl = makeEl(doc, "span", "webpic-topbar_label");
   fieldLabelEl.textContent = fieldButtonLabel(store.getState().activeField);
-  fieldBtn.append(fieldLabelEl, caret());
+  fieldBtn.append(fieldLabelEl, makeTopBarCaret(doc));
 
   const fieldItems = (): { value: FieldName }[] =>
     orderedFieldNames(store.getState().availableFields, store.getState().activeField).map(
@@ -180,11 +139,11 @@ export function installTopBar(
   timeChip.setAttribute("aria-haspopup", "true");
   timeChip.setAttribute("aria-expanded", "false");
   const stepLabelEl = makeEl(doc, "span", "webpic-topbar_step");
-  timeChip.append(stepLabelEl, caret());
+  timeChip.append(stepLabelEl, makeTopBarCaret(doc));
 
   const timePop = makeEl(doc, "div", "webpic-topbar_pop webpic-topbar_time-pop");
-  const prevBtn = stepButton("step-prev", ICON.prev, "Previous step");
-  const nextBtn = stepButton("step-next", ICON.next, "Next step");
+  const prevBtn = makeStepButton(doc, "step-prev", ICON.prev, "Previous step");
+  const nextBtn = makeStepButton(doc, "step-next", ICON.next, "Next step");
   timePop.append(prevBtn, nextBtn); // the scrub track is inserted between them by rebuildRange
   timeWrap.append(timeChip, timePop);
 
@@ -259,21 +218,21 @@ export function installTopBar(
     state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
   });
 
-  const exportBtn = iconButton("export", ICON.export, "Export PNG (P)");
+  const exportBtn = makeTopBarIconButton(doc, "export", ICON.export, "Export PNG (P)");
   exportBtn.addEventListener("click", () => uiStore.getState().requestScreenshot());
 
   // Hover-revealed actions — a chevron at the right edge opens a popover of (inert placeholder)
   // action buttons. Same reveal mechanism + glass-card (.webpic-topbar_pop) as the time chip.
   // The popover is absolute, so it never widens the bar.
   const actionsWrap = makeEl(doc, "div", "webpic-topbar_reveal");
-  const chevron = iconButton("more", ICON_CARET_FLAT, "More actions");
+  const chevron = makeTopBarIconButton(doc, "more", ICON_CARET_FLAT, "More actions");
   chevron.classList.add("webpic-topbar_chevron");
   chevron.setAttribute("aria-haspopup", "true");
   chevron.setAttribute("aria-expanded", "false");
   const actions = makeEl(doc, "div", "webpic-topbar_pop webpic-topbar_actions");
   const actionsGrid = makeEl(doc, "div", "webpic-topbar_actions-grid");
   const placeholder = (control: string, icon: string, title: string): HTMLButtonElement => {
-    const btn = iconButton(control, icon, `${title} (coming soon)`);
+    const btn = makeTopBarIconButton(doc, control, icon, `${title} (coming soon)`);
     btn.disabled = true;
     btn.setAttribute("aria-disabled", "true");
     return btn;
@@ -293,8 +252,10 @@ export function installTopBar(
   // trigger's click-to-pin + Escape. CSS handles the hover/focus reveal. Both are sticky pins now —
   // opening one closes the other overlays (onOpen), and a scene click leaves a pin untouched.
   const ac = new AbortController();
-  const timeReveal = installReveal(timeWrap, timeChip, ac, () => closeOverlaysExcept("time"));
-  const actionsReveal = installReveal(actionsWrap, chevron, ac, () =>
+  const timeReveal = installReveal(timeWrap, timeChip, ac.signal, () =>
+    closeOverlaysExcept("time"),
+  );
+  const actionsReveal = installReveal(actionsWrap, chevron, ac.signal, () =>
     closeOverlaysExcept("actions"),
   );
   overlayClosers.set("time", () => timeReveal.setExpanded(false));

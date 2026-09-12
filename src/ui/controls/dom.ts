@@ -66,6 +66,7 @@ export function installOutsideClickDismiss(
     }
     options.onDismiss();
   };
-  doc.addEventListener("mousedown", onDown);
-  return () => doc.removeEventListener("mousedown", onDown);
+  const ac = new AbortController();
+  doc.addEventListener("mousedown", onDown, { signal: ac.signal });
+  return () => ac.abort();
 }

@@ -32,7 +32,7 @@ export interface PerfSamplerHost {
 export interface PerfSampler {
   // Gate sampling. Enabling resets the interval EMA + GPU throttle so a re-open neither folds the
   // idle gap into the EMA nor fires the GPU sync on the stale clock.
-  setActive(active: boolean): void;
+  setActive(isActive: boolean): void;
   isActive(): boolean;
   // Paint one continuous-mode frame through `paint` with the GPU timer bracketed around it, and post
   // its frameTiming (fire-and-forget: the read is async and NaNs for a sample the timer rejects).
@@ -47,7 +47,7 @@ export interface PerfSampler {
 
 export function createPerfSampler(host: PerfSamplerHost): PerfSampler {
   const now = host.now ?? (() => performance.now());
-  let active = false;
+  let isActive = false;
   let lastPaintMs = Number.NaN;
   let frameIntervalEma = Number.NaN;
   let lastGpuSampleMs = Number.NaN;
@@ -94,19 +94,19 @@ export function createPerfSampler(host: PerfSamplerHost): PerfSampler {
 
   // A HUD open alongside continuous timing reads the same wall-clock.
   function postContinuousSample(gpuTimeMs: number): void {
-    if (active) postSample(Number.NaN, gpuTimeMs, Number.NaN, true);
+    if (isActive) postSample(Number.NaN, gpuTimeMs, Number.NaN, true);
   }
 
   return {
     setActive(on) {
-      active = on;
+      isActive = on;
       if (on) {
         lastPaintMs = Number.NaN;
         frameIntervalEma = Number.NaN;
         lastGpuSampleMs = Number.NaN;
       }
     },
-    isActive: () => active,
+    isActive: () => isActive,
     paintTimed(paint) {
       host.frameTimer()?.beginFrame();
       paint();

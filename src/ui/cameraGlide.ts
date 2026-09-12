@@ -92,7 +92,7 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
   let glideId: number | undefined;
   let lastFrameMs: number | undefined;
   let lastWheelMs = Number.NEGATIVE_INFINITY;
-  let pointerDown = false;
+  let isPointerDown = false;
   // Subset of the held keys (Q/E) whose elevation intent is reinterpreted as roll (Shift held at
   // keydown). Keyed by code — the modifier-independent name on both edges — so a release can never
   // strand it. Invariant: rollMode ⊆ held.codes.
@@ -131,7 +131,7 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
   // guard makes per-frame repeats free.
   const syncMotion = (): void => {
     const gesture =
-      pointerDown || held.codes.size > 0 || !isMomentumSettled(momentum) || isWheelLive();
+      isPointerDown || held.codes.size > 0 || !isMomentumSettled(momentum) || isWheelLive();
     store.getState().setCameraMotion(gesture ? "gesture" : tween !== undefined ? "fly" : "idle");
   };
 
@@ -249,7 +249,7 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
     },
     isWheelLive,
     setPointerDown(down) {
-      pointerDown = down;
+      isPointerDown = down;
       syncMotion();
     },
     dispose() {

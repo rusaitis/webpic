@@ -1,34 +1,21 @@
-import type { ColorScale } from "@schema/colormap.ts";
 import type { SliceAxis } from "@schema/layers.ts";
 import { Mesh, PlaneGeometry, Scene } from "three";
 import { texture, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import type { LayerScene } from "../layerScene.ts";
-import { createNormalization, type WindowLevel } from "./normalization.ts";
+import type { FieldSceneOptions } from "./fieldSceneOptions.ts";
+import { createNormalization } from "./normalization.ts";
 import { createTransferFunctionTexture } from "./transferFunction.ts";
-import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
+import { createVolumeTexture } from "./volumeTexture.ts";
 
 // One orthogonal slice sampling the shared `uVolume` 3D texture (the raymarcher and further
 // slices sample the same texture).
 
-export interface SliceSceneOptions {
-  readonly field: ScalarField;
-  // Theme colormap name (`theme.colormaps.sequential`); unknown → inferno.
-  readonly colormap: string;
+export interface SliceSceneOptions extends FieldSceneOptions {
   // Field axis held fixed by the slice plane.
   readonly axis: SliceAxis;
   // Position along the fixed axis, in [0,1].
   readonly position: number;
-  // Value→color window; absent → the field's full finite range (identity normalization).
-  readonly windowLevel?: WindowLevel;
-  // Value→color scale within the window; default linear.
-  readonly scale?: ColorScale;
-  // Per-layer opacity multiplier on the composited output, [0,1]; default 1 (opaque).
-  readonly opacity?: number;
-  // Device supports R32F linear sampling — picks the volume texture format.
-  readonly hasFloat32Filterable?: boolean;
-  // Layer id keying the volume texture into the VRAM ledger (perf HUD); omit to skip tracking.
-  readonly ledgerKey?: string;
 }
 
 // A slice adds only `setPosition` to the base LayerScene — the plane position is a live uniform (the
