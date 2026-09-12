@@ -15,7 +15,7 @@ export interface CacheKeyParts {
 }
 
 /** Raw byte store behind the cache. The OPFS impl is the default; Memory is for tests + non-OPFS fallback. */
-export interface CacheStore {
+interface CacheStore {
   read(path: string): Promise<Uint8Array | undefined>;
   write(path: string, bytes: Uint8Array): Promise<void>;
   remove(path: string): Promise<void>;
@@ -56,7 +56,7 @@ export interface CacheOptions {
   readonly budgetBytes?: number;
 }
 
-export const DEFAULT_BUDGET_BYTES = 1 << 30; // 1 GiB
+const DEFAULT_BUDGET_BYTES = 1 << 30; // 1 GiB
 
 const NAMESPACE_PATTERN = /^[a-z0-9_-]+$/;
 

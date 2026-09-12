@@ -1,4 +1,4 @@
-import type { RaymarchMaterialBuilder } from "./raymarchScene.ts";
+import type { buildRaymarchMaterial, RaymarchMaterialBuilder } from "./raymarchScene.ts";
 
 // Dev-only shader hot-reload: re-import the raymarch scene module with a cache-busting query so
 // the Vite dev server re-transforms the edited WGSL/TSL, and hand back its FRESH material builder. The
@@ -17,8 +17,11 @@ export async function loadFreshRaymarchBuilder(
   // invalidation convention); @vite-ignore stops Vite from trying to pre-resolve the templated
   // specifier. The static imports inside the fresh module (volumeTexture/normalization/…) resolve to
   // the already-evaluated instances, so the rebuilt material reuses the live texture/uniform nodes.
+  // `typeof buildRaymarchMaterial` over a hand-written shape: the cast then tracks the real export,
+  // and the type-only import keeps the name statically reachable for the dead-code check, which
+  // cannot see through a templated specifier. Type-only, so three/webgpu stays out of the node path.
   const fresh = (await import(/* @vite-ignore */ `./raymarchScene.ts?t=${timestamp}`)) as {
-    readonly buildRaymarchMaterial: RaymarchMaterialBuilder;
+    readonly buildRaymarchMaterial: typeof buildRaymarchMaterial;
   };
   return fresh.buildRaymarchMaterial;
 }

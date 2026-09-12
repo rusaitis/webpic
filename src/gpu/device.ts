@@ -47,9 +47,9 @@ export type DeviceLostListener = (event: DeviceLossEvent) => void;
 export type DeviceRestoredListener = (device: GPUDevice) => void;
 export type Unsubscribe = () => void;
 
-// Thrown by `installGpu` when WebGPU is unavailable. Carries the discriminant
-// so callers can branch (e.g. render the requires-WebGPU page) without string-matching.
-export class GpuUnavailableError extends Error {
+// Thrown by `installGpu` when WebGPU is unavailable; `checkGpuSupport` is the branch-without-throwing
+// path, so nothing outside this file needs the class itself.
+class GpuUnavailableError extends Error {
   readonly reason: GpuUnsupportedReason;
   constructor(reason: GpuUnsupportedReason, message: string) {
     super(message);

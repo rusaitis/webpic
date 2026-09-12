@@ -280,3 +280,311 @@ Deviations, each after inspection rather than by omission:
 - Renaming wire fields (`shaded`, `continuous`, `active`) — rule exception instead.
 - Deleting `data/cache.ts` / `webgpu/streamlines.ts` — STAGED-marked, on the roadmap.
 - Re-flagging anything in memory `perf-review-non-wins`, `tot-select-chain-no-win`, or `code-health-review-2026-09` rejections.
+
+---
+
+## [ ] Part 6 — The readability pass (2026-09-12)
+
+Parts 1–5 closed everything a tool can check. What is left is the judgement layer: duplication no
+clone detector matches because it is a *shape* rather than a string, names that parse but do not
+read, factories still too large to hold in your head, and tests that cost more than they guarantee.
+No features, no behavior change — every commit is a deletion, a rename, a split, or a test.
+
+Three read-only audits (naming, simplification, test value) ran over all 18 layers; every sharp
+claim below was re-verified by hand. **The through-line: the codebase keeps inventing a helper in
+one file and hand-rolling it in the next.** `patchBinding` sits in `store/colormap.ts` under a
+header explaining the invariant it protects — `store/layers.ts` open-codes it six times. `clamp`
+lives in `@schema/math` under a header saying it is there *"so store, ui, render and app share one
+definition instead of re-deriving them"* — 13 sites re-derive it.
+
+### Baseline (verified 2026-09-12, gate green)
+
+| finding | number |
+|---|---|
+| source LOC (non-test, non-generated) | 26 057 · 18 layers (`ui` 8.8k · `render` 5.2k · `data` 2.6k · `store` 2.6k · `app` 2.1k) |
+| tests | 174 files · 22 328 LOC · 1420 pass + 11 env-skipped · 7.4 s wall |
+| coverage | 82.55 % lines · 81.42 % statements · 70.79 % branches |
+| functions over the stated 150-line cap | 18 (worst 268: `installCameraGestures`) |
+| functions over the stated complexity-20 cap | 24 (worst 51: `traceSingleDirectionAdaptive`) |
+| live Biome ceilings vs today's worst | `maxLines` **310 vs 268** · `maxAllowedComplexity` **52 vs 51** |
+| slowest test file | `ui/pointerCamera.dom.test.ts` **6 849 ms** of 14.9 s total test time |
+| lowest-coverage non-GPU source | `markerScene` 7 % · `pointerPicker` 40 % · `dragSnap` 54 % · `data.worker` 26 % |
+| inline `as unknown as Worker` fakes | 29, across 9 test files |
+| hand-rolled `Math.min(Math.max(…))` | 13, against `clamp` in `@schema/math` |
+| file headers over the stated 6-line cap | 30 files (worst 9) |
+
+Two things the baseline says that the rules do not: the Biome ceilings are **stale** (they fall
+today with zero code change), and `check:dead` runs `knip --exclude exports,types` — so **CI never
+checks unused exports at all**. That exclusion is why several deletions below survived Part 5.
+
+### 6a. Delete — duplication the cull could not see (~700 lines)
+
+1. **`store/layers.ts` six copies of one setter skeleton** (`setLayerVisible:94`,
+   `setLayerOpacity:108`, `setLayerShading:125`, `setSliceAxis:140`, `setSlicePosition:156`,
+   `setFieldlineSeeds:173`) → `patchLayer(list, id, patch)`, the list analogue of
+   `store/colormap.ts:32` `patchBinding`. ~45 lines; the identity-preservation invariant lands in
+   one place instead of six.
+2. **`src/ui/binding/`** — `bindControl`'s 4 overloads over a 4-arm switch only rename
+   `descriptor.*` into `folder.add*` args. Sole production consumer is `ui/panels/fieldPanel.ts:27`
+   (`kind: "select"`); the other three descriptor types are constructed only in its own test.
+   `fieldLabel:52` is a one-line forwarder with the same one caller. → `fieldPanel` calls
+   `folder.addSelect` + `fieldInfo(name).longName` directly; delete the folder and the `export *`
+   at `ui/index.ts:1`. ~110 src + 71 test lines. (*Abstract on the second real caller.*)
+3. **The text-control path is production-dead** — `controls/text.ts` `createTextInput` ← `pane.ts:129`
+   `addText` ← only `bindControl`'s dead `case "text"` and two tests. Delete `text.ts`, `addText`,
+   `TextOptions`, `Folder.addText`. ~45 lines.
+4. **`store/overlay.ts` five identical boolean setters** (`:45,55,59,63,67`), one caller each →
+   one `setFlag(state, key: OverlayFlag, on)`. ~33 lines; `overlay.test.ts` already groups four
+   under a single `describe`, so the test collapses with the code.
+5. **Use `clamp` from `@schema/math`** — `render/pickRay.ts:34,35,36,82`, `store/pick.ts:72,102,106`,
+   `store/overlay.ts:42`, `ui/layerSettings.ts:259,305` (same expression twice → one
+   `seedCountFor`), `ui/railMenu.ts:57`, `ui/colorbar/bottomDock.ts:57`, `app/viewportTracking.ts:21`.
+   `pickRay.ts:82` is the one per-ray-loop site to glance at.
+6. **`render/grid/overlayRemap.ts:17` `fieldAxisToThree` is the identity function** — 4 call sites,
+   one `expect(f(0)).toBe(0)` test, and a comment carrying banned history. Delete; the invariant is
+   already in the file header.
+7. **`store/camera.ts`** — five pose builders (`:58,73,126,168,182`) spell out all five
+   `CameraPose` fields where `{ ...pose, … }` would do (and `axisViewPose:463` already spreads);
+   `rollPose` is 7 lines that should be 1. `nudgePose`'s `lookMode = false` default is never taken.
+   `formatPoseParam:430` is production-dead — its comment cites a copy-link affordance that does
+   not exist, and it has no `STAGED:` header. ~29 lines.
+8. **Small verified duplicates** — `controls/rangeMath.ts:193-203` ≡ `:233-243` (→ `uniqueSortedT`)
+   · `runtime/renderer.ts:160-173` ≡ `:212-221` (readback tail) · `grid/overlayScene.ts:207-217` ≡
+   `:218-228` and `:237-243` ≡ `:244-250` (a/b-swapped tick emitters) · `readers/synthetic.ts` grid
+   + dataset tails (~22) · `pointerPicker.ts:198-204` ≡ `:206-211` and `:99-104` ≡ `:105-110` ·
+   `bottomBand.ts:181-188` ≡ `dragSnap.ts:608-616` (→ one `coalesceFrame`) · `controls/types.ts:56`
+   `SegmentedOptions<V>` ≡ `SelectOptions<V>` · `layerEpochs.ts:42` `supersedeAll` re-implements
+   `begin` · `numerics/tracing.ts:580,582` re-derive defaults `resolveTraceParams:480,491` owns.
+9. **Redundant guards** — `overlayScene.ts:190/192` re-tests `config.show.grid`;
+   `layerRegistry.ts:370-371` re-tests `!== undefined`; `managedDecoration.ts:44`'s ternary exists
+   only for closure narrowing where `warmScene` already returns early.
+
+**Judgement, confirm before cutting:** `store/layers.ts:52` `makeLayer`'s three textually identical
+switch arms (modern TS may distribute the spread over the union — verify with tsc, do not take on
+faith) · `ui/panels/registry.ts` `PANEL_REGISTRY` (one entry, but a stated affordance — cut only
+`isKnownPanel`) · `app/sceneSync.ts` ≡ `app/pickerSync.ts` themed-bridge skeleton (~14 lines; the
+bodies differ enough that the helper may not pay) · `vite.config.ts:19` ↔ `app/shaderHmr.ts:13`
+`"webpic:shader-hmr"` (both sides document the duplication as deliberate — a policy question).
+
+### 6b. Names
+
+**Misleading:** `pointerPicker.ts:75` `hitTest` → `markerPartAt` (returns a `MarkerPart`, not a
+boolean) · `layerComposite.ts:14` `CompositeEntry` / `runtime/renderer.ts:27` `CompositeItem` →
+`CompositeOrderEntry` / `CompositeDrawItem` (both imported into `layerRegistry.ts:9,20`) ·
+`controls/types.ts:19,40` `SelectOption`/`SelectOptions` → `SelectChoice`/`SelectOptions` ·
+`shortcuts.ts:35` `teardown` (an `AbortSignal`) → `teardownSignal` · `colormapControls.ts:45+`
+`bounds: DataRange` → `dataRange` · `colorbarSettings.ts:47` `cb` (a `DOMRect`) → `colorbarRect` ·
+`store/colormap.ts:15,26+` `BindingRecord`/`rec` → `ColormapBindingsById`/`bindings` ·
+`render/worker.ts:60,100,234,277,331` `dims` (a canvas size) → `canvasSize` ·
+`markerScene.ts:59` `HHANDLE_IDLE_OPACITY` → `HORIZONTAL_HANDLE_IDLE_OPACITY` ·
+`layerRegistry.ts:201` `replace` → `installScene` (its own comment says "Install a layer's scene").
+
+**One spelling per concept:**
+- `src/app/*Sync.ts` → `*Bridge.ts` (4 files against 5 already-`Bridge`; the prose settled it —
+  `pickerSync.ts:7` opens *"Bridges the store's point-picker state…"* and `storeBridge.ts:3` lists
+  `layerSync` among "the bridges"). 22 refs + 4 file + 3 test renames.
+- `ac` → `abortController` (80) and `subs` → `subscriptions` (118), one mechanical commit each.
+- `useF64` (`derived/magnitude.ts:17`) vs `useFloat64` (`coordinates/operators.ts:79+`) →
+  `isFloat64Output`. Same boolean, two spellings, sibling pure-math layers, neither a question.
+- `teardown` → `dispose` for the 2 remaining identifiers (`ui/layerSettings.ts:132`).
+- **`ui` icons: 4 homes → 1.** Fold the local `const ICON` maps (`topBar`, `cameraRail`,
+  `sideRail`, `colorbar`) and the loose `ICON_*` consts into `ui/icons.ts`; `layerIcons.ts` keeps
+  only `LAYER_KIND_ICON`. Deletes the one exact duplicate glyph (`ICON_CARET` ≡ `ICON_CARET_DOWN`).
+
+**Booleans at the call site:** `layerUpserts.ts:59` `sendSliceParams(layer, axisChanged,
+positionChanged)` → one `changed: { axis, position }` (two adjacent booleans; a swap compiles) ·
+`bottomBand.ts:130` `setCollapsed(true, true)` ×3 → `setCollapsed(isCollapsed, { isAutomatic })` ·
+`perfSampler.ts:57` → split into `postOnDemandSample`/`postContinuousSample` ·
+`markerScene.ts:107` `paintKnobTexture(vertical)` → two named painters · `niceTicks.ts:18`
+`niceNum(value, round)` → `snapToNearestNice`/`snapUpToNice` · ~30 non-question booleans on shared
+signatures (`orthographic` → `isOrthographic`, `shift` → `isShiftHeld`, `fireNow` →
+`shouldFireNow`, `dismissOnOutside` → `shouldDismissOnOutside`, `display` →
+`shouldDisplayOnComplete`) — none on the store→render wire, so the exemption does not apply.
+
+**Positional-parameter explosion** — 56 functions take ≥5; only five have a same-typed adjacent run
+where a swap type-checks. Fix those: `numerics/tracing.ts:213` `traceSingleDirectionAdaptive`
+(**14 params, 8 consecutive `number`** → pass the `ResolvedTraceParams` at `:452`; drops its
+complexity 51 → under 20) · `store/marker.ts:107,128` `dragOnPlane`/`dragAlongAxis` (both open with
+`cursorRay`'s exact 5-param prefix → one `CursorView` across all three) ·
+`dragSnap.ts:382,410` `setAnchors`/`placeCentered` (8 params each incl. `w`, `hgt`, `h`, `v`).
+
+**Abbreviations on exported or widely-read signatures:** `vp` → `viewport` (41) · `desc` →
+`descriptor` (23; moot if 6a-2 lands) · `buf` → `points`/`seedBuffer` · `vStemGeom`/`vKnobTex` →
+`verticalStem*` (~16) · `w`/`i`/`pts`/`phys` (`layerUpserts.ts:171-180`) · `cur`/`oc`/`cand`
+(`dragSnap`'s trickiest loop).
+
+**Verified, deliberately left alone:** `doc: Document` (305 — renaming shadows the global), `out`
+in the math layers, `state = store.getState()`, `i`/`j`/`k` in tight loops, `src`/`dst` in the
+6-line reversal loop, `destroy` (the WebGPU API), the sanctioned scientific shorthand (`bx`, `rho`,
+`dt`, `qOverM`), and the `applyX` DOM-reflect idiom (24 consistent uses — sweep all or none).
+Checked clean: 0 `handleX`, 0 `cfg`/`tmp`/`msg`/`evt`, no exported one-word `Options`/`Entry`/
+`Handle` types.
+
+### 6c. Shape — close the gap between the rules and the ratchets
+
+1. **Free drop, no code change:** `maxLines` 310 → 268, `maxAllowedComplexity` 52 → 51. Land first,
+   so each split below ratchets down in its own commit.
+2. **Split the five worst bodies** into named collaborators, the `createLayerRegistry` pattern:
+   - `cameraGestures.ts:52` (268 L, cx 27) → `createTapRecognizer` + `createTwistGate`, both pure
+     state machines (and therefore node-testable). Inside: `:149-158` ≡ `:236-243` → one
+     `dollyWithRect`; `onGestureEnd:275` only calls `preventDefault()` → inline at the listener.
+   - `perfHud.ts:101` (260 L, cx 31) → `perfSparkline.ts` takes the two rings + ~95 lines of canvas
+     drawing. `ctx2d` → `ctx` (the sanctioned spelling).
+   - `markerScene.ts:166` (237 L, **7 % covered**) → `makeHandle({axis, idleOpacity, vertical,
+     visible})` for the ↕/↔ mirrors (`:189-204` ≡ `:206-223`), the nine `x`/`xT` easing pairs
+     (`:246-267`, eased `:353-360`, settle-checked 8× at `:388-398`) → a `createMarkerEasing` cell
+     array, and the 13 named `.dispose()` calls → the `geometries`/`materials`/`textures` arrays
+     `overlayScene.ts:121` already uses. ~60 lines, and the pure easing becomes testable.
+   - `dragSnap.ts` (632 L) → `snapGeometry.ts` for the pure half (lines 14–321, already
+     unit-tested), leaving the DOM installer — the `rangeMath`/`rangeControl` precedent. Also hoist
+     `chooseEdge`'s `leftSide`/`topSide` (recomputed in all three branches from branch-invariant
+     inputs) above the `if` chain.
+   - `grid/overlayScene.ts:119` (164 L, cx 42) → `emitAxisLines` + `emitAxisLabels` (the 6a-8
+     mirrors) and `buildAxisLabels`.
+3. **`app/main.ts:102` `bootstrap`** (254 L, cx 29) — the hand-ordered 16-call disposer list at
+   `:359-383` violates *"never a hand-ordered unsub list"* (`createSubscriptions` exists; `app`
+   already imports `@ui`), and the perf-HUD + shader-HMR lazy-install twins (`:148,328-343,361` and
+   `:348-357,364`) are the second caller of one shape → `installLazy(load, install, scope, message)`.
+   Then `wireDatasetSwitch(...)`.
+4. **`numerics/tracing.ts:213`** — the 6b parameter-object change lands here so the ratchet falls
+   in the same commit.
+5. **`gpu/computeKernel.ts` ≡ `gpu/streamlineKernel.ts`** (~16 lines) — the validation-scoped
+   pipeline preamble and the `mapAsync`→`slice(0)`→`unmap()` readback (which `streamlineKernel`
+   does twice) → `oneShotPipeline` + `readBack`. **Schedule where a real GPU run is available.**
+
+**Not splitting:** `render/worker.ts` (its body *is* the worker's state — keeps its sanctioned
+`biome-ignore`), `store/camera.ts`, `render/messages.ts`, `data/readers/zarr.ts`,
+`data/readers/decode.ts`, `compute/calibration.ts`, `schema/theme.ts`. `ui/topBar.ts` (327 L) is
+borderline but its five widgets share the `overlayClosers` mutual-exclusion map at `:65-69`.
+
+### 6d. Tests — "only what matters", in both directions
+
+**Delete / rewrite.**
+- **`ui/pointerCamera.dom.test.ts` is 6 849 ms of 14.9 s.** `pumpUntil:34` polls rAF against
+  `Date.now()` while `cameraGlide` tweens on real elapsed time — its own comment admits *"tweens
+  run on real elapsed time, ~450 ms"*. That is the banned `setTimeout(r, N>0)` evaded through rAF.
+  **Test-only fix:** `glide(nowMs)` (`cameraGlide.ts:138`) is driven by the rAF timestamp, so
+  `vi.stubGlobal("requestAnimationFrame", …)` feeding a synthetic clock fast-forwards every tween
+  — the pattern 8 files including `worker.quality.test.ts` already use. (`isWheelLive:101` and
+  `:246` read `performance.now()`; stub that too, or add `now` to `CameraGlideHost`.) Also collapse
+  `:143-168`, which re-tests `normalizeWheelDelta` already pinned by `store/camera.test.ts:145-153`.
+  **Expected: suite 7.4 s → under ~2 s.**
+- **`tests/toolchain.test.ts`** is `expect(1 + 1).toBe(2)`. Delete; 122 node test files already
+  prove the node project resolves.
+- **`render/worker.quality.test.ts`** (264 L, 723 ms, 5 `vi.mock`s, 84-line harness) re-asserts
+  `runtime/qualityController.test.ts` — `:109` and `:208` both re-pin `[0.4, 0.7, 1]`. Keep only
+  what the controller unit cannot prove (handlers reach the controller; a painted rAF frame calls
+  `advanceSettling`). Delete `qualityController.test.ts:84-90`, a duplicate of `:51-70` beside it.
+- **Bare epsilons in the kernel suites** — `coordinates/conservation.test.ts:50,80,81,82` does not
+  even import `tests/tolerances.ts`, and it is the gold test; `operators.test.ts:63,112-114,127,
+  128,159` imports `TOL` and ignores it. Route all eleven through `TOL.conservation.ts_f64` (or the
+  existing `TOL.curl/divergence/gradient.ts_f64`).
+- **Vacuous assertions** — `supersedingTask.test.ts:57-64` asserts what `TArgs extends readonly
+  unknown[]` guarantees at compile time; `:44-55` awaits sequentially so its named race cannot
+  occur. `calibration.test.ts:304-316` wraps a compile-time assignment in an `it()` (hoist to
+  module scope, delete the test). Four `not.toThrow()` sites assert nothing their title claims:
+  `workerRouter.dom.test.ts:77-80` ("logs an unknown kind" — assert through `setLogSink`),
+  `viewportTracking.test.ts:88-97`, `statusPill.dom.test.ts:144` (→ `expect(vi.getTimerCount())
+  .toBe(0)`), `shell.dom.test.ts:37`. Four more are redundant lines before a real assertion.
+- **`derived/magnitude.test.ts:12-38`** — three tests of one guarantee, the third subsuming the
+  others; `:65-80`'s alias loop is re-run at `compute/backends/ts/magnitude.test.ts:17-24`.
+- **Fixtures: ~150 lines of re-rolled setup**, against the stated rule and with no barrier (30 test
+  files already import `tests/fixtures.ts`). `makeFakeWorker()` first — 29 inline `as unknown as
+  Worker` fakes across 9 files, 8 in `app/main.test.ts` alone. Then `blobField` (a byte-identical
+  17-line clone in `composite.browser.test.ts:22` and `raymarch.browser.test.ts:13`, beside the
+  `ballField` already in fixtures), `beDataset` ×3, `traceableDataset` ×3, `bTriple` ×2,
+  `sample(shape,spacing,fn)` ×2, `sampleCellCentered` across the src/scripts seam
+  (`tests/traceFixtures.ts` is its home), fake adapter limits ×2, `coordsInfo.test.ts:6-19`'s
+  hand-rolled `GridInfo` → `makeGrid`, and `mountUi(install)` + `requireEl(root, sel, what)` for
+  the identical 9-line prologue in six `ui/*.dom.test.ts` files. (*Not* the `vi.mock` prologue in
+  the five `worker.*.test.ts` — `vi.mock` is hoisted and file-scoped, so it cannot be shared.)
+- **`ui/panels/themeCoverage.dom.test.ts`** touches no DOM — the only such file. → `.test.ts`.
+- **Two `setTimeout(r, N>0)`** in browser suites (`parity.browser.test.ts:124`,
+  `pick.browser.test.ts:71`) — outside the CI gate, so never caught.
+
+**Add — ranked by what can actually break.**
+- `dragSnap.dom.test.ts` (installer at 54 %, the largest untested installer, owning pointer capture
+  + docking): *a drag past the snap threshold docks to the nearest edge and releases pointer
+  capture*; *dispose stops responding to a drag already in progress*.
+- `ui/pointerPicker.ts` at 40 % — the suite is scoped `describe("installPointerPicker arrow keys")`;
+  the pointer path is untested: *a drag on the marker moves it along the view plane and dispatches
+  one pick intent per pointerup*.
+- `workers/data.worker.ts` at 26 % — `:109` `"stream read before open"` (the realistic
+  fast-dataset-switch race), `:40` `"could not open cache directory"`, and the inner cache-port
+  `default:` never-arm at `:74-76` (only the outer one at `:229` is covered).
+- **Superseding tasks, second contract** — `simulation.abort.test.ts` proves only that the old
+  signal aborts; the commit-discard half is where the store regresses. `createRetrace`
+  (`store/fieldTrace.ts:29`) has no supersession test at all.
+- **`dispose()` idempotence** where a real resource is held — `render/worker.dispose.test.ts` (one
+  test, neither required contract), `gpu/device.ts`, `gpu/vramLedger.ts`,
+  `render/volume/volumeTexture.ts`, `render/runtime/readback.ts` (*dispose during a pending
+  `mapAsync` resumes the loop and rejects the read*). Repo-wide only 4 modules test it.
+- **The pure halves that fall out of 6c** — `createTapRecognizer`, `createTwistGate`,
+  `createMarkerEasing`, `snapGeometry`, `patchLayer`. `createMarkerEasing` is what turns
+  `markerScene`'s 7 % into a real number.
+- `createCompositeAssembler` (`runtime/composite.ts:52`) — a malformed-input test per throw site.
+
+*Lower priority than the audit suggested:* `createStoreBridge` and `installPickerSync` have no
+*direct* test but measure 100 % and 91 % covered through the bridges above them.
+
+### 6e. Rules, config, and the mechanical tail
+
+**Two test rules that good code contradicts** (decided 2026-09-12: amend the rules, not the code):
+- *"Every `install*` has a `.dom.test.ts`"* → *"every `install*` that touches the DOM"*. Eight
+  `app/` bridges are DOM-free store→worker wiring with correct node tests; the rule as written asks
+  for eight happy-dom files that would assert nothing new.
+- `describe("<exported symbol>")` cannot express the ~110 legitimate `describe("<symbol> — <case>")`
+  titles (`"ZarrReader — cancellation"`) or the named invariants (`"div(curl F) = 0"`). Allow both,
+  then fix the 10 titles naming prose instead of a symbol (`"top-bar chrome"` → `installReveal`, …)
+  and the one `works` title (`controls/rangeMath.test.ts:253`).
+
+**Config:**
+- `check:dead` runs `knip --no-config-hints --exclude exports,types` — CI never checks unused
+  exports, which is why 6a-2/3 survived Part 5. Drop both flags. Teach knip the HMR dynamic-import
+  seam (`buildRaymarchMaterial` is read off a fresh `import()` at `volume/shaderReload.ts:21-23`),
+  drop `export` from `GpuUnavailableError` (nothing catches it by type), fix the two real hints
+  (`**/*.generated.ts` matches nothing; `src/**/testing/**/*.ts` is gone since the harness moved).
+- Cross-layer test files colliding with layer-test names: `tests/seedPick.test.ts` →
+  `tests/seed-domain-parity.test.ts`; `tests/synthetic.test.ts` → `tests/analytic-parity.test.ts`.
+  `tests/prefetch.test.ts` imports only `@data/*` — a layer test in the meta-guard folder; move to
+  `src/data/prefetch.test.ts`, which also gives `prefetch.ts` its stated sibling.
+
+**Mechanical tail (all four in scope):** file headers 9 → 6 (30 files, ~60 lines; then flatten
+`HEADER_CEILING` to 6 so it stops being a ratchet) · ~26 milestone/version refs in comments
+(`M3.1`, `M4.4`, `v0.1`, `v0.2` — in `tolerances.ts` keep the provenance but cite the *suite*) ·
+name the 8 bare guard epsilons (`PARALLEL_RAY_EPSILON`, `DEGENERATE_LENGTH_EPSILON`, …) · prefix
+the 8 error messages lacking a subsystem name (`"render before init"` ×2, `"loopTol must be
+positive"`, `"could not open cache directory"`, …; the other ~96 throws comply).
+
+**Not re-proposed:** another comment-ratio cull (settled at 17.2 % in Part 5 — a scan found one
+restatement in the whole tree), and anything in memory `perf-review-non-wins`,
+`tot-select-chain-no-win`, or the `code-health-review-2026-09` rejections.
+
+### Part 6 sequencing
+
+1. 6e config (`chore:`) — un-exclude knip first, so it reports honestly through everything below.
+2. 6a deletions (`refactor:`): `patchLayer` → `overlay.setFlag` → `ui/binding` + text control →
+   `clamp` → `fieldAxisToThree` → `store/camera` → the small duplicates.
+3. 6b names (`refactor:`), four commits: misleading → `*Sync`→`*Bridge` → `ac`/`subs` →
+   booleans + parameter objects.
+4. 6c shape (`refactor:`), one commit per split, each lowering the Biome ceiling in the same diff.
+5. 6d deletions (`test:`): fixtures first, then the rAF clock stub, then the vacuous-assertion cull.
+6. 6d additions (`test:`): the split-out pure halves, then `dragSnap`, `pointerPicker`,
+   `data.worker`, the supersession and dispose contracts.
+7. 6e tail + CLAUDE.md (`docs:`/`refactor:`).
+8. Record outcomes + deviations here; update memory `code-health-review-2026-09.md` and
+   `enforcement-ratchets.md`.
+
+### Part 6 verification
+
+- Every commit: `npm run check` (= CI).
+- After 6a: `npm run check:dead` clean with exports re-enabled; `tests/embed.test.ts` unchanged
+  (no `@embed` surface is touched — `readers/synthetic.ts`'s helpers stay module-private).
+- After 6c: `npm run test:gpu` (47) and `npm run perf:gate` **run alone** (memory
+  `m2-perf-gate-instruments`: cold numbers swing 79 → 886 ms under concurrent builds). Cold paint
+  < 500 ms, first frame < 1500 ms. Both Biome ceilings strictly lower than they started.
+- After 6d: `npm test` wall clock **7.4 s → under ~2 s**; coverage lines ≥ 82.55 % and rising. Test
+  *count* may fall; that is the point.
+- After 6e: `comment-budget.test.ts` header ceiling flat at 6; `grep -rE "M[0-9]+\.[0-9]" src tests`
+  returns only SVG path data.
+- `npm run test:parity` unchanged throughout — no schema or writer surface is touched.

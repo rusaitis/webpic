@@ -148,7 +148,7 @@ function buildRaymarchGraph(
 }
 
 // The preserved GPU resources + live uniforms `buildRaymarchMaterial` composes its TSL graph over.
-export type RaymarchGraph = ReturnType<typeof buildRaymarchGraph>;
+type RaymarchGraph = ReturnType<typeof buildRaymarchGraph>;
 
 // Builds the raymarch `NodeMaterial` (TSL/TSL+WGSL graph) over a preserved `RaymarchGraph`. The dev
 // shader hot-reload re-imports this fresh and applies it to the live graph (see `rebuildShader`).

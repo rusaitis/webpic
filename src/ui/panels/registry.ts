@@ -6,9 +6,9 @@ import { installPlaceholderPanel } from "./placeholderPanel.ts";
 // Panel name → installer for the docked shell. Adding a panel is one entry here; an unknown name
 // (e.g. a theme's default-panels) falls back to a placeholder so the shell layout stays honest.
 
-export type PanelInstaller = (host: HTMLElement, store: SimulationStore) => Disposer;
+type PanelInstaller = (host: HTMLElement, store: SimulationStore) => Disposer;
 
-export const PANEL_REGISTRY: Readonly<Record<string, PanelInstaller>> = {
+const PANEL_REGISTRY: Readonly<Record<string, PanelInstaller>> = {
   field: installFieldPanel,
 };
 
@@ -17,7 +17,7 @@ export const PANEL_REGISTRY: Readonly<Record<string, PanelInstaller>> = {
 // these anyway renders the surface twice (a second colorbar; a second frame-timing pane that makes a
 // bare `.webpic-pane` locator ambiguous under Playwright strict mode). They are relocated, not
 // missing, so the shell drops them rather than placeholdering. Drop entries as the schema bumps.
-export const SERVED_ELSEWHERE: ReadonlySet<string> = new Set([
+const SERVED_ELSEWHERE: ReadonlySet<string> = new Set([
   "colormap", // ui/colorbar/ — colormap controls live in the colorbar popover
   "layers", // ui/colorbar/ — the instance-first layer list
   "diagnostics", // the theme's name for the timing panel (ui/panels/timingPanel.ts, in the Developer window)

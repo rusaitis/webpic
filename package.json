@@ -37,7 +37,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "check": "npm run typecheck && npm run check:boundaries && npm run gen:check && npm run lint:ci && npm run check:dead && npm run build && npm run build:embed && npm run test && npm run docs:api && npm run size",
     "check:boundaries": "node scripts/check-boundaries.ts",
-    "check:dead": "knip --no-config-hints --exclude exports,types",
+    "check:dead": "knip",
     "docs:api": "typedoc",
     "gen:export": "uv run --project ../pypic pypic export bundle --inline-single-use-defs --include-x-extensions -o src/schema/pypic-export.generated.json",
     "gen:emit": "node scripts/codegen/emit.ts && biome format --write src/schema src/compute",
