@@ -41,9 +41,9 @@ export function installHelpOverlay(parent: HTMLElement, uiStore: UiStore): Dispo
   overlay.appendChild(panel);
   parent.appendChild(overlay);
 
-  const ac = new AbortController();
-  const subs = createSubscriptions();
-  subs.on(
+  const abortController = new AbortController();
+  const subscriptions = createSubscriptions();
+  subscriptions.on(
     uiStore,
     (s) => s.isHelpVisible,
     (visible) => {
@@ -68,12 +68,12 @@ export function installHelpOverlay(parent: HTMLElement, uiStore: UiStore): Dispo
       uiStore.getState().setHelpVisible(false);
     }
   };
-  doc.addEventListener("keydown", onKeyDown, { signal: ac.signal });
+  doc.addEventListener("keydown", onKeyDown, { signal: abortController.signal });
 
   return () => {
-    ac.abort();
+    abortController.abort();
     shortcuts.dispose();
-    subs.dispose();
+    subscriptions.dispose();
     overlay.remove();
   };
 }

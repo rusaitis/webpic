@@ -26,15 +26,18 @@ export function installRaise(element: HTMLElement, signal?: AbortSignal): () => 
   const onDown = (): void => bringToFront(element);
   // One internal controller behind both release paths: the listener comes off exactly once whether
   // the caller's signal aborts or the returned disposer runs.
-  const ac = new AbortController();
-  element.addEventListener("pointerdown", onDown, { capture: true, signal: ac.signal });
+  const abortController = new AbortController();
+  element.addEventListener("pointerdown", onDown, {
+    capture: true,
+    signal: abortController.signal,
+  });
   raiserCount += 1;
 
   let isReleased = false;
   const release = (): void => {
     if (isReleased) return;
     isReleased = true;
-    ac.abort();
+    abortController.abort();
     raiserCount -= 1;
     if (raiserCount === 0) zTop = Z_FLOATING_BASE;
   };

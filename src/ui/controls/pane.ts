@@ -43,11 +43,11 @@ function makeFolder(doc: Document, options: FolderOptions): Folder {
   bar.textContent = options.title;
   const body = makeEl(doc, "div", "webpic-folder_body");
   if (options.expanded === false) body.hidden = true;
-  const ac = new AbortController();
+  const abortController = new AbortController();
   const onBar = (): void => {
     body.hidden = !body.hidden;
   };
-  bar.addEventListener("click", onBar, { signal: ac.signal });
+  bar.addEventListener("click", onBar, { signal: abortController.signal });
   element.append(bar, body);
 
   // Each child registers a self-removing disposer; folder teardown runs a snapshot so a
@@ -145,7 +145,7 @@ function makeFolder(doc: Document, options: FolderOptions): Folder {
     },
     dispose() {
       for (const dispose of [...disposers]) dispose();
-      ac.abort();
+      abortController.abort();
       element.remove();
     },
   };

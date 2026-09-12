@@ -10,7 +10,7 @@ import { createSubscriptions } from "../subscriptions.ts";
 
 // The Scene panel: toggles for the in-scene axes + grid overlay (per-plane), tick labels, and the
 // grid density — the reference-frame chrome. Dispatches store intents only (ui → store; never render)
-// — the app's sceneSync forwards these flags to the worker. The corner gnomon (bottom rail, camera
+// — the app's sceneBridge forwards these flags to the worker. The corner gnomon (bottom rail, camera
 // orientation) and the point marker (left tool rail, a value probe) own their own surfaces, not this
 // panel. Camera controls (fit, projection) live in the bottom rail + keyboard, not here.
 
@@ -64,29 +64,29 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
   // Reflect external changes (set()-in never re-fires onChange). Per-leaf selectors so a change to
   // one overlay field updates only its control — a Density drag does not re-assert every checkbox
   // each frame, it just moves the slider.
-  const subs = createSubscriptions();
-  subs.on(
+  const subscriptions = createSubscriptions();
+  subscriptions.on(
     store,
     (s) => s.overlay.showGrid,
     (on) => grid.set(on),
   );
-  subs.on(
+  subscriptions.on(
     store,
     (s) => s.overlay.showAxes,
     (on) => axes.set(on),
   );
-  subs.on(
+  subscriptions.on(
     store,
     (s) => s.overlay.showLabels,
     (on) => labels.set(on),
   );
-  subs.on(
+  subscriptions.on(
     store,
     (s) => s.overlay.gridDivisions,
     (n) => density.set(n),
   );
   for (const { plane, handle } of planes) {
-    subs.on(
+    subscriptions.on(
       store,
       (s) => s.overlay.planes[plane],
       (on) => handle.set(on),
@@ -94,7 +94,7 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
   }
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     pane.dispose(); // disposes every control the folder tracked — no per-handle teardown needed
   };
 }

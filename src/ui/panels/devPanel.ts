@@ -29,9 +29,9 @@ export function installDevPanel(host: HTMLElement, store: SimulationStore): Disp
 
   syncShading();
 
-  const subs = createSubscriptions();
-  subs.on(store, (s) => s.selectedLayerId, syncShading);
-  subs.on(
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.selectedLayerId, syncShading);
+  subscriptions.on(
     store,
     (s) => {
       const layer = selectActiveLayer(s);
@@ -41,7 +41,7 @@ export function installDevPanel(host: HTMLElement, store: SimulationStore): Disp
   );
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     pane.dispose(); // cascades to the shading checkbox
   };
 }

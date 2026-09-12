@@ -42,9 +42,9 @@ export function createShell(options: ShellOptions): Shell {
     for (const [name, host] of hosts) host.hidden = !(panels[name] ?? true);
   };
 
-  const subs = createSubscriptions();
-  subs.on(options.uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
-  subs.on(options.uiStore, (s) => s.panels, applyPanels, { fireNow: true });
+  const subscriptions = createSubscriptions();
+  subscriptions.on(options.uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
+  subscriptions.on(options.uiStore, (s) => s.panels, applyPanels, { fireNow: true });
 
   return {
     root,
@@ -54,7 +54,7 @@ export function createShell(options: ShellOptions): Shell {
       return host;
     },
     dispose() {
-      subs.dispose();
+      subscriptions.dispose();
       root.remove();
     },
   };

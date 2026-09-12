@@ -41,8 +41,8 @@ export function installSideRail(
   uiStore: UiStore,
 ): Disposer {
   const doc = parent.ownerDocument;
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
   const container = makeEl(doc, "div", "webpic-siderail");
   container.setAttribute("role", "toolbar");
   container.setAttribute("aria-label", "Tools");
@@ -232,23 +232,23 @@ export function installSideRail(
   applyThemeName(uiStore.getState().themeName);
   applyVisible(uiStore.getState().isUiVisible);
 
-  const subs = createSubscriptions();
-  subs.on(store, (s) => s.overlay.showPicker, applyProbe);
-  subs.on(
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.overlay.showPicker, applyProbe);
+  subscriptions.on(
     store,
     (s) => s.layers,
     () => {
       for (const menu of menus) menu.refresh();
     },
   );
-  subs.on(uiStore, (s) => s.isLayersPanelOpen, applyLayersPressed);
-  subs.on(uiStore, (s) => s.panels.dev ?? false, applyDevPressed);
-  subs.on(uiStore, (s) => s.themeName, applyThemeName);
-  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subscriptions.on(uiStore, (s) => s.isLayersPanelOpen, applyLayersPressed);
+  subscriptions.on(uiStore, (s) => s.panels.dev ?? false, applyDevPressed);
+  subscriptions.on(uiStore, (s) => s.themeName, applyThemeName);
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
 
   return () => {
-    ac.abort();
-    subs.dispose();
+    abortController.abort();
+    subscriptions.dispose();
     for (const menu of menus) menu.dispose();
     disposeOutsideDismiss();
     sceneDispose();

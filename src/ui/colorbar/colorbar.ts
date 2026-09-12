@@ -274,14 +274,14 @@ export function installColorbar(
   const onStoreChange = (): void => {
     if (repaint()) band.restack();
   };
-  const subs = createSubscriptions();
-  subs.on(store, selectVisibleBindings, onStoreChange, { equalityFn: shallow });
-  subs.on(store, selectActiveBinding, onStoreChange);
-  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, selectVisibleBindings, onStoreChange, { equalityFn: shallow });
+  subscriptions.on(store, selectActiveBinding, onStoreChange);
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
 
   return () => {
     band.dispose();
-    subs.dispose();
+    subscriptions.dispose();
     disposeRaise();
     drag.dispose();
     settings.dispose();

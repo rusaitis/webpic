@@ -3,7 +3,7 @@ import { createSimulationStore, createUiStore, makeDefaultLayer } from "@store";
 import { describe, expect, it } from "vitest";
 import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
-import { installLayerSync } from "./layerSync.ts";
+import { installLayerBridge } from "./layerBridge.ts";
 
 interface Post {
   readonly message: RenderWorkerRequest;
@@ -44,7 +44,7 @@ function harness(ready: boolean) {
   let isReady = ready;
   const store = createSimulationStore();
   const uiStore = createUiStore();
-  const sync = installLayerSync({ store, uiStore, worker, isReady: () => isReady });
+  const sync = installLayerBridge({ store, uiStore, worker, isReady: () => isReady });
   return {
     store,
     posts,
@@ -58,7 +58,7 @@ function harness(ready: boolean) {
 
 const kinds = (posts: readonly Post[]) => posts.map((p) => p.message.kind);
 
-describe("installLayerSync", () => {
+describe("installLayerBridge", () => {
   it("stays silent until the worker is ready", () => {
     const { store, posts } = harness(false);
     store.getState().setDataset(beDataset()); // seeds layer-0, fires computed + layers
@@ -255,7 +255,7 @@ describe("installLayerSync", () => {
   });
 
   // A 4³ uniform B = (0,0,1) field: the default rake (along x) traces N straight z-lines that the
-  // tracer resolves to ≥2 points each — enough to exercise the store→trace→layerSync line path.
+  // tracer resolves to ≥2 points each — enough to exercise the store→trace→layerBridge line path.
   const traceableDataset = () => {
     const n = 4;
     const size = n * n * n;

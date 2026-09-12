@@ -174,10 +174,10 @@ export interface PickerSlice {
   readonly pickRequest: PickRequest | null;
   // The draggable point-picker marker, object space (unit box [-0.5, 0.5]³, = world). null hides it.
   // ui/pointerPicker drags it (setPickerPoint) and the app's opacity-weighted pick places it; the app
-  // forwards it to the render worker via pickerSync. The seed [0,0,0] shows the marker at box center.
+  // forwards it to the render worker via pickerBridge. The seed [0,0,0] shows the marker at box center.
   readonly pickerPoint: Vec3 | null;
   // Which marker part the cursor is over, and whether a drag is in progress — view feedback the
-  // render worker eases (hover/pulse/active). Set by ui/pointerPicker, forwarded by pickerSync.
+  // render worker eases (hover/pulse/active). Set by ui/pointerPicker, forwarded by pickerBridge.
   readonly pickerHover: MarkerPart;
   readonly pickerActive: boolean;
   requestPick(request: PickRequest | null): void;
@@ -188,7 +188,7 @@ export interface PickerSlice {
 
 export interface OverlaySlice {
   // Scene overlay (axes + grid + gnomon) display prefs — user-owned, independent of the dataset. The
-  // app forwards the render-bound parts to the worker (sceneSync); cameraChrome consumes showGnomon.
+  // app forwards the render-bound parts to the worker (sceneBridge); cameraChrome consumes showGnomon.
   readonly overlay: OverlayState;
   setOverlayShowGrid(on: boolean): void;
   setOverlayPlane(plane: GridPlane, on: boolean): void;

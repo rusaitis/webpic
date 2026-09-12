@@ -2,7 +2,7 @@ import { clamp } from "@schema/math.ts";
 
 // Pure ops for the scene-overlay UI state (axes + grid + gnomon toggles). Mirrors layers.ts /
 // colormap.ts: framework-free, node-testable, fresh-object-per-change for subscribeWithSelector, and
-// identity-preserving on no-ops (so the app's sceneSync doesn't re-post on a non-change). Holds only
+// identity-preserving on no-ops (so the app's sceneBridge doesn't re-post on a non-change). Holds only
 // flags + density — colors/bounds are resolved app-side from the theme + dataset, never here.
 
 // THREE-plane terms (what the user sees on the gnomon): under z-up the horizontal/equatorial plane is
@@ -21,7 +21,7 @@ export interface OverlayState {
   // The corner CSS gnomon — UI-only (consumed by cameraChrome, not forwarded to render).
   readonly showGnomon: boolean;
   // The draggable point-picker marker (sphere + handles + guides). On by default; the app forwards
-  // it to render via pickerSync when a volume layer is present.
+  // it to render via pickerBridge when a volume layer is present.
   readonly showPicker: boolean;
   // Target major-tick divisions per axis; the render worker snaps to a 1/2/5 lattice.
   readonly gridDivisions: number;

@@ -360,8 +360,8 @@ export function installDragSnap(
   const handle = options.handle ?? element;
   const doc = element.ownerDocument;
   const view = doc.defaultView;
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
 
   let baseX = 0;
   let baseY = 0;
@@ -618,7 +618,7 @@ export function installDragSnap(
     wasDragging: () => recentlyDragged,
     dispose() {
       chromeObserver?.disconnect();
-      ac.abort();
+      abortController.abort();
     },
   };
 }

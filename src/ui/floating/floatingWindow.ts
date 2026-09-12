@@ -51,7 +51,7 @@ export interface FloatingWindowHandle {
 
 export function createFloatingWindow(options: FloatingWindowOptions): FloatingWindowHandle {
   const doc = options.parent.ownerDocument;
-  const ac = new AbortController();
+  const abortController = new AbortController();
 
   const container = makeEl(doc, "div", "webpic-window");
   container.setAttribute("role", "group");
@@ -70,7 +70,9 @@ export function createFloatingWindow(options: FloatingWindowOptions): FloatingWi
   actions.dataset.noDrag = "";
   if (options.onClose !== undefined) {
     const closeBtn = makeIconButton(doc, "webpic-window_close", ICON_CLOSE, { ariaLabel: "Close" });
-    closeBtn.addEventListener("click", () => options.onClose?.(), { signal: ac.signal });
+    closeBtn.addEventListener("click", () => options.onClose?.(), {
+      signal: abortController.signal,
+    });
     actions.append(closeBtn);
   }
   bar.append(grip, title, actions);
@@ -94,7 +96,7 @@ export function createFloatingWindow(options: FloatingWindowOptions): FloatingWi
   options.parent.appendChild(container);
 
   bringToFront(container); // newest window opens on top of the shared floating stack
-  installRaise(container, ac.signal); // and re-raises whenever it's grabbed
+  installRaise(container, abortController.signal); // and re-raises whenever it's grabbed
 
   const drag = installDragSnap(container, { mode: "free", handle: bar });
   const disposeResize = installCornerResize(container, resize, {
@@ -122,7 +124,7 @@ export function createFloatingWindow(options: FloatingWindowOptions): FloatingWi
       container.hidden = true;
     },
     dispose() {
-      ac.abort();
+      abortController.abort();
       disposeResize();
       drag.dispose();
       container.remove();

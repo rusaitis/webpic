@@ -77,9 +77,9 @@ describe("installReveal", () => {
   });
 
   it("stops responding once the signal aborts", () => {
-    const ac = new AbortController();
-    const reveal = installReveal(wrapper, trigger, ac.signal);
-    ac.abort();
+    const abortController = new AbortController();
+    const reveal = installReveal(wrapper, trigger, abortController.signal);
+    abortController.abort();
     trigger.click();
     expect(reveal.isExpanded()).toBe(false);
   });

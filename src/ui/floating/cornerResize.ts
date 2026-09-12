@@ -45,8 +45,8 @@ export function installCornerResize(
   options: CornerResizeOptions = {},
 ): Disposer {
   const doc = element.ownerDocument;
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
   const minWidth = options.minWidth ?? 160;
   const minHeight = options.minHeight ?? 120;
   const margin = options.margin ?? VIEWPORT_MARGIN_PX;
@@ -82,5 +82,5 @@ export function installCornerResize(
     },
   });
 
-  return () => ac.abort();
+  return () => abortController.abort();
 }

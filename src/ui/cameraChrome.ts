@@ -139,14 +139,14 @@ export function installCameraChrome(
       tip.element.style.transform = `translate3d(${x}px, ${y}px, ${z}px) ${counter}`;
     }
   };
-  const subs = createSubscriptions();
-  subs.on(store, (s) => s.cameraPose, render, { fireNow: true });
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.cameraPose, render, { fireNow: true });
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
     if (visible) render(store.getState().cameraPose); // catch up — the pose moved while hidden
   };
-  subs.on(uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible, { fireNow: true });
 
   // The gnomon is independently toggleable (the bottom rail's "Gnomon" control) so it can be hidden
   // once the in-scene 3D axes suffice. Effective visibility = that preference AND not responsively
@@ -158,11 +158,11 @@ export function installCameraChrome(
     if (show) render(store.getState().cameraPose); // catch up — the pose moved while hidden
   };
   applyGnomon();
-  subs.on(store, (s) => s.overlay.showGnomon, applyGnomon);
-  subs.on(uiStore, (s) => s.isGnomonSuppressed, applyGnomon);
+  subscriptions.on(store, (s) => s.overlay.showGnomon, applyGnomon);
+  subscriptions.on(uiStore, (s) => s.isGnomonSuppressed, applyGnomon);
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     container.remove();
   };
 }

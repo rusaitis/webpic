@@ -55,7 +55,7 @@ function num(value: number): string {
   return String(Number.parseFloat(value.toFixed(3)));
 }
 
-// Per-axis world extent, matching app/sceneSync.buildAxis: physical [origin, origin+spacing·dim] when
+// Per-axis world extent, matching app/sceneBridge.buildAxis: physical [origin, origin+spacing·dim] when
 // the spacing is finite and positive, else the voxel range [0, dim]. Inlined (ui can't reach app).
 function axisExtent(grid: GridInfo, i: number): readonly [number, number] {
   const dim = grid.dimensions[i] ?? 1;

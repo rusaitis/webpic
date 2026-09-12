@@ -29,7 +29,7 @@ import { formatValue, paintGradient } from "./colorbarGradient.ts";
 // The colormap controls — colormap / value→color scale / window-level — for the *selected layer's*
 // ColormapBinding. Lifted from the old docked colormap panel; now mounted into the floating
 // colorbar's settings popover. Each control dispatches a setBinding* intent and mirrors external
-// edits in place; the app's layerSync resolves the changed binding to the layers that reference it.
+// edits in place; the app's layerBridge resolves the changed binding to the layers that reference it.
 // Window is an [lo, hi] interval; the binding stores the canonical {center, width}.
 
 // Narrowest window as a fraction of the track — keeps the in-shader width > 0 (parallels render's
@@ -160,13 +160,13 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
 
   rebuild();
 
-  const subs = createSubscriptions();
-  subs.on(store, (s) => s.selectedLayerId, rebuild);
-  subs.on(store, selectDataRange, rebuild); // new extent → re-bake the track
-  subs.on(store, selectActiveBinding, sync);
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.selectedLayerId, rebuild);
+  subscriptions.on(store, selectDataRange, rebuild); // new extent → re-bake the track
+  subscriptions.on(store, selectActiveBinding, sync);
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     windowControl?.dispose();
     scaleControl?.dispose();
     colormapControl?.dispose();

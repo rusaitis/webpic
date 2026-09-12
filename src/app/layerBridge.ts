@@ -31,13 +31,13 @@ function isTransferred(field: FieldArray): boolean {
   return transferableBuffer(field.data).detached;
 }
 
-export interface LayerSyncOptions extends RenderWorkerLink {
+export interface LayerBridgeOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
   // Raises/drops the render-loading pill across the upsert → layerCompiled round-trip.
   readonly uiStore: UiStore;
 }
 
-export interface LayerSync {
+export interface LayerBridge {
   // Send the full current state (upsert each active-field layer + the composite). Catch-up on ready.
   readonly flushAll: () => void;
   // Drop the render-loading pill when the worker acks a layer's pipeline warm (the layerCompiled
@@ -46,7 +46,7 @@ export interface LayerSync {
   readonly dispose: () => void;
 }
 
-export function installLayerSync(options: LayerSyncOptions): LayerSync {
+export function installLayerBridge(options: LayerBridgeOptions): LayerBridge {
   const { store, uiStore, worker, isReady } = options;
   const bridge = createStoreBridge(store, isReady);
   let lastLayers: readonly Layer[] = store.getState().layers; // snapshot for the removal diff

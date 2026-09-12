@@ -1,11 +1,11 @@
 import { type MarkerConfig, REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import type { Rgba01, Theme } from "@schema/theme.ts";
 import type { SimulationStore } from "@store";
-import { resolveOverlayColors } from "./sceneSync.ts";
+import { resolveOverlayColors } from "./sceneBridge.ts";
 import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 // Bridges the store's point-picker state to the render worker (app-only glue: store and render can't
-// import each other). Mirrors sceneSync: the build config (theme colors + guide plane) is low-
+// import each other). Mirrors sceneBridge: the build config (theme colors + guide plane) is low-
 // frequency and rides setMarker on the showPicker toggle; the live position + hover/active state ride
 // the cheap setPickerPoint. Gated on `workerReady` (via the shared store bridge) with a flushAll
 // catch-up replayed on the worker `ready` (setDataset + the initial picker state run before `ready`).
@@ -21,26 +21,26 @@ function buildMarkerConfig(theme?: Theme): MarkerConfig {
   return {
     coreColor: theme?.colors.accent ?? FALLBACK_ACCENT,
     guideColor: [grid[0], grid[1], grid[2], Math.max(grid[3], GUIDE_MIN_OPACITY)],
-    // The guide plane matches the grid overlay's held plane (sceneSync.buildOverlayPayload: "center").
+    // The guide plane matches the grid overlay's held plane (sceneBridge.buildOverlayPayload: "center").
     planePosition: "center",
   };
 }
 
-export interface PickerSyncOptions extends RenderWorkerLink {
+export interface PickerBridgeOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
   // The boot theme; a runtime switch rides setTheme (the app theme bridge).
   readonly theme?: Theme;
 }
 
-export interface PickerSync {
-  // Post the current marker config + position (catch-up on the worker `ready`, like sceneSync).
+export interface PickerBridge {
+  // Post the current marker config + position (catch-up on the worker `ready`, like sceneBridge).
   readonly flushAll: () => void;
   // Re-resolve the marker palette from a new theme and rebuild it (the theme switcher).
   readonly setTheme: (theme: Theme | undefined) => void;
   readonly dispose: () => void;
 }
 
-export function installPickerSync(options: PickerSyncOptions): PickerSync {
+export function installPickerBridge(options: PickerBridgeOptions): PickerBridge {
   const { store, worker, isReady } = options;
   let config = buildMarkerConfig(options.theme);
   const bridge = createStoreBridge(store, isReady);

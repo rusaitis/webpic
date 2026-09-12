@@ -30,8 +30,8 @@ describe("zStack", () => {
 
   it("returns to the base once the last raiser releases — by disposer or by signal", () => {
     const a = raiser();
-    const ac = new AbortController();
-    const b = raiser(ac.signal);
+    const abortController = new AbortController();
+    const b = raiser(abortController.signal);
     a.press();
     b.press();
     expect(b.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 2}`);
@@ -41,7 +41,7 @@ describe("zStack", () => {
     b.press();
     expect(b.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 3}`);
 
-    ac.abort();
+    abortController.abort();
     const c = raiser();
     c.press();
     expect(c.element.style.zIndex).toBe(`${Z_FLOATING_BASE + 1}`);
@@ -63,9 +63,9 @@ describe("zStack", () => {
   });
 
   it("ignores an already-aborted signal without counting a dead raiser", () => {
-    const ac = new AbortController();
-    ac.abort();
-    const dead = raiser(ac.signal);
+    const abortController = new AbortController();
+    abortController.abort();
+    const dead = raiser(abortController.signal);
     dead.press();
     expect(dead.element.style.zIndex).toBe("");
     const live = raiser();

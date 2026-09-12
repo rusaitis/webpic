@@ -82,9 +82,9 @@ describe("createShortcutRegistry", () => {
     r.register("z", () => fired++);
     r.dispose();
     press({ key: "z" });
-    const ac = new AbortController();
-    registry(ac.signal).register("z", () => fired++);
-    ac.abort();
+    const abortController = new AbortController();
+    registry(abortController.signal).register("z", () => fired++);
+    abortController.abort();
     press({ key: "z" });
     expect(fired).toBe(0);
   });

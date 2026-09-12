@@ -26,11 +26,11 @@ import {
   installUi,
 } from "@ui";
 import type { DatasetEntry } from "./datasets.ts";
-import { installLayerSync } from "./layerSync.ts";
+import { installLayerBridge } from "./layerBridge.ts";
 import type { PerfBridge } from "./perfBridge.ts";
-import { installPickerSync } from "./pickerSync.ts";
-import { installRenderWorkerSync } from "./renderWorkerSync.ts";
-import { installSceneSync } from "./sceneSync.ts";
+import { installPickerBridge } from "./pickerBridge.ts";
+import { installRenderWorkerBridge } from "./renderWorkerBridge.ts";
+import { installSceneBridge } from "./sceneBridge.ts";
 import { installScreenshotBridge } from "./screenshotBridge.ts";
 import { installStreamingBridge, type StreamingBridge } from "./streamingBridge.ts";
 import { createSyntheticDataset } from "./syntheticDataset.ts";
@@ -179,11 +179,11 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // Store→worker bridges (app-only glue: store and render can't import each other). Each gates its
   // posts on `isReady` and replays the live state via flushAll on the worker `ready`.
   const theme = options.theme !== undefined ? { theme: options.theme } : {};
-  const layerSync = installLayerSync({ store, uiStore, worker, isReady });
-  const sceneSync = installSceneSync({ store, worker, isReady, ...theme });
-  const pickerSync = installPickerSync({ store, worker, isReady, ...theme });
+  const layerBridge = installLayerBridge({ store, uiStore, worker, isReady });
+  const sceneBridge = installSceneBridge({ store, worker, isReady, ...theme });
+  const pickerBridge = installPickerBridge({ store, worker, isReady, ...theme });
   const perfStore = createPerfStore(); // render timing for the timing panel + the dev HUD
-  const renderSync = installRenderWorkerSync({ store, perfStore, worker, isReady });
+  const renderBridge = installRenderWorkerBridge({ store, perfStore, worker, isReady });
   const screenshotBridge = installScreenshotBridge({ store, uiStore, worker, isReady });
   const disposeViewport = installViewportTracking({ canvas, worker, isReady, logicalSize });
 
@@ -225,10 +225,10 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // Catch-up once the renderer is live: the gated subscriptions dropped their pre-ready posts, so push
   // the full state (each bridge's flushAll), pair the streaming port, and clear the boot pill.
   const onWorkerReady = (): void => {
-    layerSync.flushAll();
-    sceneSync.flushAll();
-    pickerSync.flushAll();
-    renderSync.flushAll();
+    layerBridge.flushAll();
+    sceneBridge.flushAll();
+    pickerBridge.flushAll();
+    renderBridge.flushAll();
     streaming?.pair();
     // The mark's startTime is ms since navigation, which scripts/perf-gate.ts reads alongside First
     // Contentful Paint to check the gate.
@@ -257,8 +257,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
         onWorkerReady();
       },
       ingestRenderSample: (message) => perfBridge?.ingestRenderSample(message),
-      applyPickResult: (message) => renderSync.applyPickResult(message),
-      finishLayerLoading: () => layerSync.finishLoading(),
+      applyPickResult: (message) => renderBridge.applyPickResult(message),
+      finishLayerLoading: () => layerBridge.finishLoading(),
       deliverScreenshot: (message) => screenshotBridge.deliverScreenshot(message),
       onDisposed: terminateWorker,
     });
@@ -279,7 +279,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // open the stream once that layer lands — open() carries its id. The UI reacts to computed/status
   // through its own subscription, so it needn't wait on this.
   // Auto-add the field-line layer once the seed lands (dataset.grid is needed for the default rake,
-  // and the active field computed). The traces ride layerSync's traces channel (or its ready catch-up).
+  // and the active field computed). The traces ride layerBridge's traces channel (or its ready catch-up).
   const seedFieldlines = (): void => {
     if (options.fieldlines === true) store.getState().addFieldlinesLayer();
   };
@@ -315,8 +315,8 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
         initialName,
         applyTheme: (next) => {
           applyUiVars(uiParent, next);
-          sceneSync.setTheme(next);
-          pickerSync.setTheme(next);
+          sceneBridge.setTheme(next);
+          pickerBridge.setTheme(next);
         },
         persist: options.persistTheme ?? writeThemePref,
       });
@@ -368,10 +368,10 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     disposePointer?.();
     disposePicker?.();
     disposeViewport();
-    layerSync.dispose();
-    sceneSync.dispose();
-    pickerSync.dispose();
-    renderSync.dispose();
+    layerBridge.dispose();
+    sceneBridge.dispose();
+    pickerBridge.dispose();
+    renderBridge.dispose();
     screenshotBridge.dispose();
     unsubscribeDatasetId();
     streaming?.dispose();

@@ -86,7 +86,7 @@ export interface CameraGlide {
 
 export function createCameraGlide(host: CameraGlideHost): CameraGlide {
   const { store, doc } = host;
-  const ac = new AbortController();
+  const abortController = new AbortController();
   let momentum: CameraMomentum = MOMENTUM_ZERO;
   let tween: PoseTween | undefined;
   let glideId: number | undefined;
@@ -200,7 +200,7 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
   };
 
   const held = createHeldKeys(doc, NUDGE_CODES, {
-    signal: ac.signal,
+    signal: abortController.signal,
     claims: isRollOrNudge,
     shiftIsChord: true,
     onPress: (event) => {
@@ -253,7 +253,7 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
       syncMotion();
     },
     dispose() {
-      ac.abort();
+      abortController.abort();
       if (glideId !== undefined) cancelAnimationFrame(glideId);
       momentum = MOMENTUM_ZERO;
       tween = undefined;

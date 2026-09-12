@@ -3,17 +3,17 @@ import { createHeldKeys, type HeldKeysOptions } from "./heldKeys.ts";
 
 const controllers: AbortController[] = [];
 afterEach(() => {
-  for (const ac of controllers.splice(0)) ac.abort();
+  for (const abortController of controllers.splice(0)) abortController.abort();
   document.body.replaceChildren();
 });
 
 function setup(options: Partial<HeldKeysOptions> = {}) {
-  const ac = new AbortController();
-  controllers.push(ac);
+  const abortController = new AbortController();
+  controllers.push(abortController);
   const presses: string[] = [];
   let releases = 0;
   const held = createHeldKeys(document, new Set(["KeyA", "KeyD"]), {
-    signal: ac.signal,
+    signal: abortController.signal,
     onPress: (event) => presses.push(event.code),
     onRelease: () => releases++,
     ...options,

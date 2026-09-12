@@ -11,8 +11,8 @@ import { createSubscriptions } from "./subscriptions.ts";
 // picker so it claims the click first while placing: the user wants a seed, not a marker grab.
 
 export function installPointerSeedPlacer(target: HTMLElement, store: SimulationStore): Disposer {
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
   const doc = target.ownerDocument;
 
   const onPointerDown = (event: PointerEvent): void => {
@@ -56,12 +56,12 @@ export function installPointerSeedPlacer(target: HTMLElement, store: SimulationS
 
   target.addEventListener("pointerdown", onPointerDown, { signal, capture: true });
   doc.addEventListener("keydown", onKeyDown, { signal });
-  const subs = createSubscriptions();
-  subs.on(store, (s) => s.seedPlacementLayerId, applyCursor, { fireNow: true });
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.seedPlacementLayerId, applyCursor, { fireNow: true });
 
   return () => {
-    ac.abort();
-    subs.dispose();
+    abortController.abort();
+    subscriptions.dispose();
     target.style.cursor = "";
   };
 }

@@ -33,7 +33,7 @@ export function createSegmented<V extends string>(
     });
   };
 
-  const ac = new AbortController();
+  const abortController = new AbortController();
   options.forEach((option) => {
     const button = makeEl(doc, "button", "webpic-segmented_seg");
     button.type = "button";
@@ -47,7 +47,7 @@ export function createSegmented<V extends string>(
         reflect(option.value);
         onChange(option.value);
       },
-      { signal: ac.signal },
+      { signal: abortController.signal },
     );
     root.appendChild(button);
     buttons.push(button);
@@ -66,7 +66,7 @@ export function createSegmented<V extends string>(
       buttons[indexOf(next.value)]?.focus();
       onChange(next.value);
     },
-    { signal: ac.signal },
+    { signal: abortController.signal },
   );
 
   reflect(value);
@@ -81,7 +81,7 @@ export function createSegmented<V extends string>(
       for (const button of buttons) button.disabled = disabled;
     },
     dispose() {
-      ac.abort();
+      abortController.abort();
       root.remove();
     },
   };

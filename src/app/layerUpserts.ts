@@ -16,11 +16,11 @@ import {
 import type { RenderWorkerLink } from "./storeBridge.ts";
 
 // Every store layer → render-worker message, in one place: what each wire request carries and when a
-// field transfer is involved. installLayerSync owns *when* to send; this owns *what* is sent, so the
+// field transfer is involved. installLayerBridge owns *when* to send; this owns *what* is sent, so the
 // diff logic up there reads as intent rather than as message construction.
 //
 // The loading pill is raised here because it is raised by exactly the two messages that make the
-// worker compile a pipeline (the field upserts) — the ack that drops it lands in layerSync.
+// worker compile a pipeline (the field upserts) — the ack that drops it lands in layerBridge.
 
 // Color sampled from the layer's colormap for its field lines — a saturated streamline over the volume.
 const FIELDLINE_COLOR_T = 0.75;

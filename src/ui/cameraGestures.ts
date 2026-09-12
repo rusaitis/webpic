@@ -54,8 +54,8 @@ export function installCameraGestures(
   store: SimulationStore,
   glide: CameraGlide,
 ): Disposer {
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
   const pointers = new Map<number, TrackedPointer>(); // one drags; two pinch
   let isPanning = false;
   let viewportHeight = NOMINAL_VIEWPORT_PX; // measured per gesture; drags normalize px by this
@@ -341,9 +341,9 @@ export function installCameraGestures(
 
   // The picker reports its cursor intent through the store; re-apply when its hover/grab flips so the
   // canvas reflects a marker interaction without the picker ever writing style.cursor itself.
-  const subs = createSubscriptions();
-  subs.on(store, (s) => s.pickerActive, applyCursor);
-  subs.on(store, (s) => s.pickerHover, applyCursor);
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.pickerActive, applyCursor);
+  subscriptions.on(store, (s) => s.pickerHover, applyCursor);
 
   const priorTouchAction = target.style.touchAction;
   target.style.touchAction = "none"; // touch-drag should orbit, not scroll the page
@@ -351,8 +351,8 @@ export function installCameraGestures(
   applyCursor();
 
   return () => {
-    ac.abort();
-    subs.dispose();
+    abortController.abort();
+    subscriptions.dispose();
     for (const id of pointers.keys()) target.releasePointerCapture?.(id);
     pointers.clear();
     target.style.touchAction = priorTouchAction;

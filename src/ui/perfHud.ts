@@ -377,14 +377,14 @@ export function installPerfHud(
   shortcuts.register("p", () => perfStore.getState().togglePerfHud(), { modifiers: "shift" });
 
   applyVisible();
-  const subs = createSubscriptions();
-  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
-  subs.on(perfStore, (s) => s.isPerfHudVisible, applyVisible);
-  subs.on(perfStore, (s) => s.isPerfDetailOpen, applyDetail);
+  const subscriptions = createSubscriptions();
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subscriptions.on(perfStore, (s) => s.isPerfHudVisible, applyVisible);
+  subscriptions.on(perfStore, (s) => s.isPerfDetailOpen, applyDetail);
 
   return () => {
     stopActive();
-    subs.dispose();
+    subscriptions.dispose();
     shortcuts.dispose();
     container.remove();
     disposeStyles();

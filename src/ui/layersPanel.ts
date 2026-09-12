@@ -34,8 +34,8 @@ export function installLayersPanel(
   uiStore: UiStore,
 ): Disposer {
   const doc = parent.ownerDocument;
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
 
   const root = makeEl(doc, "div", "webpic-layers");
   root.setAttribute("role", "region");
@@ -170,21 +170,21 @@ export function installLayersPanel(
 
   applyVisible();
 
-  const subs = createSubscriptions();
-  subs.on(
+  const subscriptions = createSubscriptions();
+  subscriptions.on(
     store,
     (s) => s.layers,
     () => {
       if (!root.hidden) render();
     },
   );
-  subs.on(store, (s) => s.selectedLayerId, applySelection);
-  subs.on(uiStore, (s) => s.isLayersPanelOpen, applyVisible);
-  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subscriptions.on(store, (s) => s.selectedLayerId, applySelection);
+  subscriptions.on(uiStore, (s) => s.isLayersPanelOpen, applyVisible);
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
 
   return () => {
-    ac.abort();
-    subs.dispose();
+    abortController.abort();
+    subscriptions.dispose();
     root.remove();
   };
 }

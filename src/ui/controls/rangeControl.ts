@@ -287,8 +287,8 @@ export function createRangeControl(
     emit(config.onChange);
   };
 
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
   track.addEventListener("pointerdown", onDown, { signal });
   track.addEventListener("pointermove", onMove, { signal });
   track.addEventListener("pointerup", onUp, { signal });
@@ -320,7 +320,7 @@ export function createRangeControl(
       if (inputB) inputB.disabled = disabled;
     },
     dispose() {
-      ac.abort();
+      abortController.abort();
       root.remove();
     },
   };

@@ -185,13 +185,13 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
   // rail co-centering via dragSnap's chrome ResizeObserver; here we just re-evaluate the fit. The
   // suppression echo re-fits once the corner footprint has settled; the guarded setter makes it a
   // single no-op rather than a loop.
-  const subs = createSubscriptions();
-  const ac = new AbortController();
-  view?.addEventListener("resize", scheduleAdapt, { signal: ac.signal });
-  subs.add(() => ac.abort());
-  subs.on(store, (s) => s.overlay.showGnomon, scheduleAdapt);
-  subs.on(store, (s) => s.dataset, scheduleAdapt);
-  subs.on(uiStore, (s) => s.isGnomonSuppressed, scheduleAdapt);
+  const subscriptions = createSubscriptions();
+  const abortController = new AbortController();
+  view?.addEventListener("resize", scheduleAdapt, { signal: abortController.signal });
+  subscriptions.add(() => abortController.abort());
+  subscriptions.on(store, (s) => s.overlay.showGnomon, scheduleAdapt);
+  subscriptions.on(store, (s) => s.dataset, scheduleAdapt);
+  subscriptions.on(uiStore, (s) => s.isGnomonSuppressed, scheduleAdapt);
 
   const release = (): void => {
     setRailShift(0); // a hidden strip must not hold the rail off-center…
@@ -216,7 +216,7 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
     },
     dispose() {
       if (settleTimer !== undefined) view?.clearTimeout(settleTimer);
-      subs.dispose();
+      subscriptions.dispose();
       release();
     },
   };

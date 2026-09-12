@@ -1,7 +1,7 @@
 import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
 import { createPerfStore, createSimulationStore } from "@store";
 import { describe, expect, it } from "vitest";
-import { installRenderWorkerSync } from "./renderWorkerSync.ts";
+import { installRenderWorkerBridge } from "./renderWorkerBridge.ts";
 
 function harness(ready: boolean) {
   const posts: RenderWorkerRequest[] = [];
@@ -11,11 +11,11 @@ function harness(ready: boolean) {
   let isReady = ready;
   const store = createSimulationStore();
   const perfStore = createPerfStore();
-  const sync = installRenderWorkerSync({ store, perfStore, worker, isReady: () => isReady });
+  const sync = installRenderWorkerBridge({ store, perfStore, worker, isReady: () => isReady });
   return { store, perfStore, posts, sync, setReady: (v: boolean) => (isReady = v) };
 }
 
-describe("installRenderWorkerSync", () => {
+describe("installRenderWorkerBridge", () => {
   it("stays silent until the worker is ready", () => {
     const { store, perfStore, posts } = harness(false);
     store.getState().setCameraPose({ ...store.getState().cameraPose });

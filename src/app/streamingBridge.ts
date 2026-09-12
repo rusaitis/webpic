@@ -100,7 +100,7 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
         requestId: STREAM_REQUEST_ID,
         field,
       } satisfies DataStreamRequest);
-      // Pre-scrub the worker has no cursor and never acks (main's synchronous layerSync covers that
+      // Pre-scrub the worker has no cursor and never acks (main's synchronous layerBridge covers that
       // case) — an unconditional begin would strand the phase forever.
       if (hasStreamedStep) uiStore.getState().beginLoading("step", `computing ${field}`);
     },

@@ -65,17 +65,17 @@ export function installTimingPanel(host: HTMLElement, store: PerfStore): Dispose
     onChange: (on) => store.getState().setMeasuringContinuous(on),
   });
 
-  const subs = createSubscriptions();
-  subs.on(store, (s) => s.frameTimeMs, refresh);
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.frameTimeMs, refresh);
   // Reflect external toggles without echoing onChange (set()-in / callbacks-out contract).
-  subs.on(
+  subscriptions.on(
     store,
     (s) => s.isMeasuringContinuous,
     (on) => measure.set(on),
   );
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     store.getState().setMeasuringContinuous(false); // never strand continuous mode on teardown
     pane.dispose(); // cascades to the measure checkbox + readout note
   };

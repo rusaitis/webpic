@@ -332,17 +332,17 @@ export function installLayerSettings(
   rebuild();
   applyVisible();
 
-  const subs = createSubscriptions();
-  subs.on(store, (s) => s.selectedLayerId, rebuild);
-  subs.on(store, (s) => s.availableFields, rebuild); // new dataset → new field options
-  subs.on(store, (s) => s.layers, sync);
-  subs.on(store, (s) => s.seedPlacementLayerId, syncPlacement);
-  subs.on(store, (s) => s.traceNotices, sync); // the seed note reports what the last retrace did
-  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
-  subs.on(uiStore, (s) => s.isLayerSettingsOpen, applyVisible);
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.selectedLayerId, rebuild);
+  subscriptions.on(store, (s) => s.availableFields, rebuild); // new dataset → new field options
+  subscriptions.on(store, (s) => s.layers, sync);
+  subscriptions.on(store, (s) => s.seedPlacementLayerId, syncPlacement);
+  subscriptions.on(store, (s) => s.traceNotices, sync); // the seed note reports what the last retrace did
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subscriptions.on(uiStore, (s) => s.isLayerSettingsOpen, applyVisible);
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     dispose();
     disposeColormap();
     win.dispose();

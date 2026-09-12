@@ -18,15 +18,15 @@ import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 // other). Pose, projection, camera-motion, and the timing panel's continuous-measure toggle each ride a
 // guarded one-line post; a pick request marches a cursor ray (with a pre-ready geometric fallback) and
 // its reply (applyPickResult) places the marker + retargets a focus fly. Gated on `workerReady` via
-// the shared store bridge; pose/projection get a ready-time catch-up via flushAll, mirroring layerSync.
+// the shared store bridge; pose/projection get a ready-time catch-up via flushAll, mirroring layerBridge.
 
-export interface RenderWorkerSyncOptions extends RenderWorkerLink {
+export interface RenderWorkerBridgeOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
   // Owns the timing panel's "Measure" toggle the worker's continuous-repaint mode follows.
   readonly perfStore: PerfStore;
 }
 
-export interface RenderWorkerSync {
+export interface RenderWorkerBridge {
   // Replay the live pose (+ a non-default projection) once the worker is ready (catch-up).
   readonly flushAll: () => void;
   // Route a worker pick reply: place the marker, and for "focus" retarget the running fly.
@@ -36,7 +36,7 @@ export interface RenderWorkerSync {
   readonly dispose: () => void;
 }
 
-export function installRenderWorkerSync(options: RenderWorkerSyncOptions): RenderWorkerSync {
+export function installRenderWorkerBridge(options: RenderWorkerBridgeOptions): RenderWorkerBridge {
   const { store, perfStore, worker, isReady } = options;
   const bridge = createStoreBridge(store, isReady);
 

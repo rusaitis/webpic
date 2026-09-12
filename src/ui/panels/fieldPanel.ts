@@ -32,10 +32,10 @@ export function installFieldPanel(host: HTMLElement, store: SimulationStore): Di
     onChange: (name) => store.getState().selectField(name),
   });
 
-  const subs = createSubscriptions();
+  const subscriptions = createSubscriptions();
   // A dataset switch swaps the computable fields; rebuild options, then re-assert the
   // active field as the authoritative value.
-  subs.on(
+  subscriptions.on(
     store,
     (s) => s.availableFields,
     (available) => {
@@ -45,14 +45,14 @@ export function installFieldPanel(host: HTMLElement, store: SimulationStore): Di
     },
   );
   // Mirror a selectField dispatched from elsewhere.
-  subs.on(
+  subscriptions.on(
     store,
     (s) => s.activeField,
     (name) => select.set(name),
   );
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     pane.dispose();
   };
 }

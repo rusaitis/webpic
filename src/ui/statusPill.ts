@@ -99,12 +99,12 @@ export function installStatusPill(parent: HTMLElement, uiStore: UiStore): Dispos
   render();
   parent.appendChild(container);
 
-  const subs = createSubscriptions();
-  subs.on(uiStore, (s) => s.loadingPhases, render);
-  subs.on(uiStore, (s) => s.statusError, render);
+  const subscriptions = createSubscriptions();
+  subscriptions.on(uiStore, (s) => s.loadingPhases, render);
+  subscriptions.on(uiStore, (s) => s.statusError, render);
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     cancelShow();
     cancelHide();
     clearTimeout(errorTimer);

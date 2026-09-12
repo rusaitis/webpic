@@ -4,14 +4,14 @@ import { parseTheme } from "@schema";
 import { createSimulationStore } from "@store";
 import { describe, expect, it } from "vitest";
 import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
-import { buildOverlayPayload, installSceneSync, resolveOverlayColors } from "./sceneSync.ts";
+import { buildOverlayPayload, installSceneBridge, resolveOverlayColors } from "./sceneBridge.ts";
 
 const grid3d = (overrides: Partial<GridInfo> = {}): GridInfo => ({
   ...makeGrid([10, 4, 3], [0.5, 1, 2], [0, -5, 2]),
   ...overrides,
 });
 
-// A volume dataset with a real 3D grid so sceneSync forwards meaningful bounds.
+// A volume dataset with a real 3D grid so sceneBridge forwards meaningful bounds.
 const volumeDataset = (grid: GridInfo = grid3d()) =>
   makeDataset(
     {
@@ -104,11 +104,11 @@ function harness(ready: boolean) {
   } as unknown as Worker;
   let isReady = ready;
   const store = createSimulationStore();
-  const sync = installSceneSync({ store, worker, isReady: () => isReady });
+  const sync = installSceneBridge({ store, worker, isReady: () => isReady });
   return { store, posts, sync, setReady: (v: boolean) => (isReady = v) };
 }
 
-describe("installSceneSync", () => {
+describe("installSceneBridge", () => {
   it("stays silent until the worker is ready", () => {
     const { store, posts } = harness(false);
     store.getState().setDataset(volumeDataset());

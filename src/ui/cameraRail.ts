@@ -38,8 +38,8 @@ export function installCameraRail(
   uiStore: UiStore,
 ): Disposer {
   const doc = parent.ownerDocument;
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
   const container = makeEl(doc, "div", "webpic-rail");
   container.setAttribute("role", "toolbar");
   container.setAttribute("aria-label", "View controls");
@@ -218,17 +218,17 @@ export function installCameraRail(
     if (isOpen()) updateViewRow();
   };
 
-  const subs = createSubscriptions();
-  subs.on(store, (s) => s.overlay.showGnomon, applyGnomon);
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.overlay.showGnomon, applyGnomon);
   // Re-apply the inset when the responsive suppression flips (gnomon hidden/shown without a
   // preference change), so the cluster reclaims / yields the corner footprint.
-  subs.on(
+  subscriptions.on(
     uiStore,
     (s) => s.isGnomonSuppressed,
     () => applyGnomon(store.getState().overlay.showGnomon),
   );
-  subs.on(store, (s) => s.isFlyMode, applyFly);
-  subs.on(
+  subscriptions.on(store, (s) => s.isFlyMode, applyFly);
+  subscriptions.on(
     store,
     (s) => s.projection,
     (projection) => {
@@ -236,7 +236,7 @@ export function installCameraRail(
       updateViewIfOpen(); // the View row's ortho suffix follows
     },
   );
-  subs.on(
+  subscriptions.on(
     store,
     (s) => s.dataset,
     () => {
@@ -244,13 +244,13 @@ export function installCameraRail(
       renderRowsIfOpen();
     },
   );
-  subs.on(store, (s) => s.cameraPose, updateViewIfOpen);
-  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
-  subs.on(uiStore, (s) => s.isCoordsInfoVisible, applyInfoVisible);
+  subscriptions.on(store, (s) => s.cameraPose, updateViewIfOpen);
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subscriptions.on(uiStore, (s) => s.isCoordsInfoVisible, applyInfoVisible);
 
   return () => {
-    ac.abort();
-    subs.dispose();
+    abortController.abort();
+    subscriptions.dispose();
     disposeOutsideDismiss();
     container.remove();
     card.remove();

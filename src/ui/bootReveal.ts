@@ -18,19 +18,19 @@ export function installBootReveal(parent: HTMLElement, uiStore: UiStore): Dispos
 
   parent.classList.add(BOOTING_CLASS);
   const reveal = (): void => parent.classList.remove(BOOTING_CLASS);
-  const subs = createSubscriptions();
-  subs.on(
+  const subscriptions = createSubscriptions();
+  subscriptions.on(
     uiStore,
     (state) => state.loadingPhases,
     (phases) => {
       if (!isBooting(phases)) {
         reveal();
-        subs.dispose(); // one-shot: the reveal never re-arms
+        subscriptions.dispose(); // one-shot: the reveal never re-arms
       }
     },
   );
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     reveal();
   };
 }

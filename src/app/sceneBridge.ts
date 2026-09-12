@@ -15,7 +15,7 @@ import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 // render worker's setSceneOverlay (app-only glue: store and render can't import each other). Low-
 // frequency: a toggle, a density change, or a dataset swap re-posts the full config. Gated on
 // `workerReady` (via the shared store bridge) with a flushAll catch-up replayed on the worker `ready`
-// message, mirroring layerSync — `setDataset` runs before `ready`, so the initial overlay rides the catch-up.
+// message, mirroring layerBridge — `setDataset` runs before `ready`, so the initial overlay rides the catch-up.
 
 const GRID_MAJOR_OPACITY = 0.4;
 
@@ -77,21 +77,21 @@ export function buildOverlayPayload(
   };
 }
 
-export interface SceneSyncOptions extends RenderWorkerLink {
+export interface SceneBridgeOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
   // The boot theme; a runtime switch rides setTheme (the app theme bridge).
   readonly theme?: Theme;
 }
 
-export interface SceneSync {
-  // Post the current overlay state (catch-up on the worker `ready`, mirroring layerSync.flushAll).
+export interface SceneBridge {
+  // Post the current overlay state (catch-up on the worker `ready`, mirroring layerBridge.flushAll).
   readonly flushAll: () => void;
   // Re-resolve the overlay palette from a new theme and repaint (the theme switcher).
   readonly setTheme: (theme: Theme | undefined) => void;
   readonly dispose: () => void;
 }
 
-export function installSceneSync(options: SceneSyncOptions): SceneSync {
+export function installSceneBridge(options: SceneBridgeOptions): SceneBridge {
   const { store, worker, isReady } = options;
   let colors = resolveOverlayColors(options.theme);
   const bridge = createStoreBridge(store, isReady);

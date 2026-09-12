@@ -68,8 +68,8 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
 
   // Fly-to requests from elsewhere in the ui arrive as store intents — this module owns the camera
   // animation loop, so it consumes (and resolves) them.
-  const subs = createSubscriptions();
-  subs.on(
+  const subscriptions = createSubscriptions();
+  subscriptions.on(
     store,
     (s) => s.cameraFlyRequest,
     (request) => {
@@ -81,7 +81,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
   );
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     shortcuts.dispose();
     disposeGestures();
     glide.dispose();

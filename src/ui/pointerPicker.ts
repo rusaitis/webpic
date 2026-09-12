@@ -61,8 +61,8 @@ function distanceToSegment(p: ClientPoint, a: ClientPoint, b: ClientPoint): numb
 }
 
 export function installPointerPicker(target: HTMLElement, store: SimulationStore): Disposer {
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
   let drag: ActiveDrag | undefined;
 
   const clientOf = (ndcX: number, ndcY: number, rect: DOMRect): ClientPoint => ({
@@ -279,7 +279,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   target.addEventListener("lostpointercapture", onPointerCancel, { signal, capture: true });
 
   return () => {
-    ac.abort();
+    abortController.abort();
     if (drag !== undefined) target.releasePointerCapture?.(drag.pointerId);
     drag = undefined;
     if (arrowRafId !== undefined) cancelAnimationFrame(arrowRafId);

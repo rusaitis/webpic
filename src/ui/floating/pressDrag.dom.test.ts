@@ -12,7 +12,7 @@ describe("installPressDrag", () => {
   let element: HTMLElement;
   let moves: Array<[number, number]>;
   let ends: number;
-  let ac: AbortController;
+  let abortController: AbortController;
 
   beforeEach(() => {
     document.body.replaceChildren();
@@ -20,12 +20,12 @@ describe("installPressDrag", () => {
     document.body.appendChild(element);
     moves = [];
     ends = 0;
-    ac = new AbortController();
+    abortController = new AbortController();
     installPressDrag({
       handle: element,
       element,
       activeClass: "is-dragging",
-      signal: ac.signal,
+      signal: abortController.signal,
       onMove: (dx, dy) => moves.push([dx, dy]),
       onEnd: () => {
         ends += 1;
@@ -99,7 +99,7 @@ describe("installPressDrag", () => {
   });
 
   it("stops listening when the signal aborts", () => {
-    ac.abort();
+    abortController.abort();
     press(element, "pointerdown", 0, 0);
     press(element, "pointermove", 50, 0);
     expect(moves).toEqual([]);

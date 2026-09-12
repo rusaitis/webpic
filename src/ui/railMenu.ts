@@ -34,8 +34,8 @@ export interface RailMenuHandle {
 export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
   const { anchor, parent } = options;
   const doc = parent.ownerDocument;
-  const ac = new AbortController();
-  const { signal } = ac;
+  const abortController = new AbortController();
+  const { signal } = abortController;
 
   const panel = makeEl(doc, "div", "webpic-railmenu");
   panel.setAttribute("role", "menu");
@@ -190,7 +190,7 @@ export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
     close,
     isOpen: () => isOpen,
     dispose: () => {
-      ac.abort();
+      abortController.abort();
       disposeOutside();
       panel.remove();
     },

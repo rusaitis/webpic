@@ -38,12 +38,12 @@ export function installDevWindow(
     else win.hide();
   };
   applyVisible();
-  const subs = createSubscriptions();
-  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
-  subs.on(uiStore, (s) => s.panels.dev, applyVisible);
+  const subscriptions = createSubscriptions();
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subscriptions.on(uiStore, (s) => s.panels.dev, applyVisible);
 
   return () => {
-    subs.dispose();
+    subscriptions.dispose();
     disposePanel();
     disposeTiming();
     win.dispose();

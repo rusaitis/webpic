@@ -28,7 +28,7 @@ export interface ColorbarSettingsOptions {
 
 export function installColorbarSettings(options: ColorbarSettingsOptions): ColorbarSettings {
   const doc = options.parent.ownerDocument;
-  const ac = new AbortController();
+  const abortController = new AbortController();
   const pop = makeEl(doc, "div", "webpic-cbar-pop");
   pop.setAttribute("role", "dialog");
   pop.setAttribute("aria-label", "Colormap settings");
@@ -37,7 +37,7 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
   const body = makeEl(doc, "div", "webpic-cbar-pop_body");
   pop.append(body);
   options.parent.appendChild(pop);
-  installRaise(pop, ac.signal); // clicking the dialog keeps it above the floating windows
+  installRaise(pop, abortController.signal); // clicking the dialog keeps it above the floating windows
 
   const controlsDispose = installColormapControls(body, options.store);
 
@@ -95,15 +95,15 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
   const onResize = (): void => {
     if (isOpen) reposition();
   };
-  doc.addEventListener("keydown", onDocKeyDown, { signal: ac.signal });
-  // Shared mousedown-outside dismiss (not ac.signal-bound — its disposer runs in dispose()).
+  doc.addEventListener("keydown", onDocKeyDown, { signal: abortController.signal });
+  // Shared mousedown-outside dismiss: not signal-bound — its own disposer runs in dispose().
   const disposeOutsideDismiss = installOutsideClickDismiss(doc, {
     overlay: pop,
     trigger: options.anchor,
     isOpen: () => isOpen,
     onDismiss: () => setOpen(false),
   });
-  doc.defaultView?.addEventListener("resize", onResize, { signal: ac.signal });
+  doc.defaultView?.addEventListener("resize", onResize, { signal: abortController.signal });
 
   return {
     toggle: () => setOpen(!isOpen),
@@ -113,7 +113,7 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
       if (isOpen) reposition();
     },
     dispose() {
-      ac.abort();
+      abortController.abort();
       disposeOutsideDismiss();
       controlsDispose();
       pop.remove();

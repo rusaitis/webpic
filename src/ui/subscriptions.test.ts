@@ -5,9 +5,9 @@ import { createSubscriptions } from "./subscriptions.ts";
 describe("createSubscriptions", () => {
   it("tracks a selector slice and stops on dispose", () => {
     const store = createUiStore();
-    const subs = createSubscriptions();
+    const subscriptions = createSubscriptions();
     const seen: boolean[] = [];
-    subs.on(
+    subscriptions.on(
       store,
       (s) => s.isUiVisible,
       (visible) => seen.push(visible),
@@ -15,31 +15,31 @@ describe("createSubscriptions", () => {
     expect(seen).toEqual([]); // no fireNow → nothing until a change
     store.getState().setUiVisible(false);
     expect(seen).toEqual([false]);
-    subs.dispose();
+    subscriptions.dispose();
     store.getState().setUiVisible(true);
     expect(seen).toEqual([false]);
   });
 
   it("fireNow applies the current slice on subscribe", () => {
     const store = createUiStore();
-    const subs = createSubscriptions();
+    const subscriptions = createSubscriptions();
     const seen: boolean[] = [];
-    subs.on(
+    subscriptions.on(
       store,
       (s) => s.isHelpVisible,
       (visible) => seen.push(visible),
       { fireNow: true },
     );
     expect(seen).toEqual([false]);
-    subs.dispose();
+    subscriptions.dispose();
   });
 
   it("honours a custom equalityFn", () => {
     const store = createUiStore();
-    const subs = createSubscriptions();
+    const subscriptions = createSubscriptions();
     let fired = 0;
     // A fresh-object selector fires on every state change under Object.is; a value comparison mutes it.
-    subs.on(
+    subscriptions.on(
       store,
       (s) => ({ open: s.isLayersPanelOpen }),
       () => fired++,
@@ -49,22 +49,22 @@ describe("createSubscriptions", () => {
     expect(fired).toBe(0);
     store.getState().toggleLayersPanel();
     expect(fired).toBe(1);
-    subs.dispose();
+    subscriptions.dispose();
   });
 
   it("runs added disposers and subscriptions LIFO, once", () => {
     const store = createUiStore();
-    const subs = createSubscriptions();
+    const subscriptions = createSubscriptions();
     const order: string[] = [];
-    subs.add(() => order.push("first"));
-    subs.on(
+    subscriptions.add(() => order.push("first"));
+    subscriptions.on(
       store,
       (s) => s.isUiVisible,
       () => {},
     );
-    subs.add(() => order.push("last"));
-    subs.dispose();
-    subs.dispose(); // idempotent — nothing left to run
+    subscriptions.add(() => order.push("last"));
+    subscriptions.dispose();
+    subscriptions.dispose(); // idempotent — nothing left to run
     expect(order).toEqual(["last", "first"]);
   });
 });

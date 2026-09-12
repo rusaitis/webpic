@@ -13,7 +13,7 @@ import {
 
 const bDataset = () => vectorTriple("B", { array: Float32Array });
 
-// The binding the selected layer references — the unit the colormap panel + layerSync resolve.
+// The binding the selected layer references — the unit the colormap panel + layerBridge resolve.
 function activeBinding(store: SimulationStore): ColormapBinding | undefined {
   const { selectedLayerId, layers, colormapBindings } = store.getState();
   const id = layers.find((layer) => layer.id === selectedLayerId)?.colormapBindingId;

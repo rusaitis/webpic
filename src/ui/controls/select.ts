@@ -23,9 +23,11 @@ export function createSelect<V extends string>(
   renderOptions(options);
   select.value = value;
 
-  const ac = new AbortController();
+  const abortController = new AbortController();
   // Safe: `select` only ever holds the V-typed option values appended above.
-  select.addEventListener("change", () => onChange(select.value as V), { signal: ac.signal });
+  select.addEventListener("change", () => onChange(select.value as V), {
+    signal: abortController.signal,
+  });
 
   return {
     element: select,
@@ -44,7 +46,7 @@ export function createSelect<V extends string>(
       select.disabled = disabled;
     },
     dispose() {
-      ac.abort();
+      abortController.abort();
       select.remove();
     },
   };

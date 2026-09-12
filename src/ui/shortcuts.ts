@@ -31,8 +31,11 @@ interface Binding {
 export function createShortcutRegistry(doc: Document, signal?: AbortSignal): ShortcutRegistry {
   const bindings: Binding[] = [];
   // Signal-bound only (no removeEventListener): a caller's signal and dispose() both tear it down.
-  const ac = new AbortController();
-  const teardownSignal = signal === undefined ? ac.signal : AbortSignal.any([signal, ac.signal]);
+  const abortController = new AbortController();
+  const teardownSignal =
+    signal === undefined
+      ? abortController.signal
+      : AbortSignal.any([signal, abortController.signal]);
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
     if (isTypingTarget(event.target)) return;
@@ -47,7 +50,7 @@ export function createShortcutRegistry(doc: Document, signal?: AbortSignal): Sho
     }
   };
   doc.addEventListener("keydown", onKeyDown, { signal: teardownSignal });
-  const dispose: Disposer = () => ac.abort();
+  const dispose: Disposer = () => abortController.abort();
 
   return {
     register(key, handler, options) {

@@ -248,14 +248,14 @@ export function installTopBar(
   container.append(brand, datasetBtn, fieldBtn, timeWrap, projChip, exportBtn, actionsWrap);
   parent.appendChild(container);
 
-  // Both reveals share one AbortController (torn down by ac.abort()); installReveal wires each
+  // Both reveals share one AbortController; installReveal wires each
   // trigger's click-to-pin + Escape. CSS handles the hover/focus reveal. Both are sticky pins now —
   // opening one closes the other overlays (onOpen), and a scene click leaves a pin untouched.
-  const ac = new AbortController();
-  const timeReveal = installReveal(timeWrap, timeChip, ac.signal, () =>
+  const abortController = new AbortController();
+  const timeReveal = installReveal(timeWrap, timeChip, abortController.signal, () =>
     closeOverlaysExcept("time"),
   );
-  const actionsReveal = installReveal(actionsWrap, chevron, ac.signal, () =>
+  const actionsReveal = installReveal(actionsWrap, chevron, abortController.signal, () =>
     closeOverlaysExcept("actions"),
   );
   overlayClosers.set("time", () => timeReveal.setExpanded(false));
@@ -273,7 +273,9 @@ export function installTopBar(
     else container.insertBefore(timeWrap, projChip);
   };
   applyCompact(compactQuery?.matches ?? false);
-  compactQuery?.addEventListener("change", (e) => applyCompact(e.matches), { signal: ac.signal });
+  compactQuery?.addEventListener("change", (e) => applyCompact(e.matches), {
+    signal: abortController.signal,
+  });
 
   const applyVisible = (visible: boolean): void => {
     container.hidden = !visible;
@@ -288,8 +290,8 @@ export function installTopBar(
   rebuildRange();
   applyVisible(uiStore.getState().isUiVisible);
 
-  const subs = createSubscriptions();
-  subs.on(
+  const subscriptions = createSubscriptions();
+  subscriptions.on(
     store,
     (s) => s.datasetId,
     () => {
@@ -297,9 +299,9 @@ export function installTopBar(
       datasetPopover.refresh();
     },
   );
-  subs.on(store, (s) => s.dataset, syncDatasetLabel); // run metadata lands after the id switch
-  subs.on(store, (s) => s.projection, applyProjection);
-  subs.on(
+  subscriptions.on(store, (s) => s.dataset, syncDatasetLabel); // run metadata lands after the id switch
+  subscriptions.on(store, (s) => s.projection, applyProjection);
+  subscriptions.on(
     store,
     (s) => s.activeField,
     (name) => {
@@ -307,18 +309,18 @@ export function installTopBar(
       fieldPopover.refresh();
     },
   );
-  subs.on(
+  subscriptions.on(
     store,
     (s) => s.availableFields,
     () => fieldPopover.refresh(),
   );
-  subs.on(store, (s) => s.availableSteps, rebuildRange);
-  subs.on(store, (s) => s.currentStep, syncCursor);
-  subs.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  subscriptions.on(store, (s) => s.availableSteps, rebuildRange);
+  subscriptions.on(store, (s) => s.currentStep, syncCursor);
+  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
 
   return () => {
-    subs.dispose();
-    ac.abort();
+    subscriptions.dispose();
+    abortController.abort();
     range?.dispose();
     datasetPopover.dispose();
     fieldPopover.dispose();
