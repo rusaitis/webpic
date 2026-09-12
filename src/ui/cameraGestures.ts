@@ -13,6 +13,7 @@ import {
 } from "@store";
 import type { CameraGlide } from "./cameraGlide.ts";
 import type { Disposer } from "./controls/index.ts";
+import { createTapRecognizer, createTwistGate } from "./gestureRecognizers.ts";
 import { clientToNdc } from "./pointerMath.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
@@ -26,20 +27,9 @@ import { createSubscriptions } from "./subscriptions.ts";
 // Drag normalization fallback when the canvas has no layout yet (happy-dom tests, hidden mounts).
 const NOMINAL_VIEWPORT_PX = 800;
 
-// Touch/pen double-tap → pick-to-focus (mouse keeps the native dblclick). A "tap" is a short,
-// near-stationary single-finger press; two within DBL_TAP_MS and DBL_TAP_SLOP_PX of each other
-// focus like a desktop double-click. Standard mobile UX thresholds.
-const TAP_SLOP_PX = 10; // a press that travels farther was a drag, not a tap
-const TAP_MAX_MS = 500; // a press held longer was a press-and-hold, not a tap
-const DBL_TAP_MS = 300; // two taps within this window pair into a double-tap
-const DBL_TAP_SLOP_PX = 30; // ...and landing within this distance of each other
-
-// Two-finger twist → camera roll. A pinch decomposes into radial (zoom) and tangential (twist)
-// fingertip travel; roll engages only once the tangential travel clears a floor AND outweighs the
-// radial — so a plain pinch-zoom, however wobbly, never banks, while a deliberate finger-orbit does.
-// Past the gate the bank tracks the fingers 1:1 (direct manipulation). Reset per two-finger gesture.
-const TWIST_ENGAGE_PX = 30; // tangential fingertip arc (px) before banking can engage
-const TWIST_DOMINANCE = 1.5; // ...and the twist travel must outweigh the zoom travel by this factor
+// One focus per gesture: a touch double-tap and the native dblclick some browsers also synthesize
+// for it would otherwise both fire.
+const DBL_TAP_MS = 300;
 
 interface TrackedPointer {
   x: number; // live position, mutated per move
@@ -63,19 +53,11 @@ export function installCameraGestures(
   // per wheel trail (dolly NDC) rather than per event; the canvas can't resize mid-gesture.
   let gestureRect: DOMRect | undefined;
   let wheelRect: DOMRect | undefined;
-  // Touch double-tap state: a pinch (two fingers ever down this gesture) is never a tap; the last
-  // tap's time/pos pairs the next one; lastFocusMs de-dupes a synthetic tap against a native dblclick.
+  // A pinch anywhere in the gesture disqualifies every release in it from being a tap.
   let wasMultiTouch = false;
-  let lastTapMs = Number.NEGATIVE_INFINITY;
-  let lastTapX = 0;
-  let lastTapY = 0;
-  let lastFocusMs = Number.NEGATIVE_INFINITY;
-  // Two-finger twist→roll intent gate, per pinch gesture: accumulate tangential (twist) vs radial
-  // (zoom) fingertip travel until the twist clearly wins, then bank 1:1. Reset when a second finger
-  // lands (onPointerDown, size === 2).
-  let twistTravelPx = 0;
-  let zoomTravelPx = 0;
-  let isTwistEngaged = false;
+  let lastFocusMs = Number.NEGATIVE_INFINITY; // de-dupes a synthetic tap against a native dblclick
+  const taps = createTapRecognizer();
+  const twist = createTwistGate();
 
   // Single writer for the canvas cursor (the marker picker never sets it directly): a marker grab
   // or a camera drag reads "grabbing", a marker hover reads "pointer", everything else rests on "grab".
@@ -115,9 +97,7 @@ export function installCameraGestures(
     });
     if (pointers.size === 2) {
       wasMultiTouch = true; // a pinch began — no release in it is a tap
-      twistTravelPx = 0; // fresh twist/zoom intent gate for this two-finger gesture
-      zoomTravelPx = 0;
-      isTwistEngaged = false;
+      twist.reset(); // fresh intent gate for this two-finger gesture
     }
     target.setPointerCapture?.(event.pointerId); // keep the drag if the cursor leaves the canvas
     applyCursor();
@@ -142,7 +122,7 @@ export function installCameraGestures(
     const spread = Math.hypot(moved.x - other.x, moved.y - other.y);
     const cx = (moved.x + other.x) / 2;
     const cy = (moved.y + other.y) / 2;
-    const twist = Math.atan2(moved.y - other.y, moved.x - other.x);
+    const twistAngle = Math.atan2(moved.y - other.y, moved.x - other.x);
     if (cx !== prevCx || cy !== prevCy) {
       glide.pan((cx - prevCx) / viewportHeight, (cy - prevCy) / viewportHeight);
     }
@@ -157,20 +137,11 @@ export function installCameraGestures(
         setCameraPose(dollyPose(cameraPose, delta));
       }
     }
-    // Twist → roll. Shortest-arc the angle delta first — the ±π atan2 branch would otherwise spike
-    // it. Until the intent gate opens, accumulate this frame's tangential (rotation) vs radial
-    // (zoom) fingertip travel; engage once the twist clears the floor AND outweighs the zoom.
-    let dTwist = twist - prevTwist;
+    // Twist → roll. Shortest-arc the angle delta first — the ±π atan2 branch would otherwise spike it.
+    let dTwist = twistAngle - prevTwist;
     if (dTwist > Math.PI) dTwist -= 2 * Math.PI;
     else if (dTwist < -Math.PI) dTwist += 2 * Math.PI;
-    if (!isTwistEngaged) {
-      twistTravelPx += Math.abs(dTwist) * spread; // arc length swept at the orbiting finger
-      zoomTravelPx += Math.abs(spread - prevSpread);
-      if (twistTravelPx >= TWIST_ENGAGE_PX && twistTravelPx >= TWIST_DOMINANCE * zoomTravelPx) {
-        isTwistEngaged = true; // pre-gate rotation is discarded — track from here, no catch-up jump
-      }
-    }
-    if (isTwistEngaged && dTwist !== 0) {
+    if (twist.advance(dTwist, spread, spread - prevSpread) && dTwist !== 0) {
       // Screen y is down, so a clockwise on-screen twist increases atan2; +roll banks the camera CW
       // (the world then reads CCW), so flip the sign to make the world follow the fingers.
       const { cameraPose, setCameraPose } = store.getState();
@@ -201,26 +172,25 @@ export function installCameraGestures(
     // genuine pointerup; two within the window focus like a desktop double-click. pointercancel /
     // lostpointercapture are interruptions, not taps — they break the chain.
     if (event.type === "pointerup") {
-      const isTap =
-        (event.pointerType === "touch" || event.pointerType === "pen") &&
-        !wasMultiTouch &&
-        pointers.size === 1 &&
-        performance.now() - tracked.downAtMs <= TAP_MAX_MS &&
-        Math.hypot(event.clientX - tracked.downX, event.clientY - tracked.downY) <= TAP_SLOP_PX;
-      if (
-        isTap &&
-        performance.now() - lastTapMs <= DBL_TAP_MS &&
-        Math.hypot(event.clientX - lastTapX, event.clientY - lastTapY) <= DBL_TAP_SLOP_PX
+      // Mouse keeps the native dblclick, and a release with another finger still down is part of a
+      // pinch — neither is a tap candidate, and both break any chain in progress.
+      const isTouch = event.pointerType === "touch" || event.pointerType === "pen";
+      const now = performance.now();
+      if (!isTouch || pointers.size !== 1) taps.breakChain();
+      else if (
+        taps.isDoubleTap({
+          x: event.clientX,
+          y: event.clientY,
+          atMs: now,
+          heldMs: now - tracked.downAtMs,
+          travelPx: Math.hypot(event.clientX - tracked.downX, event.clientY - tracked.downY),
+          wasMultiTouch,
+        })
       ) {
-        lastTapMs = Number.NEGATIVE_INFINITY; // consume — a third tap doesn't chain
         triggerFocus(event.clientX, event.clientY);
-      } else if (isTap) {
-        lastTapMs = performance.now();
-        lastTapX = event.clientX;
-        lastTapY = event.clientY;
-      } else {
-        lastTapMs = Number.NEGATIVE_INFINITY; // a drag/pinch release breaks the double-tap chain
       }
+    } else {
+      taps.breakChain(); // pointercancel / lost capture is an interruption, not a tap
     }
     pointers.delete(event.pointerId);
     target.releasePointerCapture?.(event.pointerId);

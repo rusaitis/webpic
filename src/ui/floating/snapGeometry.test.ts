@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Box, chooseEdge, freePlacement, pushOutOf, type Viewport } from "./dragSnap.ts";
+import { type Box, chooseEdge, freePlacement, pushOutOf, type Viewport } from "./snapGeometry.ts";
 
 const VP: Viewport = { width: 1000, height: 800 };
 const EDGE_GAP = 12;
