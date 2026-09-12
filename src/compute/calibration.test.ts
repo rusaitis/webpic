@@ -147,7 +147,7 @@ describe("installCalibration", () => {
       cache,
       adapter,
       probes: [probe],
-      runInBackground: false,
+      shouldRunInBackground: false,
     });
 
     expect(installed.scores().throughput).toEqual({ ts: 42 });
@@ -165,7 +165,7 @@ describe("installCalibration", () => {
       cache,
       adapter,
       probes: [probe],
-      runInBackground: false,
+      shouldRunInBackground: false,
       sizes: [1000, 3000],
       reps: 1,
       warmup: 0,
@@ -191,7 +191,7 @@ describe("installCalibration", () => {
       cache,
       adapter,
       probes: [probe],
-      runInBackground: true,
+      shouldRunInBackground: true,
       sizes: [1000],
       reps: 1,
       warmup: 0,
@@ -222,7 +222,7 @@ describe("installCalibration", () => {
       cache,
       adapter,
       probes: [probe],
-      runInBackground: false,
+      shouldRunInBackground: false,
       signal: controller.signal,
       sizes: [100, 200],
       reps: 1,
@@ -262,7 +262,7 @@ describe("installCalibration", () => {
       cache: failing,
       adapter,
       probes: [probe],
-      runInBackground: false,
+      shouldRunInBackground: false,
       onError,
       sizes: [1000],
       reps: 1,
@@ -286,7 +286,7 @@ describe("installCalibration", () => {
       cache,
       adapter,
       probes: [probe],
-      runInBackground: true,
+      shouldRunInBackground: true,
       sizes: [1000],
       reps: 2, // a second rep so an abort check fires after the gate releases
       warmup: 0,

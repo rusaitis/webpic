@@ -31,9 +31,9 @@ import { colorbarStack } from "./colorbarStack.ts";
 const CHROME_SELECTOR =
   ".webpic-rail_btn, .webpic-coords-card, .webpic-topbar, .webpic-siderail, .webpic-layers, .webpic-shell, .webpic-chrome, .webpic-status";
 const INITIAL_GAP_PX = 12; // first-paint inset (bottom-right); reflow then clears the chrome
-// One nice-number target for BOTH orientations, so the tick values are identical horizontal and
+// One nice-number target for BOTH orientations, so the tick values are identical isHorizontal and
 // vertical (the set depends only on the window + this count — never the strip's pixel length). 5
-// reads well on the 320px-wide horizontal strip without crowding and leaves the 200px vertical one
+// reads well on the 320px-wide isHorizontal strip without crowding and leaves the 200px vertical one
 // with room to spare (stacked labels are short).
 const TICK_TARGET = 5;
 
@@ -63,13 +63,13 @@ export function installColorbar(
   container.dataset.edge = "bottom";
 
   // "main" stacks one section per shown binding: sections run down the free axis (below each other
-  // on horizontal docks, side by side on vertical), and inside a section the caption, gradient
+  // on isHorizontal docks, side by side on vertical), and inside a section the caption, gradient
   // strip, and tick labels stack as before — per strip.
   const main = makeEl(doc, "div", "webpic-cbar_main");
 
   interface StripSection {
     readonly root: HTMLElement;
-    update(binding: ColormapBinding | null, horizontal: boolean): void;
+    update(binding: ColormapBinding | null, isHorizontal: boolean): void;
   }
 
   const makeSection = (): StripSection => {
@@ -114,20 +114,20 @@ export function installColorbar(
       }
     };
 
-    const update = (binding: ColormapBinding | null, horizontal: boolean): void => {
+    const update = (binding: ColormapBinding | null, isHorizontal: boolean): void => {
       const colormap = binding?.colormap ?? DEFAULT_COLORMAP;
       // Render at the orientation's expanded pixel size; CSS scales the displayed strip (incl. the
       // collapse transition), so the canvas never snaps. A resize clears the bitmap, so any resize
       // forces a gradient repaint; a colormap change repaints in place.
-      const orientationChanged = paintedHorizontal !== horizontal;
+      const orientationChanged = paintedHorizontal !== isHorizontal;
       if (orientationChanged) {
-        canvas.width = horizontal ? 360 : 24;
-        canvas.height = horizontal ? 24 : 220;
+        canvas.width = isHorizontal ? 360 : 24;
+        canvas.height = isHorizontal ? 24 : 220;
       }
       if (orientationChanged || paintedColormap !== colormap) {
-        paintGradient(canvas, colormap, horizontal);
+        paintGradient(canvas, colormap, isHorizontal);
       }
-      paintedHorizontal = horizontal;
+      paintedHorizontal = isHorizontal;
       paintedColormap = colormap;
       caption.textContent = captionText(binding?.field);
       // No placeholder over the gradient — empty hides the collapsed overlay (CSS `:not(:empty)`).
@@ -166,7 +166,7 @@ export function installColorbar(
   let overflowCount = 0;
   const repaint = (): boolean => {
     const edge = readEdge(container) ?? "bottom";
-    const horizontal = edge === "top" || edge === "bottom";
+    const isHorizontal = edge === "top" || edge === "bottom";
     const state = store.getState();
     const activeId = selectActiveBinding(state)?.id ?? null;
     const { slots, overflow } = colorbarStack(selectVisibleBindings(state), activeId);
@@ -183,13 +183,13 @@ export function installColorbar(
 
     // With two strips up, cue which one the gear edits (the selected layer's binding) — but only
     // when it actually holds a slot; a hidden selected layer leaves the stack uncued.
-    const cueActive = slots.length > 1 && slots.some((b) => b.id === activeId);
+    const shouldCueActive = slots.length > 1 && slots.some((b) => b.id === activeId);
     sections.forEach((section, i) => {
       const binding = slots[i] ?? null;
-      if (cueActive && binding !== null)
+      if (shouldCueActive && binding !== null)
         section.root.dataset.active = String(binding.id === activeId);
       else delete section.root.dataset.active;
-      section.update(binding, horizontal);
+      section.update(binding, isHorizontal);
     });
 
     warn.hidden = overflow.length === 0;
@@ -246,9 +246,9 @@ export function installColorbar(
 
   // Click anywhere on the bar toggles collapse, except the gear or a just-ended drag's
   // trailing click. The settings popover is body-appended, so its clicks never reach here.
-  container.addEventListener("click", (e) => {
+  container.addEventListener("click", (event) => {
     if (drag.wasDragging()) return;
-    if (isInteractiveTarget(e)) return;
+    if (isInteractiveTarget(event)) return;
     band.collapse(!isCollapsed()); // manual: the user owns collapse from here
   });
 

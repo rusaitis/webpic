@@ -73,17 +73,17 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     if (!overlay.showPicker || pickerPoint === null || rect.width <= 0 || rect.height <= 0) {
       return "none";
     }
-    const ortho = projection === "orthographic";
+    const isOrthographic = projection === "orthographic";
     const aspect = rect.width / rect.height;
-    const core = worldToScreen(cameraPose, pickerPoint, aspect, ortho);
+    const core = worldToScreen(cameraPose, pickerPoint, aspect, isOrthographic);
     if (core.behind) return "none";
     const corePx = ndcToClient(core.ndcX, core.ndcY, rect);
     const cursor: ClientPoint = { x: clientX, y: clientY };
     const edge = worldToScreen(
       cameraPose,
-      markerEdgePoint(cameraPose, pickerPoint, ortho),
+      markerEdgePoint(cameraPose, pickerPoint, isOrthographic),
       aspect,
-      ortho,
+      isOrthographic,
     );
     const edgePx = ndcToClient(edge.ndcX, edge.ndcY, rect);
     const hitPx = Math.max(
@@ -91,7 +91,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       HIT_RADIUS_FACTOR * Math.hypot(edgePx.x - corePx.x, edgePx.y - corePx.y),
     );
     if (Math.hypot(clientX - corePx.x, clientY - corePx.y) <= hitPx) return "core";
-    const handles = markerHandlePositions(cameraPose, pickerPoint, ortho);
+    const handles = markerHandlePositions(cameraPose, pickerPoint, isOrthographic);
     // Each handle is a stem from the core to its knob; the grab target is the whole segment.
     const stems = [
       ["vertical", handles.vertical],
@@ -99,7 +99,7 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
     ] as const satisfies ReadonlyArray<readonly [MarkerPart, Vec3 | null]>;
     for (const [part, knob] of stems) {
       if (knob === null) continue;
-      const knobScreen = worldToScreen(cameraPose, knob, aspect, ortho);
+      const knobScreen = worldToScreen(cameraPose, knob, aspect, isOrthographic);
       if (knobScreen.behind) continue;
       const knobPx = ndcToClient(knobScreen.ndcX, knobScreen.ndcY, rect);
       if (distanceToSegment(cursor, corePx, knobPx) <= hitPx) return part;
@@ -112,10 +112,10 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
   // mid-elevation core grab drags on the horizontal (xy) plane at the marker's height.
   const buildMode = (part: MarkerPart, point: Vec3, isShiftHeld: boolean): DragMode => {
     const { cameraPose, projection } = store.getState();
-    const ortho = projection === "orthographic";
+    const isOrthographic = projection === "orthographic";
     if (part === "vertical") return { kind: "axis", origin: point, dir: [0, 0, 1] };
     if (part === "horizontal") {
-      const axis = markerHandlePositions(cameraPose, point, ortho).horizontal?.axis ?? "x";
+      const axis = markerHandlePositions(cameraPose, point, isOrthographic).horizontal?.axis ?? "x";
       return { kind: "axis", origin: point, dir: axis === "y" ? [0, 1, 0] : [1, 0, 0] };
     }
     if (isShiftHeld && verticalDragAllowed(cameraPose))
@@ -132,8 +132,8 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
 
   const solve = (mode: DragMode, ndcX: number, ndcY: number, rect: DOMRect): Vec3 | null => {
     const { cameraPose, projection } = store.getState();
-    const ortho = projection === "orthographic";
-    const ray = cursorRay(cameraPose, ndcX, ndcY, rect.width / rect.height, ortho);
+    const isOrthographic = projection === "orthographic";
+    const ray = cursorRay(cameraPose, ndcX, ndcY, rect.width / rect.height, isOrthographic);
     return mode.kind === "plane"
       ? dragOnPlane(ray, mode.planePoint, mode.normal)
       : dragAlongAxis(ray, mode.origin, mode.dir);

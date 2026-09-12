@@ -51,7 +51,7 @@ export function createRenderLoop(host: RenderLoopHost): RenderLoop {
   let rafId: number | undefined; // undefined ⇒ no loop running
   let isReadbackInFlight = false; // pauses the loop across a deterministic readPixels
   let isContinuous = false; // diagnostics: force every-frame repaints for sustained GPU timing
-  let perfActive = false; // dev perf HUD: sample painted on-demand frames (no forced repaints)
+  let isPerfActive = false; // dev perf HUD: sample painted on-demand frames (no forced repaints)
   let lastPaintMs = Number.NaN; // rAF stamp of the last painted frame; feeds the governor's interval
 
   // The single repaint entry point. Sets the dirty flag for the loop; if no loop is running (Node, or
@@ -80,7 +80,7 @@ export function createRenderLoop(host: RenderLoopHost): RenderLoop {
       // (and not continuous) we paint via the cheap-timed path — it samples the frames already
       // painting, throttling the GPU sync internally, so it never changes the on-demand cadence.
       if (isContinuous) host.paintTimed();
-      else if (perfActive) host.paintPerf();
+      else if (isPerfActive) host.paintPerf();
       else host.paint();
       host.clearError();
       // Each settle level paints exactly one frame: advancing re-arms needsRender until the ramp
@@ -124,7 +124,7 @@ export function createRenderLoop(host: RenderLoopHost): RenderLoop {
     setPerfActive(active) {
       // Deliberately no needsRender: the HUD samples frames that paint for other reasons; it
       // must not itself drive the loop, or it would defeat on-demand rendering.
-      perfActive = active;
+      isPerfActive = active;
     },
   };
 }

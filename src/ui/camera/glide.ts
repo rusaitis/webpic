@@ -21,7 +21,7 @@ import { frameDt } from "../pointerMath.ts";
 // the held nudge keys at constant velocity, and runs the eased fly-to tween — applying eased
 // *increments* on top of the live pose so concurrent input blends with the flight instead of
 // canceling it. It is also the single writer of setCameraMotion, the worker's quality tier: "gesture"
-// while the hand is on the camera, "fly" while only a tween runs, idle on the quiet frame. Gestures
+// while the hand is on the camera, "fly" while only a tween runs, idle on the isQuiet frame. Gestures
 // feed it deltas; ui/camera/pointerCamera feeds it flights.
 
 // Eased fly-to duration (reset / axis snap / pick-to-focus).
@@ -129,9 +129,11 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
   // Priority: any hand-driven input is a "gesture"; a tween alone is a "fly". The store's no-fire
   // guard makes per-frame repeats free.
   const syncMotion = (): void => {
-    const gesture =
+    const isGesturing =
       isPointerDown || held.codes.size > 0 || !isMomentumSettled(momentum) || isWheelLive();
-    store.getState().setCameraMotion(gesture ? "gesture" : tween !== undefined ? "fly" : "idle");
+    store
+      .getState()
+      .setCameraMotion(isGesturing ? "gesture" : tween !== undefined ? "fly" : "idle");
   };
 
   const glide = (nowMs: number): void => {
@@ -175,19 +177,19 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
         tween.lastWritten = next;
       }
     }
-    const quiet =
+    const isQuiet =
       tween === undefined &&
       isMomentumSettled(momentum) &&
       held.codes.size === 0 &&
       nowMs >= lastWheelMs + WHEEL_TRAIL_MS;
-    if (quiet) {
+    if (isQuiet) {
       momentum = MOMENTUM_ZERO; // drop the sub-pixel residue so the next drag starts clean
       lastFrameMs = undefined;
     } else {
       glideId = requestAnimationFrame(glide);
     }
-    // Per-frame: catches the gesture→fly edge when a wheel trail expires or momentum settles
-    // mid-flight, and idle on the quiet frame.
+    // Per-frame: catches the isGesturing→fly edge when a wheel trail expires or momentum settles
+    // mid-flight, and idle on the isQuiet frame.
     syncMotion();
   };
 

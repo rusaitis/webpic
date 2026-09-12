@@ -16,11 +16,11 @@ import {
 // sparkline + VRAM/heap, with an expandable detail panel (memory breakdown, worker topology, main-
 // thread jank). It reads perfStore only and dispatches visibility intents — all worker plumbing +
 // metric pumps live in app/perfBridge. Self-contained: it injects its own CSS and, while visible,
-// redraws on store changes (samples ≤5 Hz) + a slow idle timer — no per-frame rAF, so it never pins
+// redraws on store changes (samples ≤5 Hz) + a slow isIdle timer — no per-frame rAF, so it never pins
 // the main thread and dispatches no intent the bridge forwards (on-demand stays on-demand).
 
-const IDLE_MS = 400; // no new sample within this → the on-demand loop is idle, show "idle" not stale fps
-const IDLE_TICK_MS = 250; // idle-flip + detail refresh cadence while visible (replaces the per-frame rAF)
+const IDLE_MS = 400; // no new sample within this → the on-demand loop is isIdle, show "idle" not stale fps
+const IDLE_TICK_MS = 250; // isIdle-flip + detail refresh cadence while visible (replaces the per-frame rAF)
 const GPU_KEY = "#f5b050"; // the band's legend swatch (opaque amber)
 const OK_COLOR = "#8fbf8f"; // frame within the 60 fps budget (desaturated green)
 const WARN_COLOR = "#f5b050"; // frame within 30 fps (reuses the amber warning hue)
@@ -36,7 +36,7 @@ function formatBytes(bytes: number | null): string {
   return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
 }
 
-// Frame-time health: a hue-only tint (never weight/size), and "" for idle/NaN frames so they look
+// Frame-time health: a hue-only tint (never weight/size), and "" for isIdle/NaN frames so they look
 // exactly as before. Thresholds are the 60/30 fps budgets.
 function frameHealthColor(sample: PerfSample | null): string {
   const ms = sample?.frameWallMs ?? Number.NaN;
@@ -162,8 +162,9 @@ export function installPerfHud(
     pushIfNewSample();
     const state = perfStore.getState();
     const sample = state.sample;
-    const idle = sample === null || (view ? view.performance.now() - lastSampleAtMs : 0) > IDLE_MS;
-    if (idle || sample === null || !Number.isFinite(sample.frameIntervalMs)) {
+    const isIdle =
+      sample === null || (view ? view.performance.now() - lastSampleAtMs : 0) > IDLE_MS;
+    if (isIdle || sample === null || !Number.isFinite(sample.frameIntervalMs)) {
       fpsEl.textContent = "idle (on-demand)";
     } else {
       fpsEl.textContent = `${Math.round(1000 / sample.frameIntervalMs)} fps`;
@@ -184,19 +185,19 @@ export function installPerfHud(
   };
 
   // Event-driven, not a 60 Hz rAF: while visible, redraw on each new sample + main-heap change, plus a
-  // slow timer for the idle flip and detail refresh. `active` holds the visible-only subscriptions,
+  // slow timer for the isIdle flip and detail refresh. `active` holds the visible-only subscriptions,
   // torn down on hide; `idleTimer` doubles as the "am I running?" flag.
   let active: Subscriptions | null = null;
   let idleTimer: number | undefined;
 
   const startActive = (win: Window): void => {
-    lastSeenSample = null; // a re-open re-detects the first sample (idle until one arrives)
+    lastSeenSample = null; // a re-open re-detects the first sample (isIdle until one arrives)
     render();
     active = createSubscriptions();
     active.on(perfStore, (s) => s.sample, render);
     active.on(perfStore, (s) => s.mainHeapBytes, render); // heap row would freeze without this
     idleTimer = win.setInterval(() => {
-      render(); // re-evaluates the idle → "idle (on-demand)" flip after the last sample
+      render(); // re-evaluates the isIdle → "idle (on-demand)" flip after the last sample
       if (!detail.hidden) renderDetail();
     }, IDLE_TICK_MS);
   };

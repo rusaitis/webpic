@@ -40,8 +40,8 @@ import { installThemeBridge } from "./themeBridge.ts";
 import { currentDevicePixelRatio, installViewportBridge } from "./viewportBridge.ts";
 
 const DEFAULT_SIZE = 256;
-// The worker's orderly teardown normally acks in a few ms; terminate regardless after this so a wedged
-// worker can't hold the page's own teardown hostage.
+// The worker's orderly subscriptions normally acks in a few ms; terminate regardless after this so a wedged
+// worker can't hold the page's own subscriptions hostage.
 export const DISPOSE_GRACE_MS = 250;
 
 // Seams default to the real DOM/Worker; the handshake test injects fakes so
@@ -163,9 +163,9 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   if (options.initialProjection !== undefined)
     store.getState().setProjection(options.initialProjection);
   const uiStore = options.uiStore ?? createUiStore();
-  // Every teardown registers where it is created, and runs LIFO from the returned disposer — so
+  // Every subscriptions registers where it is created, and runs LIFO from the returned disposer — so
   // adding a bridge cannot silently leave it running (CLAUDE.md §Lifecycle & shape).
-  const teardown = createSubscriptions();
+  const subscriptions = createSubscriptions();
   // "webpic" matches the index.html splash text, so the splash→pill adoption is pixel-stable.
   uiStore.getState().beginLoading(PHASE_KEYS.boot, "webpic");
   let isWorkerReady = false;
@@ -198,9 +198,9 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // Seed placer first: its capture-phase listener must run before the picker's so it claims the click
   // while in placement mode (a seed, not a marker grab / orbit).
   if (hasPointerEvents) {
-    teardown.add(installPointerSeedPlacer(canvas, store));
-    teardown.add(installPointerCamera(canvas, store));
-    teardown.add(installPointerPicker(canvas, store));
+    subscriptions.add(installPointerSeedPlacer(canvas, store));
+    subscriptions.add(installPointerCamera(canvas, store));
+    subscriptions.add(installPointerPicker(canvas, store));
   }
 
   // Store→worker bridges (app-only glue: store and render can't import each other). Each gates its
@@ -209,13 +209,13 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const layerBridge = installLayerBridge({ store, uiStore, worker, isReady });
   const sceneBridge = installSceneBridge({ store, worker, isReady, ...theme });
   const pickerBridge = installPickerBridge({ store, worker, isReady, ...theme });
-  for (const bridge of [layerBridge, sceneBridge, pickerBridge]) teardown.add(bridge.dispose);
+  for (const bridge of [layerBridge, sceneBridge, pickerBridge]) subscriptions.add(bridge.dispose);
   const perfStore = createPerfStore(); // render timing for the timing panel + the dev HUD
   const renderBridge = installRenderWorkerBridge({ store, perfStore, worker, isReady });
   const screenshotBridge = installScreenshotBridge({ store, uiStore, worker, isReady });
-  teardown.add(renderBridge.dispose);
-  teardown.add(screenshotBridge.dispose);
-  teardown.add(installViewportBridge({ canvas, worker, isReady, logicalSize }));
+  subscriptions.add(renderBridge.dispose);
+  subscriptions.add(screenshotBridge.dispose);
+  subscriptions.add(installViewportBridge({ canvas, worker, isReady, logicalSize }));
 
   // Withdraws every store load bootstrap started (the boot seed, a dataset switch) when it's disposed
   // mid-flight, so no compute lands on a torn-down app.
@@ -225,7 +225,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // owns the catalog — store/ui can't reach `data`), seed it on the main thread for an instant frame,
   // reset the look to the dataset's default color scale, and re-open the stream onto the new handle.
   // Inert when no catalog was wired; `reopen` is a no-op when there's no stream.
-  teardown.add(
+  subscriptions.add(
     store.subscribe(
       (state) => state.datasetId,
       (id) => {
@@ -329,7 +329,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   const uiParent =
     options.uiParent ?? (typeof document !== "undefined" ? document.body : undefined);
   if (uiParent)
-    teardown.add(
+    subscriptions.add(
       installUi({ parent: uiParent, simulationStore: store, perfStore, uiStore, ...theme }),
     );
 
@@ -341,7 +341,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     const firstName = themeCatalog.keys().next().value;
     const initialName = options.theme?.name ?? firstName;
     if (initialName !== undefined) {
-      teardown.add(
+      subscriptions.add(
         installThemeBridge({
           uiStore,
           themes: themeCatalog,
@@ -360,7 +360,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // Dev performance HUD (Shift+P): the HUD overlay + worker sampling, dynamic-imported so the feature
   // is absent from the default prod bundle. Needs a DOM parent; skipped headless.
   if (options.perf === true && uiParent !== undefined) {
-    teardown.add(
+    subscriptions.add(
       installLazy(
         () => import("./perfBridge.ts"),
         ({ installPerf }) => {
@@ -385,7 +385,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // the default full page reload, so the camera pose + uploaded volume survive an edit. Behind
   // import.meta.hot + dynamic-imported, so the bridge is absent from the prod bundle.
   if (import.meta.hot) {
-    teardown.add(
+    subscriptions.add(
       installLazy(
         () => import("./shaderHmrBridge.ts"),
         ({ installShaderHmr }) => installShaderHmr(worker),
@@ -396,7 +396,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
 
   return () => {
     bootAbort.abort(); // first: withdraw in-flight loads before anything they'd commit into is gone
-    teardown.dispose();
+    subscriptions.dispose();
     streaming?.dispose();
     // Last: the worker frees its GPU resources on this, then gets a grace window to ack.
     worker.postMessage({

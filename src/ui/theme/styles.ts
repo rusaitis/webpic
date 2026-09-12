@@ -167,7 +167,7 @@ export function applyControlStyles(root: HTMLElement, theme?: Theme): Disposer {
   applyUiVars(root, theme);
   const doc = root.ownerDocument;
   let style = doc.getElementById(STYLE_ID);
-  const owned = style === null;
+  const isOwned = style === null;
   if (style === null) {
     style = doc.createElement("style");
     style.id = STYLE_ID;
@@ -176,7 +176,7 @@ export function applyControlStyles(root: HTMLElement, theme?: Theme): Disposer {
   }
   return () => {
     for (const name of UI_VARS) root.style.removeProperty(name);
-    if (owned) style.remove();
+    if (isOwned) style.remove();
   };
 }
 

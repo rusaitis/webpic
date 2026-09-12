@@ -207,9 +207,9 @@ export function installTopBar(
   projChip.type = "button";
   projChip.dataset.control = "projection";
   const applyProjection = (projection: CameraProjection): void => {
-    const ortho = projection === "orthographic";
-    projChip.textContent = ortho ? "ortho" : "persp";
-    projChip.title = ortho
+    const isOrthographic = projection === "orthographic";
+    projChip.textContent = isOrthographic ? "ortho" : "persp";
+    projChip.title = isOrthographic
       ? "Orthographic — switch to perspective (O)"
       : "Perspective — switch to orthographic (O)";
   };
@@ -274,7 +274,7 @@ export function installTopBar(
     else container.insertBefore(timeWrap, projChip);
   };
   applyCompact(compactQuery?.matches ?? false);
-  compactQuery?.addEventListener("change", (e) => applyCompact(e.matches), {
+  compactQuery?.addEventListener("change", (event) => applyCompact(event.matches), {
     signal: abortController.signal,
   });
 

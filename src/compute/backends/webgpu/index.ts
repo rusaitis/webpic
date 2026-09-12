@@ -40,7 +40,7 @@ const WEBGPU_FIELD_OPS: Record<string, KernelDesc> = {
 // unit-tests in Node. Unlike the TS backend we do NOT reject `component`/`needsGrid`: curl carries
 // `component:0/1/2` and `needsGrid:true` — both are exactly what the kernel handles. Gamma/c/species
 // recipes are out of scope (no kernel bound yet).
-export function isWebgpuOp(recipe: RecipeMeta): boolean {
+export function isWebgpuComputable(recipe: RecipeMeta): boolean {
   return (
     !recipe.needsGamma &&
     !recipe.needsC &&
@@ -115,6 +115,6 @@ async function computeRecipeWebgpu(
 // which can't hold the main thread's device). Proven against the coordinates twin first.
 export const webgpuBackend: ComputeBackend = {
   id: "webgpu",
-  supports: (recipe) => hasDevice() && isWebgpuOp(recipe),
+  supports: (recipe) => hasDevice() && isWebgpuComputable(recipe),
   compute: computeRecipeWebgpu,
 };

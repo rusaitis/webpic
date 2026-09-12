@@ -144,7 +144,7 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
     scheduleSettle(() => host.reflow());
   };
 
-  // The fit pass: suppress the gnomon when the rail can't clear it (independent of the strip), then
+  // The fit pass: shouldSuppress the gnomon when the rail can't clear it (independent of the strip), then
   // minimize / migrate the strip if it can't sit beside the rail. Idempotent + monotonic in viewport
   // width, so the triggers below can fire it freely without oscillating.
   const adapt = (): void => {
@@ -155,15 +155,15 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
     // judge cramping off that (the live width collapses with the viewport and would never trip).
     if (cluster > 0 && (vw - cluster) / 2 > NATURAL_CLUSTER_SLACK_PX) naturalCluster = cluster;
     const wasSuppressed = uiStore.getState().isGnomonSuppressed;
-    const suppress = railGnomonCramped(vw, Math.max(naturalCluster, cluster), wasSuppressed);
-    if (suppress !== wasSuppressed) uiStore.getState().setGnomonSuppressed(suppress);
+    const shouldSuppress = railGnomonCramped(vw, Math.max(naturalCluster, cluster), wasSuppressed);
+    if (shouldSuppress !== wasSuppressed) uiStore.getState().setGnomonSuppressed(shouldSuppress);
 
     // Only a strip docked on the bottom row beside a rail adapts; side/top docks + free drops stay.
     if (!isOnBottomRow() || cluster <= 0) return;
     const mode = colorbarFitMode({
       viewportWidth: vw,
       clusterWidth: cluster,
-      cornerClearRight: suppress ? 0 : cornerWidgetRight(),
+      cornerClearRight: shouldSuppress ? 0 : cornerWidgetRight(),
       expandedWidth,
       collapsedWidth,
     });

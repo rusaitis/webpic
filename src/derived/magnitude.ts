@@ -14,9 +14,9 @@ export function vectorMagnitude(c1: FloatArray, c2: FloatArray, c3: FloatArray):
       `vectorMagnitude: component length mismatch (${c1.length}, ${c2.length}, ${c3.length})`,
     );
   }
-  const useF64 =
+  const isFloat64 =
     c1 instanceof Float64Array || c2 instanceof Float64Array || c3 instanceof Float64Array;
-  const out = useF64 ? new Float64Array(n) : new Float32Array(n);
+  const out = isFloat64 ? new Float64Array(n) : new Float32Array(n);
   for (let i = 0; i < n; i++) {
     // Indices are in-bounds by construction; ?? 0 satisfies noUncheckedIndexedAccess.
     const x = c1[i] ?? 0;

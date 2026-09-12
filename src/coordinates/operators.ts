@@ -34,7 +34,7 @@ function partialAlongAxis(
   shape: readonly number[],
   axis: number,
   spacing: number,
-  useFloat64: boolean,
+  isFloat64: boolean,
 ): FloatArray {
   const n = shape[axis] ?? 1;
   if (n < 2) {
@@ -42,7 +42,7 @@ function partialAlongAxis(
   }
   let stride = 1;
   for (let a = axis + 1; a < shape.length; a++) stride *= shape[a] ?? 1;
-  const out = useFloat64 ? new Float64Array(data.length) : new Float32Array(data.length);
+  const out = isFloat64 ? new Float64Array(data.length) : new Float32Array(data.length);
   const invCentral = 1 / (2 * spacing);
   const invEdge = 1 / spacing;
   for (let p = 0; p < data.length; p++) {
@@ -73,11 +73,11 @@ export function gradient(
   requireCartesian(options?.geometry, "gradient");
   requirePositiveSpacing(spacing, "gradient");
   require3dScalar(field, shape, "gradient");
-  const useFloat64 = field instanceof Float64Array;
+  const isFloat64 = field instanceof Float64Array;
   return [
-    partialAlongAxis(field, shape, 0, spacing[0], useFloat64),
-    partialAlongAxis(field, shape, 1, spacing[1], useFloat64),
-    partialAlongAxis(field, shape, 2, spacing[2], useFloat64),
+    partialAlongAxis(field, shape, 0, spacing[0], isFloat64),
+    partialAlongAxis(field, shape, 1, spacing[1], isFloat64),
+    partialAlongAxis(field, shape, 2, spacing[2], isFloat64),
   ];
 }
 
@@ -93,10 +93,10 @@ export function divergence(
   requireCartesian(options?.geometry, "divergence");
   requirePositiveSpacing(spacing, "divergence");
   require3dVector(f1, f2, f3, shape, "divergence");
-  const useFloat64 = anyFloat64(f1, f2, f3);
-  const out = partialAlongAxis(f1, shape, 0, spacing[0], useFloat64);
-  const d2 = partialAlongAxis(f2, shape, 1, spacing[1], useFloat64);
-  const d3 = partialAlongAxis(f3, shape, 2, spacing[2], useFloat64);
+  const isFloat64 = anyFloat64(f1, f2, f3);
+  const out = partialAlongAxis(f1, shape, 0, spacing[0], isFloat64);
+  const d2 = partialAlongAxis(f2, shape, 1, spacing[1], isFloat64);
+  const d3 = partialAlongAxis(f3, shape, 2, spacing[2], isFloat64);
   for (let i = 0; i < out.length; i++) out[i] = (out[i] ?? 0) + (d2[i] ?? 0) + (d3[i] ?? 0);
   return out;
 }
@@ -116,19 +116,19 @@ export function curl(
   requireCartesian(options?.geometry, "curl");
   requirePositiveSpacing(spacing, "curl");
   require3dVector(f1, f2, f3, shape, "curl");
-  const useFloat64 = anyFloat64(f1, f2, f3);
+  const isFloat64 = anyFloat64(f1, f2, f3);
   const [d1, d2, d3] = spacing;
   const c1 = subtractInto(
-    partialAlongAxis(f3, shape, 1, d2, useFloat64),
-    partialAlongAxis(f2, shape, 2, d3, useFloat64),
+    partialAlongAxis(f3, shape, 1, d2, isFloat64),
+    partialAlongAxis(f2, shape, 2, d3, isFloat64),
   );
   const c2 = subtractInto(
-    partialAlongAxis(f1, shape, 2, d3, useFloat64),
-    partialAlongAxis(f3, shape, 0, d1, useFloat64),
+    partialAlongAxis(f1, shape, 2, d3, isFloat64),
+    partialAlongAxis(f3, shape, 0, d1, isFloat64),
   );
   const c3 = subtractInto(
-    partialAlongAxis(f2, shape, 0, d1, useFloat64),
-    partialAlongAxis(f1, shape, 1, d2, useFloat64),
+    partialAlongAxis(f2, shape, 0, d1, isFloat64),
+    partialAlongAxis(f1, shape, 1, d2, isFloat64),
   );
   return [c1, c2, c3];
 }

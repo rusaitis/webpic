@@ -22,7 +22,7 @@ export type TsFieldOp = (inputs: readonly FieldArray[], context: TsOpContext) =>
 const TS_FIELD_OPS: Record<string, TsFieldOp> = { ...MAGNITUDE_FIELD_OPS, ...OPERATOR_FIELD_OPS };
 
 // Can the TS backend evaluate this recipe at all (a bound op, and none of the feature flags no TS op
-// supports)? Mirrors isWebgpuOp: grid + component are fine now (curl/divergence carry them) — only
+// supports)? Mirrors isWebgpuComputable: grid + component are fine now (curl/divergence carry them) — only
 // gamma/c/species recipes stay out of scope. Keep in sync with computeRecipeTs's guard below — it
 // builds the selectable-field list without attempting a compute per candidate.
 export function isTsComputable(recipe: RecipeMeta): boolean {

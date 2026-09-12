@@ -168,10 +168,10 @@ export function installBottomRail(
       : "Orbit mode — click or N for fly (first-person look)";
   };
   const applyProjection = (projection: CameraProjection): void => {
-    const ortho = projection === "orthographic";
-    projBtn.setAttribute("aria-pressed", String(ortho));
-    projBtn.innerHTML = ortho ? ICON.ortho : ICON.perspective;
-    projBtn.title = ortho
+    const isOrthographic = projection === "orthographic";
+    projBtn.setAttribute("aria-pressed", String(isOrthographic));
+    projBtn.innerHTML = isOrthographic ? ICON.ortho : ICON.perspective;
+    projBtn.title = isOrthographic
       ? "Orthographic — click or O for perspective"
       : "Perspective — click or O for orthographic";
   };
@@ -223,7 +223,7 @@ export function installBottomRail(
     (s) => s.projection,
     (projection) => {
       applyProjection(projection);
-      updateViewIfOpen(); // the View row's ortho suffix follows
+      updateViewIfOpen(); // the View row's isOrthographic suffix follows
     },
   );
   subscriptions.on(

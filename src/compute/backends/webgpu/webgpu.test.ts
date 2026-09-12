@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RecipeMeta } from "../../recipe.ts";
 import { RECIPES } from "../../recipes.generated.ts";
-import { isWebgpuOp, webgpuBackend } from "./index.ts";
+import { isWebgpuComputable, webgpuBackend } from "./index.ts";
 import { buildKernelParams, PARAMS_BYTE_LENGTH, toFloat32 } from "./params.ts";
 
 // A flag-free recipe stub; override only the fields a case cares about.
@@ -23,39 +23,39 @@ function recipe(over: Partial<RecipeMeta>): RecipeMeta {
 
 describe("isWebgpuOp gating", () => {
   it("accepts the bound magnitude / curl / divergence func names", () => {
-    expect(isWebgpuOp(recipe({ func: "magnetic_field_magnitude" }))).toBe(true);
-    expect(isWebgpuOp(recipe({ func: "electric_field_magnitude" }))).toBe(true);
-    expect(isWebgpuOp(recipe({ func: "current_density_magnitude" }))).toBe(true);
-    expect(isWebgpuOp(recipe({ func: "velocity_magnitude" }))).toBe(true);
-    expect(isWebgpuOp(recipe({ func: "div_b", needsGrid: true }))).toBe(true);
-    expect(isWebgpuOp(recipe({ func: "div_e", needsGrid: true }))).toBe(true);
+    expect(isWebgpuComputable(recipe({ func: "magnetic_field_magnitude" }))).toBe(true);
+    expect(isWebgpuComputable(recipe({ func: "electric_field_magnitude" }))).toBe(true);
+    expect(isWebgpuComputable(recipe({ func: "current_density_magnitude" }))).toBe(true);
+    expect(isWebgpuComputable(recipe({ func: "velocity_magnitude" }))).toBe(true);
+    expect(isWebgpuComputable(recipe({ func: "div_b", needsGrid: true }))).toBe(true);
+    expect(isWebgpuComputable(recipe({ func: "div_e", needsGrid: true }))).toBe(true);
   });
 
   // The regression guard: curl recipes carry component:0/1/2 AND needsGrid — the kernel handles both,
   // so (unlike the TS backend) neither may gate them out.
   it("accepts curl despite its component index and grid requirement", () => {
-    expect(isWebgpuOp(recipe({ func: "curl", component: 0, needsGrid: true }))).toBe(true);
-    expect(isWebgpuOp(recipe({ func: "curl", component: 2, needsGrid: true }))).toBe(true);
+    expect(isWebgpuComputable(recipe({ func: "curl", component: 0, needsGrid: true }))).toBe(true);
+    expect(isWebgpuComputable(recipe({ func: "curl", component: 2, needsGrid: true }))).toBe(true);
   });
 
   it("rejects unbound funcs and gamma / c / species recipes", () => {
-    expect(isWebgpuOp(recipe({ func: "plasma_beta" }))).toBe(false);
-    expect(isWebgpuOp(recipe({ func: "curl", needsGamma: true }))).toBe(false);
-    expect(isWebgpuOp(recipe({ func: "curl", needsC: true }))).toBe(false);
-    expect(isWebgpuOp(recipe({ func: "velocity_magnitude", speciesArgs: "mass_only" }))).toBe(
-      false,
-    );
+    expect(isWebgpuComputable(recipe({ func: "plasma_beta" }))).toBe(false);
+    expect(isWebgpuComputable(recipe({ func: "curl", needsGamma: true }))).toBe(false);
+    expect(isWebgpuComputable(recipe({ func: "curl", needsC: true }))).toBe(false);
+    expect(
+      isWebgpuComputable(recipe({ func: "velocity_magnitude", speciesArgs: "mass_only" })),
+    ).toBe(false);
   });
 
   // Tie the gate to the real codegen'd recipes, not just stubs — catches a func-name drift.
   it("accepts the canonical |B| / curl_B_1 / div_B recipes", () => {
-    expect(isWebgpuOp(RECIPES["|B|"])).toBe(true);
-    expect(isWebgpuOp(RECIPES.curl_B_1)).toBe(true);
-    expect(isWebgpuOp(RECIPES.div_B)).toBe(true);
+    expect(isWebgpuComputable(RECIPES["|B|"])).toBe(true);
+    expect(isWebgpuComputable(RECIPES.curl_B_1)).toBe(true);
+    expect(isWebgpuComputable(RECIPES.div_B)).toBe(true);
   });
 
   it("supports() is false without an installed device (Node / worker)", () => {
-    // isWebgpuOp says yes, but no GPU is installed here → the dispatcher must not route to it.
+    // isWebgpuComputable says yes, but no GPU is installed here → the dispatcher must not route to it.
     expect(webgpuBackend.supports(RECIPES.curl_B_1)).toBe(false);
   });
 });

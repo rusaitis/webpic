@@ -1,4 +1,4 @@
-import { resetLedger, snapshot } from "@gpu/vramLedger.ts";
+import { resetLedger, vramSnapshot } from "@gpu/vramLedger.ts";
 import { type Data3DTexture, DataUtils, FloatType, HalfFloatType, LinearFilter } from "three";
 import { describe, expect, it, vi } from "vitest";
 import { createVolumeTexture, type ScalarField, type VolumeTexture } from "./volumeTexture.ts";
@@ -132,13 +132,13 @@ describe("createVolumeTexture", () => {
     resetLedger();
     const volume = createVolumeTexture(field([0, 1, 2, 3, 4, 5, 6, 7]), true, "layer-0");
     volume.setField(field([7, 6, 5, 4, 3, 2, 1, 0])); // allocate the second ping-pong slot too
-    expect(snapshot().totalBytes).toBeGreaterThan(0);
+    expect(vramSnapshot().totalBytes).toBeGreaterThan(0);
 
     volume.dispose();
-    expect(snapshot().totalBytes).toBe(0);
+    expect(vramSnapshot().totalBytes).toBe(0);
 
     // A double dispose reaches releaseAlloc twice; the ledger must not go negative or resurrect a key.
     volume.dispose();
-    expect(snapshot()).toEqual({ totalBytes: 0, byKey: [] });
+    expect(vramSnapshot()).toEqual({ totalBytes: 0, byKey: [] });
   });
 });

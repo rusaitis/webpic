@@ -32,11 +32,11 @@ export interface SmoothVectorField {
 // suite needs for its coordinates twins. f32 by default — fed to both backends so the only gap is
 // f32-vs-f64 arithmetic, not input-rounding skew; f64 for the Node reference-plumbing test.
 export function smoothVectorField(
-  opts: { shape?: readonly number[]; spacing?: Vec3; array?: ArrayCtor } = {},
+  options: { shape?: readonly number[]; spacing?: Vec3; array?: ArrayCtor } = {},
 ): SmoothVectorField {
-  const shape = opts.shape ?? SMOOTH_SHAPE;
-  const spacing = opts.spacing ?? SMOOTH_SPACING;
-  const ArrayType = opts.array ?? Float32Array;
+  const shape = options.shape ?? SMOOTH_SHAPE;
+  const spacing = options.spacing ?? SMOOTH_SPACING;
+  const ArrayType = options.array ?? Float32Array;
   const [fn1, fn2, fn3] = SMOOTH_COMPONENTS;
   const f1 = sampleScalar(shape, spacing, fn1, ArrayType);
   const f2 = sampleScalar(shape, spacing, fn2, ArrayType);

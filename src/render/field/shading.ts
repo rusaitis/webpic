@@ -43,8 +43,8 @@ export function gradientToNormal(grad: Vec3, fallback: Vec3): Vec3 {
 // orbiting reveals shape with no scene light to manage), so the half-vector equals the view and
 // `n·h == n·l == |n·v|`. The normal is flipped toward the viewer first (an opacity isosurface has no
 // consistent winding), giving `ndl = max(0, |n·v|)`. Returns `ambient + diffuse·ndl + specular·ndl^s`.
-export function headlightShade(normal: Vec3, view: Vec3, p: PhongParams = PHONG): number {
+export function headlightShade(normal: Vec3, view: Vec3, params: PhongParams = PHONG): number {
   const faced = dot(normal, view) < 0 ? vec3(-normal[0], -normal[1], -normal[2]) : normal;
   const ndl = Math.max(0, dot(faced, view));
-  return p.ambient + p.diffuse * ndl + p.specular * ndl ** p.shininess;
+  return params.ambient + params.diffuse * ndl + params.specular * ndl ** params.shininess;
 }

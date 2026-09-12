@@ -20,7 +20,7 @@ export interface RailMenuOptions {
   readonly parent: HTMLElement; // the rail's fixed-position host (the menu mounts here)
   readonly title: string; // e.g. "Volume layers"
   readonly getItems: () => readonly RailMenuItem[]; // existing instances of this kind
-  readonly getSelected: () => string | null; // selectedLayerId, marks the active row
+  readonly getSelected: () => string | null; // selectedLayerId, marks the isActive row
   readonly onPick: (id: string) => void; // jump to an instance (then the menu closes)
   readonly onAddNew: () => void; // create a new instance (then the menu closes)
 }
@@ -70,8 +70,8 @@ export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
       const row = makeEl(doc, "button", "webpic-railmenu_item");
       row.type = "button";
       row.setAttribute("role", "menuitem");
-      const active = item.id === selected;
-      if (active) row.classList.add("is-active");
+      const isActive = item.id === selected;
+      if (isActive) row.classList.add("is-active");
       const dot = makeEl(doc, "span", "webpic-railmenu_dot");
       const label = makeEl(doc, "span", "webpic-railmenu_label");
       label.textContent = item.label;

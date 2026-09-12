@@ -61,7 +61,7 @@ export function installViewportBridge(options: ViewportTrackingOptions): () => v
   // matches only the current DPR, so its one `change` means "DPR is now something else".
   // One controller across the re-arms: each new query listens on the same signal, so teardown drops
   // whichever one is currently armed without tracking it.
-  const dprAc = new AbortController();
+  const devicePixelRatioAbort = new AbortController();
   if (typeof matchMedia === "function") {
     const onDprChange = (): void => {
       postResize();
@@ -71,7 +71,7 @@ export function installViewportBridge(options: ViewportTrackingOptions): () => v
       matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener(
         "change",
         onDprChange,
-        { once: true, signal: dprAc.signal },
+        { once: true, signal: devicePixelRatioAbort.signal },
       );
     };
     arm();
@@ -79,6 +79,6 @@ export function installViewportBridge(options: ViewportTrackingOptions): () => v
 
   return () => {
     disposeResize?.();
-    dprAc.abort();
+    devicePixelRatioAbort.abort();
   };
 }

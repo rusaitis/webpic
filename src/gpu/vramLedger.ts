@@ -24,7 +24,7 @@ export interface VramSnapshot {
   readonly byKey: readonly (readonly [string, number])[];
 }
 
-export function snapshot(): VramSnapshot {
+export function vramSnapshot(): VramSnapshot {
   let totalBytes = 0;
   for (const bytes of allocations.values()) totalBytes += bytes;
   const byKey = [...allocations.entries()].sort((a, b) => b[1] - a[1]);

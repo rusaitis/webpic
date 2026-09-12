@@ -38,7 +38,7 @@ export interface RangeWidgetOptions {
   readonly linthresh?: number;
   // Subtle vertical ticks. `true` derives a count from `step`/scale.
   readonly ticks?: boolean | number;
-  // Lighter sub-decade minor ticks on log/symlog. Default on when `ticks`.
+  // Lighter sub-isDecadeStep minor ticks on log/symlog. Default on when `ticks`.
   readonly minorTicks?: boolean;
   // Coupled numeric field(s) for precise entry. Default true.
   readonly text?: boolean;
@@ -73,8 +73,8 @@ export function createRangeControl(
   const minGap = config.minGap ?? (step && step > 0 ? step : 0);
   const kbStep = step && step > 0 ? step : (max - min) / 100;
 
-  // On log/symlog, drag + keyboard snap to a log-decade grid rather than the uniform `step`.
-  // `decadeMinStep` floors it one decade below the symlog linear band so it can't subdivide
+  // On log/symlog, drag + keyboard snap to a log-isDecadeStep grid rather than the uniform `step`.
+  // `decadeMinStep` floors it one isDecadeStep below the symlog linear band so it can't subdivide
   // forever toward 0; log (min > 0) needs no floor. Linear keeps uniform `step`.
   const isLogish = scale.kind === "log" || scale.kind === "symlog";
   const decadeMinStep =
@@ -129,9 +129,10 @@ export function createRangeControl(
       track.style.setProperty("--t", String(tv));
       fill.style.setProperty("--fa", String(Math.min(tv, t0)));
       fill.style.setProperty("--fb", String(Math.max(tv, t0)));
-      // Square the fill's edge at an interior origin (the 0 baseline); its moving end stays round.
-      const interior = origin > min && origin < max;
-      if (interior && value !== origin) fill.dataset.origin = value > origin ? "left" : "right";
+      // Square the fill's edge at an isInteriorOrigin origin (the 0 baseline); its moving end stays round.
+      const isInteriorOrigin = origin > min && origin < max;
+      if (isInteriorOrigin && value !== origin)
+        fill.dataset.origin = value > origin ? "left" : "right";
       else delete fill.dataset.origin;
       setGripAria(gripValue, value);
       if (inputA && doc.activeElement !== inputA) inputA.value = formatter(value);
@@ -166,17 +167,17 @@ export function createRangeControl(
     else hi = clamp(v, Math.min(max, lo + minGap), max);
   };
 
-  const onDown = (e: PointerEvent): void => {
-    if (e.button > 0) return; // left/touch/pen only
+  const onDown = (event: PointerEvent): void => {
+    if (event.button > 0) return; // left/touch/pen only
     dragRect = track.getBoundingClientRect();
-    const raw = valueAt(e.clientX, dragRect);
+    const raw = valueAt(event.clientX, dragRect);
     const base = { baseLo: lo, baseHi: hi, anchor: raw };
     if (isInterval) {
       // Intent from pointer position, not hit target, so the tall hit band works: grab a grip
       // → drag it; outside [lo,hi] → extend the nearer end; between the grips → pan both.
-      if (e.target === gripLo) {
+      if (event.target === gripLo) {
         drag = { kind: "lo", ...base };
-      } else if (e.target === gripHi) {
+      } else if (event.target === gripHi) {
         drag = { kind: "hi", ...base };
       } else if (raw <= lo) {
         applyGrip("lo", raw);
@@ -195,34 +196,34 @@ export function createRangeControl(
       gripValue?.focus();
     }
     try {
-      track.setPointerCapture(e.pointerId);
+      track.setPointerCapture(event.pointerId);
     } catch {
       // happy-dom / no-layout environments lack pointer capture — drag still works via events.
     }
     root.classList.add("is-dragging");
     render();
     emit(config.onInput);
-    e.preventDefault();
+    event.preventDefault();
   };
 
-  const onMove = (e: PointerEvent): void => {
+  const onMove = (event: PointerEvent): void => {
     if (!drag) return;
     const rect = dragRect ?? track.getBoundingClientRect();
     if (drag.kind === "pan") {
-      const rawDelta = valueAt(e.clientX, rect) - drag.anchor;
+      const rawDelta = valueAt(event.clientX, rect) - drag.anchor;
       const delta = step && step > 0 ? Math.round(rawDelta / step) * step : rawDelta;
       [lo, hi] = translateInterval(drag.baseLo, drag.baseHi, delta, min, max);
     } else {
-      applyGrip(drag.kind, valueAt(e.clientX, rect));
+      applyGrip(drag.kind, valueAt(event.clientX, rect));
     }
     render();
     emit(config.onInput);
   };
 
-  const onUp = (e: PointerEvent): void => {
+  const onUp = (event: PointerEvent): void => {
     if (!drag) return;
     try {
-      track.releasePointerCapture(e.pointerId);
+      track.releasePointerCapture(event.pointerId);
     } catch {
       // already released / never captured
     }
@@ -232,21 +233,21 @@ export function createRangeControl(
     emit(config.onChange);
   };
 
-  const onKey = (e: KeyboardEvent, end: "value" | "lo" | "hi"): void => {
+  const onKey = (event: KeyboardEvent, end: "value" | "lo" | "hi"): void => {
     const cur = end === "lo" ? lo : end === "hi" ? hi : value;
-    // On log/symlog the value grip walks the decade grid (Shift = 10 cells); interval ends
+    // On log/symlog the value grip walks the isDecadeStep grid (Shift = 10 cells); interval ends
     // and linear sliders keep the fine `step` nudge.
-    const decade = isLogish && end === "value";
-    const mult = e.shiftKey ? 10 : 1;
+    const isDecadeStep = isLogish && end === "value";
+    const mult = event.shiftKey ? 10 : 1;
     let next: number | null = null;
-    switch (e.key) {
+    switch (event.key) {
       case "ArrowLeft":
       case "ArrowDown":
-        next = decade ? stepN(cur, -1, mult) : cur - kbStep * mult;
+        next = isDecadeStep ? stepN(cur, -1, mult) : cur - kbStep * mult;
         break;
       case "ArrowRight":
       case "ArrowUp":
-        next = decade ? stepN(cur, 1, mult) : cur + kbStep * mult;
+        next = isDecadeStep ? stepN(cur, 1, mult) : cur + kbStep * mult;
         break;
       case "Home":
         next = min;
@@ -257,11 +258,11 @@ export function createRangeControl(
       default:
         return;
     }
-    applyGrip(end, next, decade ? snapDrag : snapStep);
+    applyGrip(end, next, isDecadeStep ? snapDrag : snapStep);
     render();
     emit(config.onInput);
     emit(config.onChange);
-    e.preventDefault();
+    event.preventDefault();
   };
 
   // Text entry clamps without snapping — exact values, unlike the drag/keyboard step grid.
@@ -298,7 +299,8 @@ export function createRangeControl(
     [gripLo, "lo"],
     [gripHi, "hi"],
   ] as const;
-  for (const [g, end] of grips) g?.addEventListener("keydown", (e) => onKey(e, end), { signal });
+  for (const [g, end] of grips)
+    g?.addEventListener("keydown", (event) => onKey(event, end), { signal });
   inputA?.addEventListener("change", onTextA, { signal });
   inputB?.addEventListener("change", onTextB, { signal });
 

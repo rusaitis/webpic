@@ -168,7 +168,7 @@ export function installPerf(options: PerfBridgeOptions): PerfBridge {
   // Apply the current visibility immediately so a toggle landed before this (async-loaded) bridge is
   // honored, then react to changes.
   setActive(perfStore.getState().isPerfHudVisible);
-  const unsubVisible = perfStore.subscribe((s) => s.isPerfHudVisible, setActive);
+  const unsubscribeVisible = perfStore.subscribe((s) => s.isPerfHudVisible, setActive);
 
   return {
     ingestRenderSample(sample) {
@@ -191,7 +191,7 @@ export function installPerf(options: PerfBridgeOptions): PerfBridge {
       rebuildTopology();
     },
     dispose() {
-      unsubVisible();
+      unsubscribeVisible();
       setActive(false); // stop the workers' sampling + the pump if torn down while visible
       disposeHud();
     },

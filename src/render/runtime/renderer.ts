@@ -58,10 +58,10 @@ export async function installRenderer(options: RendererOptions): Promise<Install
     ...(options.device ? { device: options.device } : {}),
   });
   let logical = { width: options.width, height: options.height };
-  let dpr = options.devicePixelRatio ?? 1;
+  let devicePixelRatio = options.devicePixelRatio ?? 1;
   let renderScale = 1; // interaction-time swapchain scale; never applied to the readback target
 
-  renderer.setPixelRatio(dpr); // before setSize: drawing buffer = logical × DPR
+  renderer.setPixelRatio(devicePixelRatio); // before setSize: drawing buffer = logical × DPR
   renderer.setSize(logical.width, logical.height, false); // no style: OffscreenCanvas has none
   // No scene carries a background; the renderer owns the one clear color so layers
   // composite over a single background and the boot/parity frame is unchanged.
@@ -77,23 +77,23 @@ export async function installRenderer(options: RendererOptions): Promise<Install
   let buffer = drawingBuffer();
 
   // RGBA8 UnsignedByte render targets = 4 B/texel; track them in the VRAM ledger (perf HUD).
-  const trackRt = (key: string, target: RenderTarget): void =>
+  const trackRenderTarget = (key: string, target: RenderTarget): void =>
     trackAlloc(key, target.width * target.height * 4);
 
   const applyBufferSize = (): void => {
-    renderer.setPixelRatio(dpr * renderScale);
+    renderer.setPixelRatio(devicePixelRatio * renderScale);
     renderer.setSize(logical.width, logical.height, false);
     buffer = drawingBuffer();
     compositeTarget?.setSize(buffer.width, buffer.height);
-    if (compositeTarget !== undefined) trackRt("rt:composite", compositeTarget);
+    if (compositeTarget !== undefined) trackRenderTarget("rt:composite", compositeTarget);
   };
 
   // The readback target is pinned to the FULL logical × DPR size (never × renderScale), so the
   // deterministic readback/parity paths are structurally unaffected by interaction-time scaling.
   // Matches three's setSize rounding so readback and swapchain agree at scale 1.
   const fullSize = (): { width: number; height: number } => ({
-    width: Math.floor(logical.width * dpr),
-    height: Math.floor(logical.height * dpr),
+    width: Math.floor(logical.width * devicePixelRatio),
+    height: Math.floor(logical.height * devicePixelRatio),
   });
 
   // Readback target: an UnsignedByte RGBA texture both paths read identically,
@@ -105,7 +105,7 @@ export async function installRenderer(options: RendererOptions): Promise<Install
     format: RGBAFormat,
     type: UnsignedByteType,
   });
-  trackRt("rt:read", readTarget);
+  trackRenderTarget("rt:read", readTarget);
 
   // Lazily built only when a ≥2-layer swapchain composite first occurs (single-layer is the common
   // case and uses the direct path). compositeTarget accumulates the layers; the quad presents it.
@@ -121,7 +121,7 @@ export async function installRenderer(options: RendererOptions): Promise<Install
         format: RGBAFormat,
         type: UnsignedByteType,
       });
-      trackRt("rt:composite", compositeTarget);
+      trackRenderTarget("rt:composite", compositeTarget);
       // Prime the fresh RenderTarget before the present material samples it: WebGPU/Metal validates
       // the binding at shader-compile and an unwritten target reads back as the magenta sentinel.
       renderer.setRenderTarget(compositeTarget);
@@ -224,12 +224,12 @@ export async function installRenderer(options: RendererOptions): Promise<Install
     readbackSize() {
       return { width: readTarget.width, height: readTarget.height };
     },
-    setSize(width, height, devicePixelRatio) {
+    setSize(width, height, nextDevicePixelRatio) {
       logical = { width, height };
-      if (devicePixelRatio !== undefined) dpr = devicePixelRatio;
+      if (nextDevicePixelRatio !== undefined) devicePixelRatio = nextDevicePixelRatio;
       applyBufferSize();
       readTarget.setSize(fullSize().width, fullSize().height);
-      trackRt("rt:read", readTarget);
+      trackRenderTarget("rt:read", readTarget);
     },
     setRenderScale(scale) {
       if (scale === renderScale) return;

@@ -185,51 +185,60 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   const white = new Color(0xffffff);
 
   // Core sphere — the parent the ring + handles ride, scaled by the zoom factor.
-  const coreGeom = new SphereGeometry(MARKER_SPHERE_RADIUS, 16, 16);
-  const coreMat = new MeshBasicMaterial({ color: coreBaseColor.clone(), transparent: true });
-  const core = new Mesh(coreGeom, coreMat);
+  const coreGeometry = new SphereGeometry(MARKER_SPHERE_RADIUS, 16, 16);
+  const coreMaterial = new MeshBasicMaterial({ color: coreBaseColor.clone(), transparent: true });
+  const core = new Mesh(coreGeometry, coreMaterial);
   core.visible = false;
   scene.add(core);
 
   // Two-tone outline ring (billboard).
-  const ringTex = paintRingTexture();
-  if (ringTex !== null) textures.push(ringTex);
-  const ringMat = spriteMaterial(ringTex, 1);
-  const ring = new Sprite(ringMat);
+  const ringTexture = paintRingTexture();
+  if (ringTexture !== null) textures.push(ringTexture);
+  const ringMaterial = spriteMaterial(ringTexture, 1);
+  const ring = new Sprite(ringMaterial);
   ring.scale.set(RING_BASE, RING_BASE, 1);
   ring.renderOrder = HANDLE_RENDER_ORDER;
   core.add(ring);
 
   // ↕ (z) handle: stem + knob.
-  const vStemGeom = new BufferGeometry();
-  vStemGeom.setAttribute("position", new Float32BufferAttribute([0, 0, 0, 0, 0, HANDLE_OFFSET], 3));
-  const vStemMat = lineMaterial(white.clone(), HANDLE_IDLE_OPACITY);
-  const vStem = new Line(vStemGeom, vStemMat);
+  const verticalStemGeometry = new BufferGeometry();
+  verticalStemGeometry.setAttribute(
+    "position",
+    new Float32BufferAttribute([0, 0, 0, 0, 0, HANDLE_OFFSET], 3),
+  );
+  const verticalStemMaterial = lineMaterial(white.clone(), HANDLE_IDLE_OPACITY);
+  const vStem = new Line(verticalStemGeometry, verticalStemMaterial);
   vStem.frustumCulled = false;
   vStem.renderOrder = HANDLE_RENDER_ORDER;
   core.add(vStem);
-  const vKnobTex = paintKnobTexture(true);
-  if (vKnobTex !== null) textures.push(vKnobTex);
-  const vKnobMat = spriteMaterial(vKnobTex, HANDLE_IDLE_OPACITY);
-  const vKnob = new Sprite(vKnobMat);
+  const verticalKnobTexture = paintKnobTexture(true);
+  if (verticalKnobTexture !== null) textures.push(verticalKnobTexture);
+  const verticalKnobMaterial = spriteMaterial(verticalKnobTexture, HANDLE_IDLE_OPACITY);
+  const vKnob = new Sprite(verticalKnobMaterial);
   vKnob.scale.set(KNOB_BASE, KNOB_BASE, 1);
   vKnob.position.set(0, 0, HANDLE_OFFSET);
   vKnob.renderOrder = HANDLE_RENDER_ORDER;
   core.add(vKnob);
 
   // ↔ (x|y) handle: stem + knob, reoriented per pose; starts along +x, hidden.
-  const hStemGeom = new BufferGeometry();
-  hStemGeom.setAttribute("position", new Float32BufferAttribute([0, 0, 0, HANDLE_OFFSET, 0, 0], 3));
-  const hStemMat = lineMaterial(white.clone(), HORIZONTAL_HANDLE_IDLE_OPACITY);
-  const hStem = new Line(hStemGeom, hStemMat);
+  const horizontalStemGeometry = new BufferGeometry();
+  horizontalStemGeometry.setAttribute(
+    "position",
+    new Float32BufferAttribute([0, 0, 0, HANDLE_OFFSET, 0, 0], 3),
+  );
+  const horizontalStemMaterial = lineMaterial(white.clone(), HORIZONTAL_HANDLE_IDLE_OPACITY);
+  const hStem = new Line(horizontalStemGeometry, horizontalStemMaterial);
   hStem.frustumCulled = false;
   hStem.renderOrder = HANDLE_RENDER_ORDER;
   hStem.visible = false;
   core.add(hStem);
-  const hKnobTex = paintKnobTexture(false);
-  if (hKnobTex !== null) textures.push(hKnobTex);
-  const hKnobMat = spriteMaterial(hKnobTex, HORIZONTAL_HANDLE_IDLE_OPACITY);
-  const hKnob = new Sprite(hKnobMat);
+  const horizontalKnobTexture = paintKnobTexture(false);
+  if (horizontalKnobTexture !== null) textures.push(horizontalKnobTexture);
+  const horizontalKnobMaterial = spriteMaterial(
+    horizontalKnobTexture,
+    HORIZONTAL_HANDLE_IDLE_OPACITY,
+  );
+  const hKnob = new Sprite(horizontalKnobMaterial);
   hKnob.scale.set(KNOB_BASE, KNOB_BASE, 1);
   hKnob.position.set(HANDLE_OFFSET, 0, 0);
   hKnob.renderOrder = HANDLE_RENDER_ORDER;
@@ -241,16 +250,16 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   guides.visible = false;
   const guideColor = rgbColor(config.guideColor);
   const guideOpacity = config.guideColor[3];
-  const dropGeom = new BufferGeometry();
-  dropGeom.setAttribute("position", new Float32BufferAttribute(new Float32Array(6), 3));
-  const dropMat = lineMaterial(guideColor.clone(), guideOpacity);
-  const dropLine = new Line(dropGeom, dropMat);
+  const dropGeometry = new BufferGeometry();
+  dropGeometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(6), 3));
+  const dropMaterial = lineMaterial(guideColor.clone(), guideOpacity);
+  const dropLine = new Line(dropGeometry, dropMaterial);
   dropLine.frustumCulled = false;
   guides.add(dropLine);
-  const crossGeom = new BufferGeometry();
-  crossGeom.setAttribute("position", new Float32BufferAttribute(new Float32Array(12), 3));
-  const crossMat = lineMaterial(guideColor.clone(), guideOpacity);
-  const cross = new LineSegments(crossGeom, crossMat);
+  const crossGeometry = new BufferGeometry();
+  crossGeometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(12), 3));
+  const crossMaterial = lineMaterial(guideColor.clone(), guideOpacity);
+  const cross = new LineSegments(crossGeometry, crossMaterial);
   cross.frustumCulled = false;
   guides.add(cross);
   scene.add(guides);
@@ -285,11 +294,11 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   const updateGuides = (): void => {
     if (point === null) return;
     const [px, py, pz] = point;
-    const drop = dropGeom.getAttribute("position");
+    const drop = dropGeometry.getAttribute("position");
     drop.setXYZ(0, px, py, pz);
     drop.setXYZ(1, px, py, guidePlaneZ);
     drop.needsUpdate = true;
-    const arms = crossGeom.getAttribute("position");
+    const arms = crossGeometry.getAttribute("position");
     arms.setXYZ(0, px - GUIDE_HALF, py, guidePlaneZ);
     arms.setXYZ(1, px + GUIDE_HALF, py, guidePlaneZ);
     arms.setXYZ(2, px, py - GUIDE_HALF, guidePlaneZ);
@@ -341,7 +350,7 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
       const axis = horizontalDragAllowed(pose) ? null : horizontalDragAxis(pose);
       eased.setTarget("horizontalGate", axis !== null ? 1 : 0);
       if (axis !== null && axis !== hAxis) {
-        const pos = hStemGeom.getAttribute("position");
+        const pos = horizontalStemGeometry.getAttribute("position");
         if (axis === "x") {
           pos.setXYZ(1, HANDLE_OFFSET, 0, 0);
           hKnob.position.set(HANDLE_OFFSET, 0, 0);
@@ -362,43 +371,43 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
       const ringScale = RING_BASE * (1 + HOVER_SCALE * hover + PULSE_SCALE * expand);
       ring.scale.set(ringScale, ringScale, 1);
       const brighten = Math.min(1, HOVER_BRIGHTEN * hover + 0.5 * PULSE_SCALE * expand);
-      coreMat.color.copy(coreBaseColor).lerp(white, brighten);
+      coreMaterial.color.copy(coreBaseColor).lerp(white, brighten);
 
       applyHandle({
         lit: Math.max(eased.get("verticalKnobHover"), eased.get("verticalKnobActive")),
         gate: eased.get("verticalGate"),
         idleOpacity: HANDLE_IDLE_OPACITY,
         knob: vKnob,
-        knobMaterial: vKnobMat,
+        knobMaterial: verticalKnobMaterial,
         stem: vStem,
-        stemMaterial: vStemMat,
+        stemMaterial: verticalStemMaterial,
       });
       applyHandle({
         lit: Math.max(eased.get("horizontalHover"), eased.get("horizontalActive")),
         gate: eased.get("horizontalGate"),
         idleOpacity: HORIZONTAL_HANDLE_IDLE_OPACITY,
         knob: hKnob,
-        knobMaterial: hKnobMat,
+        knobMaterial: horizontalKnobMaterial,
         stem: hStem,
-        stemMaterial: hStemMat,
+        stemMaterial: horizontalStemMaterial,
       });
 
       return isMoving;
     },
     dispose() {
-      coreGeom.dispose();
-      coreMat.dispose();
-      ringMat.dispose();
-      vStemGeom.dispose();
-      vStemMat.dispose();
-      vKnobMat.dispose();
-      hStemGeom.dispose();
-      hStemMat.dispose();
-      hKnobMat.dispose();
-      dropGeom.dispose();
-      dropMat.dispose();
-      crossGeom.dispose();
-      crossMat.dispose();
+      coreGeometry.dispose();
+      coreMaterial.dispose();
+      ringMaterial.dispose();
+      verticalStemGeometry.dispose();
+      verticalStemMaterial.dispose();
+      verticalKnobMaterial.dispose();
+      horizontalStemGeometry.dispose();
+      horizontalStemMaterial.dispose();
+      horizontalKnobMaterial.dispose();
+      dropGeometry.dispose();
+      dropMaterial.dispose();
+      crossGeometry.dispose();
+      crossMaterial.dispose();
       for (const tex of textures) tex.dispose();
     },
   };

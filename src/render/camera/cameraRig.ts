@@ -23,14 +23,14 @@ export interface CameraRig {
 }
 
 export function createCameraRig(aspect: number): CameraRig {
-  const perspCamera = createPerspectiveCamera(aspect);
+  const perspectiveCamera = createPerspectiveCamera(aspect);
   const orthoVolumeCamera = createVolumeOrthographicCamera(aspect);
   const orthoCamera = createOrthographicCamera();
   return {
-    volumeCamera: (isOrthographic) => (isOrthographic ? orthoVolumeCamera : perspCamera),
+    volumeCamera: (isOrthographic) => (isOrthographic ? orthoVolumeCamera : perspectiveCamera),
     orthoCamera,
     apply(pose, aspect) {
-      applyPose(perspCamera, pose, aspect);
+      applyPose(perspectiveCamera, pose, aspect);
       applyPoseOrtho(orthoVolumeCamera, pose, aspect);
     },
   };

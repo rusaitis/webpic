@@ -1,4 +1,5 @@
 import type { FieldDataset } from "@containers/field_dataset.ts";
+import { vec3 } from "@schema/math.ts";
 import { describe, expect, it } from "vitest";
 import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
 import { TOL } from "../../tests/tolerances.ts";
@@ -217,7 +218,7 @@ describe("traceFieldLinesAdaptive — multi-seed", () => {
 describe("makeFieldLine invariants", () => {
   const base = {
     fieldName: "B",
-    seedPoint: [0, 0, 0] as Vec3,
+    seedPoint: vec3(0, 0, 0),
     normalization: uniform.normalization,
     direction: "forward" as const,
     reason: "max_steps" as const,

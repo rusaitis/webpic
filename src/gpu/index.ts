@@ -8,4 +8,4 @@ export {
   onDeviceLost,
   onDeviceRestored,
 } from "./device.ts";
-export { resetLedger, snapshot as vramSnapshot, type VramSnapshot } from "./vramLedger.ts";
+export { resetLedger, type VramSnapshot, vramSnapshot } from "./vramLedger.ts";

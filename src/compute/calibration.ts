@@ -203,7 +203,7 @@ export interface InstallCalibrationOptions {
   readonly probes?: readonly BenchKernel[];
   readonly signal?: AbortSignal;
   /** Default true: return immediately with heuristics; bench refines in the background. */
-  readonly runInBackground?: boolean;
+  readonly shouldRunInBackground?: boolean;
   // Bench tuning forwarded to runMicrobench (defaults there).
   readonly sizes?: readonly number[];
   readonly reps?: number;
@@ -257,7 +257,7 @@ export async function installCalibration(
 ): Promise<InstalledCalibration> {
   const { cache, adapter } = options;
   const probes = options.probes ?? DEFAULT_BENCH_PROBES;
-  const runInBackground = options.runInBackground ?? true;
+  const shouldRunInBackground = options.shouldRunInBackground ?? true;
   const reportError =
     options.onError ??
     ((error: unknown) => logWarn("calibration", "background bench failed", error));
@@ -297,7 +297,7 @@ export async function installCalibration(
         return current;
       },
     );
-    if (!runInBackground) await ready;
+    if (!shouldRunInBackground) await ready;
   }
 
   return {
