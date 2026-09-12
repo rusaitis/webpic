@@ -8,6 +8,7 @@ import {
 } from "@store";
 import { shallow } from "zustand/vanilla/shallow";
 import { createBottomBand } from "../bottomBand.ts";
+import { installChromeVisibility } from "../chromeVisibility.ts";
 import { isInteractiveTarget, makeEl, makeIconButton } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { installDragSnap, readEdge } from "../floating/dragSnap.ts";
@@ -251,19 +252,12 @@ export function installColorbar(
     band.collapse(!isCollapsed()); // manual: the user owns collapse from here
   });
 
-  const applyVisible = (visible: boolean): void => {
-    container.hidden = !visible;
-    if (!visible) settings.close();
-    band.setVisible(visible);
-  };
-
   repaint();
   // Initial bottom-right dock in center-anchor form (the bottom edge is center-anchored on x via CSS
   // translateX(-50%)): place the strip's center so its right edge sits INITIAL_GAP from the viewport.
   const initialWidth = container.getBoundingClientRect().width;
   container.style.left = `${Math.round(doc.documentElement.clientWidth - INITIAL_GAP_PX - initialWidth / 2)}px`;
   container.style.right = "auto";
-  applyVisible(uiStore.getState().isUiVisible);
 
   // Two subscriptions drive the stack: the visible-binding set (layer add/remove/visibility/order +
   // edits to any shown binding; fresh array per state → shallow-compared) and the active binding
@@ -276,7 +270,11 @@ export function installColorbar(
   const subscriptions = createSubscriptions();
   subscriptions.on(store, selectVisibleBindings, onStoreChange, { equalityFn: shallow });
   subscriptions.on(store, selectActiveBinding, onStoreChange);
-  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+    container.hidden = !isVisible;
+    if (!isVisible) settings.close();
+    band.setVisible(isVisible);
+  });
 
   return () => {
     band.dispose();

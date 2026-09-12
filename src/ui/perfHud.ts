@@ -1,4 +1,5 @@
 import type { PerfSample, PerfStore, PerfWorker, UiStore } from "@store";
+import { installChromeVisibility } from "./chromeVisibility.ts";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import {
@@ -255,13 +256,6 @@ export function installPerfHud(
     }
   };
 
-  const applyVisible = (): void => {
-    const visible = uiStore.getState().isUiVisible && perfStore.getState().isPerfHudVisible;
-    container.hidden = !visible;
-    if (visible && idleTimer === undefined && view !== null) startActive(view);
-    else if (!visible && idleTimer !== undefined) stopActive();
-  };
-
   const applyDetail = (open: boolean): void => {
     detail.hidden = !open;
     caret.textContent = open ? "▾" : "▸";
@@ -273,9 +267,17 @@ export function installPerfHud(
   const shortcuts = createShortcutRegistry(doc);
   shortcuts.register("p", () => perfStore.getState().togglePerfHud(), { modifiers: "shift" });
 
-  applyVisible();
   const subscriptions = createSubscriptions();
-  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  const applyVisible = installChromeVisibility(
+    subscriptions,
+    uiStore,
+    (isVisible) => {
+      container.hidden = !isVisible;
+      if (isVisible && idleTimer === undefined && view !== null) startActive(view);
+      else if (!isVisible && idleTimer !== undefined) stopActive();
+    },
+    () => perfStore.getState().isPerfHudVisible,
+  );
   subscriptions.on(perfStore, (s) => s.isPerfHudVisible, applyVisible);
   subscriptions.on(perfStore, (s) => s.isPerfDetailOpen, applyDetail);
 

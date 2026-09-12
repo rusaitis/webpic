@@ -9,6 +9,7 @@ import {
   type TraceNotice,
   type UiStore,
 } from "@store";
+import { installChromeVisibility } from "./chromeVisibility.ts";
 import { installColormapControls } from "./colorbar/colormapControls.ts";
 import { makeEl, makeIconButton } from "./controls/dom.ts";
 import {
@@ -323,22 +324,23 @@ export function installLayerSettings(
     }
   };
 
-  const applyVisible = (): void => {
-    const ui = uiStore.getState();
-    if (ui.isUiVisible && ui.isLayerSettingsOpen) win.show();
-    else win.hide();
-  };
-
   rebuild();
-  applyVisible();
 
   const subscriptions = createSubscriptions();
+  const applyVisible = installChromeVisibility(
+    subscriptions,
+    uiStore,
+    (isVisible) => {
+      if (isVisible) win.show();
+      else win.hide();
+    },
+    () => uiStore.getState().isLayerSettingsOpen,
+  );
   subscriptions.on(store, (s) => s.selectedLayerId, rebuild);
   subscriptions.on(store, (s) => s.availableFields, rebuild); // new dataset → new field options
   subscriptions.on(store, (s) => s.layers, sync);
   subscriptions.on(store, (s) => s.seedPlacementLayerId, syncPlacement);
   subscriptions.on(store, (s) => s.traceNotices, sync); // the seed note reports what the last retrace did
-  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
   subscriptions.on(uiStore, (s) => s.isLayerSettingsOpen, applyVisible);
 
   return () => {

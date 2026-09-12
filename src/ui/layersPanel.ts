@@ -1,4 +1,5 @@
 import { LAYER_KINDS, type Layer, type SimulationStore, type UiStore } from "@store";
+import { installChromeVisibility } from "./chromeVisibility.ts";
 import { makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import { ICON_CARET, ICON_CARET_UP, ICON_CLOSE } from "./icons.ts";
@@ -138,15 +139,6 @@ export function installLayersPanel(
     root.style.left = `${Math.round(left)}px`;
   };
 
-  const applyVisible = (): void => {
-    const visible = uiStore.getState().isUiVisible && uiStore.getState().isLayersPanelOpen;
-    root.hidden = !visible;
-    if (visible) {
-      render();
-      position();
-    }
-  };
-
   closeBtn.addEventListener("click", () => uiStore.getState().setLayersPanelVisible(false), {
     signal,
   });
@@ -161,9 +153,19 @@ export function installLayersPanel(
     { signal },
   );
 
-  applyVisible();
-
   const subscriptions = createSubscriptions();
+  const applyVisible = installChromeVisibility(
+    subscriptions,
+    uiStore,
+    (isVisible) => {
+      root.hidden = !isVisible;
+      if (isVisible) {
+        render();
+        position();
+      }
+    },
+    () => uiStore.getState().isLayersPanelOpen,
+  );
   subscriptions.on(
     store,
     (s) => s.layers,
@@ -173,7 +175,6 @@ export function installLayersPanel(
   );
   subscriptions.on(store, (s) => s.selectedLayerId, applySelection);
   subscriptions.on(uiStore, (s) => s.isLayersPanelOpen, applyVisible);
-  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
 
   return () => {
     abortController.abort();

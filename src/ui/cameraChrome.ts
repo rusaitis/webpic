@@ -5,6 +5,7 @@ import {
   type SimulationStore,
   type UiStore,
 } from "@store";
+import { installChromeVisibility } from "./chromeVisibility.ts";
 import { makeEl } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import { createSubscriptions } from "./subscriptions.ts";
@@ -142,11 +143,10 @@ export function installCameraChrome(
   const subscriptions = createSubscriptions();
   subscriptions.on(store, (s) => s.cameraPose, render, { shouldFireNow: true });
 
-  const applyVisible = (visible: boolean): void => {
-    container.hidden = !visible;
-    if (visible) render(store.getState().cameraPose); // catch up — the pose moved while hidden
-  };
-  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible, { shouldFireNow: true });
+  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+    container.hidden = !isVisible;
+    if (isVisible) render(store.getState().cameraPose); // catch up — the pose moved while hidden
+  });
 
   // The gnomon is independently toggleable (the bottom rail's "Gnomon" control) so it can be hidden
   // once the in-scene 3D axes suffice. Effective visibility = that preference AND not responsively

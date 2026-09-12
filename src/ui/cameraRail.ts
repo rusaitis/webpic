@@ -1,4 +1,5 @@
 import type { CameraProjection, SimulationStore, UiStore } from "@store";
+import { installChromeVisibility } from "./chromeVisibility.ts";
 import { installOutsideClickDismiss, makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import {
@@ -182,19 +183,11 @@ export function installCameraRail(
       updateViewRow();
     }
   };
-  const applyVisible = (visible: boolean): void => {
-    container.hidden = !visible;
-    if (visible) applyCoordsLabel();
-    // Don't leave the card floating over a hidden UI; F re-reveals the rail, not the card.
-    else uiStore.getState().setCoordsInfoVisible(false);
-  };
-
   applyGnomon(store.getState().overlay.showGnomon);
   applyFly(store.getState().isFlyMode);
   applyProjection(store.getState().projection);
   applyCoordsLabel();
   applyInfoVisible(uiStore.getState().isCoordsInfoVisible);
-  applyVisible(uiStore.getState().isUiVisible);
 
   // Bare `C` toggles (Cmd+C stays copy — the registry's guard); Escape closes; an outside
   // pointer-down dismisses (shared installOutsideClickDismiss, like the side-rail flyout).
@@ -244,7 +237,12 @@ export function installCameraRail(
     },
   );
   subscriptions.on(store, (s) => s.cameraPose, updateViewIfOpen);
-  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+    container.hidden = !isVisible;
+    if (isVisible) applyCoordsLabel();
+    // Don't leave the card floating over a hidden UI; F re-reveals the rail, not the card.
+    else uiStore.getState().setCoordsInfoVisible(false);
+  });
   subscriptions.on(uiStore, (s) => s.isCoordsInfoVisible, applyInfoVisible);
 
   return () => {

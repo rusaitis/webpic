@@ -1,6 +1,7 @@
 import { DATASET_CATALOG } from "@schema/datasets.ts";
 import type { FieldName } from "@schema/types.ts";
 import type { CameraProjection, SimulationStore, UiStore } from "@store";
+import { installChromeVisibility } from "./chromeVisibility.ts";
 import { makeEl } from "./controls/dom.ts";
 import { createPopover, type Disposer, type RangeValue } from "./controls/index.ts";
 import { createRangeControl } from "./controls/rangeControl.ts";
@@ -277,18 +278,7 @@ export function installTopBar(
     signal: abortController.signal,
   });
 
-  const applyVisible = (visible: boolean): void => {
-    container.hidden = !visible;
-    if (!visible) {
-      datasetPopover.close();
-      fieldPopover.close();
-      timeReveal.setExpanded(false); // don't restore a pinned reveal when the bar is shown again
-      actionsReveal.setExpanded(false);
-    }
-  };
-
   rebuildRange();
-  applyVisible(uiStore.getState().isUiVisible);
 
   const subscriptions = createSubscriptions();
   subscriptions.on(
@@ -316,7 +306,15 @@ export function installTopBar(
   );
   subscriptions.on(store, (s) => s.availableSteps, rebuildRange);
   subscriptions.on(store, (s) => s.currentStep, syncCursor);
-  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+    container.hidden = !isVisible;
+    if (!isVisible) {
+      datasetPopover.close();
+      fieldPopover.close();
+      timeReveal.setExpanded(false); // don't restore a pinned reveal when the bar is shown again
+      actionsReveal.setExpanded(false);
+    }
+  });
 
   return () => {
     subscriptions.dispose();

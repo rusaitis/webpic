@@ -1,4 +1,5 @@
 import { LAYER_KIND_ORDER, LAYER_KINDS, type SimulationStore, type UiStore } from "@store";
+import { installChromeVisibility } from "./chromeVisibility.ts";
 import { installOutsideClickDismiss, makeEl, makeIconButton } from "./controls/dom.ts";
 import type { Disposer } from "./controls/index.ts";
 import { ICON_CLOSE } from "./icons.ts";
@@ -217,20 +218,11 @@ export function installSideRail(
     themeBtn.disabled = name === null;
     themeBtn.title = name === null ? "Theme" : `Theme: ${name} — click to cycle`;
   };
-  const applyVisible = (visible: boolean): void => {
-    container.hidden = !visible;
-    if (!visible) {
-      setOpen(false); // don't strand the flyout / menus over hidden UI; F re-reveals the rail
-      for (const menu of menus) menu.close();
-    }
-  };
-
   setOpen(false);
   applyProbe(store.getState().overlay.showPicker);
   applyLayersPressed(uiStore.getState().isLayersPanelOpen);
   applyDevPressed(uiStore.getState().panels.dev ?? false);
   applyThemeName(uiStore.getState().themeName);
-  applyVisible(uiStore.getState().isUiVisible);
 
   const subscriptions = createSubscriptions();
   subscriptions.on(store, (s) => s.overlay.showPicker, applyProbe);
@@ -244,7 +236,13 @@ export function installSideRail(
   subscriptions.on(uiStore, (s) => s.isLayersPanelOpen, applyLayersPressed);
   subscriptions.on(uiStore, (s) => s.panels.dev ?? false, applyDevPressed);
   subscriptions.on(uiStore, (s) => s.themeName, applyThemeName);
-  subscriptions.on(uiStore, (s) => s.isUiVisible, applyVisible);
+  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+    container.hidden = !isVisible;
+    if (!isVisible) {
+      setOpen(false); // don't strand the flyout / menus over hidden UI; F re-reveals the rail
+      for (const menu of menus) menu.close();
+    }
+  });
 
   return () => {
     abortController.abort();
