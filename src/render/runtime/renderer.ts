@@ -32,17 +32,17 @@ export interface CompositeItem {
 export interface InstalledRenderer {
   readonly renderer: WebGPURenderer;
   readPixels(scene: Object3D, camera: Camera): Promise<Uint8Array>;
-  /** Composite the visible layers (draw order + per-layer material opacity) onto the swapchain. */
+  // Composite the visible layers (draw order + per-layer material opacity) onto the swapchain.
   renderComposite(items: readonly CompositeItem[]): void;
-  /** Pre-create every pipeline `renderComposite(items)` would need, off the render path. */
+  // Pre-create every pipeline `renderComposite(items)` would need, off the render path.
   compileComposite(items: readonly CompositeItem[]): Promise<void>;
-  /** Deterministic readback of the composited layers — the testable compositing primitive. */
+  // Deterministic readback of the composited layers — the testable compositing primitive.
   readCompositePixels(items: readonly CompositeItem[]): Promise<Uint8Array>;
-  /** The readback target's physical size (logical × DPR) — the dimensions readCompositePixels fills. */
+  // The readback target's physical size (logical × DPR) — the dimensions readCompositePixels fills.
   readbackSize(): { width: number; height: number };
-  /** Resize the swapchain + readback/composite targets to a new logical size and DPR. */
+  // Resize the swapchain + readback/composite targets to a new logical size and DPR.
   setSize(width: number, height: number, devicePixelRatio?: number): void;
-  /** Scale the swapchain drawing buffer (interaction-time quality). Readback stays full-res. */
+  // Scale the swapchain drawing buffer (interaction-time quality). Readback stays full-res.
   setRenderScale(scale: number): void;
   dispose(): void;
 }
@@ -63,7 +63,7 @@ export async function installRenderer(options: RendererOptions): Promise<Install
 
   renderer.setPixelRatio(dpr); // before setSize: drawing buffer = logical × DPR
   renderer.setSize(logical.width, logical.height, false); // no style: OffscreenCanvas has none
-  // The scenes no longer carry a background; the renderer owns the one clear color so layers
+  // No scene carries a background; the renderer owns the one clear color so layers
   // composite over a single background and the boot/parity frame is unchanged.
   renderer.setClearColor(new Color(BACKGROUND_COLOR), 1);
   await renderer.init();

@@ -4,8 +4,7 @@ export type Vec3 = readonly [number, number, number];
 // compute reference. The one canonical alias for the typed-array pair.
 export type FloatArray = Float32Array | Float64Array;
 
-// Canonical field name (e.g. "B_1", "|B|", "beta"). String for now; a branded
-// type can tighten this once the registry is the enforced source of truth.
+// Canonical field name (e.g. "B_1", "|B|", "beta").
 export type FieldName = string;
 
 export type SpeciesIdx = number;

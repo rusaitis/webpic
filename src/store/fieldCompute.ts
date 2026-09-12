@@ -30,8 +30,8 @@ export type Recompute = (rebind?: Rebind, signal?: AbortSignal) => Promise<void>
 
 export interface RecomputeHost extends SliceContext {
   readonly ids: SceneIds;
-  /** Fired after a commit when field-line layers exist — they follow the vector family behind the
-   *  displayed scalar, and a dataset switch lands here too. Total: never rejects. */
+  // Fired after a commit when field-line layers exist — they follow the vector family behind the
+  // displayed scalar, and a dataset switch lands here too. Total: never rejects.
   readonly retrace: () => Promise<void>;
 }
 

@@ -40,37 +40,37 @@ import { createVolumeTexture, type ScalarField, type VolumeTexture } from "./vol
 
 export interface RaymarchSceneOptions {
   readonly field: ScalarField;
-  /** Theme colormap name (`theme.colormaps.sequential`); unknown → inferno. */
+  // Theme colormap name (`theme.colormaps.sequential`); unknown → inferno.
   readonly colormap: string;
-  /** Value→color window; absent → the field's full finite range (identity normalization). */
+  // Value→color window; absent → the field's full finite range (identity normalization).
   readonly windowLevel?: WindowLevel;
-  /** Value→color scale within the window; default linear. */
+  // Value→color scale within the window; default linear.
   readonly scale?: ColorScale;
-  /** Samples per ray across the clipped segment. */
+  // Samples per ray across the clipped segment.
   readonly steps?: number;
-  /** Opacity scale for the emission-absorption transfer. */
+  // Opacity scale for the emission-absorption transfer.
   readonly density?: number;
-  /** Opt in to Phong shading (default false). A render-local lighting normal from the field
-   *  gradient — a shape-perception aid, *not* quantitative (the lit surface is a TF-dependent
-   *  opacity isosurface). The 6 gradient taps/step are gated on sample opacity (see the march). */
+  // Opt in to Phong shading (default false). A render-local lighting normal from the field
+  // gradient — a shape-perception aid, *not* quantitative (the lit surface is a TF-dependent
+  // opacity isosurface). The 6 gradient taps/step are gated on sample opacity (see the march).
   readonly shaded?: boolean;
-  /** Per-layer opacity multiplier on the composited alpha (composite fade), [0,1]; default 1. */
+  // Per-layer opacity multiplier on the composited alpha (composite fade), [0,1]; default 1.
   readonly opacity?: number;
-  /** Device supports R32F linear sampling — picks the volume texture format. */
+  // Device supports R32F linear sampling — picks the volume texture format.
   readonly hasFloat32Filterable?: boolean;
-  /** Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (the unit cube). A non-cubic
-   *  grid scales the mesh to this so the volume renders at true physical aspect — object/texture space
-   *  stays canonical [-0.5,0.5]/[0,1], so the raymarch math (ray-box clip, sampling) is unchanged. */
+  // Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (the unit cube). A non-cubic
+  // grid scales the mesh to this so the volume renders at true physical aspect — object/texture space
+  // stays canonical [-0.5,0.5]/[0,1], so the raymarch math (ray-box clip, sampling) is unchanged.
   readonly worldHalfExtent?: Vec3;
-  /** Layer id keying the volume texture into the VRAM ledger (perf HUD); omit to skip tracking. */
+  // Layer id keying the volume texture into the VRAM ledger (perf HUD); omit to skip tracking.
   readonly ledgerKey?: string;
 }
 
 // A raymarched volume is the VolumeLayerScene contract plus the dev shader hot-reload seam.
 export interface RaymarchScene extends VolumeLayerScene {
-  /** Dev-only shader hot-reload: rebuild the TSL/WGSL material from freshly imported builder code,
-   *  swapping it onto the live mesh. Reuses the uploaded volume texture + colormap LUT + live uniforms
-   *  (no 64 MiB re-upload, look/pose preserved). Inert in prod — never called there. */
+  // Dev-only shader hot-reload: rebuild the TSL/WGSL material from freshly imported builder code,
+  // swapping it onto the live mesh. Reuses the uploaded volume texture + colormap LUT + live uniforms
+  // (no 64 MiB re-upload, look/pose preserved). Inert in prod — never called there.
   rebuildShader(build: RaymarchMaterialBuilder): void;
 }
 
@@ -160,15 +160,15 @@ function buildRaymarchGraph(
   };
 }
 
-/** The preserved GPU resources + live uniforms `buildRaymarchMaterial` composes its TSL graph over. */
+// The preserved GPU resources + live uniforms `buildRaymarchMaterial` composes its TSL graph over.
 export type RaymarchGraph = ReturnType<typeof buildRaymarchGraph>;
 
-/** Builds the raymarch `NodeMaterial` (TSL/TSL+WGSL graph) over a preserved `RaymarchGraph`. The dev
- *  shader hot-reload re-imports this fresh and applies it to the live graph (see `rebuildShader`). */
+// Builds the raymarch `NodeMaterial` (TSL/TSL+WGSL graph) over a preserved `RaymarchGraph`. The dev
+// shader hot-reload re-imports this fresh and applies it to the live graph (see `rebuildShader`).
 export type RaymarchMaterialBuilder = (graph: RaymarchGraph) => NodeMaterial;
 
-/** Compose the single-pass raymarch material from a preserved graph (textures + uniforms). Pure in the
- *  graph — no GPU allocation here, so a dev reload rebuilds it without touching the uploaded volume. */
+// Compose the single-pass raymarch material from a preserved graph (textures + uniforms). Pure in the
+// graph — no GPU allocation here, so a dev reload rebuilds it without touching the uploaded volume.
 export const buildRaymarchMaterial: RaymarchMaterialBuilder = (g) => {
   const rgba = Fn(() => {
     // Camera ray in object space; the box is axis-aligned there so the slab test is exact. The box
@@ -306,7 +306,7 @@ export const buildRaymarchMaterial: RaymarchMaterialBuilder = (g) => {
   return material;
 };
 
-/** Build a themed single-pass raymarch scene from a 3D scalar field. */
+// Build a themed single-pass raymarch scene from a 3D scalar field.
 export function createRaymarchScene(options: RaymarchSceneOptions): RaymarchScene {
   const volume = createVolumeTexture(
     options.field,

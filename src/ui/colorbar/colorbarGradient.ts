@@ -16,9 +16,9 @@ import {
 
 const GRADIENT_STEPS = 64; // smooth enough; the canvas scales to the CSS strip size
 
-/** Paint `colormapId` into `canvas` as a linear gradient. Vertical strips put the maximum at the
- *  top (stop = 1−t); horizontal strips put it on the right (stop = t). No-op without a 2D context
- *  (e.g. happy-dom) so callers stay crash-free in tests. */
+// Paint `colormapId` into `canvas` as a linear gradient. Vertical strips put the maximum at the
+// top (stop = 1−t); horizontal strips put it on the right (stop = t). No-op without a 2D context
+// (e.g. happy-dom) so callers stay crash-free in tests.
 export function paintGradient(
   canvas: HTMLCanvasElement,
   colormapId: ColormapId,
@@ -42,13 +42,13 @@ export function paintGradient(
 }
 
 export interface ColorbarTick {
-  /** Normalized position along the gradient from the minimum (0) to the maximum (1). */
+  // Normalized position along the gradient from the minimum (0) to the maximum (1).
   readonly t: number;
   readonly label: string;
 }
 
-/** Compact readout: exponential for very small/large magnitudes, ~4 sig figs otherwise. Shared
- *  with the colormap controls so the strip and the slider format identically. */
+// Compact readout: exponential for very small/large magnitudes, ~4 sig figs otherwise. Shared
+// with the colormap controls so the strip and the slider format identically.
 export function formatValue(v: number): string {
   if (!Number.isFinite(v)) return String(v);
   const a = Math.abs(v);
@@ -56,10 +56,10 @@ export function formatValue(v: number): string {
   return Number(v.toPrecision(4)).toString();
 }
 
-/** Format a whole tick set coherently: one decimal count derived from `step`, so {0, 0.2, 0.4} reads
- *  as "0.0 0.2 0.4" — not "0 0.2 0.4000001". Falls back to uniform exponential (matching
- *  {@link formatValue}'s thresholds) when the step or the largest magnitude is extreme; in that
- *  branch zero renders a bare "0" rather than "0.00e+0". `-0` is normalized to `0`. */
+// Format a whole tick set coherently: one decimal count derived from `step`, so {0, 0.2, 0.4} reads
+// as "0.0 0.2 0.4" — not "0 0.2 0.4000001". Falls back to uniform exponential (matching
+// `formatValue`'s thresholds) when the step or the largest magnitude is extreme; in that
+// branch zero renders a bare "0" rather than "0.00e+0". `-0` is normalized to `0`.
 export function formatTicks(values: readonly number[], step: number): string[] {
   if (values.length === 0) return [];
   let maxAbs = 0;
@@ -74,9 +74,9 @@ export function formatTicks(values: readonly number[], step: number): string[] {
   });
 }
 
-/** Thin a decade list toward `maxCount` for the colorbar, keeping every stride-th decade plus the
- *  extremes and zero (symlog's center) for context. Wider than the slider's hard MAX_TICKS cap,
- *  which would otherwise blank a many-decade ruler entirely. Expects ascending input. */
+// Thin a decade list toward `maxCount` for the colorbar, keeping every stride-th decade plus the
+// extremes and zero (symlog's center) for context. Wider than the slider's hard MAX_TICKS cap,
+// which would otherwise blank a many-decade ruler entirely. Expects ascending input.
 function thinDecades(values: readonly number[], maxCount: number): number[] {
   if (values.length <= maxCount) return values.slice();
   const stride = Math.ceil(values.length / maxCount);
@@ -93,12 +93,12 @@ function thinDecades(values: readonly number[], maxCount: number): number[] {
   return [...kept].sort((a, b) => a - b);
 }
 
-/** Nice-number tick set across the window under `scale`, sized to ≈ `targetCount` ticks. Linear →
- *  round {1,2,5}×10ᵏ values (a signed window always gets an exact 0); log/symlog → a decade ruler
- *  (0, ±10ᵏ), thinned when the range spans many decades. Positions come from the slider's own scale
- *  math, so the strip and the window slider agree; symlog uses the renderer's default linthresh
- *  (max|extent|/100), so ticks line up with the painted gradient. log falls back to a linear read
- *  if the window reaches ≤ 0. */
+// Nice-number tick set across the window under `scale`, sized to ≈ `targetCount` ticks. Linear →
+// round {1,2,5}×10ᵏ values (a signed window always gets an exact 0); log/symlog → a decade ruler
+// (0, ±10ᵏ), thinned when the range spans many decades. Positions come from the slider's own scale
+// math, so the strip and the window slider agree; symlog uses the renderer's default linthresh
+// (max|extent|/100), so ticks line up with the painted gradient. log falls back to a linear read
+// if the window reaches ≤ 0.
 export function tickLabels(
   window: WindowLevel,
   scale: ScaleKind,

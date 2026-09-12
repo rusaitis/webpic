@@ -63,7 +63,7 @@ export function unitBoxChordMidpoint(
   return [origin[0] + t * dir[0], origin[1] + t * dir[1], origin[2] + t * dir[2]];
 }
 
-// Focus dolly-in per pick: magviz's CAMERA_FOCUS_POINT glide pulls 30% closer alongside the pivot.
+// Focus dolly-in per pick: the glide pulls 30% closer alongside the pivot.
 const FOCUS_DOLLY = 0.7;
 
 // The goal distance a focus gesture commits to. Computed once at double-click time and carried
@@ -74,7 +74,7 @@ export function focusDistance(distance: number): number {
 
 // Re-pivot the orbit on a picked point: target flies there and the camera dollies in (clamped) —
 // but instead of trucking sideways with the pivot (angles held), the goal angles re-aim the
-// camera from where it stands toward the new pivot (magviz's geometry: it re-places the camera
+// camera from where it stands toward the new pivot (it re-places the camera
 // along the live target→camera ray each frame). An off-axis pick therefore swivels the view
 // toward the point as it approaches; a centered pick reduces to a pure dolly. The existing
 // flyTo tween animates the returned pose, shortest-arc on the swivel.

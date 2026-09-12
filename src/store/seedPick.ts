@@ -5,18 +5,12 @@ import { clamp, UNIT_BOX_HALF_EXTENT } from "@schema/math.ts";
 import { intersectCenteredBox } from "@schema/rayBox.ts";
 import type { Vec3 } from "@schema/types.ts";
 
-// Raycast seed picking for field-line tracing: turn a cursor ray into a seed point in the grid's
-// *physical* (code-unit) coordinates — the space numerics/tracing + the WGSL streamline kernel
-// integrate in. The render box is the unit cube in DATA space (DESIGN §Coordinate systems): per axis,
-// world [-h, h] ↔ texture [0, 1] ↔ physical [origin, origin + dim·dx]. The tracer's interpolator then
-// maps physical→index with its OWN −0.5 cell-centered offset (numerics/interp), so a seed must be
-// PHYSICAL, not index — and must land inside the cell-center domain [origin + 0.5dx, origin +
-// (dim − 0.5)dx] or the trace exits on its first step. That offset is the load-bearing picking ↔ tracing
-// invariant: get it wrong and traces silently diverge from pypic.
-//
-// Pure, store-layer (parallels store/pick + store/marker): Vec3 tuples, no THREE/DOM/GPU, imports only
-// @containers (grid geometry) + @schema (the shared ray↔box slab test). The caller builds the ray with
-// store/pick.cursorRay.
+// Raycast seed picking for field-line tracing: turn a cursor ray into a seed in the grid's *physical*
+// (code-unit) coordinates — the space numerics/tracing and the WGSL kernel integrate in. Per axis,
+// world [-h, h] ↔ texture [0, 1] ↔ physical [origin, origin + dim·dx] (DESIGN §Coordinate systems).
+// The interpolator applies its OWN −0.5 cell-centered offset, so a seed must be PHYSICAL, not index,
+// and must land inside [origin + 0.5dx, origin + (dim − 0.5)dx] or the trace exits on its first step.
+// That offset is the load-bearing picking ↔ tracing invariant: wrong, and traces diverge from pypic.
 
 // A slice's held axis ("x" holds world/field axis 0, …) → its index. SliceAxis is store/layers' (the
 // in-layer single source); the hold mapping matches render/sliceScene.
@@ -29,8 +23,8 @@ export type VolumeDepth = "entry" | "midpoint";
 
 const EPS = 1e-9;
 
-/** World point (unit box) → physical grid coordinate. Pure bijection with `gridToWorld`; does NOT
- *  clamp to the traceable domain (see `clampSeedToDomain`). */
+// World point (unit box) → physical grid coordinate. Pure bijection with `gridToWorld`; does NOT
+// clamp to the traceable domain (see `clampSeedToDomain`).
 export function worldToGrid(
   world: Vec3,
   grid: GridInfo,
@@ -44,8 +38,8 @@ export function worldToGrid(
   return [map(0), map(1), map(2)];
 }
 
-/** Physical grid coordinate → world point (unit box). Inverse of `worldToGrid` — places the picker
- *  marker (the store's pickerPoint is world space) at a grid seed; the round-trip tests pin both. */
+// Physical grid coordinate → world point (unit box). Inverse of `worldToGrid` — places the picker
+// marker (the store's pickerPoint is world space) at a grid seed; the round-trip tests pin both.
 export function gridToWorld(
   physical: Vec3,
   grid: GridInfo,
@@ -60,10 +54,10 @@ export function gridToWorld(
   return [map(0), map(1), map(2)];
 }
 
-/** Pull a physical coordinate into the interpolator's traceable cell-center domain
- *  [origin + 0.5dx, origin + (dim − 0.5)dx] per axis (numerics/interp's in-domain range), so a seed on
- *  a box face / slice edge still traces instead of exiting on step 0. A degenerate axis (dim ≤ 1) pins
- *  to its lone cell center. */
+// Pull a physical coordinate into the interpolator's traceable cell-center domain
+// [origin + 0.5dx, origin + (dim − 0.5)dx] per axis (numerics/interp's in-domain range), so a seed on
+// a box face / slice edge still traces instead of exiting on step 0. A degenerate axis (dim ≤ 1) pins
+// to its lone cell center.
 export function clampSeedToDomain(physical: Vec3, grid: GridInfo): Vec3 {
   const map = (i: 0 | 1 | 2): number => {
     const origin = grid.origin[i] ?? 0;
@@ -77,18 +71,18 @@ export function clampSeedToDomain(physical: Vec3, grid: GridInfo): Vec3 {
   return [map(0), map(1), map(2)];
 }
 
-/** Whether a physical coordinate already lies in the traceable cell-center domain — the predicate
- *  behind `clampSeedToDomain`. Seeds retained across a dataset switch are in the *old* grid's
- *  coordinates, so this is what tells a stale rake from a placed one. */
+// Whether a physical coordinate already lies in the traceable cell-center domain — the predicate
+// behind `clampSeedToDomain`. Seeds retained across a dataset switch are in the *old* grid's
+// coordinates, so this is what tells a stale rake from a placed one.
 export function isSeedInDomain(physical: Vec3, grid: GridInfo): boolean {
   const clamped = clampSeedToDomain(physical, grid);
   return clamped[0] === physical[0] && clamped[1] === physical[1] && clamped[2] === physical[2];
 }
 
-/** A starter line of `count` seeds across the domain center along the grid's longest axis, each pulled
- *  into the traceable cell-center domain (`clampSeedToDomain`). Physical coords — the tracer adds its
- *  own −0.5 offset. The starter rake for layers with no user-placed seeds; a few seeds that reliably
- *  cross the structure of a centered configuration (flux rope / dipole). */
+// A starter line of `count` seeds across the domain center along the grid's longest axis, each pulled
+// into the traceable cell-center domain (`clampSeedToDomain`). Physical coords — the tracer adds its
+// own −0.5 offset. The starter rake for layers with no user-placed seeds; a few seeds that reliably
+// cross the structure of a centered configuration (flux rope / dipole).
 export function defaultSeedRake(grid: GridInfo, count = 8): Vec3[] {
   const n = Math.max(2, count);
   let axis = 0; // the longest physical axis carries the rake; the other two sit at domain center
@@ -110,10 +104,10 @@ export function defaultSeedRake(grid: GridInfo, count = 8): Vec3[] {
   return seeds;
 }
 
-/** Ray ∩ volume box → seed (grid coords, clamped to the traceable domain), or null on a miss. `depth`
- *  picks the box-chord point; "entry" is the predictable default. The pure geometric pick "against the
- *  volume bounds" — opacity-weighted depth (the dominant structure) stays the app's render/pickRay
- *  path, which feeds its world hit back through `worldToGrid` + `clampSeedToDomain`. */
+// Ray ∩ volume box → seed (grid coords, clamped to the traceable domain), or null on a miss. `depth`
+// picks the box-chord point; "entry" is the predictable default. The pure geometric pick "against the
+// volume bounds" — opacity-weighted depth (the dominant structure) stays the app's render/pickRay
+// path, which feeds its world hit back through `worldToGrid` + `clampSeedToDomain`.
 export function seedFromVolume(
   origin: Vec3,
   dir: Vec3,
@@ -130,10 +124,10 @@ export function seedFromVolume(
   return clampSeedToDomain(worldToGrid(world, grid, halfExtent), grid);
 }
 
-/** Ray ∩ the slice's axis-aligned plane (held world axis at `position01` ∈ [0, 1] across the box) →
- *  seed (grid coords, clamped to the traceable domain). null when the ray is parallel to the plane,
- *  the plane sits behind the camera, or the hit falls outside the box face (clicked off the slice
- *  quad). Matches render/sliceScene's axis→world-axis hold + position→texture mapping. */
+// Ray ∩ the slice's axis-aligned plane (held world axis at `position01` ∈ [0, 1] across the box) →
+// seed (grid coords, clamped to the traceable domain). null when the ray is parallel to the plane,
+// the plane sits behind the camera, or the hit falls outside the box face (clicked off the slice
+// quad). Matches render/sliceScene's axis→world-axis hold + position→texture mapping.
 export function seedFromSlice(
   origin: Vec3,
   dir: Vec3,

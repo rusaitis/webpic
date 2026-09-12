@@ -5,44 +5,44 @@
 // cheap. A deterministic readback (renderFrame) borrows the renderer, so beginReadback/endReadback
 // pause the swapchain render across that async gap and re-dirty afterward.
 export interface RenderLoopHost {
-  /** Is the renderer built? (false pre-init / mid-rebuild — the loop idles.) */
+  // Is the renderer built? (false pre-init / mid-rebuild — the loop idles.)
   hasRenderer(): boolean;
-  /** Is the GPU device lost? (the loop pauses between loss and restore.) */
+  // Is the GPU device lost? (the loop pauses between loss and restore.)
   isDeviceLost(): boolean;
-  /** Paint the swapchain (renderComposite of the current paint items). */
+  // Paint the swapchain (renderComposite of the current paint items).
   paint(): void;
-  /** Paint with the per-frame GPU timer bracketed around it (continuous measurement only). */
+  // Paint with the per-frame GPU timer bracketed around it (continuous measurement only).
   paintTimed(): void;
-  /** Paint an on-demand frame with the dev perf HUD's cheap sampling (CPU-encode bracket +
-   *  interval EMA, GPU wall-clock throttled internally). Rides frames already painting — it
-   *  never schedules one — so on-demand cadence is unchanged. */
+  // Paint an on-demand frame with the dev perf HUD's cheap sampling (CPU-encode bracket +
+  // interval EMA, GPU wall-clock throttled internally). Rides frames already painting — it
+  // never schedules one — so on-demand cadence is unchanged.
   paintPerf(): void;
-  /** Advance per-frame animations (marker easing); true while still animating, so keep painting. */
+  // Advance per-frame animations (marker easing); true while still animating, so keep painting.
   tickAnimations(frameTimeMs: number): boolean;
-  /** Advance the quality settle ramp one level — runs once per painted on-demand frame. */
+  // Advance the quality settle ramp one level — runs once per painted on-demand frame.
   advanceQuality(): void;
-  /** Feed the frame-time governor the interval since the last painted frame: back-to-back painted
-   *  frames are real frame times; an idle-gap resume reads large and the governor drops it. */
+  // Feed the frame-time governor the interval since the last painted frame: back-to-back painted
+  // frames are real frame times; an idle-gap resume reads large and the governor drops it.
   sampleFrameInterval(intervalMs: number): void;
   reportFault(error: unknown): void;
-  /** A clean frame re-arms the deduped error reporting. */
+  // A clean frame re-arms the deduped error reporting.
   clearError(): void;
 }
 
 export interface RenderLoop {
-  /** The single repaint entry point handlers call; paints synchronously when no loop is running. */
+  // The single repaint entry point handlers call; paints synchronously when no loop is running.
   requestRender(): void;
   start(): void;
   stop(): void;
-  /** Is the rAF loop live? (drives the quality controller's Node-collapse predicate.) */
+  // Is the rAF loop live? (drives the quality controller's Node-collapse predicate.)
   isRunning(): boolean;
-  /** Pause the loop's paint across a deterministic readback that borrows the renderer. */
+  // Pause the loop's paint across a deterministic readback that borrows the renderer.
   beginReadback(): void;
-  /** Resume and re-dirty — repaint the swapchain the readback borrowed. */
+  // Resume and re-dirty — repaint the swapchain the readback borrowed.
   endReadback(): void;
   setContinuous(continuous: boolean): void;
-  /** Enable/disable dev perf-HUD sampling on painted on-demand frames. Unlike setContinuous it
-   *  does NOT re-dirty — it must never force a repaint, so idle stays idle. */
+  // Enable/disable dev perf-HUD sampling on painted on-demand frames. Unlike setContinuous it
+  // does NOT re-dirty — it must never force a repaint, so idle stays idle.
   setPerfActive(active: boolean): void;
 }
 

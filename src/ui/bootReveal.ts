@@ -2,7 +2,7 @@ import { BOOT_PHASE_KEY, type LoadingPhase, type UiStore } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
-// Cold-start reveal (the magviz `body.app-loading` pattern): the chrome mounts under
+// Cold-start reveal: the chrome mounts under
 // `webpic-booting` — held at opacity 0 / visibility hidden by styles.ts — and fades in
 // when the boot phase ends, so panels never float over the blank pre-first-frame canvas.
 // One-way: later loads (opens, scrubs) never re-hide the UI. The status pill is exempt

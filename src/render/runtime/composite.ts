@@ -16,7 +16,7 @@ interface LayerOverride {
 }
 
 export interface CompositeAssemblerHost {
-  /** The visible layers in draw order paired with their cameras (registry.layerItems). */
+  // The visible layers in draw order paired with their cameras (registry.layerItems).
   layerItems(
     volume: Camera,
     ortho: Camera,
@@ -25,27 +25,27 @@ export interface CompositeAssemblerHost {
   ): CompositeItem[];
   overlay(): SceneOverlay | undefined;
   marker(): MarkerScene | undefined;
-  /** The pose-driven volume camera for the live projection; undefined before init. */
+  // The pose-driven volume camera for the live projection; undefined before init.
   volumeCamera(): PerspectiveCamera | OrthographicCamera | undefined;
-  /** The screen-aligned ortho camera (slices + boot); undefined before init. */
+  // The screen-aligned ortho camera (slices + boot); undefined before init.
   orthoCamera(): OrthographicCamera | undefined;
-  /** The opt-in debug triangle drawn when the composite is empty. */
+  // The opt-in debug triangle drawn when the composite is empty.
   testScene(): TestScene | undefined;
 }
 
 export interface CompositeAssembler {
-  /** The composite a warm compiles: `layerOverride` swaps in (or appends, when the composite doesn't
-   *  list the id yet — the boot upsert precedes setComposite) a not-yet-committed layer scene;
-   *  `overlayOverride` / `markerOverride` a not-yet-committed decoration (null = none). */
+  // The composite a warm compiles: `layerOverride` swaps in (or appends, when the composite doesn't
+  // list the id yet — the boot upsert precedes setComposite) a not-yet-committed layer scene;
+  // `overlayOverride` / `markerOverride` a not-yet-committed decoration (null = none).
   compositeItems(
     layerOverride?: LayerOverride,
     overlayOverride?: SceneOverlay | null,
     markerOverride?: MarkerScene | null,
   ): CompositeItem[];
-  /** What the next paint draws, freshly allocated — for the async warms and readbacks. */
+  // What the next paint draws, freshly allocated — for the async warms and readbacks.
   paintItems(): CompositeItem[];
-  /** The same list refilled in place, for the synchronous paint path only: warms and readbacks are
-   *  async and would see it mutate under them, so they take the allocating paintItems(). */
+  // The same list refilled in place, for the synchronous paint path only: warms and readbacks are
+  // async and would see it mutate under them, so they take the allocating paintItems().
   scratchPaintItems(): readonly CompositeItem[];
 }
 

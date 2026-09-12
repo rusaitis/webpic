@@ -16,12 +16,12 @@ export interface OverlayState {
   readonly planes: Readonly<Record<GridPlane, boolean>>;
   readonly showAxes: boolean;
   readonly showLabels: boolean;
-  /** The corner CSS gnomon — UI-only (consumed by cameraChrome, not forwarded to render). */
+  // The corner CSS gnomon — UI-only (consumed by cameraChrome, not forwarded to render).
   readonly showGnomon: boolean;
-  /** The draggable point-picker marker (sphere + handles + guides). On by default; the app forwards
-   *  it to render via pickerSync when a volume layer is present. */
+  // The draggable point-picker marker (sphere + handles + guides). On by default; the app forwards
+  // it to render via pickerSync when a volume layer is present.
   readonly showPicker: boolean;
-  /** Target major-tick divisions per axis; the render worker snaps to a 1/2/5 lattice. */
+  // Target major-tick divisions per axis; the render worker snaps to a 1/2/5 lattice.
   readonly gridDivisions: number;
 }
 

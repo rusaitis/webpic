@@ -14,8 +14,8 @@ import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 // in vite.config.ts's shaderHmr plugin — a stable protocol string, not imported across the config seam).
 export const SHADER_HMR_EVENT = "webpic:shader-hmr";
 
-/** Payload of {@link SHADER_HMR_EVENT}: Vite's update timestamp, used to cache-bust the worker's
- *  re-import so it pulls the freshly transformed module. */
+// Payload of `SHADER_HMR_EVENT`: Vite's update timestamp, used to cache-bust the worker's
+// re-import so it pulls the freshly transformed module.
 export interface ShaderHmrEvent {
   readonly timestamp: number;
 }
@@ -24,8 +24,8 @@ export interface ShaderHmrEvent {
 // the real `import.meta.hot` is undefined). Defaults to `import.meta.hot` at the call site.
 type HotLike = Pick<NonNullable<ImportMeta["hot"]>, "on" | "off">;
 
-/** Wire the Vite HMR client's shader-edit event to the worker's `rebuildShader` request. Returns a
- *  disposer; a no-op (and no listener) when there's no HMR client (production / non-dev). */
+// Wire the Vite HMR client's shader-edit event to the worker's `rebuildShader` request. Returns a
+// disposer; a no-op (and no listener) when there's no HMR client (production / non-dev).
 export function installShaderHmr(
   worker: Pick<Worker, "postMessage">,
   hot: HotLike | undefined = import.meta.hot,

@@ -32,16 +32,16 @@ export interface FloatingWindowOptions {
   readonly height?: number;
   readonly minWidth?: number;
   readonly minHeight?: number;
-  /** First-paint inset; defaults to top-right (top 64, right 16). Reflow then anchors top-left. */
+  // First-paint inset; defaults to top-right (top 64, right 16). Reflow then anchors top-left.
   readonly initial?: FloatingWindowInitial;
-  /** When set, a close (×) button is rendered in the header and calls this on click. The consumer
-   *  owns the effect — hide (`handle.hide()`), dispose, or a store intent. */
+  // When set, a close (×) button is rendered in the header and calls this on click. The consumer
+  // owns the effect — hide (`handle.hide()`), dispose, or a store intent.
   readonly onClose?: () => void;
 }
 
 export interface FloatingWindowHandle {
   readonly element: HTMLElement;
-  /** The content host — mount a pane/controls here. */
+  // The content host — mount a pane/controls here.
   readonly body: HTMLElement;
   setTitle(title: string): void;
   show(): void;

@@ -51,51 +51,51 @@ export interface BootstrapOptions {
   readonly createCanvas?: () => HTMLCanvasElement;
   readonly mount?: (canvas: HTMLCanvasElement) => void;
   readonly spawnWorker?: () => Worker;
-  /** Spawns the data/streaming worker; only spawned when `streamSource` is set. */
+  // Spawns the data/streaming worker; only spawned when `streamSource` is set.
   readonly spawnDataWorker?: () => Worker;
-  /** A multi-step source to stream timesteps from (the scrub cursor drives it). Omit → no streaming
-   *  (single-step dataset; the scrub control stays disabled). The default app entry passes the
-   *  synthetic flux-rope handle. */
+  // A multi-step source to stream timesteps from (the scrub cursor drives it). Omit → no streaming
+  // (single-step dataset; the scrub control stays disabled). The default app entry passes the
+  // synthetic flux-rope handle.
   readonly streamSource?: DataHandle;
-  /** The dataset to render; defaults to the synthetic scaffold dataset. */
+  // The dataset to render; defaults to the synthetic scaffold dataset.
   readonly dataset?: FieldDataset;
-  /** The selectable datasets (dropdown). When the store's `datasetId` changes, the matching entry's
-   *  dataset is seeded on the main thread and the stream is re-opened onto its handle. Omit → the
-   *  dropdown is inert (a single fixed dataset). */
+  // The selectable datasets (dropdown). When the store's `datasetId` changes, the matching entry's
+  // dataset is seeded on the main thread and the stream is re-opened onto its handle. Omit → the
+  // dropdown is inert (a single fixed dataset).
   readonly datasetCatalog?: ReadonlyMap<string, DatasetEntry>;
-  /** Theme for overlay colors (axes/grid/labels). Omitted → the gnomon-matching fallback palette. */
+  // Theme for overlay colors (axes/grid/labels). Omitted → the gnomon-matching fallback palette.
   readonly theme?: Theme;
-  /** Bundled theme catalog (name → Theme, insertion order = cycle order) enabling the runtime
-   *  theme switcher (rail button). Omit → the switcher stays disabled; `theme` is the boot theme. */
+  // Bundled theme catalog (name → Theme, insertion order = cycle order) enabling the runtime
+  // theme switcher (rail button). Omit → the switcher stays disabled; `theme` is the boot theme.
   readonly themeCatalog?: ReadonlyMap<string, Theme>;
-  /** Persists the theme choice; defaults to the OPFS pref writer. Injectable for tests. */
+  // Persists the theme choice; defaults to the OPFS pref writer. Injectable for tests.
   readonly persistTheme?: (name: string) => Promise<void>;
-  /** Initial camera pose (the `?pose=` permalink). Seeded into the store before the worker spawns,
-   *  so the existing ready-time pose replay carries it — no extra protocol. */
+  // Initial camera pose (the `?pose=` permalink). Seeded into the store before the worker spawns,
+  // so the existing ready-time pose replay carries it — no extra protocol.
   readonly initialPose?: CameraPose;
-  /** Initial volume-view projection (the `&proj=ortho` permalink); the ready-time catch-up posts
-   *  any non-perspective value to the worker. */
+  // Initial volume-view projection (the `&proj=ortho` permalink); the ready-time catch-up posts
+  // any non-perspective value to the worker.
   readonly initialProjection?: CameraProjection;
-  /** The simulation store; defaults to a fresh one. Injectable so a test can drive intents
-   *  (e.g. setStep) and observe the resulting worker messages. */
+  // The simulation store; defaults to a fresh one. Injectable so a test can drive intents
+  // (e.g. setStep) and observe the resulting worker messages.
   readonly store?: SimulationStore;
-  /** The UI store; defaults to a fresh one. Injectable so a test can observe loading phases. */
+  // The UI store; defaults to a fresh one. Injectable so a test can observe loading phases.
   readonly uiStore?: UiStore;
-  /** Where the UI overlay mounts; defaults to document.body, skipped when there's no DOM
-   *  (the headless handshake test). Injectable so tests can mount into a scratch element. */
+  // Where the UI overlay mounts; defaults to document.body, skipped when there's no DOM
+  // (the headless handshake test). Injectable so tests can mount into a scratch element.
   readonly uiParent?: HTMLElement;
-  /** Fires when the worker reports its first rendered frame — the perf-gate signal. */
+  // Fires when the worker reports its first rendered frame — the perf-gate signal.
   readonly onFirstFrame?: () => void;
-  /** Render the RGB test triangle while no layers exist (`?debugScene`) — a "renderer alive,
-   *  data missing" diagnostic. Off by default: the boot frame is the bare clear color. */
+  // Render the RGB test triangle while no layers exist (`?debugScene`) — a "renderer alive,
+  // data missing" diagnostic. Off by default: the boot frame is the bare clear color.
   readonly showDebugScene?: boolean;
-  /** Auto-add a field-line layer (default seed rake) once the dataset lands (`?fieldlines`) — a dev /
-   *  screenshot affordance; the rail's `+Field lines` button / `T` shortcut do the same
-   *  interactively. */
+  // Auto-add a field-line layer (default seed rake) once the dataset lands (`?fieldlines`) — a dev /
+  // screenshot affordance; the rail's `+Field lines` button / `T` shortcut do the same
+  // interactively.
   readonly fieldlines?: boolean;
-  /** Mount the dev performance HUD (Shift+P) + its worker sampling. The entry gates this on
-   *  import.meta.env.DEV || ?perf; the HUD + bridge are dynamic-imported so they tree-shake out of
-   *  the default production bundle. */
+  // Mount the dev performance HUD (Shift+P) + its worker sampling. The entry gates this on
+  // import.meta.env.DEV || ?perf; the HUD + bridge are dynamic-imported so they tree-shake out of
+  // the default production bundle.
   readonly perf?: boolean;
 }
 

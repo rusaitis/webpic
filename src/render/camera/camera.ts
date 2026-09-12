@@ -14,7 +14,7 @@ import type { CameraPose } from "../messages.ts";
 
 export { DEFAULT_POSE };
 
-// Near clip for both volume cameras (matches the legacy raymarchScene camera). Distinct from
+// Near clip for both volume cameras. Distinct from
 // FRUSTUM.near (the screen-aligned slice/boot ortho). The far args below are init placeholders —
 // applyPose/applyPoseOrtho size far per pose so the dolly range never far-clips.
 const VOLUME_NEAR = 0.01;
@@ -25,7 +25,7 @@ export function createPerspectiveCamera(aspect = 1): PerspectiveCamera {
 }
 
 // Screen-aligned orthographic camera for the slice + boot triangle: fixed straight-on, pose-invariant
-// (orbiting an axis-aligned 2D slice is meaningless). Matches the legacy slice/test camera exactly.
+// (orbiting an axis-aligned 2D slice is meaningless).
 export function createOrthographicCamera(): OrthographicCamera {
   const camera = new OrthographicCamera(
     FRUSTUM.left,

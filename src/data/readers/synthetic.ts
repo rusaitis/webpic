@@ -22,7 +22,7 @@ import { registerReader } from "./_registry.ts";
 // (the shape a Zarr source will use) while staying deterministic and cheap to regenerate (so scrub-back
 // re-reads are free). Two handles:
 //   • `synthetic://fluxrope?n=<size>&steps=<count>` — a time-varying Gaussian flux rope (cubic n³).
-//   • `synthetic://dipole` — magviz's static Earth dipole on its default non-cubic grid (single step).
+//   • `synthetic://dipole` — a static Earth dipole on a non-cubic grid (single step).
 
 const READER_ID = "synthetic-fluxrope";
 const SCHEME = "synthetic://";
@@ -51,7 +51,7 @@ export function syntheticHandle(
   return { kind: "url", url: `${SCHEME}fluxrope?n=${n}&steps=${steps}` };
 }
 
-/** A `synthetic://dipole` handle — magviz's static Earth dipole on its default non-cubic grid. */
+/** A `synthetic://dipole` handle — a static Earth dipole on a non-cubic grid. */
 export function dipoleHandle(): DataHandle {
   return { kind: "url", url: `${SCHEME}dipole` };
 }
@@ -152,17 +152,17 @@ export function syntheticStep(n: number, step: number, steps: number): FieldData
   };
 }
 
-// Earth dipole field on magviz's default grid (data-processing/generate_dipole_data.py): moment along
+// Earth dipole field: moment along
 // +z, sign-flipped to put magnetic north at −z. Inputs in Earth radii, output in nT; the inner region
 // (r < 1.1 R_E) is zeroed to dodge the r=0 singularity. Bounds are non-cubic (x∈[-10,5], y,z∈[-5,5]) —
 // the renderer scales the volume box to this aspect (store `worldHalfExtent`). One static timestep.
-const DIPOLE_DIMS = [150, 100, 100] as const; // 0.1 R_E cells spanning the magviz extent
+const DIPOLE_DIMS = [150, 100, 100] as const; // 0.1 R_E cells spanning DIPOLE_BOUNDS
 const DIPOLE_SPACING = 0.1;
 const DIPOLE_ORIGIN = [-10, -5, -5] as const;
 const DIPOLE_INNER_CUTOFF = 1.1; // R_E — below this the field is zeroed (planet interior + buffer)
-// B(nT) = (μ0/4π)·M·1e9 / R_E³ · shape — the analytic dipole scale, matching magviz's constants.
+// B(nT) = (μ0/4π)·M·1e9 / R_E³ · shape — the analytic dipole scale.
 const DIPOLE_SCALE_NT = (1e-7 * 7.8e22 * 1e9) / 6.371e6 ** 3; // ≈ 3.016e4 nT·R_E³
-const DIPOLE_ORIENTATION = -1; // magnetic north at −z (magviz convention)
+const DIPOLE_ORIENTATION = -1; // magnetic north at −z
 
 function makeDipoleGrid(): GridInfo {
   return {

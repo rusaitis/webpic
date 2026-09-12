@@ -10,13 +10,13 @@ import { isTypingTarget } from "./keyboard.ts";
 // (schema/theme.ts) drives both.
 
 interface ShortcutOptions {
-  /** Shift requirement: "none" (default) fires only unshifted, "shift" only shifted, "any" ignores it. */
+  // Shift requirement: "none" (default) fires only unshifted, "shift" only shifted, "any" ignores it.
   readonly modifiers?: "none" | "shift" | "any";
 }
 
 export interface ShortcutRegistry {
-  /** `key` names the physical key (event.code — "KeyC", "Digit1", "Slash") or the layout key
-   *  (event.key, case-insensitive — "f", "?", "Escape"). The first registration to match wins. */
+  // `key` names the physical key (event.code — "KeyC", "Digit1", "Slash") or the layout key
+  // (event.key, case-insensitive — "f", "?", "Escape"). The first registration to match wins.
   register(key: string, handler: (event: KeyboardEvent) => void, options?: ShortcutOptions): void;
   dispose(): void;
 }

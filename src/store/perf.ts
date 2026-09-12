@@ -10,16 +10,16 @@ export type { FrameClock };
 // bridge + overlay are dynamic-imported only under dev or ?perf. The `ui` layer reads this and
 // dispatches intents; app/perfBridge writes the samples + topology fed from the workers.
 
-/** Per-frame render metrics posted by the render worker (≤5 Hz while the HUD is open). All
- *  wall-clock — `frameWallMs` is NaN on ticks where the throttled GPU sync didn't run, and
- *  `frameIntervalMs` is NaN while the on-demand loop is idle (nothing painting). `computeMs`
- *  is null until a timed compute pass exists (the v0.1 |B| op runs on the TS backend). */
+// Per-frame render metrics posted by the render worker (≤5 Hz while the HUD is open). All
+// wall-clock — `frameWallMs` is NaN on ticks where the throttled GPU sync didn't run, and
+// `frameIntervalMs` is NaN while the on-demand loop is idle (nothing painting). `computeMs`
+// is null until a timed compute pass exists (the v0.1 |B| op runs on the TS backend).
 export interface PerfSample {
   readonly cpuEncodeMs: number;
   readonly frameWallMs: number;
   readonly frameIntervalMs: number;
   readonly isContinuous: boolean;
-  /** Frame-time governor's render-scale ceiling: 1 unthrottled, 0.85/0.7 under sustained slow frames. */
+  // Frame-time governor's render-scale ceiling: 1 unthrottled, 0.85/0.7 under sustained slow frames.
   readonly governorScale: number;
   readonly computeMs: number | null;
   readonly vramBytes: number;
@@ -28,10 +28,10 @@ export interface PerfSample {
 
 type PerfWorkerRole = "main" | "render" | "data";
 
-/** A row in the logical worker topology. Browsers can't enumerate OS processes, so this is
- *  the app's known thread set: main + render + (optional) data. `heapBytes` is null off-Chrome
- *  (no `performance.memory`); `note` carries a role-specific hint (e.g. the data worker's last
- *  read time) when available. */
+// A row in the logical worker topology. Browsers can't enumerate OS processes, so this is
+// the app's known thread set: main + render + (optional) data. `heapBytes` is null off-Chrome
+// (no `performance.memory`); `note` carries a role-specific hint (e.g. the data worker's last
+// read time) when available.
 export interface PerfWorker {
   readonly role: PerfWorkerRole;
   readonly live: boolean;
@@ -39,13 +39,13 @@ export interface PerfWorker {
   readonly note?: string;
 }
 
-/** Longest Long-Animation-Frame and count over the observed window (Chromium-only). */
+// Longest Long-Animation-Frame and count over the observed window (Chromium-only).
 interface LoafSummary {
   readonly longestMs: number;
   readonly count: number;
 }
 
-/** Main-thread metrics the bridge pumps at their own (low) cadences. */
+// Main-thread metrics the bridge pumps at their own (low) cadences.
 interface MainPerfMetrics {
   readonly mainHeapBytes?: number | null;
   readonly pageMemoryBytes?: number | null;

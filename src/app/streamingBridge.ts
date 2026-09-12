@@ -15,12 +15,12 @@ const STREAM_REQUEST_ID = 7;
 export interface StreamingBridgeOptions {
   readonly store: SimulationStore;
   readonly uiStore: UiStore;
-  /** The render worker — the streaming port pairs into it on its `ready`. */
+  // The render worker — the streaming port pairs into it on its `ready`.
   readonly renderWorker: Pick<Worker, "postMessage">;
   readonly dataWorker: Worker;
-  /** The multi-step source the cursor scrubs through. */
+  // The multi-step source the cursor scrubs through.
   readonly streamSource: DataHandle;
-  /** Dev perf HUD: forward the data worker's ~1 Hz self-report (heap + last read time). */
+  // Dev perf HUD: forward the data worker's ~1 Hz self-report (heap + last read time).
   readonly onPerfSample?: (sample: {
     readonly heapBytes: number | null;
     readonly lastReadMs: number | null;
@@ -28,13 +28,13 @@ export interface StreamingBridgeOptions {
 }
 
 export interface StreamingBridge {
-  /** Open the source onto the seeded layer (call once after the store's setDataset). */
+  // Open the source onto the seeded layer (call once after the store's setDataset).
   readonly open: () => void;
-  /** Pair the streaming port into the render worker (call on the render worker's `ready`). */
+  // Pair the streaming port into the render worker (call on the render worker's `ready`).
   readonly pair: () => void;
-  /** Swap the source onto a new handle for a dataset switch; no-op until opened. */
+  // Swap the source onto a new handle for a dataset switch; no-op until opened.
   readonly reopen: (handle: DataHandle) => void;
-  /** Dev perf HUD: enable/disable the data worker's self-report. */
+  // Dev perf HUD: enable/disable the data worker's self-report.
   readonly setPerfActive: (active: boolean) => void;
   readonly dispose: () => void;
 }

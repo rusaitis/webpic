@@ -25,7 +25,7 @@ function matrix3d(m: Float64Array): string {
 // Always-on camera gnomon pinned bottom-left: a CSS-3D axis triad driven straight from the store
 // pose. The pose is angle-parameterized, so the gnomon is a CSS transform — no second renderer or
 // worker round-trip. Hides with the rest of the UI on the toggle, and independently via the bottom
-// rail's gnomon control. The ±axis tips are clickable (magviz's ViewHelper discs): a click
+// rail's gnomon control. The ±axis tips are clickable discs: a click
 // dispatches a cameraFlyRequest intent that ui/pointerCamera eases to — chrome never animates the
 // pose itself. The pose readout + view permalink now live in the bottom rail (ui/cameraRail).
 

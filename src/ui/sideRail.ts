@@ -11,14 +11,10 @@ import { createSubscriptions } from "./subscriptions.ts";
 
 // The left tool rail (the instance-first rail). Three groups on the operations axis: a Layers toggle,
 // the layer add-buttons (+Volume/+Slice/+Field lines — each opens a click-menu of existing instances
-// plus "Add new"), and tool buttons (Axes & grid, Probe, Developer, + reserved Reductions/
-// Selections/Theme). ui → store only; hides with the global UI toggle.
-//
-//   • Axes & grid — opens a flyout beside the tab hosting the reference-frame (Scene) controls.
-//   • Probe — toggles the draggable value-probe marker.
-//   • Developer — opens the Developer window (frame timing + dev toggles; the panels.dev flag).
-//
-// Layer settings live in the Layers panel + colorbar, not here — these are tools, not layers.
+// plus "Add new"), and tool buttons (Axes & grid opens a Scene-controls flyout beside its tab, Probe
+// toggles the value-probe marker, Developer opens the timing + dev-toggle window, plus reserved
+// Reductions/Selections/Theme). ui → store only; hides with the global UI toggle. Layer settings live
+// in the Layers panel + colorbar, not here — these are tools, not layers.
 
 // 16×16 inline SVGs; fill/stroke come from the rail CSS, like ui/cameraRail. Layer-kind glyphs come
 // from ui/layerIcons (shared with the Layers panel); these are the rail-only tool glyphs.

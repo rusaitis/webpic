@@ -552,7 +552,7 @@ describe("installPointerCamera", () => {
     await frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "q", code: "KeyQ" }));
     const lowered = store.getState().cameraPose.elevation;
-    expect(lowered).toBeLessThan(start.elevation); // Q descends (magviz orbit/fly parity)
+    expect(lowered).toBeLessThan(start.elevation); // Q descends, matching the orbit/fly keys
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "e", code: "KeyE" }));
     await frame();
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "e", code: "KeyE" }));

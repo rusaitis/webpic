@@ -7,15 +7,15 @@
 // then warm + repaint. Each manager keeps its own retained CPU source so a rebuild reproduces the
 // live scene on the fresh device; a module owns no three/renderer handle (the worker does).
 export interface RenderModule {
-  /** Bump the scene epoch(s) so a warm-then-commit racing a device loss discards instead of landing
-   *  its scene on the dead device. */
+  // Bump the scene epoch(s) so a warm-then-commit racing a device loss discards instead of landing
+  // its scene on the dead device.
   supersedeWarms(): void;
-  /** Best-effort drop of the dead device's GPU handles, keeping the retained CPU source for replay
-   *  (teardown on a lost device can throw — the worker swallows it). */
+  // Best-effort drop of the dead device's GPU handles, keeping the retained CPU source for replay
+  // (teardown on a lost device can throw — the worker swallows it).
   disposeForRebuild(): void;
-  /** Replay the scene(s) from the retained source on the freshly installed device. */
+  // Replay the scene(s) from the retained source on the freshly installed device.
   rebuild(): void;
-  /** Full teardown (worker dispose). */
+  // Full teardown (worker dispose).
   dispose(): void;
 }
 

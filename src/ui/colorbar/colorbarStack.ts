@@ -8,9 +8,9 @@ import type { ColormapBinding } from "@schema/colormap.ts";
 export const MAX_COLORBARS = 2;
 
 export interface ColorbarStack {
-  /** The bindings that get a strip, ≤ MAX_COLORBARS, in draw order. */
+  // The bindings that get a strip, ≤ MAX_COLORBARS, in draw order.
   readonly slots: readonly ColormapBinding[];
-  /** Distinct visible bindings without a strip — the soft-warn's content. */
+  // Distinct visible bindings without a strip — the soft-warn's content.
   readonly overflow: readonly ColormapBinding[];
 }
 

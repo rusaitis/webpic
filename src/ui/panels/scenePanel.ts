@@ -62,7 +62,7 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
   });
 
   // Reflect external changes (set()-in never re-fires onChange). Per-leaf selectors so a change to
-  // one overlay field updates only its control — a Density drag no longer re-asserts every checkbox
+  // one overlay field updates only its control — a Density drag does not re-assert every checkbox
   // each frame, it just moves the slider.
   const subs = createSubscriptions();
   subs.on(

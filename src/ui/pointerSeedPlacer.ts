@@ -3,18 +3,12 @@ import type { Disposer } from "./controls/index.ts";
 import { clientToNdc } from "./pointerMath.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
-// Click-to-place field-line seeds. While the store holds a `seedPlacementLayerId` (a fieldlines
-// layer in placement mode, toggled from its settings panel), a primary canvas click drops one seed at
-// the cursor and re-traces; otherwise the handler is inert and the click falls through to the picker /
-// camera. ui → store only.
-//
-// The seed is computed on the CPU from the cursor ray (`cursorRay`) against the volume box
-// (`seedFromVolume`, "midpoint" — lands inside a centered structure rather than on the near face). No
-// worker round-trip: the pure geometric pick is enough here; GPU opacity-weighted depth (the dominant
-// structure along the ray) is the render/pickRay path, a later refinement.
-//
-// Capture phase, like ui/pointerPicker — and it must be installed BEFORE the picker so it claims the
-// click first while placing (the user wants a seed, not a marker grab / orbit).
+// Click-to-place field-line seeds. While the store holds a `seedPlacementLayerId` (a fieldlines layer
+// in placement mode), a primary canvas click drops one seed at the cursor and re-traces; otherwise the
+// handler is inert and the click falls through to the picker / camera. ui → store only. The seed comes
+// from the cursor ray against the volume box (`seedFromVolume`, "midpoint" — inside a centered
+// structure rather than on the near face), no worker round-trip. Capture phase, installed BEFORE the
+// picker so it claims the click first while placing: the user wants a seed, not a marker grab.
 
 export function installPointerSeedPlacer(target: HTMLElement, store: SimulationStore): Disposer {
   const ac = new AbortController();

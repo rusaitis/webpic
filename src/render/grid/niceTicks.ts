@@ -3,11 +3,11 @@
 // not 51.2). Node-testable against fixtures; called once per axis per overlay rebuild, never per frame.
 
 export interface NiceTicks {
-  /** The chosen 1/2/5×10ᵏ major step (> 0), or 0 for a degenerate range. */
+  // The chosen 1/2/5×10ᵏ major step (> 0), or 0 for a degenerate range.
   readonly step: number;
-  /** Ascending major-tick values within [min, max] (inclusive, clipped to the bounds). */
+  // Ascending major-tick values within [min, max] (inclusive, clipped to the bounds).
   readonly ticks: readonly number[];
-  /** Fractional digits the step needs for label formatting (step 50 → 0, 0.2 → 1). */
+  // Fractional digits the step needs for label formatting (step 50 → 0, 0.2 → 1).
   readonly decimals: number;
 }
 
@@ -37,17 +37,15 @@ function niceNum(value: number, round: boolean): number {
   return nice * 10 ** exp;
 }
 
-/** The 1/2/5×10ᵏ major step for a span targeting ~`targetCount` divisions (0 for a degenerate span). */
+// The 1/2/5×10ᵏ major step for a span targeting ~`targetCount` divisions (0 for a degenerate span).
 export function niceStep(span: number, targetCount: number): number {
   const count = Math.max(1, Math.floor(targetCount));
   return niceNum(span / count, true);
 }
 
-/**
- * Ascending major ticks at a *given* step within [min, max] (inclusive, clipped). Lets several axes
- * share one step for a uniform-spacing grid; a non-positive step or zero-width range degenerates to a
- * single tick. Separated from the step choice so the lattice and the spacing decision compose.
- */
+// Ascending major ticks at a *given* step within [min, max] (inclusive, clipped). Lets several axes
+// share one step for a uniform-spacing grid; a non-positive step or zero-width range degenerates to a
+// single tick. Separated from the step choice so the lattice and the spacing decision compose.
 export function ticksForStep(min: number, max: number, step: number): Omit<NiceTicks, "step"> {
   const lo = Math.min(min, max);
   const hi = Math.max(min, max);

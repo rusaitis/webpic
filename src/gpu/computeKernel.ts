@@ -15,23 +15,21 @@ export interface FieldKernelSpec {
   readonly device: GPUDevice;
   readonly wgsl: string;
   readonly entryPoint: string;
-  /** Read-only inputs, each uploaded to a storage buffer at binding 0..N-1 (already f32). */
+  // Read-only inputs, each uploaded to a storage buffer at binding 0..N-1 (already f32).
   readonly inputs: readonly Float32Array[];
-  /** Packed kernel parameters (binding N), opaque bytes matching the WGSL `Params` struct. */
+  // Packed kernel parameters (binding N), opaque bytes matching the WGSL `Params` struct.
   readonly params: ArrayBuffer;
-  /** Output element count (binding N+1); the readback is `outputElements` f32 values. */
+  // Output element count (binding N+1); the readback is `outputElements` f32 values.
   readonly outputElements: number;
   // `| undefined` (not bare `?`) so a caller can forward a possibly-undefined signal under
   // exactOptionalPropertyTypes without branching at the call site.
   readonly signal?: AbortSignal | undefined;
 }
 
-/**
- * Run a single-output field kernel and return its result as a fresh `Float32Array`. Throws on
- * abort (before submit / before readback), on a captured WGSL/bind validation error, or on a
- * device-loss readback rejection — never silently returns a garbage buffer. All GPU buffers are
- * destroyed before returning (or throwing).
- */
+// Run a single-output field kernel and return its result as a fresh `Float32Array`. Throws on
+// abort (before submit / before readback), on a captured WGSL/bind validation error, or on a
+// device-loss readback rejection — never silently returns a garbage buffer. All GPU buffers are
+// destroyed before returning (or throwing).
 export async function runFieldKernel(spec: FieldKernelSpec): Promise<Float32Array> {
   const { device, wgsl, entryPoint, inputs, params, outputElements, signal } = spec;
   signal?.throwIfAborted();

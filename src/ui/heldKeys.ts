@@ -9,22 +9,22 @@ import { isTypingTarget } from "./keyboard.ts";
 
 export interface HeldKeysOptions {
   readonly signal: AbortSignal;
-  /** Extra claim test for a listed key; false leaves the keystroke to the page (no preventDefault). */
+  // Extra claim test for a listed key; false leaves the keystroke to the page (no preventDefault).
   readonly claims?: (event: KeyboardEvent) => boolean;
-  /** A shifted keydown that isn't a claimed press counts as a chord too (drops the set like Meta). */
+  // A shifted keydown that isn't a claimed press counts as a chord too (drops the set like Meta).
   readonly shiftIsChord?: boolean;
-  /** After a claimed press — also on OS key-repeat, so a hold can re-read its modifiers. */
+  // After a claimed press — also on OS key-repeat, so a hold can re-read its modifiers.
   readonly onPress: (event: KeyboardEvent) => void;
-  /** After the set shrank: a keyup, a chord, a blur, or drop(). */
+  // After the set shrank: a keyup, a chord, a blur, or drop().
   readonly onRelease: () => void;
 }
 
 export interface HeldKeys {
-  /** The held codes — a live view; iterate it per frame without copying. */
+  // The held codes — a live view; iterate it per frame without copying.
   readonly codes: ReadonlySet<string>;
-  /** Shift as of the latest key event: a hold's meaning can change mid-press. */
+  // Shift as of the latest key event: a hold's meaning can change mid-press.
   readonly isShiftHeld: boolean;
-  /** Release everything — the consumer's hard stop (e.g. the marker vanished mid-hold). */
+  // Release everything — the consumer's hard stop (e.g. the marker vanished mid-hold).
   drop(): void;
 }
 

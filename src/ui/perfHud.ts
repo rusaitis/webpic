@@ -5,7 +5,7 @@ import { createShortcutRegistry } from "./shortcuts.ts";
 import { createSubscriptions, type Subscriptions } from "./subscriptions.ts";
 import { FALLBACK_BG, FALLBACK_BORDER, FALLBACK_FG } from "./theme/styles.ts";
 
-// Dev-mode performance HUD: a magviz-style corner meter (top-left, Shift+P) showing FPS + a CPU/frame
+// Dev-mode performance HUD: a corner meter (top-left, Shift+P) showing FPS + a CPU/frame
 // sparkline + VRAM/heap, with an expandable detail panel (memory breakdown, worker topology, main-
 // thread jank). It reads perfStore only and dispatches visibility intents — all worker plumbing +
 // metric pumps live in app/perfBridge. Self-contained: it injects its own CSS and, while visible,
@@ -372,7 +372,7 @@ export function installPerfHud(
   };
   applyDetail(perfStore.getState().isPerfDetailOpen);
 
-  // Shift+P — matches magviz; the unshifted "P" is ui/install's screenshot, so no conflict.
+  // Shift+P: the unshifted "P" is ui/install's screenshot, so no conflict.
   const shortcuts = createShortcutRegistry(doc);
   shortcuts.register("p", () => perfStore.getState().togglePerfHud(), { modifiers: "shift" });
 

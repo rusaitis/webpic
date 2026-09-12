@@ -1,15 +1,9 @@
-// A closed-loop frame-time governor — the "thermal governor". The open-loop quality tier
-// (interactionQuality) reacts to INPUT ("am I gesturing? → go coarse"); this reacts to the measured
-// OUTCOME: when sustained frame intervals blow the budget — the signature of a GPU thermal throttle,
-// or a genuinely heavy view — it lowers a render-scale ceiling to claw back headroom, then restores
-// it as frames recover. The render loop feeds it consecutive-painted-frame intervals; the quality
-// controller multiplies scale() into renderScale. Pure + Node-testable: feed intervals, read scale().
-//
-// Hysteresis is the whole game. A dead-band between the trip and recover thresholds plus asymmetric
-// dwell (drop fast, restore slow) means a frame rate parked near the setpoint holds its tier instead
-// of hunting — and since tier changes land seconds apart, the render-target realloc a render-scale
-// change costs is rare. It's really a *frame-time* governor; thermal throttle is just the loudest
-// cause it exists to ride out.
+// A closed-loop frame-time governor. The open-loop quality tier (interactionQuality) reacts to INPUT
+// ("am I gesturing? → go coarse"); this reacts to the measured OUTCOME: sustained intervals over
+// budget — a GPU thermal throttle, or a genuinely heavy view — lower a render-scale ceiling, which is
+// restored as frames recover. Hysteresis is the whole game: a dead band between the trip and recover
+// thresholds plus asymmetric dwell (drop fast, restore slow) keeps a frame rate parked near the
+// setpoint from hunting, and keeps the render-target realloc a scale change costs seconds apart.
 
 // Render-scale ceilings, coolest first. Lower = cheaper + softer; a single sample steps at most one.
 export const GOVERNOR_SCALES: readonly number[] = [1, 0.85, 0.7];
@@ -33,9 +27,9 @@ const EWMA_ALPHA = 0.1;
 const IDLE_GAP_MS = 250;
 
 export interface FrameGovernor {
-  /** Feed one consecutive-painted-frame interval (ms). Returns true iff the scale tier changed. */
+  // Feed one consecutive-painted-frame interval (ms). Returns true iff the scale tier changed.
   sample(intervalMs: number): boolean;
-  /** The current render-scale ceiling ∈ {@link GOVERNOR_SCALES} (1 = cool, unthrottled). */
+  // The current render-scale ceiling ∈ `GOVERNOR_SCALES` (1 = cool, unthrottled).
   scale(): number;
 }
 

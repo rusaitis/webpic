@@ -26,12 +26,12 @@ export const SERVED_ELSEWHERE: ReadonlySet<string> = new Set([
   "scene", // left tool rail (installScenePanel, mounted directly — not via mountPanel)
 ]);
 
-/** A theme-requested panel the docked shell should actually mount. */
+// A theme-requested panel the docked shell should actually mount.
 export function isDockable(name: string): boolean {
   return !SERVED_ELSEWHERE.has(name);
 }
 
-/** Registered here, or knowingly owned by another surface — anything else is theme drift. */
+// Registered here, or knowingly owned by another surface — anything else is theme drift.
 export function isKnownPanel(name: string): boolean {
   return Object.hasOwn(PANEL_REGISTRY, name) || SERVED_ELSEWHERE.has(name);
 }

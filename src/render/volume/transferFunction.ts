@@ -17,15 +17,15 @@ const DEFAULT_LUT_SIZE = 256; // conventional colormap LUT width (linear-interpo
 
 export interface TransferFunctionTexture {
   readonly texture: DataTexture;
-  /** Rebake the LUT for a new colormap in place (no reallocation). A repeated name is a no-op, so a
-   *  window-drag carrying the unchanged colormap costs nothing. */
+  // Rebake the LUT for a new colormap in place (no reallocation). A repeated name is a no-op, so a
+  // window-drag carrying the unchanged colormap costs nothing.
   setColormap(name: string): void;
   dispose(): void;
 }
 
-/** Sample `name`'s colormap into a packed RGBA half-float LUT (`size` texels wide).
- *  Alpha is 1.0 throughout — the opacity transfer function (alpha curve) lands later;
- *  for now the slice is opaque and the raymarch keeps its value-proportional opacity. */
+// Sample `name`'s colormap into a packed RGBA half-float LUT (`size` texels wide).
+// Alpha is 1.0 throughout — the opacity transfer function (alpha curve) lands later;
+// for now the slice is opaque and the raymarch keeps its value-proportional opacity.
 export function buildTransferFunctionLut(name: string, size = DEFAULT_LUT_SIZE): Uint16Array {
   const lut = new Uint16Array(size * 4);
   const one = DataUtils.toHalfFloat(1);
@@ -41,8 +41,8 @@ export function buildTransferFunctionLut(name: string, size = DEFAULT_LUT_SIZE):
   return lut;
 }
 
-/** Build a 256×1 rgba16float `DataTexture` colormap LUT for `name`. Linear-filtered so the
- *  shader interpolates between texels; clamp-to-edge holds the endpoint colors. */
+// Build a 256×1 rgba16float `DataTexture` colormap LUT for `name`. Linear-filtered so the
+// shader interpolates between texels; clamp-to-edge holds the endpoint colors.
 export function createTransferFunctionTexture(
   name: string,
   size = DEFAULT_LUT_SIZE,

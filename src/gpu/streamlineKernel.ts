@@ -15,31 +15,29 @@ export interface StreamlineKernelSpec {
   readonly device: GPUDevice;
   readonly wgsl: string;
   readonly entryPoint: string;
-  /** The three vector-field components (row-major, already f32), bound at binding 0/1/2. */
+  // The three vector-field components (row-major, already f32), bound at binding 0/1/2.
   readonly fields: readonly [Float32Array, Float32Array, Float32Array];
-  /** Work-item seeds: `nWork` × 4 floats (x, y, z, sign), bound at binding 4. */
+  // Work-item seeds: `nWork` × 4 floats (x, y, z, sign), bound at binding 4.
   readonly seeds: Float32Array;
-  /** Packed `Params` (binding 3), opaque bytes matching the WGSL struct. */
+  // Packed `Params` (binding 3), opaque bytes matching the WGSL struct.
   readonly params: ArrayBuffer;
-  /** Per-work-item point slot count (= maxSteps + 1). */
+  // Per-work-item point slot count (= maxSteps + 1).
   readonly capacity: number;
-  /** Number of (seed, direction) work-items. */
+  // Number of (seed, direction) work-items.
   readonly nWork: number;
   readonly signal?: AbortSignal | undefined;
 }
 
 export interface StreamlineKernelResult {
-  /** Flat `nWork` × `capacity` × 4 floats: each point is (x, y, z, arclength). */
+  // Flat `nWork` × `capacity` × 4 floats: each point is (x, y, z, arclength).
   readonly points: Float32Array;
-  /** Raw `nWork` × 16-byte `TraceMeta` records; decode with `decodeTraceMeta`. */
+  // Raw `nWork` × 16-byte `TraceMeta` records; decode with `decodeTraceMeta`.
   readonly meta: ArrayBuffer;
 }
 
-/**
- * Run the streamline kernel and read back the point + meta buffers. Throws on abort (before submit /
- * before readback), on a captured WGSL/bind validation error, or on a device-loss readback rejection —
- * never silently returns garbage. All GPU buffers are destroyed before returning (or throwing).
- */
+// Run the streamline kernel and read back the point + meta buffers. Throws on abort (before submit /
+// before readback), on a captured WGSL/bind validation error, or on a device-loss readback rejection —
+// never silently returns garbage. All GPU buffers are destroyed before returning (or throwing).
 export async function runStreamlineKernel(
   spec: StreamlineKernelSpec,
 ): Promise<StreamlineKernelResult> {

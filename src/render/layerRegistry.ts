@@ -115,26 +115,26 @@ export interface LayerRegistry extends RenderModule {
   setColormap(request: Extract<RenderWorkerRequest, { kind: "setLayerColormap" }>): void;
   setShading(request: Extract<RenderWorkerRequest, { kind: "setLayerShading" }>): void;
   setSliceParams(request: Extract<RenderWorkerRequest, { kind: "setSliceParams" }>): void;
-  /** Push a new interaction step-scale to every volume scene (the per-layer half of applyQuality). */
+  // Push a new interaction step-scale to every volume scene (the per-layer half of applyQuality).
   applyStepScale(stepScale: number): void;
-  /** Flip every volume scene's ray generation (the per-layer half of setProjection). */
+  // Flip every volume scene's ray generation (the per-layer half of setProjection).
   applyProjection(orthographic: boolean): void;
-  /** Dev shader hot-reload: swap every volume scene's material from freshly imported builder code,
-   *  reusing each layer's uploaded texture + live uniforms (no rebuild, no re-upload). Slices have no
-   *  raymarch shader, so they're skipped. */
+  // Dev shader hot-reload: swap every volume scene's material from freshly imported builder code,
+  // reusing each layer's uploaded texture + live uniforms (no rebuild, no re-upload). Slices have no
+  // raymarch shader, so they're skipped.
   rebuildShaders(build: RaymarchMaterialBuilder): void;
-  /** The visible layers in draw order paired with their camera; `override` swaps in a not-yet-committed
-   *  scene for a warm. The worker appends overlay/marker. */
+  // The visible layers in draw order paired with their camera; `override` swaps in a not-yet-committed
+  // scene for a warm. The worker appends overlay/marker.
   layerItems(
     volume: Camera,
     ortho: Camera,
     override?: { readonly id: string; readonly entry: LayerEntry },
     into?: CompositeItem[],
   ): CompositeItem[];
-  /** The visible volume layers' CPU fields + look, for the worker's opacity-weighted ray pick. */
+  // The visible volume layers' CPU fields + look, for the worker's opacity-weighted ray pick.
   pickLayers(): { layers: PickLayer[]; halfExtent: Vec3 };
-  /** Registry-only step of the restore teardown: drop the deferred-dispose entry. The worker calls it
-   *  after the modules' `disposeForRebuild` loop so it runs even if a dead-device dispose threw. */
+  // Registry-only step of the restore teardown: drop the deferred-dispose entry. The worker calls it
+  // after the modules' `disposeForRebuild` loop so it runs even if a dead-device dispose threw.
   clearPendingDispose(): void;
   // RenderModule (supersedeWarms / disposeForRebuild / rebuild / dispose) — the worker iterates these.
 }
@@ -155,7 +155,7 @@ function decodeSliceField(payload: SliceFieldPayload): ScalarField {
 
 export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // The instance-first layer registry: per-id scenes + the ordered visibility/opacity view. The worker
-  // composites the visible layers; the app drives exactly one for now.
+  // composites the visible layers; the app drives exactly one.
   const layers = new Map<string, LayerEntry>();
   let composite: readonly CompositeEntry[] = [];
   // Superseding guard for the async warms: an id's epoch bumps on every replace/remove (and on a device

@@ -1,7 +1,7 @@
 // Pure value↔position math for the range slider (./rangeControl.ts). DOM-free and
 // dependency-free so the semantics are unit-tested in isolation. Three concerns: snap a raw
 // value to the drag step, map value↔normalized track position under a chosen scale
-// (linear/log/symlog), and place tick marks. Ported from magviz's controls.
+// (linear/log/symlog), and place tick marks.
 
 import { clamp } from "@schema/math.ts";
 
@@ -14,11 +14,11 @@ export interface Scale {
   readonly kind: ScaleKind;
   readonly min: number;
   readonly max: number;
-  /** symlog linear half-width around 0; 0 for linear/log. */
+  // symlog linear half-width around 0; 0 for linear/log.
   readonly linthresh: number;
-  /** value → normalized track position in [0, 1]. */
+  // value → normalized track position in [0, 1].
   toT(value: number): number;
-  /** normalized track position in [0, 1] → value. */
+  // normalized track position in [0, 1] → value.
   toValue(t: number): number;
 }
 
@@ -30,8 +30,8 @@ const MAX_TICKS = 24;
 const MINOR_MAX_DECADES = 3;
 const MINOR_MAX_TICKS = 80;
 
-/** Quantize a dragged/keyed value to `step` (drag granularity only — typed text bypasses
- *  this so the grip can rest between steps). No step ⇒ clamp only. */
+// Quantize a dragged/keyed value to `step` (drag granularity only — typed text bypasses
+// this so the grip can rest between steps). No step ⇒ clamp only.
 export function snapToStep(raw: number, min: number, max: number, step?: number): number {
   const c = clamp(raw, min, max);
   if (step === undefined || !(step > 0)) return c;
@@ -45,10 +45,10 @@ function decadeStep(a: number, minStep: number): number {
   return minStep > 0 ? Math.max(d, minStep) : d;
 }
 
-/** Snap to the log-decade grid (see {@link decadeStep}): signed, ten divisions per decade,
- *  including 0. `minStep` floors the granularity near 0 and rounds sub-minStep magnitudes to
- *  exactly 0 — set it for symlog's linear band; omit for log (min > 0 bounds it). The
- *  scientific "nice value" feel (…, 10, 20, 50, 100, …) for log/symlog drag. */
+// Snap to the log-decade grid (see `decadeStep`): signed, ten divisions per decade,
+// including 0. `minStep` floors the granularity near 0 and rounds sub-minStep magnitudes to
+// exactly 0 — set it for symlog's linear band; omit for log (min > 0 bounds it). The
+// scientific "nice value" feel (…, 10, 20, 50, 100, …) for log/symlog drag.
 export function snapToDecade(raw: number, min: number, max: number, minStep = 0): number {
   const c = clamp(raw, min, max);
   const a = Math.abs(c);
@@ -57,9 +57,9 @@ export function snapToDecade(raw: number, min: number, max: number, minStep = 0)
   return clamp(Math.sign(c) * Math.round(a / d) * d, min, max);
 }
 
-/** One cell along the log-decade grid from `cur` toward `dir` (±1) — the keyboard companion
- *  to {@link snapToDecade}. Stepping toward zero off a pure power of ten drops to the finer
- *  decade (10→9, 100→90) so the grid reads symmetrically; `minStep` bounds the finest cell. */
+// One cell along the log-decade grid from `cur` toward `dir` (±1) — the keyboard companion
+// to `snapToDecade`. Stepping toward zero off a pure power of ten drops to the finer
+// decade (10→9, 100→90) so the grid reads symmetrically; `minStep` bounds the finest cell.
 export function stepDecade(
   cur: number,
   dir: 1 | -1,
@@ -77,15 +77,15 @@ export function stepDecade(
   return snapToDecade(c + dir * d, min, max, minStep);
 }
 
-/** Pointer x → normalized [0, 1] across a track rect (the screen→param map). */
+// Pointer x → normalized [0, 1] across a track rect (the screen→param map).
 export function pointerT(clientX: number, rect: { left: number; width: number }): number {
   if (!(rect.width > 0)) return 0;
   return clamp((clientX - rect.left) / rect.width, 0, 1);
 }
 
-/** Build the value↔position bijection for a scale. `symlog` keeps a linear band of half-width
- *  `linthresh` around 0 and compresses the tails logarithmically — the high-dynamic-range
- *  signed-field case (B over ±1000 with detail at ±20). */
+// Build the value↔position bijection for a scale. `symlog` keeps a linear band of half-width
+// `linthresh` around 0 and compresses the tails logarithmically — the high-dynamic-range
+// signed-field case (B over ±1000 with detail at ±20).
 export function makeScale(
   kind: ScaleKind,
   min: number,
@@ -139,10 +139,10 @@ export function makeScale(
   };
 }
 
-/** Tick *values* (not positions) for a scale: linear → multiples of `step` (or `count` divisions)
- *  spanning [min, max]; log → 10ᵏ decades; symlog → 0 plus every ±10ᵏ decade within range, from the
- *  linthresh decade up. Ungated and unsorted-by-position — {@link tickPositions} maps + gates these,
- *  while the colorbar labels them directly (and thins its own decades). */
+// Tick *values* (not positions) for a scale: linear → multiples of `step` (or `count` divisions)
+// spanning [min, max]; log → 10ᵏ decades; symlog → 0 plus every ±10ᵏ decade within range, from the
+// linthresh decade up. Ungated and unsorted-by-position — `tickPositions` maps + gates these,
+// while the colorbar labels them directly (and thins its own decades).
 export function tickValues(
   scale: Scale,
   options: { step?: number; count?: number } = {},
@@ -179,8 +179,8 @@ export function tickValues(
   return values;
 }
 
-/** Tick positions in normalized [0, 1]. Linear → evenly by `step` (or `count`); log/symlog →
- *  decade lines. Empty when the count would exceed MAX_TICKS (renders as a solid bar). */
+// Tick positions in normalized [0, 1]. Linear → evenly by `step` (or `count`); log/symlog →
+// decade lines. Empty when the count would exceed MAX_TICKS (renders as a solid bar).
 export function tickPositions(
   scale: Scale,
   options: { step?: number; count?: number } = {},
@@ -203,9 +203,9 @@ export function tickPositions(
   return ts.sort((a, b) => a - b);
 }
 
-/** Sub-decade minor-tick positions in normalized [0, 1] for log/symlog (the 2..9 ×10ᵏ marks
- *  within each decade). Empty for linear, and auto-decluttered to [] once the tail spans more
- *  than MINOR_MAX_DECADES. */
+// Sub-decade minor-tick positions in normalized [0, 1] for log/symlog (the 2..9 ×10ᵏ marks
+// within each decade). Empty for linear, and auto-decluttered to [] once the tail spans more
+// than MINOR_MAX_DECADES.
 export function minorTickPositions(scale: Scale): number[] {
   const { kind, min, max, linthresh: L } = scale;
   if (kind === "linear") return [];
@@ -243,16 +243,16 @@ export function minorTickPositions(scale: Scale): number[] {
   return ts.sort((a, b) => a - b);
 }
 
-/** Decimal places to render a {1,2,5}×10ᵏ `step` exactly: the negative decade of the step (0 for
- *  step ≥ 1). The +ε absorbs log10's just-under-integer powers. */
+// Decimal places to render a {1,2,5}×10ᵏ `step` exactly: the negative decade of the step (0 for
+// step ≥ 1). The +ε absorbs log10's just-under-integer powers.
 export function stepDecimals(step: number): number {
   if (!(step > 0)) return 0;
   return Math.max(0, -Math.floor(Math.log10(step) + 1e-12));
 }
 
-/** Round a raw step UP to the nearest {1,2,5}×10ᵏ (sub-decade included: 0.1, 0.2, 0.5) — the
- *  Heckbert "nice numbers" step for ~`targetCount` intervals across `rawSpan`. 0 for a
- *  non-positive / non-finite span. */
+// Round a raw step UP to the nearest {1,2,5}×10ᵏ (sub-decade included: 0.1, 0.2, 0.5) — the
+// Heckbert "nice numbers" step for ~`targetCount` intervals across `rawSpan`. 0 for a
+// non-positive / non-finite span.
 export function niceStep(rawSpan: number, targetCount: number): number {
   if (!(rawSpan > 0) || !Number.isFinite(rawSpan)) return 0;
   const raw = rawSpan / Math.max(1, targetCount);
@@ -263,16 +263,16 @@ export function niceStep(rawSpan: number, targetCount: number): number {
 }
 
 export interface NiceTicks {
-  /** Tick values on the nice grid (integer multiples of `step`) within [lo, hi], ascending. */
+  // Tick values on the nice grid (integer multiples of `step`) within [lo, hi], ascending.
   readonly values: readonly number[];
-  /** The chosen nice step; 0 when degenerate (single value / empty). Drives label decimals. */
+  // The chosen nice step; 0 when degenerate (single value / empty). Drives label decimals.
   readonly step: number;
 }
 
-/** Nice-number linear ticks: multiples of a {1,2,5}×10ᵏ step within [lo, hi] (matplotlib
- *  MaxNLocator style — round interior values, endpoints NOT forced). A range crossing 0 always
- *  includes exactly 0 (0 is a multiple of every step). A constant window (lo == hi) yields the lone
- *  value; a non-finite / empty range yields []. */
+// Nice-number linear ticks: multiples of a {1,2,5}×10ᵏ step within [lo, hi] (matplotlib
+// MaxNLocator style — round interior values, endpoints NOT forced). A range crossing 0 always
+// includes exactly 0 (0 is a multiple of every step). A constant window (lo == hi) yields the lone
+// value; a non-finite / empty range yields [].
 export function niceLinearTicks(lo: number, hi: number, targetCount: number): NiceTicks {
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { values: [], step: 0 };
   if (lo === hi) return { values: [lo], step: 0 };
@@ -294,7 +294,7 @@ function span(min: number, max: number): number {
   return max - min;
 }
 
-/** Clamp an interval into [min, max], preserving order and a minimum gap. */
+// Clamp an interval into [min, max], preserving order and a minimum gap.
 export function clampInterval(
   lo: number,
   hi: number,
@@ -312,8 +312,8 @@ export function clampInterval(
   return [lower, b];
 }
 
-/** Translate both ends by `delta`, clamped so the window stays within [min, max]. Width is
- *  preserved (drag-the-fill-moves-both-ends). */
+// Translate both ends by `delta`, clamped so the window stays within [min, max]. Width is
+// preserved (drag-the-fill-moves-both-ends).
 export function translateInterval(
   lo: number,
   hi: number,
@@ -333,12 +333,12 @@ export interface WindowLevel {
   readonly width: number;
 }
 
-/** [lo, hi] → {center, width}. */
+// [lo, hi] → {center, width}.
 export function intervalToWindow(lo: number, hi: number): WindowLevel {
   return { center: (lo + hi) / 2, width: hi - lo };
 }
 
-/** {center, width} → [lo, hi]. */
+// {center, width} → [lo, hi].
 export function windowToInterval(w: WindowLevel): [number, number] {
   return [w.center - w.width / 2, w.center + w.width / 2];
 }

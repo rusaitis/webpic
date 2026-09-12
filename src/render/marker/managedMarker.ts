@@ -19,11 +19,11 @@ export interface MarkerHost extends RenderModuleContext {
 }
 
 export interface ManagedMarker extends ManagedDecoration<MarkerScene, MarkerConfig> {
-  /** Live position + interaction state (high-frequency during a drag). */
+  // Live position + interaction state (high-frequency during a drag).
   setPoint(point: Vec3 | null, hoveredPart: MarkerPart, isActive: boolean): void;
-  /** Re-run the marker's zoom scale + handle gating for the live pose. */
+  // Re-run the marker's zoom scale + handle gating for the live pose.
   applyPose(): void;
-  /** Advance the hover/pulse/active easing; true while still animating. Owns the dt clock. */
+  // Advance the hover/pulse/active easing; true while still animating. Owns the dt clock.
   tick(frameTimeMs: number): boolean;
 }
 

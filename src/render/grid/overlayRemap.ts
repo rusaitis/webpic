@@ -10,22 +10,18 @@ import { clamp } from "@schema/math.ts";
 // THREE axis index, matching Vector3 component order (x=0, y=1, z=2).
 export type ThreeAxis = 0 | 1 | 2;
 
-/**
- * Field axis (0/1/2 = pypic `GridInfo` order) → THREE/world axis. IDENTITY under the z-up,
- * world=physical convention: the raymarch sampler's .zyx swizzle composes with the texture's C-order
- * reversal back to identity, so world axis i = field axis i. (Historically `2 − fieldAxis`, before the
- * swizzle moved the reversal into the sampler.)
- */
+// Field axis (0/1/2 = pypic `GridInfo` order) → THREE/world axis. IDENTITY under the z-up,
+// world=physical convention: the raymarch sampler's .zyx swizzle composes with the texture's C-order
+// reversal back to identity, so world axis i = field axis i. (Historically `2 − fieldAxis`, before the
+// swizzle moved the reversal into the sampler.)
 export function fieldAxisToThree(fieldAxis: 0 | 1 | 2): ThreeAxis {
   return fieldAxis;
 }
 
-/**
- * Linear remap of a physical value on [min, max] to the volume box's world span [-halfExtent,
- * halfExtent] (the raymarch mesh, scaled to the dataset aspect — `raymarchScene.ts`). `halfExtent`
- * defaults to 0.5, the unit box for a cubic dataset; a non-cubic axis passes its scaled half-size so
- * the grid/axes wrap the same box the volume fills. A zero-width span maps to the lower face (no NaN).
- */
+// Linear remap of a physical value on [min, max] to the volume box's world span [-halfExtent,
+// halfExtent] (the raymarch mesh, scaled to the dataset aspect — `raymarchScene.ts`). `halfExtent`
+// defaults to 0.5, the unit box for a cubic dataset; a non-cubic axis passes its scaled half-size so
+// the grid/axes wrap the same box the volume fills. A zero-width span maps to the lower face (no NaN).
 export function physicalToObject(
   value: number,
   min: number,
@@ -36,7 +32,7 @@ export function physicalToObject(
   return span !== 0 ? ((value - min) / span - 0.5) * (2 * halfExtent) : -halfExtent;
 }
 
-/** Format a tick value at the chosen precision, normalizing a "-0" artifact from `toFixed`. */
+// Format a tick value at the chosen precision, normalizing a "-0" artifact from `toFixed`.
 export function formatTick(value: number, decimals: number): string {
   const fixed = value.toFixed(decimals);
   return /^-0(?:\.0+)?$/.test(fixed) ? fixed.slice(1) : fixed;
@@ -50,8 +46,8 @@ export function formatTick(value: number, decimals: number): string {
 export const LABEL_FADE_START_COS = Math.cos((35 * Math.PI) / 180);
 export const LABEL_FADE_FULL_COS = Math.cos((15 * Math.PI) / 180);
 
-/** Label opacity for |cos(angle between view ray and the label's row axis)| — the smoothstep
- *  fade the GPU applies per fragment. 1 fully visible, 0 fully edge-on. */
+// Label opacity for |cos(angle between view ray and the label's row axis)| — the smoothstep
+// fade the GPU applies per fragment. 1 fully visible, 0 fully edge-on.
 export function labelFadeOpacity(edgeOnCos: number): number {
   const t = (edgeOnCos - LABEL_FADE_START_COS) / (LABEL_FADE_FULL_COS - LABEL_FADE_START_COS);
   const clamped = clamp(t, 0, 1);

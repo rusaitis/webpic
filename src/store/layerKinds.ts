@@ -9,16 +9,16 @@ import { defaultSeedRake } from "./seedPick.ts";
 // compile error here (and in every other `Record<LayerKind, …>` table) until it is described.
 
 export interface LayerKindDescriptor {
-  /** Rail / settings title. */
+  // Rail / settings title.
   readonly label: string;
-  /** Layers-panel row label — shorter where the row is tight. */
+  // Layers-panel row label — shorter where the row is tight.
   readonly shortLabel: string;
-  /** Draws the active scalar field (rides `upsertLayer`); field lines draw traced polylines instead. */
+  // Draws the active scalar field (rides `upsertLayer`); field lines draw traced polylines instead.
   readonly drawsField: boolean;
-  /** Owns traced field lines — adding one triggers a retrace. */
+  // Owns traced field lines — adding one triggers a retrace.
   readonly tracesLines: boolean;
-  /** A fresh instance on `field`: visible, opaque, no binding yet. `grid` seeds a default rake for
-   *  field lines; null (no dataset) leaves the seed set empty. */
+  // A fresh instance on `field`: visible, opaque, no binding yet. `grid` seeds a default rake for
+  // field lines; null (no dataset) leaves the seed set empty.
   makeDefaultSpec(field: FieldName, grid: GridInfo | null): LayerSpec;
 }
 
@@ -72,12 +72,12 @@ export const LAYER_KINDS: Readonly<Record<LayerKind, LayerKindDescriptor>> = {
   },
 };
 
-/** The rail's add-button order. */
+// The rail's add-button order.
 export const LAYER_KIND_ORDER: readonly LayerKind[] = ["volume", "slice", "fieldlines"];
 
 export type FieldLayer = Extract<Layer, { readonly kind: FieldLayerKind }>;
 
-/** Narrow to the layers that draw the active scalar field. */
+// Narrow to the layers that draw the active scalar field.
 export function isFieldLayer(layer: Layer): layer is FieldLayer {
   return LAYER_KINDS[layer.kind].drawsField;
 }

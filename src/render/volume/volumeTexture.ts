@@ -12,16 +12,12 @@ import {
 } from "three";
 import { texture3D } from "three/tsl";
 
-// The volume holds physical values; the materials normalize via window/level uniforms so values stay
-// resident for later window/level edits without re-uploading. Format depends on the device:
-//   • float32-filterable present → R32F + linear (trilinear). The stable Metal path: f16 trilinear
-//     3D sampling is unreliable on some Metal drivers (returns NaN / loses the device).
-//   • absent → R16F (half-float) + linear, the core-filterable fallback.
-//
-// Time-series streaming ping-pongs new timesteps through `setField`: it writes into the *inactive* of
-// two identically-configured textures and swaps the sampling node's value (a bind-group rebind, not a
-// pipeline recompile), so a scrub reuses the scene with no per-step rebuild. The second buffer is
-// allocated lazily on the first swap, so a static layer holds one texture.
+// The volume holds physical values; the materials normalize via window/level uniforms, so a
+// window edit never re-uploads. Format follows the device: float32-filterable present → R32F +
+// linear (the Metal-stable path — f16 trilinear 3D sampling returns NaN or loses the device on some
+// Metal drivers); absent → R16F + linear, the core-filterable fallback. Streaming ping-pongs new
+// timesteps through `setField`, writing into the *inactive* of two identical textures and swapping
+// the node's value (a bind-group rebind, not a recompile); the second is allocated on first swap.
 
 // Just the typed array + shape the upload needs — a `FieldArray` is structurally assignable,
 // and it lets the render worker reconstruct a slice input from a transferred buffer without
@@ -36,15 +32,15 @@ export interface ScalarField {
 type VolumeNode = ReturnType<typeof texture3D>;
 
 export interface VolumeTexture {
-  /** TSL node the materials sample (via `node.sample(coord)`); its value swaps in place on setField. */
+  // TSL node the materials sample (via `node.sample(coord)`); its value swaps in place on setField.
   readonly node: VolumeNode;
-  /** Finite range of the *initial* field; `max > min` always (constant fields are widened by 1). */
+  // Finite range of the *initial* field; `max > min` always (constant fields are widened by 1).
   readonly min: number;
   readonly max: number;
-  /** Ping-pong a new timestep into the inactive buffer and swap the node's value — no rebuild and no
-   *  re-normalization (the window/level stays the binding's, the correct fixed range for a series).
-   *  Returns false WITHOUT swapping when the field can't reuse the allocation (a shape mismatch); the
-   *  caller then rebuilds the scene. */
+  // Ping-pong a new timestep into the inactive buffer and swap the node's value — no rebuild and no
+  // re-normalization (the window/level stays the binding's, the correct fixed range for a series).
+  // Returns false WITHOUT swapping when the field can't reuse the allocation (a shape mismatch); the
+  // caller then rebuilds the scene.
   setField(field: ScalarField): boolean;
   dispose(): void;
 }
@@ -76,9 +72,9 @@ function packInto(out: Float32Array | Uint16Array, data: FloatArray, fill: numbe
   }
 }
 
-/** Build a ping-pong-capable volume (R32F when `hasFloat32Filterable`, else R16F) + finite range.
- *  `ledgerKey` (the layer id) options the two texture slots into the VRAM ledger for the perf HUD;
- *  omit it (e.g. in tests) to allocate untracked. */
+// Build a ping-pong-capable volume (R32F when `hasFloat32Filterable`, else R16F) + finite range.
+// `ledgerKey` (the layer id) options the two texture slots into the VRAM ledger for the perf HUD;
+// omit it (e.g. in tests) to allocate untracked.
 export function createVolumeTexture(
   field: ScalarField,
   hasFloat32Filterable = false,

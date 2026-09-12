@@ -17,15 +17,11 @@ import { clientToNdc } from "./pointerMath.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
 // Pointer/wheel/touch input on the main-thread canvas → camera-pose intents. The OffscreenCanvas is
-// transferred to the worker, but the <canvas> still receives DOM events here; we read the live pose
-// from the store, nudge it via the pure helpers (store/camera), and dispatch setCameraPose. Damped
-// motions (drag orbit/pan, two-finger pan) go through the glide's momentum; immediate ones (wheel /
-// pinch dolly, twist roll) write the pose directly. No render import — ui → store only.
-//
-// Gestures (OrbitControls/magviz parity): left-drag orbits; shift/middle/right-drag pans (context
-// menu suppressed); wheel dollies toward the cursor; two pointers pinch-dolly about their centroid,
-// two-finger-pan, and twist-roll. Drag deltas are normalized to viewport-height fractions
-// (OrbitControls' unit), so the feel is identical at any canvas size.
+// transferred to the worker, but the <canvas> still receives DOM events here: read the live pose from
+// the store, nudge it via the pure helpers (store/camera), dispatch setCameraPose. Damped motions
+// (drag orbit/pan, two-finger pan) ride the glide's momentum; immediate ones (wheel / pinch dolly,
+// twist roll) write the pose directly. Deltas normalize to viewport-height fractions — OrbitControls'
+// unit, so the feel is identical at any canvas size. No render import — ui → store only.
 
 // Drag normalization fallback when the canvas has no layout yet (happy-dom tests, hidden mounts).
 const NOMINAL_VIEWPORT_PX = 800;

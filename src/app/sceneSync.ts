@@ -32,7 +32,7 @@ export interface ResolvedOverlayColors {
   readonly label: Rgba01;
 }
 
-/** Resolve overlay colors from a theme, per-channel, falling back to the gnomon palette. */
+// Resolve overlay colors from a theme, per-channel, falling back to the gnomon palette.
 export function resolveOverlayColors(theme?: Theme): ResolvedOverlayColors {
   return {
     grid: theme?.colors.grid ?? FALLBACK_GRID,
@@ -55,8 +55,8 @@ function buildAxis(grid: GridInfo | null, index: number): OverlayAxis {
   return { bounds: hasUsableSpacing(grid, index) ? [origin, origin + span] : [0, span], label };
 }
 
-/** Assemble the worker overlay config from the store flags, the dataset grid, and resolved colors.
- *  Pure — no DOM, no worker — so the bounds math and color resolution are unit-tested directly. */
+// Assemble the worker overlay config from the store flags, the dataset grid, and resolved colors.
+// Pure — no DOM, no worker — so the bounds math and color resolution are unit-tested directly.
 export function buildOverlayPayload(
   overlay: OverlayState,
   grid: GridInfo | null,
@@ -79,14 +79,14 @@ export function buildOverlayPayload(
 
 export interface SceneSyncOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
-  /** The boot theme; a runtime switch rides setTheme (the app theme bridge). */
+  // The boot theme; a runtime switch rides setTheme (the app theme bridge).
   readonly theme?: Theme;
 }
 
 export interface SceneSync {
-  /** Post the current overlay state (catch-up on the worker `ready`, mirroring layerSync.flushAll). */
+  // Post the current overlay state (catch-up on the worker `ready`, mirroring layerSync.flushAll).
   readonly flushAll: () => void;
-  /** Re-resolve the overlay palette from a new theme and repaint (the theme switcher). */
+  // Re-resolve the overlay palette from a new theme and repaint (the theme switcher).
   readonly setTheme: (theme: Theme | undefined) => void;
   readonly dispose: () => void;
 }

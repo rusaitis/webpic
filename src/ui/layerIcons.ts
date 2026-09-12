@@ -30,5 +30,5 @@ export const ICON_PLUS = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M
 export const ICON_CARET_UP = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg>`;
 export const ICON_CARET_DOWN = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>`;
 
-// The rail's disabled "Particles — v0.2" placeholder; not a LayerKind until the particle scene lands.
+// The rail's disabled "Particles" placeholder — not a LayerKind, so it renders nothing.
 export const PARTICLES_PLACEHOLDER_ICON = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="11.2" cy="4" r="1.3" fill="currentColor" stroke="none"/><circle cx="6" cy="11" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="10.2" r="1.3" fill="currentColor" stroke="none"/></svg>`;

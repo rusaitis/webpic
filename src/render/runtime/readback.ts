@@ -8,11 +8,11 @@ import { pixelsToPngBlob } from "./screenshot.ts";
 // in the worker's single thread, so the display loop's swapchain render is paused across it: a rAF
 // frame between the readback render and its await would corrupt the read pixels.
 export interface ReadbackHost {
-  /** The live renderer; undefined pre-init / post-dispose (the request then fails loudly). */
+  // The live renderer; undefined pre-init / post-dispose (the request then fails loudly).
   renderer(): InstalledRenderer | undefined;
-  /** What the next paint draws, freshly allocated — the paint scratch would mutate under the await. */
+  // What the next paint draws, freshly allocated — the paint scratch would mutate under the await.
   paintItems(): CompositeItem[];
-  /** Pause / resume the display loop around the borrowed renderer (resume re-dirties). */
+  // Pause / resume the display loop around the borrowed renderer (resume re-dirties).
   beginReadback(): void;
   endReadback(): void;
   post(
@@ -22,9 +22,9 @@ export interface ReadbackHost {
 }
 
 export interface Readback {
-  /** Raw RGBA8 pixels, transferred. */
+  // Raw RGBA8 pixels, transferred.
   frame(request: Extract<RenderWorkerRequest, { kind: "renderFrame" }>): Promise<void>;
-  /** The same readback PNG-encoded worker-side. */
+  // The same readback PNG-encoded worker-side.
   screenshot(request: Extract<RenderWorkerRequest, { kind: "screenshot" }>): Promise<void>;
 }
 

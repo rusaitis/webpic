@@ -7,7 +7,7 @@ import { GESTURE_THRESHOLD_PX, VIEWPORT_MARGIN_PX } from "../layout.ts";
 // viewport edge (within EDGE_SNAP_PX) via inline left/right/top/bottom anchors, sets `data-edge`
 // so the CSS reorients (left/right → vertical, top/bottom → horizontal), and springs clear of any
 // registered chrome (the rails, top bar, docked shell) — so it attaches to an edge without ever
-// covering the centered camera rail. A webpic-clean rewrite of magviz's draggablePanels (pure
+// covering the centered camera rail. Pure
 // geometry split out for tests; AbortController-scoped listeners; no module-global stacking).
 
 export type PaneEdge = "left" | "right" | "top" | "bottom";
@@ -24,8 +24,8 @@ function isPaneEdge(value: string): value is PaneEdge {
   return Object.hasOwn(PANE_EDGES, value);
 }
 
-/** The dock edge held in `data-edge` — written here on snap, seeded by the owner — or undefined when
- *  unset. Validated against the literal set, so every reader gets a typed edge without a cast. */
+// The dock edge held in `data-edge` — written here on snap, seeded by the owner — or undefined when
+// unset. Validated against the literal set, so every reader gets a typed edge without a cast.
 export function readEdge(element: HTMLElement): PaneEdge | undefined {
   const edge = element.dataset.edge;
   return edge !== undefined && isPaneEdge(edge) ? edge : undefined;
@@ -45,17 +45,17 @@ export interface Viewport {
   readonly height: number;
 }
 
-/** Where a snap wants to place the element: which edge it docks to, the anchor side per axis
- *  (so expand/collapse grows toward the viewport center), and the resolved top-left. */
+// Where a snap wants to place the element: which edge it docks to, the anchor side per axis
+// (so expand/collapse grows toward the viewport center), and the resolved top-left.
 export interface SnapPlacement {
   readonly edge: PaneEdge;
   readonly h: "left" | "right";
   readonly v: "top" | "bottom";
   readonly left: number;
   readonly top: number;
-  /** True when flush against an edge/corner; false for a free drop kept where released (the `edge`
-   *  is then only an orientation hint). A floating element is not re-flushed on reflow, so a
-   *  collapse/expand resizes it in place instead of migrating it to the edge. */
+  // True when flush against an edge/corner; false for a free drop kept where released (the `edge`
+  // is then only an orientation hint). A floating element is not re-flushed on reflow, so a
+  // collapse/expand resizes it in place instead of migrating it to the edge.
   readonly isDocked: boolean;
 }
 
@@ -71,8 +71,8 @@ function box(left: number, top: number, width: number, height: number): Box {
   return { left, top, right: left + width, bottom: top + height, width, height };
 }
 
-/** `a < b`, biased by STICKY_HYSTERESIS_PX toward the element's current edge so a strip whose two
- *  opposite-edge distances are both small doesn't flip-flop on tiny drags. */
+// `a < b`, biased by STICKY_HYSTERESIS_PX toward the element's current edge so a strip whose two
+// opposite-edge distances are both small doesn't flip-flop on tiny drags.
 function stickyLess(
   a: number,
   b: number,
@@ -85,9 +85,9 @@ function stickyLess(
   return a <= b;
 }
 
-/** Resolve where `rect` should dock given the viewport and its previous edge. Snaps to a corner
- *  (both axes) or a single edge when within threshold; otherwise a free drop that still reorients
- *  `data-edge` across the viewport midline along the current axis. Pure — unit-tested. */
+// Resolve where `rect` should dock given the viewport and its previous edge. Snaps to a corner
+// (both axes) or a single edge when within threshold; otherwise a free drop that still reorients
+// `data-edge` across the viewport midline along the current axis. Pure — unit-tested.
 export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefined): SnapPlacement {
   const { width: W, height: H } = vp;
   const distL = rect.left;
@@ -167,9 +167,9 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
   };
 }
 
-/** Free-drag placement: a panel may overhang the left/right/bottom edges so it can be tucked aside,
- *  but FREE_DRAG_KEEP_PX of it (a grab strip) always stays on screen, and its top never crosses the
- *  top edge — the header is the only drag handle, so it must stay reachable. Pure — unit-tested. */
+// Free-drag placement: a panel may overhang the left/right/bottom edges so it can be tucked aside,
+// but FREE_DRAG_KEEP_PX of it (a grab strip) always stays on screen, and its top never crosses the
+// top edge — the header is the only drag handle, so it must stay reachable. Pure — unit-tested.
 export function freePlacement(rect: Box, vp: Viewport): { left: number; top: number } {
   const keepX = Math.min(FREE_DRAG_KEEP_PX, rect.width);
   const keepY = Math.min(FREE_DRAG_KEEP_PX, rect.height);
@@ -188,9 +188,9 @@ function overlaps(a: Box, b: Box): boolean {
   );
 }
 
-/** Single-axis pushes that clear `r` from `o` with CHROME_GAP_PX of room. When docked to an edge,
- *  only the axis *along* the dock is offered — a bottom-docked strip springs sideways, never off
- *  the screen. Free elements get all four and the smallest wins. */
+// Single-axis pushes that clear `r` from `o` with CHROME_GAP_PX of room. When docked to an edge,
+// only the axis *along* the dock is offered — a bottom-docked strip springs sideways, never off
+// the screen. Free elements get all four and the smallest wins.
 function pushVectors(
   r: Box,
   o: Box,
@@ -209,12 +209,12 @@ function pushVectors(
   return [...horiz, ...vert];
 }
 
-/** Spring `rect`'s top-left out of every obstacle by the minimum-translation axis, staying inside
- *  the viewport, and return the *least-overlapping reachable* position. Greedy push that keeps the
- *  best position seen (fewest overlaps, then least displacement) and stops on a revisited position;
- *  if the greedy still overlaps (it stalls on a wide obstacle flanked by narrow ones), a fallback
- *  jumps past the union of the dock-band obstacles to the nearer clear side. A genuinely cramped
- *  edge with no clear slot settles deterministically instead of oscillating. Pure — unit-tested. */
+// Spring `rect`'s top-left out of every obstacle by the minimum-translation axis, staying inside
+// the viewport, and return the *least-overlapping reachable* position. Greedy push that keeps the
+// best position seen (fewest overlaps, then least displacement) and stops on a revisited position;
+// if the greedy still overlaps (it stalls on a wide obstacle flanked by narrow ones), a fallback
+// jumps past the union of the dock-band obstacles to the nearer clear side. A genuinely cramped
+// edge with no clear slot settles deterministically instead of oscillating. Pure — unit-tested.
 export function pushOutOf(
   rect: Box,
   obstacles: readonly Box[],
@@ -309,33 +309,33 @@ export function pushOutOf(
 }
 
 export interface DragSnapOptions {
-  /** "snap" (default) magnetically docks to the nearest edge on release; "free" just clamps the
-   *  drop position into the viewport and anchors top-left (a movable window, no docking). */
+  // "snap" (default) magnetically docks to the nearest edge on release; "free" just clamps the
+  // drop position into the viewport and anchors top-left (a movable window, no docking).
   readonly mode?: "snap" | "free";
-  /** Element receiving pointerdown to start a drag. Defaults to the dragged element. */
+  // Element receiving pointerdown to start a drag. Defaults to the dragged element.
   readonly handle?: HTMLElement;
-  /** CSS selector for static chrome the element must not cover when dropped. Zero-area
-   *  (hidden) matches are skipped. */
+  // CSS selector for static chrome the element must not cover when dropped. Zero-area
+  // (hidden) matches are skipped.
   readonly chromeSelector?: string;
-  /** Anchor the *free* axis (the one not pinned to a dock edge) by its center rather than a corner,
-   *  so a size change (collapse/expand) pivots on the center. The stylesheet must translate that axis
-   *  by -50% (`translateX(-50%)` on top/bottom docks, `translateY(-50%)` on left/right, both for a
-   *  free drop). The colorbar options in; the free-mode window keeps corner anchoring. */
+  // Anchor the *free* axis (the one not pinned to a dock edge) by its center rather than a corner,
+  // so a size change (collapse/expand) pivots on the center. The stylesheet must translate that axis
+  // by -50% (`translateX(-50%)` on top/bottom docks, `translateY(-50%)` on left/right, both for a
+  // free drop). The colorbar options in; the free-mode window keeps corner anchoring.
   readonly centerFreeAxis?: boolean;
-  /** Fired when the dock edge changes (the colorbar repaints its gradient orientation). */
+  // Fired when the dock edge changes (the colorbar repaints its gradient orientation).
   readonly onEdgeChange?: (edge: PaneEdge) => void;
-  /** Fired after every settle (drag release, reflow, resize) with the element's resolved edge + box,
-   *  so a consumer can co-layout neighbouring chrome (the colorbar re-centers the bottom rail). It
-   *  may write the element's own anchors; it must not resize tracked chrome (that would re-trigger). */
+  // Fired after every settle (drag release, reflow, resize) with the element's resolved edge + box,
+  // so a consumer can co-layout neighbouring chrome (the colorbar re-centers the bottom rail). It
+  // may write the element's own anchors; it must not resize tracked chrome (that would re-trigger).
   readonly onSettled?: (edge: PaneEdge, settled: Box, vp: Viewport) => void;
 }
 
 export interface DragSnapController {
-  /** Re-settle against the current edge + chrome — call after a size change (collapse/expand) or
-   *  once after mount so the initial placement clears the chrome. */
+  // Re-settle against the current edge + chrome — call after a size change (collapse/expand) or
+  // once after mount so the initial placement clears the chrome.
   reflow(): void;
-  /** True for one tick after a drag release — so a click-to-toggle handler on the element can skip
-   *  the trailing click a drag generates. */
+  // True for one tick after a drag release — so a click-to-toggle handler on the element can skip
+  // the trailing click a drag generates.
   wasDragging(): boolean;
   dispose(): void;
 }
@@ -550,7 +550,7 @@ export function installDragSnap(
       options.onSettled?.(edge, settled, vp);
       return;
     }
-    // Legacy corner-anchor path (no center pivot): anchor the free axis to the nearer side so the
+    // Corner-anchor path (no center pivot): anchor the free axis to the nearer side so the
     // element tracks that edge on the next resize instead of drifting from a stale fixed offset.
     let h: "left" | "right";
     let v: "top" | "bottom";

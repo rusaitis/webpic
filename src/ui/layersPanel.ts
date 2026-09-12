@@ -18,7 +18,7 @@ import { createSubscriptions } from "./subscriptions.ts";
 // row per renderable instance, top (draw order) first. Each row: eye (show/hide) · kind + field
 // (click selects — the colorbar retargets to that layer's binding) · gear (selects the layer + opens
 // the per-layer settings panel) · ▲/▼ reorder. ui → store only; hides with the global UI toggle.
-// Fixed-position by design (drag/resize/persist deferred); reorder is buttons, not a drag system.
+// Fixed-position by design; reorder is buttons, not a drag system.
 
 const RAIL_FALLBACK_LEFT_PX = 52; // left anchor when the rail isn't mounted (headless tests)
 

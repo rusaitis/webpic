@@ -16,12 +16,12 @@ export interface RenderWorkerLink {
 }
 
 export interface StoreBridge {
-  /** Subscribe; the listener runs only once `isReady()` — the common store→worker gate. */
+  // Subscribe; the listener runs only once `isReady()` — the common store→worker gate.
   subscribeWhenReady<T>(
     selector: (state: SimulationState) => T,
     listener: (value: T) => void,
   ): void;
-  /** Subscribe unconditionally — the listener owns its gating. Disposer still collected. */
+  // Subscribe unconditionally — the listener owns its gating. Disposer still collected.
   subscribe<T>(selector: (state: SimulationState) => T, listener: (value: T) => void): void;
   dispose(): void;
 }

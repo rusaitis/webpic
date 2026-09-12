@@ -15,7 +15,7 @@ import type { RenderWorkerLink } from "./storeBridge.ts";
 export interface ScreenshotBridgeOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
   readonly uiStore: UiStore;
-  /** Receives the finished PNG; defaults to an anchor-click download (no-op headless). */
+  // Receives the finished PNG; defaults to an anchor-click download (no-op headless).
   readonly deliver?: (blob: Blob, filename: string) => void;
 }
 

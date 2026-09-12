@@ -30,7 +30,7 @@ import { finishCanvasTexture } from "../canvasTexture.ts";
 import type { MarkerConfig } from "../messages.ts";
 
 // The draggable point-picker marker scene (worker-owned, composited last with the volume camera, like
-// the grid overlay). Ports magviz's selection marker to z-up + webpic's structure: an accent core
+// the grid overlay). A z-up selection marker: an accent core
 // sphere, a billboarded two-tone outline ring (reads on any background), ↕ (z) and ↔ (x|y) drag-handle
 // knobs that gate on camera elevation, and a drop line + crosshair guide to the equatorial plane.
 //
@@ -59,7 +59,7 @@ const HANDLE_IDLE_OPACITY = 0.4; // ↕ knob/stem opacity at rest
 const HHANDLE_IDLE_OPACITY = 0.3; // ↔ knob/stem opacity at rest (subtler)
 const GUIDE_HALF = 0.04; // crosshair arm half-length, world units
 
-// Easing rates (1/s) and magnitudes — magviz's selection feel.
+// Easing rates (1/s) and magnitudes for the selection feel.
 const HOVER_RATE = 14;
 const PULSE_RATE = 7;
 const ACTIVE_RATE = 12;
@@ -241,7 +241,7 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   guides.add(cross);
   scene.add(guides);
 
-  // Eased animation state. Gates init to magviz's defaults (vertical enabled, horizontal hidden); the
+  // Eased animation state. Gates init to the defaults (vertical enabled, horizontal hidden); the
   // first updateForPose sets the live targets, so a mid-range pose shows no startup animation.
   let pose: CameraPose = DEFAULT_POSE;
   let orthographic = false;

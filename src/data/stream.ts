@@ -1,15 +1,9 @@
 // The time-series ring buffer + prefetch orchestrator — pure, no DOM/worker globals, so it unit-tests
-// in Node against a fake `readStep`. It owns "which steps are decoded, what to prefetch, what to
-// evict, what to abort" — the heart of "scrub without stalls" (DESIGN §Time-series).
-//
-// Lifecycle of a decoded value (DESIGN §Time-series "hold until upload, transfer on upload, re-read on
-// scrub-back"): the cursor step is handed to `onDisplay` and *consumed* (the worker transfers its
-// buffer, which detaches — the ring can't reuse it), while prefetched neighbours stay cached so a
-// ±1 scrub displays instantly. Scrubbing back to a consumed/evicted step simply re-reads it.
-//
-// Neighbours are computed in domain-INDEX space over the sorted `steps` array, so a sparse/non-
-// contiguous domain prefetches real adjacent steps. The dumb ±1 is the default; an injected `plan`
-// (data/prefetch.ts) overrides it with a direction-biased set, swapping only `wantedSteps`.
+// in Node against a fake `readStep`. It owns which steps are decoded, prefetched, evicted and aborted
+// (DESIGN §Time-series). The cursor step is handed to `onDisplay` and *consumed* — the worker
+// transfers its buffer, which detaches — while prefetched neighbours stay cached, so a ±1 scrub is
+// instant and a scrub back to a consumed step simply re-reads it. Neighbours live in domain-INDEX
+// space over the sorted `steps`, so a sparse domain still prefetches real adjacent steps.
 
 type Entry<T> =
   | { state: "loading"; controller: AbortController; display: boolean }

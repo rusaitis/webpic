@@ -17,27 +17,27 @@ import {
 // registry) and the swapchain render scale (the renderer) — and only a real level change kicks a
 // repaint, so a no-op transition (same-reference per interactionQuality) costs nothing.
 export interface QualityHost {
-  /** Is the display loop live? When false (Node one-shot) a settle ramp collapses straight to full. */
+  // Is the display loop live? When false (Node one-shot) a settle ramp collapses straight to full.
   hasLoop(): boolean;
-  /** Push the interaction step scale to every volume scene (registry.applyStepScale). */
+  // Push the interaction step scale to every volume scene (registry.applyStepScale).
   applyStepScale(stepScale: number): void;
-  /** Set the swapchain drawing-buffer scale (renderer.setRenderScale). */
+  // Set the swapchain drawing-buffer scale (renderer.setRenderScale).
   setRenderScale(scale: number): void;
   requestRender(): void;
 }
 
 export interface QualityController {
-  /** A camera-motion edge (gesture/fly/idle): transition, apply the level, arm the settle ramp. */
+  // A camera-motion edge (gesture/fly/idle): transition, apply the level, arm the settle ramp.
   setMotion(motion: CameraMotion): void;
-  /** Advance a live settle ramp one level — the loop calls this once per painted frame. */
+  // Advance a live settle ramp one level — the loop calls this once per painted frame.
   advanceSettling(): void;
-  /** Feed the frame-time governor one painted-frame interval; a tier change re-folds renderScale. */
+  // Feed the frame-time governor one painted-frame interval; a tier change re-folds renderScale.
   sampleFrameInterval(intervalMs: number): void;
-  /** The governor's current render-scale ceiling (1 = unthrottled) — surfaced in the perf HUD. */
+  // The governor's current render-scale ceiling (1 = unthrottled) — surfaced in the perf HUD.
   governorScale(): number;
-  /** The current per-layer step scale (the registry reads it for freshly built scenes). */
+  // The current per-layer step scale (the registry reads it for freshly built scenes).
   stepScale(): number;
-  /** Re-assert the live level on a fresh device, whose renderer restarts at scale 1. */
+  // Re-assert the live level on a fresh device, whose renderer restarts at scale 1.
   resyncAfterRebuild(): void;
 }
 

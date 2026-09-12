@@ -4,13 +4,7 @@
 //
 // pypic grids are CELL-CENTERED: sample i sits at origin + (i + 0.5)·dx (GridInfo.coordinate_arrays),
 // so the physical→index map carries a −0.5 offset and the in-domain range is t ∈ [0, dim−1], i.e.
-// physical [origin + 0.5·dx, origin + (dim − 0.5)·dx]. This is the first webpic path that depends on
-// absolute grid coordinates — the finite-difference kernels only used spacing, so they were immune.
-//
-// Pure leaf — typed arrays in/out, no THREE/DOM/GPU; imports only @containers types. The boolean
-// out-of-domain contract replaces pypic's NaN sentinel (cleaner in TS); the tracer's failure
-// classifier re-samples to split a domain exit from a field null. `?? 0` on the corner reads only
-// satisfies noUncheckedIndexedAccess — every index is in-bounds by the clamps above.
+// physical [origin + 0.5·dx, origin + (dim − 0.5)·dx].
 
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 
@@ -96,6 +90,8 @@ export function interpolatorFromDataset(
   const nym2 = ny - 2;
   const nzm2 = nz - 2;
 
+  // `?? 0` on the corner reads only satisfies noUncheckedIndexedAccess — the clamps above put every
+  // index in bounds.
   const blend = (c: ComponentArray, base: number, fx: number, fy: number, fz: number): number => {
     const c000 = c[base] ?? 0;
     const c100 = c[base + sx] ?? 0;

@@ -10,13 +10,13 @@ type GpuProfilerMode = "timestamp" | "wallclock";
 
 export interface GpuProfiler {
   readonly mode: GpuProfilerMode;
-  /** Mark the start of a frame. Wallclock: stamps `performance.now()`; timestamp: no-op. */
+  // Mark the start of a frame. Wallclock: stamps `performance.now()`; timestamp: no-op.
   begin(): void;
-  /** Timestamp writes to attach to ONE pass per frame; undefined in wallclock mode. */
+  // Timestamp writes to attach to ONE pass per frame; undefined in wallclock mode.
   timestampWrites(): GPUComputePassTimestampWrites | undefined;
-  /** Resolve the query set into the readback buffer (encode after the pass). No-op otherwise. */
+  // Resolve the query set into the readback buffer (encode after the pass). No-op otherwise.
   resolve(encoder: GPUCommandEncoder): void;
-  /** GPU time for the last submitted frame in milliseconds; NaN while a read is in flight. */
+  // GPU time for the last submitted frame in milliseconds; NaN while a read is in flight.
   readLatencyMs(): Promise<number>;
   dispose(): void;
 }

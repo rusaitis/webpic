@@ -18,17 +18,11 @@ import { installColorbarSettings } from "./colorbarSettings.ts";
 import { colorbarStack } from "./colorbarStack.ts";
 
 // The floating colorbar: a draggable, collapsible stack of gradient strips — one per distinct
-// ColormapBinding among the *visible* layers, at most two (colorbarStack.ts; DESIGN §UI "max two
-// for sanity"). More distinct bindings than strips shows a soft-warn "+N" badge naming the fields
-// without one. It magnetically snaps to a viewport edge (left/right → vertical, top/bottom →
-// horizontal) and springs clear of the chrome (rails, top bar, docked shell) so it attaches to an
-// edge without covering the centered camera rail. The gear opens a popover hosting the
-// colormap/scale/window controls for the *selected* layer's binding — that strip carries the
-// active cue when two are up. ui → store only: it reads bindings and repaints; edits flow through
-// the popover's intents. Hides with the global UI toggle. Chrome state (edge/collapsed/position)
-// is ephemeral DOM state — reset each load, like magviz. On the bottom row it is a client of
-// ui/bottomBand, which co-centers it with the button rail and hands down the responsive fit
-// (auto-collapse / migrate) — this module owns the strips, the band owns the row.
+// ColormapBinding among the *visible* layers, at most two (DESIGN §UI "max two for sanity"); more
+// distinct bindings shows a soft-warn "+N" badge naming the fields without a strip. It snaps to a
+// viewport edge and springs clear of the chrome. The gear opens a popover of colormap/scale/window
+// controls for the *selected* layer's binding. ui → store only. On the bottom row it is a client of
+// ui/bottomBand: this module owns the strips, the band owns the row.
 
 // Static chrome the colorbar must not cover on drop; zero-area (hidden) matches are skipped. The
 // bottom rail's tight per-button rects (not its full-width .webpic-rail container, which can't be
@@ -69,7 +63,7 @@ export function installColorbar(
 
   // "main" stacks one section per shown binding: sections run down the free axis (below each other
   // on horizontal docks, side by side on vertical), and inside a section the caption, gradient
-  // strip, and tick labels stack as before — magviz, per strip.
+  // strip, and tick labels stack as before — per strip.
   const main = makeEl(doc, "div", "webpic-cbar_main");
 
   interface StripSection {
@@ -83,7 +77,7 @@ export function installColorbar(
     const strip = makeEl(doc, "div", "webpic-cbar_strip");
     const canvas = doc.createElement("canvas");
     canvas.className = "webpic-cbar_canvas";
-    // Collapsed-only overlay: the field key painted faintly over the gradient (magviz), so a docked
+    // Collapsed-only overlay: the field key painted faintly over the gradient, so a docked
     // strip still names its field without the expanded side caption. Empty → hidden by CSS.
     const miniLabel = makeEl(doc, "span", "webpic-cbar_minilabel");
     miniLabel.setAttribute("aria-hidden", "true");
@@ -249,7 +243,7 @@ export function installColorbar(
     onSettled: band.onSettled,
   });
 
-  // Click anywhere on the bar toggles collapse (magviz), except the gear or a just-ended drag's
+  // Click anywhere on the bar toggles collapse, except the gear or a just-ended drag's
   // trailing click. The settings popover is body-appended, so its clicks never reach here.
   container.addEventListener("click", (e) => {
     if (drag.wasDragging()) return;

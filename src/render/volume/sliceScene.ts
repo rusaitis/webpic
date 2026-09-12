@@ -13,21 +13,21 @@ import { createVolumeTexture, type ScalarField } from "./volumeTexture.ts";
 
 export interface SliceSceneOptions {
   readonly field: ScalarField;
-  /** Theme colormap name (`theme.colormaps.sequential`); unknown → inferno. */
+  // Theme colormap name (`theme.colormaps.sequential`); unknown → inferno.
   readonly colormap: string;
-  /** Field axis held fixed by the slice plane. */
+  // Field axis held fixed by the slice plane.
   readonly axis: SliceAxis;
-  /** Position along the fixed axis, in [0,1]. */
+  // Position along the fixed axis, in [0,1].
   readonly position: number;
-  /** Value→color window; absent → the field's full finite range (identity normalization). */
+  // Value→color window; absent → the field's full finite range (identity normalization).
   readonly windowLevel?: WindowLevel;
-  /** Value→color scale within the window; default linear. */
+  // Value→color scale within the window; default linear.
   readonly scale?: ColorScale;
-  /** Per-layer opacity multiplier on the composited output, [0,1]; default 1 (opaque). */
+  // Per-layer opacity multiplier on the composited output, [0,1]; default 1 (opaque).
   readonly opacity?: number;
-  /** Device supports R32F linear sampling — picks the volume texture format. */
+  // Device supports R32F linear sampling — picks the volume texture format.
   readonly hasFloat32Filterable?: boolean;
-  /** Layer id keying the volume texture into the VRAM ledger (perf HUD); omit to skip tracking. */
+  // Layer id keying the volume texture into the VRAM ledger (perf HUD); omit to skip tracking.
   readonly ledgerKey?: string;
 }
 
@@ -35,7 +35,7 @@ export interface SliceSceneOptions {
 // drag hot path). No march to scale, no normal to light, no projection flip; the held axis is baked
 // into the TSL graph, so an axis change is a registry-side rebuild, not a method here.
 export type SliceScene = LayerScene & {
-  /** Slide the plane along the held axis in place (uniform only, no rebuild), [0, 1]. */
+  // Slide the plane along the held axis in place (uniform only, no rebuild), [0, 1].
   setPosition(position: number): void;
 };
 
@@ -58,7 +58,7 @@ function sliceCoord(
   }
 }
 
-/** Build a themed orthogonal-slice scene from a 3D scalar field. */
+// Build a themed orthogonal-slice scene from a 3D scalar field.
 export function createSliceScene(options: SliceSceneOptions): SliceScene {
   const volume = createVolumeTexture(
     options.field,

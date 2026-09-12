@@ -5,17 +5,11 @@ import { readEdge } from "./floating/dragSnap.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
 // The bottom band coordinator: the one place that knows the bottom row's occupants — the centered
-// button rail (ui/cameraRail), the corner gnomon (ui/cameraChrome), and a strip docked flush on
-// the bottom edge (the colorbar) — and lays them out as a group (magviz parity). Two jobs on top of
-// the pure geometry in colorbar/bottomDock:
-//   • co-centering — a strip docked beside the rail slides the rail's cluster aside (the rail
-//     consumes --webpic-rail-shift as a translateX) and the two read as one centered group;
-//   • the responsive fit — as the band narrows the strip auto-minimizes, then migrates up a side
-//     edge; a rail that can't clear the gnomon's corner reserve sheds the gnomon (isGnomonSuppressed,
-//     which the rail + gnomon consume).
-// It reads the rail/gnomon by DOM query — the same direct coupling dragSnap uses to treat the rail's
-// buttons as obstacles — and drives the strip through a small host: the strip owns its own DOM
-// (collapse class, orientation), the band decides when.
+// button rail, the corner gnomon, and a strip docked flush on the bottom edge — and lays them out as
+// a group. Two jobs on top of the pure geometry in colorbar/bottomDock: co-centering (a docked strip
+// slides the rail's cluster aside via --webpic-rail-shift, and the two read as one group), and the
+// responsive fit (as the band narrows the strip auto-minimizes, then migrates up a side edge; a rail
+// that can't clear the gnomon's corner reserve sheds it). The strip owns its DOM, the band the timing.
 
 // The rail flex-shrinks its buttons + coords chip to fit beside the gnomon, so a *measured* cluster
 // understates how wide it wants to be. Treat it as un-squished (its natural width) only when this much
@@ -29,25 +23,25 @@ const NATURAL_CLUSTER_ESTIMATE_PX = 320; // un-squished rail (buttons + coords c
 export interface BottomBandHost {
   readonly store: SimulationStore;
   readonly uiStore: UiStore;
-  /** The bottom-docked strip: read for its rect + edge/docked state, positioned when grouped. */
+  // The bottom-docked strip: read for its rect + edge/docked state, positioned when grouped.
   readonly strip: HTMLElement;
   isCollapsed(): boolean;
-  /** A fit decision: apply the collapse/expand; the band reflows now and re-fits once settled. */
+  // A fit decision: apply the collapse/expand; the band reflows now and re-fits once settled.
   setCollapsed(next: boolean): void;
-  /** A fit decision: dock to `side` (reorient); the band reflows now and again once settled. */
+  // A fit decision: dock to `side` (reorient); the band reflows now and again once settled.
   migrateToSide(side: PaneEdge): void;
-  /** Re-clamp the strip into the viewport + re-group beside the rail (dragSnap reflow + popover). */
+  // Re-clamp the strip into the viewport + re-group beside the rail (dragSnap reflow + popover).
   reflow(): void;
 }
 
 export interface BottomBand {
-  /** dragSnap's onSettled hook: co-center the rail with a strip docked flush on the bottom row. */
+  // dragSnap's onSettled hook: co-center the rail with a strip docked flush on the bottom row.
   onSettled(edge: PaneEdge, settled: Box, vp: Viewport): void;
-  /** The user toggled collapse by hand: collapse control is theirs until the next fit decision. */
+  // The user toggled collapse by hand: collapse control is theirs until the next fit decision.
   collapse(next: boolean): void;
-  /** The strip changed shape in place (a strip added/removed): re-clamp now, re-fit once settled. */
+  // The strip changed shape in place (a strip added/removed): re-clamp now, re-fit once settled.
   restack(): void;
-  /** Strip shown / hidden: shown re-fits once laid out; hidden releases the rail + gnomon. */
+  // Strip shown / hidden: shown re-fits once laid out; hidden releases the rail + gnomon.
   setVisible(visible: boolean): void;
   dispose(): void;
 }

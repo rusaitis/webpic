@@ -12,7 +12,7 @@ import {
 import { createShortcutRegistry } from "./shortcuts.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
-// Centered bottom button rail (magviz's bottom-cluster, cleaned up to webpic's structure): subtle
+// Centered bottom button rail: subtle
 // icon controls for the gnomon, orbit/fly mode, projection, and a momentary fit-to-view (the one
 // touch path to Z, since iPads have no keyboard), a text "coords" chip that names the loaded
 // coordinate frame + its spatial units and opens a grid-info card, and a help button.
@@ -90,7 +90,7 @@ export function installCameraRail(
   // Grid-info card: a parent-level floating dialog (not a rail child) so it escapes the rail's
   // stacking context + dimmed-button opacity, and opens above the centered cluster. Built once; the
   // grid rows rebuild on a dataset change while open, the View + Center rows track the live pose.
-  // Read-only — preserving/sharing the current view is a future top-menu concern, not the card's.
+  // Read-only: the card reports the pose, it does not edit or share it.
   const card = makeEl(doc, "div", "webpic-coords-card");
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", "Coordinates and grid info");

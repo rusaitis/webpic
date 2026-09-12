@@ -276,7 +276,7 @@ describe("stepMomentum", () => {
   });
 
   it("releases the tuned damping fraction per 60 fps frame, geometrically", () => {
-    // 0.10/frame: magviz parity (OrbitControls f=0.035 × ~3 update calls/frame ≈ 0.10 at 60 fps).
+    // 0.10/frame: OrbitControls f=0.035 × ~3 update calls/frame ≈ 0.10 at 60 fps.
     const m0 = addOrbitMomentum(MOMENTUM_ZERO, 0.5, 0);
     const s1 = stepMomentum(LEVEL, m0, FRAME_MS);
     const s2 = stepMomentum(s1.pose, s1.momentum, FRAME_MS);
@@ -495,7 +495,7 @@ describe("poseDelta / applyPoseDelta", () => {
 describe("nudgePose", () => {
   const still: KeyNudge = { azimuth: 0, elevation: 0, dolly: 0, roll: 0 };
 
-  it("orbits at the magviz keyboard rate: 1.2 rad over a held second", () => {
+  it("orbits at 1.2 rad over a held second", () => {
     const next = nudgePose(LEVEL, { ...still, azimuth: 1 }, 1000);
     expect(next.azimuth).toBeCloseTo(LEVEL.azimuth + 1.2, 12);
   });

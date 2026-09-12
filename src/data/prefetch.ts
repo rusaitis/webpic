@@ -1,20 +1,11 @@
-// STAGED: dormant — no caller passes `plan` to createStreamRing yet; activates with the first slow real
-// reader once ring capacity is raised to ≥ MAX_COUNT + 2 (data.worker.ts owns that wiring).
+// STAGED: activates when a slow real reader is shown to stall — pass `predictor.plan` to
+// createStreamRing and raise `capacity` to ≥ MAX_COUNT + 2, else evict() drops the farthest-ahead
+// prefetch first (data.worker.ts owns that wiring).
 //
-// Directional scrub predictor — a stateful, pure twin of the ring's symmetric ±1 prefetch
-// (data/stream.ts). It watches the cursor's recent motion and biases the prefetch window in the
-// direction of travel, so a fast directional scrub reads *ahead* instead of spending a symmetric
-// budget on steps already behind it. DESIGN §Time-series playback: "direction from EWMA of recent
-// step deltas (window=8, α=0.7); magnitude → prefetch count (1–5); 250 ms debounce on flips;
-// stationary → ±1."
-//
-// Built dormant (profile-then-tune): the data worker still drives the ring's default ±1. Activate by
-// passing `predictor.plan` to createStreamRing AND raising `capacity` to ≥ MAX_COUNT+2 (else evict()
-// drops the farthest-ahead prefetch first) — once a slow real reader is shown to stall.
-//
-// Pure: no DOM/worker globals; time is injected via `observe(step, nowMs)`, so it unit-tests and
-// fuzzes deterministically in Node. Works in domain-INDEX space over the sorted `steps`, like the
-// ring, so a sparse/non-contiguous domain biases toward real adjacent steps.
+// Directional scrub predictor — a stateful, pure twin of the ring's symmetric ±1 prefetch. It watches
+// the cursor's recent motion and biases the prefetch window toward travel, so a fast directional scrub
+// reads *ahead* instead of spending a symmetric budget on steps already behind it. Time is injected
+// via `observe(step, nowMs)`, so it fuzzes deterministically in Node. DESIGN §Time-series playback.
 
 import { clamp } from "@schema/math.ts";
 

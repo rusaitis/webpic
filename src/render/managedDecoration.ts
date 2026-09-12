@@ -2,7 +2,7 @@ import { warmScene } from "./managedScene.ts";
 import type { RenderModule, RenderModuleContext } from "./renderModule.ts";
 
 // The shared lifecycle skeleton behind every "single optional scene, replayed on device-restore"
-// manager — the axes/grid overlay and the point-picker marker today, future chrome (clip planes,
+// manager — the axes/grid overlay and the point-picker marker today, any further chrome (clip planes,
 // selection widgets) tomorrow. It owns the committed scene + the config it was built from + the
 // superseding epoch, and runs the warm-then-commit on build / the replay on rebuild / the teardown.
 // The caller supplies the scene factory, the warm (which compiles the *full* composite with this scene
@@ -17,9 +17,9 @@ export interface DecorationSpec<TScene extends { dispose(): void }, TConfig> {
 }
 
 export interface ManagedDecoration<TScene, TConfig> extends RenderModule {
-  /** Build/replace the scene (or tear it down on null) — warm-then-commit. */
+  // Build/replace the scene (or tear it down on null) — warm-then-commit.
   build(config: TConfig | null): Promise<void>;
-  /** The committed scene, for the worker's composite assembly. */
+  // The committed scene, for the worker's composite assembly.
   current(): TScene | undefined;
 }
 

@@ -9,7 +9,7 @@ import type { RaymarchMaterialBuilder } from "./raymarchScene.ts";
 // reload flow is mockable in node (the dev server + three/webgpu are browser-only). Reached only when
 // `import.meta.env.DEV` (dead-code-eliminated from the prod worker bundle).
 
-/** Re-import `raymarchScene.ts` fresh (cache-busted by `timestamp`) and return its material builder. */
+// Re-import `raymarchScene.ts` fresh (cache-busted by `timestamp`) and return its material builder.
 export async function loadFreshRaymarchBuilder(
   timestamp: number,
 ): Promise<RaymarchMaterialBuilder> {

@@ -57,7 +57,7 @@ describe("installSideRail", () => {
     ]) {
       expect(button(control)).toBeInstanceOf(window.HTMLButtonElement);
     }
-    // Reserved/deferred primitives + tools are present but disabled.
+    // Reserved primitives + tools are present but disabled.
     for (const control of ["add-particles", "reductions", "selections", "theme"]) {
       expect(button(control).disabled).toBe(true);
     }

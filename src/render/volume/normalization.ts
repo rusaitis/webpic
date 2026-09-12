@@ -19,7 +19,7 @@ export type { WindowLevel };
 const MIN_WIDTH = 1e-12; // width 0 collapses every value onto one color and divides by zero in-shader
 const LOG_EPS = 1e-30; // floors log inputs so a non-positive lo/raw yields a finite (clamped) t, not NaN
 
-/** Floor a window width's magnitude so the in-shader divide stays finite. */
+// Floor a window width's magnitude so the in-shader divide stays finite.
 export function safeWidth(width: number): number {
   return Math.max(Math.abs(width), MIN_WIDTH);
 }
@@ -35,8 +35,8 @@ function symlogThresh(lo: number, hi: number, override?: number): number {
   return Math.max(override ?? Math.max(Math.abs(lo), Math.abs(hi)) / 100, LOG_EPS);
 }
 
-/** Pure value→t reference for one (window, scale): the twin the TSL `toT` mirrors and tests check.
- *  Saturated to [0,1]. log/symlog floor their inputs so a non-positive window can't produce NaN. */
+// Pure value→t reference for one (window, scale): the twin the TSL `toT` mirrors and tests check.
+// Saturated to [0,1]. log/symlog floor their inputs so a non-positive window can't produce NaN.
 export function windowedT(
   raw: number,
   center: number,
@@ -67,15 +67,15 @@ export function windowedT(
 }
 
 export interface Normalization {
-  /** map a raw field value → t∈[0,1] (saturated), mirroring windowedT for the active scale. */
+  // map a raw field value → t∈[0,1] (saturated), mirroring windowedT for the active scale.
   toT(raw: Node<"float">): Node<"float">;
-  /** retune the window in place — no texture re-upload, no node rebuild. */
+  // retune the window in place — no texture re-upload, no node rebuild.
   setWindow(center: number, width: number): void;
-  /** switch the value→color scale in place (uniform only). */
+  // switch the value→color scale in place (uniform only).
   setScale(scale: ColorScale): void;
 }
 
-/** Value→t normalization over a field's [vmin, vmax]; defaults to the full finite range, linear. */
+// Value→t normalization over a field's [vmin, vmax]; defaults to the full finite range, linear.
 export function createNormalization(
   vmin: number,
   vmax: number,

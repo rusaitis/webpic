@@ -38,8 +38,8 @@ type DeviceLossKind = "intentional" | "destroyed" | "unknown";
 export interface DeviceLossEvent {
   readonly kind: DeviceLossKind;
   readonly message: string;
-  /** No further auto-recovery will be attempted: the breaker tripped (too many rapid losses) or
-   *  re-acquisition failed (no adapter). Listeners should surface a terminal "reload" state. */
+  // No further auto-recovery will be attempted: the breaker tripped (too many rapid losses) or
+  // re-acquisition failed (no adapter). Listeners should surface a terminal "reload" state.
   readonly isTerminal: boolean;
 }
 
@@ -47,10 +47,8 @@ export type DeviceLostListener = (event: DeviceLossEvent) => void;
 export type DeviceRestoredListener = (device: GPUDevice) => void;
 export type Unsubscribe = () => void;
 
-/**
- * Thrown by {@link installGpu} when WebGPU is unavailable. Carries the discriminant
- * so callers can branch (e.g. render the requires-WebGPU page) without string-matching.
- */
+// Thrown by `installGpu` when WebGPU is unavailable. Carries the discriminant
+// so callers can branch (e.g. render the requires-WebGPU page) without string-matching.
 export class GpuUnavailableError extends Error {
   readonly reason: GpuUnsupportedReason;
   constructor(reason: GpuUnsupportedReason, message: string) {
@@ -99,11 +97,9 @@ function navigatorGpu(): GPU | undefined {
   return navigator.gpu;
 }
 
-/**
- * Acquire an adapter + device without touching the singleton. Returns a
- * discriminated result so the caller can show a requires-WebGPU page on `!ok`
- * instead of catching an exception.
- */
+// Acquire an adapter + device without touching the singleton. Returns a
+// discriminated result so the caller can show a requires-WebGPU page on `!ok`
+// instead of catching an exception.
 export async function requestGpu(options?: GpuRequestOptions): Promise<GpuSupport> {
   const gpu = navigatorGpu();
   if (gpu === undefined) {
@@ -139,11 +135,9 @@ export async function requestGpu(options?: GpuRequestOptions): Promise<GpuSuppor
   }
 }
 
-/**
- * Acquire, store the singleton, wire device.lost recovery, and return a disposer.
- * Throws {@link GpuUnavailableError} when WebGPU is missing — call {@link requestGpu}
- * first if you need to branch on the unsupported reason without a try/catch.
- */
+// Acquire, store the singleton, wire device.lost recovery, and return a disposer.
+// Throws `GpuUnavailableError` when WebGPU is missing — call `requestGpu`
+// first if you need to branch on the unsupported reason without a try/catch.
 export async function installGpu(options?: GpuRequestOptions): Promise<InstalledGpu> {
   if (current !== undefined) {
     throw new Error("GPU already installed; dispose the previous handle before reinstalling.");
@@ -170,9 +164,9 @@ export function getDevice(): GPUDevice {
   return requireInstalled().device;
 }
 
-/** Non-throwing companion to {@link getDevice}: is a device installed right now? The WebGPU
- *  compute backend's `supports()` gates on this — false in Node and in workers (no transferable
- *  device), so the dispatcher never routes to a backend that would throw on `getDevice()`. */
+// Non-throwing companion to `getDevice`: is a device installed right now? The WebGPU
+// compute backend's `supports()` gates on this — false in Node and in workers (no transferable
+// device), so the dispatcher never routes to a backend that would throw on `getDevice()`.
 export function hasDevice(): boolean {
   return current !== undefined;
 }

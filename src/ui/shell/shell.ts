@@ -7,7 +7,7 @@ import { createSubscriptions } from "../subscriptions.ts";
 
 export interface Shell {
   readonly root: HTMLElement;
-  /** The element a panel mounts into. Throws on an unknown panel name. */
+  // The element a panel mounts into. Throws on an unknown panel name.
   panelHost(name: string): HTMLElement;
   dispose(): void;
 }

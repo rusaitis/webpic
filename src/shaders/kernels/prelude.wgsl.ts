@@ -2,7 +2,7 @@
 // raw compute shaders consumed by `gpu/computeKernel.ts`, and the eventual rustpic-shared form).
 // Single-sourced here so the row-major indexing and the np.gradient stencil have exactly one
 // definition; `fieldOps.wgsl.ts` concatenates these strings ahead of its entry points.
-//
+
 // The shared kernel parameters. **Scalars only** — std430 (the `storage` address space) packs
 // 4-byte scalars tightly (no 16-byte rounding), so this maps 1:1 onto the DataView layout built in
 // `compute/backends/webgpu/params.ts`. Keep the two in lockstep: never add a vec/array member here

@@ -14,25 +14,15 @@ import { createHeldKeys } from "./heldKeys.ts";
 import { clientToNdc, frameDt } from "./pointerMath.ts";
 
 // Point-picker pointer input on the main-thread canvas. Capture-phase, so it runs before
-// pointerCamera's bubble-phase handlers on the same element: a pointerdown that grabs the marker (or a
-// handle) calls stopImmediatePropagation so the camera never orbits; everything else falls through to
-// pointerCamera unchanged. The marker lives in the worker, so we hit-test by projecting its world
-// position (store/marker.worldToScreen) and solve drags with the pure pose-driven ray math, then
-// dispatch store intents (setPickerPoint / setPickerActive / setPickerHover / requestPick). ui → store
-// only — no render import.
-//
-// Gestures (magviz parity): drag the sphere to move it on the equatorial plane (Shift, or a steep
-// view, switches to vertical-z); the ↕/↔ handles drag along a single axis. A press on empty volume
-// falls through to pointerCamera (orbit/pan; its double-click focuses) — there is no tap-to-place,
-// so a stray tap (touch especially) never jumps the marker; reposition by dragging it or the held
-// arrow keys. Held arrows slide the marker view-relative — ←/→ along the horizontal screen-right
-// axis, ↑/↓ into/out of the screen (horizontal), Shift+↑/↓ vertically (z) — magviz's selection-cube
-// arrows, minus its world-fixed axes, so the on-screen direction always matches the key. All inert
-// while the marker is hidden (overlay.showPicker false).
+// pointerCamera's bubble-phase handlers on the same element: a pointerdown that grabs the marker (or
+// a handle) calls stopImmediatePropagation so the camera never orbits; everything else falls through
+// to pointerCamera unchanged. The marker lives in the worker, so the hit test projects its world
+// position (store/marker.worldToScreen) and drags solve against the pure pose-driven ray math, then
+// dispatch store intents. ui → store only — no render import. Gestures: DESIGN §Point-picker gestures.
 
 // Hover/grab target: 2× the marker's projected core radius — tracking the rendered size across
 // dolly — with a floor so it never shrinks into a flickery sliver. Core and handle stems share it
-// (magviz's max(26, radiusPx·2)).
+// (max(26, radiusPx·2)).
 const MIN_HIT_PX = 26;
 const HIT_RADIUS_FACTOR = 2;
 const MARKER_KEY_SPEED = 0.5; // marker slide speed while an arrow is held, box units / s

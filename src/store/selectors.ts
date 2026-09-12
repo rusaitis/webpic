@@ -7,18 +7,18 @@ import type { DataRange, SimulationState } from "./state.ts";
 // subscribeWithSelector selector) that returns a stable reference for an unchanged input, so
 // subscribers don't fire spuriously.
 
-/** The computed active field, or null while empty / errored. */
+// The computed active field, or null while empty / errored.
 export function selectComputed(state: Pick<SimulationState, "field">): FieldArray | null {
   return state.field.kind === "ready" ? state.field.computed : null;
 }
 
-/** The active field's finite extent, or null while empty / errored / all-NaN. */
+// The active field's finite extent, or null while empty / errored / all-NaN.
 export function selectDataRange(state: Pick<SimulationState, "field">): DataRange | null {
   return state.field.kind === "ready" ? state.field.dataRange : null;
 }
 
-/** The selected layer, or null when nothing is selected (or the id no longer resolves). The single
- *  reader of the selected-layer chain — UI panels select through this rather than re-deriving it. */
+// The selected layer, or null when nothing is selected (or the id no longer resolves). The single
+// reader of the selected-layer chain — UI panels select through this rather than re-deriving it.
 export function selectActiveLayer(
   state: Pick<SimulationState, "layers" | "selectedLayerId">,
 ): Layer | null {
@@ -26,7 +26,7 @@ export function selectActiveLayer(
   return state.layers.find((layer) => layer.id === state.selectedLayerId) ?? null;
 }
 
-/** The ColormapBinding bound to the selected layer, or null when none is selected/bound. */
+// The ColormapBinding bound to the selected layer, or null when none is selected/bound.
 export function selectActiveBinding(
   state: Pick<SimulationState, "layers" | "selectedLayerId" | "colormapBindings">,
 ): ColormapBinding | null {
@@ -34,9 +34,9 @@ export function selectActiveBinding(
   return bindingId === null ? null : (state.colormapBindings[bindingId] ?? null);
 }
 
-/** The distinct ColormapBindings referenced by *visible* layers, in draw order (first reference
- *  wins). The colorbar's content model (DESIGN §UI): shared bindings collapse to one entry, hidden
- *  layers contribute nothing. Fresh array per call — subscribe with a shallow equalityFn. */
+// The distinct ColormapBindings referenced by *visible* layers, in draw order (first reference
+// wins). The colorbar's content model (DESIGN §UI): shared bindings collapse to one entry, hidden
+// layers contribute nothing. Fresh array per call — subscribe with a shallow equalityFn.
 export function selectVisibleBindings(
   state: Pick<SimulationState, "layers" | "colormapBindings">,
 ): readonly ColormapBinding[] {

@@ -14,37 +14,37 @@ export interface LoadingPhase {
   readonly kind: "loading" | "task"; // "task" reserved for future dismissible jobs
 }
 
-/** The cold-start phase: begun at bootstrap, ended on the worker's first frame. Shared
- *  so the app (who runs it) and the ui's boot reveal (who watches it) agree on the key. */
+// The cold-start phase: begun at bootstrap, ended on the worker's first frame. Shared
+// so the app (who runs it) and the ui's boot reveal (who watches it) agree on the key.
 export const BOOT_PHASE_KEY = "boot";
 
 export interface UiState {
   readonly isUiVisible: boolean;
   readonly isHelpVisible: boolean;
   readonly isCoordsInfoVisible: boolean;
-  /** The rail-toggled Layers overlay — a collapsible workspace panel, default closed
-   *  (`layers-collapsed-default`). Distinct from `panels` (docked-shell visibility). */
+  // The rail-toggled Layers overlay — a collapsible workspace panel, default closed
+  // (`layers-collapsed-default`). Distinct from `panels` (docked-shell visibility).
   readonly isLayersPanelOpen: boolean;
-  /** The per-layer settings window, opened from the Layers-panel gear or the rail's "Add new".
-   *  Bound to the selected layer; default closed. Distinct from `isLayersPanelOpen` (the list overlay). */
+  // The per-layer settings window, opened from the Layers-panel gear or the rail's "Add new".
+  // Bound to the selected layer; default closed. Distinct from `isLayersPanelOpen` (the list overlay).
   readonly isLayerSettingsOpen: boolean;
-  /** Responsive override: the bottom band is too narrow to hold the gnomon beside the centered
-   *  rail, so the gnomon is hidden until there's room again. Distinct from the user's gnomon
-   *  preference (overlay.showGnomon) — it only suppresses, never enables. The colorbar (the
-   *  bottom-band coordinator) writes it; the rail + gnomon consume it. */
+  // Responsive override: the bottom band is too narrow to hold the gnomon beside the centered
+  // rail, so the gnomon is hidden until there's room again. Distinct from the user's gnomon
+  // preference (overlay.showGnomon) — it only suppresses, never enables. The colorbar (the
+  // bottom-band coordinator) writes it; the rail + gnomon consume it.
   readonly isGnomonSuppressed: boolean;
   readonly panels: Readonly<Record<string, boolean>>;
-  /** Insertion-ordered; the pill shows while nonempty and the oldest entry owns the
-   *  message — newest-wins reverts the text when a later phase ends first (A→B→A). */
+  // Insertion-ordered; the pill shows while nonempty and the oldest entry owns the
+  // message — newest-wins reverts the text when a later phase ends first (A→B→A).
   readonly loadingPhases: readonly LoadingPhase[];
   readonly statusError: { readonly message: string } | null;
-  /** Monotonic PNG-capture trigger: each request increments, subscribers fire per change — no
-   *  consume/reset ping-pong. The app bridge owns the capture; ui only dispatches the intent. */
+  // Monotonic PNG-capture trigger: each request increments, subscribers fire per change — no
+  // consume/reset ping-pong. The app bridge owns the capture; ui only dispatches the intent.
   readonly screenshotSerial: number;
-  /** The active theme's name (slug, e.g. "catppuccin-mocha"); null until the app seeds it. The app
-   *  theme bridge owns the bundled list + application — ui reads this for display only. */
+  // The active theme's name (slug, e.g. "catppuccin-mocha"); null until the app seeds it. The app
+  // theme bridge owns the bundled list + application — ui reads this for display only.
   readonly themeName: string | null;
-  /** Monotonic cycle-to-next-theme trigger (rail button), same shape as screenshotSerial. */
+  // Monotonic cycle-to-next-theme trigger (rail button), same shape as screenshotSerial.
   readonly themeCycleSerial: number;
   toggleUi(): void;
   setUiVisible(visible: boolean): void;

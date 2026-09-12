@@ -5,7 +5,7 @@ import { createShortcutRegistry, SHORTCUTS } from "./shortcuts.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
 // Keyboard cheat-sheet: a centered modal toggled with `?` (Shift+/) or `H`, Escape or a backdrop
-// click to close. install*() => Disposer. Visibility rides the ui store's help flag so a future
+// click to close. install*() => Disposer. Visibility rides the ui store's help flag so any
 // header "?" button shares one source of truth. Nothing else documents the bindings, so this is
 // the discovery surface for the new roll / fly-through / axis-snap keys.
 export function installHelpOverlay(parent: HTMLElement, uiStore: UiStore): Disposer {

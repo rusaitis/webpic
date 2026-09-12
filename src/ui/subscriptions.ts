@@ -6,8 +6,8 @@ import type { Disposer } from "./controls/index.ts";
 // to fall out of step with the subscriptions they mirror. Idempotent: a defensive double-dispose
 // finds nothing left to run.
 
-/** The selector-subscribe surface the vanilla `subscribeWithSelector` stores share (SimulationStore,
- *  UiStore, PerfStore). Structural, so it never names a store type. */
+// The selector-subscribe surface the vanilla `subscribeWithSelector` stores share (SimulationStore,
+// UiStore, PerfStore). Structural, so it never names a store type.
 interface SelectorStore<S> {
   getState(): S;
   subscribe<U>(
@@ -21,9 +21,9 @@ interface SelectorStore<S> {
 }
 
 interface SubscribeOptions<U> {
-  /** Run the listener once with the current slice on subscribe (the usual "apply, then track"). */
+  // Run the listener once with the current slice on subscribe (the usual "apply, then track").
   readonly fireNow?: boolean;
-  /** Slice comparison; default is `Object.is`. Pass zustand's `shallow` for fresh-array selectors. */
+  // Slice comparison; default is `Object.is`. Pass zustand's `shallow` for fresh-array selectors.
   readonly equalityFn?: (a: U, b: U) => boolean;
 }
 

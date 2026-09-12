@@ -14,11 +14,11 @@ import {
 // loss untouched (only scenes/textures rebuild). `apply` re-aims BOTH volume cameras so a projection
 // flip never shows a stale frustum; the screen-aligned ortho is pose-invariant.
 export interface CameraRig {
-  /** The active volume camera for the projection (perspective, or the matched-frustum ortho). */
+  // The active volume camera for the projection (perspective, or the matched-frustum ortho).
   volumeCamera(orthographic: boolean): PerspectiveCamera | OrthographicCamera;
-  /** The screen-aligned ortho camera (slices + boot triangle); pose-invariant. */
+  // The screen-aligned ortho camera (slices + boot triangle); pose-invariant.
   readonly orthoCamera: OrthographicCamera;
-  /** Re-aim both volume cameras at the pose + aspect (a pose change or a resize). */
+  // Re-aim both volume cameras at the pose + aspect (a pose change or a resize).
   apply(pose: CameraPose, aspect: number): void;
 }
 

@@ -25,12 +25,12 @@ import { frameDt } from "./pointerMath.ts";
 // wheel notch), "fly" while only a tween runs, idle on the quiet frame. Gestures (ui/cameraGestures)
 // feed it deltas; the composer (ui/pointerCamera) feeds it flights.
 
-// Eased fly-to duration (reset / axis snap / pick-to-focus) — magviz's 0.45 s focus glide.
+// Eased fly-to duration (reset / axis snap / pick-to-focus).
 const FLY_MS = 450;
 // Wheel has no end event; interaction stays live this long past the last notch.
 const WHEEL_TRAIL_MS = 150;
 
-// Held-key nudges (magviz's orbit keys): A/D sweep the camera left/right around the target, Q/E
+// Held-key nudges: A/D sweep the camera left/right around the target, Q/E
 // lower/raise it, W/S (and -/=, "=" being the unshifted "+") dolly in/out. In fly mode (the store's
 // isFlyMode, toggled by the rail / N) the loop passes lookMode, flipping A/D/Q/E to first-person
 // look (turn in place: D right, E up); orbit otherwise. W/S dolly the same either way — and close up
@@ -40,7 +40,7 @@ const WHEEL_TRAIL_MS = 150;
 const NUDGE_KEYS: ReadonlyMap<string, KeyNudge> = new Map([
   ["KeyA", { azimuth: -1, elevation: 0, dolly: 0, roll: 0 }], // camera sweeps left around the target
   ["KeyD", { azimuth: 1, elevation: 0, dolly: 0, roll: 0 }],
-  ["KeyQ", { azimuth: 0, elevation: -1, dolly: 0, roll: 0 }], // camera descends (magviz orbit/fly parity)
+  ["KeyQ", { azimuth: 0, elevation: -1, dolly: 0, roll: 0 }], // camera descends
   ["KeyE", { azimuth: 0, elevation: 1, dolly: 0, roll: 0 }],
   ["KeyW", { azimuth: 0, elevation: 0, dolly: 1, roll: 0 }],
   ["KeyS", { azimuth: 0, elevation: 0, dolly: -1, roll: 0 }],
@@ -69,17 +69,17 @@ export interface CameraGlideHost {
 }
 
 export interface CameraGlide {
-  /** Drag deltas in viewport-height fractions feed the damped momentum the loop releases. */
+  // Drag deltas in viewport-height fractions feed the damped momentum the loop releases.
   orbit(dx: number, dy: number): void;
   pan(dx: number, dy: number): void;
-  /** Drop a fling in progress (a purged phantom pointer must not carry its momentum over). */
+  // Drop a fling in progress (a purged phantom pointer must not carry its momentum over).
   dropMomentum(): void;
-  /** Eased flight to `to`; a live fling or fresh input blends in rather than canceling it. */
+  // Eased flight to `to`; a live fling or fresh input blends in rather than canceling it.
   flyTo(to: CameraPose): void;
-  /** A wheel notch landed: the interaction stays live for the trail, which the loop expires. */
+  // A wheel notch landed: the interaction stays live for the trail, which the loop expires.
   touchWheel(): void;
   isWheelLive(): boolean;
-  /** Pointer(s) down on the canvas — the hand is on the camera. */
+  // Pointer(s) down on the canvas — the hand is on the camera.
   setPointerDown(down: boolean): void;
   dispose(): void;
 }

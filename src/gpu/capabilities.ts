@@ -38,11 +38,9 @@ export interface GpuCapabilities {
   readonly adapter: GpuAdapterSummary;
 }
 
-/**
- * Intersection of `desired` with the adapter's supported features — the set safe
- * to hand `requestDevice({ requiredFeatures })`, since requesting a feature the
- * adapter lacks rejects the call.
- */
+// Intersection of `desired` with the adapter's supported features — the set safe
+// to hand `requestDevice({ requiredFeatures })`, since requesting a feature the
+// adapter lacks rejects the call.
 export function selectFeatures(
   adapter: GPUAdapter,
   desired: readonly GPUFeatureName[] = DESIRED_FEATURES,
@@ -50,11 +48,9 @@ export function selectFeatures(
   return desired.filter((name) => adapter.features.has(name));
 }
 
-/**
- * Snapshot the device's enabled features + key limits into a plain readonly struct
- * (don't leak the live host bindings). Probes `device.features`, not
- * `adapter.features`: a feature is only usable once requested at device creation.
- */
+// Snapshot the device's enabled features + key limits into a plain readonly struct
+// (don't leak the live host bindings). Probes `device.features`, not
+// `adapter.features`: a feature is only usable once requested at device creation.
 export function probeCapabilities(adapter: GPUAdapter, device: GPUDevice): GpuCapabilities {
   const { features, limits } = device;
   const { info } = adapter;

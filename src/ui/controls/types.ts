@@ -68,21 +68,21 @@ export interface RangeControlOptions {
   readonly label: string;
   readonly min: number;
   readonly max: number;
-  /** Single-mode initial value (ignored when `range` is given). */
+  // Single-mode initial value (ignored when `range` is given).
   readonly value?: number;
-  /** Presence selects interval mode: [lo, hi]. */
+  // Presence selects interval mode: [lo, hi].
   readonly range?: readonly [number, number];
   readonly step?: number;
-  /** Position↔value mapping; default 'linear'. */
+  // Position↔value mapping; default 'linear'.
   readonly scale?: ScaleKind;
   readonly linthresh?: number;
   readonly ticks?: boolean | number;
   readonly format?: (value: number) => string;
-  /** Interval minimum gap (default = step ?? 0); keeps the two ends from collapsing. */
+  // Interval minimum gap (default = step ?? 0); keeps the two ends from collapsing.
   readonly minGap?: number;
-  /** Live edits during drag/keyboard. */
+  // Live edits during drag/keyboard.
   readonly onInput?: (value: RangeValue) => void;
-  /** Committed edits on release / text entry. */
+  // Committed edits on release / text entry.
   readonly onChange: (value: RangeValue) => void;
 }
 

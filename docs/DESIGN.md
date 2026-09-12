@@ -497,7 +497,19 @@ Single-pass WGSL fragment raymarcher; gradient + Phong from M2. The fixed-step m
 - Seed buffer `array<vec4<f32>>` (xyz + arclength); compute shader Dormand-Prince 5(4) with I (elementary) step control (`i_step_controller`), one invocation per seed. The WGSL kernel mirrors pypic's `dormand_prince_step` + `i_step_controller` scheme-for-scheme so M4 golden-trace parity holds at tight numeric tolerance (a PI controller would diverge from the goldens — pypic reserves PI behind an `err_prev` kwarg but ships I).
 - Writes to vertex buffer + segment-count buffer.
 - Render with `Line2`/`LineSegments2` via indirect draw. No CPU readback per frame.
-- Vector field lookup is `textureSampleLevel` on packed `texture_3d<rgba16float>` of (B_1, B_2, B_3).
+- **Vector field lookup is a manual trilinear read of three storage buffers**, not `textureSampleLevel` on a packed `texture_3d`: the hand-written blend reproduces the f64 reference's operation order exactly, so the only GPU/CPU gap is f32 roundoff, while hardware sampling has implementation-defined sub-texel rounding that would put the trace tolerance at risk. Sampling is cell-centered (the −0.5 index map), row-major `(i·ny + j)·nz + k`.
+- **The WGSL kernel is a line-for-line transliteration of the f64 reference**, which is what holds GPU ≡ CPU ≡ pypic golden parity at f32 tolerance:
+
+  | WGSL (`shaders/kernels/streamline.wgsl.ts`) | TS reference |
+  |---|---|
+  | `sampleField` | `numerics/interp.ts` `sample`/`blend` |
+  | `rhs` | `numerics/tracing.ts` `makeRhs` (unit field direction, sign-bearing; null on exit/null) |
+  | `dpStep` | `numerics/integrators.ts` `dormandPrinceStep` (7-stage FSAL, exact tableau fractions) |
+  | `errorNorm` | `numerics/integrators.ts` `embeddedErrorNorm` |
+  | `iController` | `numerics/integrators.ts` `iStepController` |
+  | `streamline_main` | `numerics/tracing.ts` `traceSingleDirectionAdaptive` |
+
+  The `"both"`/backward stitch and `FieldLine` assembly stay on the CPU — the GPU orchestrator reuses `tracing.ts` `stitch`.
 - Cancellable via `AbortSignal` through the dispatcher.
 - **Which vector a layer traces** follows the layer's displayed field: `compute/vectorComponentsForField` maps a magnitude to its stored components through `RECIPES` (`|B|` → `B_1/B_2/B_3`, `|E|` → `E_1/E_2/E_3`), falling back to B when the field names no stored vector. A perpendicular magnitude resolves to its unprojected family (`|E_perp|` → E) — the vector actually stored; tracing derived vectors (`curl_B_*`) waits for on-the-fly component compute.
 - **Seed failure is per seed, not per batch.** `numerics/tracing` keeps pypic's strict validate-then-throw batch (`onInvalidSeed: "throw"`); the `compute/traceField` facade partitions seeds, traces the rest, and reports the dropped ones — a field null (a masked planetary interior, a reconnection X-line) must cost one line, not the layer. The store surfaces the tally per layer (`traceNotices`) rather than a console warning.
@@ -792,6 +804,15 @@ default-controls-visible = true
 ```
 
 Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirror pypic's set (7): `dark`, `light`, `catppuccin-mocha`, `lcars`, `synthwave`, `andromeda`, `anuppuccin-light`.
+
+### Point-picker gestures
+
+`ui/pointerPicker.ts` owns these; the marker itself lives in the render worker.
+
+- Drag the sphere to move it on the equatorial plane; Shift — or a steep view — switches the drag to vertical z. The ↕/↔ handles drag along a single axis.
+- A press on empty volume falls through to `pointerCamera` (orbit/pan; its double-click focuses). There is deliberately **no tap-to-place**, so a stray tap — touch especially — never jumps the marker; reposition by dragging it or with the held arrow keys.
+- Held arrows slide the marker **view-relative**: ←/→ along the horizontal screen-right axis, ↑/↓ into and out of the screen, Shift+↑/↓ vertically in z. View-relative rather than world-fixed, so the on-screen direction always matches the key.
+- Everything here is inert while the marker is hidden (`overlay.showPicker` false).
 
 ### Shortcuts
 

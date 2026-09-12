@@ -8,18 +8,12 @@ import type { Vec3 } from "@schema/types.ts";
 
 export type { CameraMotion, CameraPose, CameraProjection, MarkerPart };
 
-// Typed protocol for the OffscreenCanvas render worker. Discriminated unions both
-// ways; `requestId` correlates a response to its request and pre-stages the
-// cancellation plumbing the fuller StoreToRender/RenderToStore protocol will need.
-// Transferables (OffscreenCanvas, field/pixel ArrayBuffer) move by transfer, never clone.
-//
-// requestId convention: it is genuinely *correlated* only for the request/response pairs the worker
-// answers — `init`→`ready`, `renderFrame`→`frame`, `pickRay`→`pickResult`. The one-way store→worker
-// messages (camera pose, colormap, composite, …) are fire-and-forget, so their ids are stable labels
-// for error attribution, not match keys. All ids are assigned once in REQUEST_IDS below — unique by
-// construction (each bridge used to hardcode its own, and the set had drifted into a collision: a
-// `pickRay` shared id 10 with `setSceneOverlay`). Introduce a real allocator only when a reply must
-// match one of many concurrent same-kind requests.
+// Typed protocol for the OffscreenCanvas render worker. Discriminated unions both ways; transferables
+// (OffscreenCanvas, field/pixel ArrayBuffer) move by transfer, never clone. `requestId` is genuinely
+// *correlated* only for the pairs the worker answers — init→ready, renderFrame→frame,
+// pickRay→pickResult; the one-way store→worker messages are fire-and-forget, so their ids are stable
+// labels for error attribution, not match keys. All of them are assigned once in REQUEST_IDS below, so
+// no two bridges can collide; a real allocator waits for a reply that must match one of many in flight.
 
 // Single source of truth for every store→render-worker request id (one per posting site). Object keys
 // are unique, so a collision is unrepresentable; the app bridges import these instead of hardcoding
@@ -152,7 +146,7 @@ export type RenderWorkerRequest =
   // Build or rebuild a field-line layer's scene from packed world-space polylines. Transfers both
   // buffers: `positions` is flat f32 xyz for every vertex of every line concatenated in line order,
   // `counts` is the u32 vertex count per line (partitions positions). v0.1 colors the set solid
-  // (`color`, derived by the app from the layer's colormap); color-by-scalar is a later refinement.
+  // (`color`, derived by the app from the layer's colormap).
   | {
       readonly kind: "upsertFieldlines";
       readonly requestId: number;

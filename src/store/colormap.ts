@@ -14,7 +14,7 @@ import type { FieldName } from "@schema/types.ts";
 
 export type BindingRecord = Readonly<Record<string, ColormapBinding>>;
 
-/** A fresh binding for `field` over `window`: default colormap, linear scale. */
+// A fresh binding for `field` over `window`: default colormap, linear scale.
 export function makeDefaultBinding(
   id: string,
   field: FieldName,
@@ -65,8 +65,8 @@ export function setBindingScale(rec: BindingRecord, id: string, scale: ColorScal
   return patchBinding(rec, id, (b) => (b.scale === scale ? null : { ...b, scale }));
 }
 
-/** Repoint a binding at a new field + window (a field switch reuses the binding instance so the
- *  referencing layer keeps its colormap/scale, only the value scale resets). */
+// Repoint a binding at a new field + window (a field switch reuses the binding instance so the
+// referencing layer keeps its colormap/scale, only the value scale resets).
 export function retargetBinding(
   rec: BindingRecord,
   id: string,

@@ -224,7 +224,7 @@ describe("installTopBar", () => {
     const chevron = control("more");
     chevron.dispatchEvent(new MouseEvent("click")); // pin
     expect(actionsReveal()?.classList.contains("is-expanded")).toBe(true);
-    // a scene click no longer dismisses a pinned panel (sticky like the time scrub)
+    // a scene click does not dismiss a pinned panel (sticky like the time scrub)
     document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
     expect(actionsReveal()?.classList.contains("is-expanded")).toBe(true);
     chevron.dispatchEvent(new MouseEvent("click")); // re-click is the way to close it

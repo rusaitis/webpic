@@ -9,13 +9,13 @@ import type { UiStore } from "@store";
 
 export interface ThemeBridgeOptions {
   readonly uiStore: UiStore;
-  /** Bundled themes keyed by name (loadBundledThemes()); insertion order is the cycle order. */
+  // Bundled themes keyed by name (loadBundledThemes()); insertion order is the cycle order.
   readonly themes: ReadonlyMap<string, Theme>;
-  /** The boot theme's name (persisted pref or the default); seeded into the store on install. */
+  // The boot theme's name (persisted pref or the default); seeded into the store on install.
   readonly initialName: string;
-  /** Applies a theme everywhere it lives: UI CSS vars + the render worker's overlay/marker colors. */
+  // Applies a theme everywhere it lives: UI CSS vars + the render worker's overlay/marker colors.
   readonly applyTheme: (theme: Theme) => void;
-  /** Persists the choice (OPFS); best-effort fire-and-forget. */
+  // Persists the choice (OPFS); best-effort fire-and-forget.
   readonly persist: (name: string) => Promise<void>;
 }
 

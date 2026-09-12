@@ -24,7 +24,7 @@ import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 const RENDER_PHASE_KEY = "render";
 
 // Where on the layer's colormap the solid line color is sampled — high enough to read as a bright,
-// saturated streamline over the volume. Color-by-scalar (the full colormap along the line) is deferred.
+// saturated streamline over the volume.
 const FIELDLINE_COLOR_T = 0.75;
 
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
@@ -58,15 +58,15 @@ function upsertParams(layer: FieldLayer, worldHalfExtent: Vec3): FieldLayerParam
 
 export interface LayerSyncOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
-  /** Raises/drops the render-loading pill across the upsert → layerCompiled round-trip. */
+  // Raises/drops the render-loading pill across the upsert → layerCompiled round-trip.
   readonly uiStore: UiStore;
 }
 
 export interface LayerSync {
-  /** Send the full current state (upsert each active-field layer + the composite). Catch-up on ready. */
+  // Send the full current state (upsert each active-field layer + the composite). Catch-up on ready.
   readonly flushAll: () => void;
-  /** Drop the render-loading pill when the worker acks a layer's pipeline warm (the layerCompiled
-   *  response). Coalesced (flat key), so any acked layer clears the shared pill. */
+  // Drop the render-loading pill when the worker acks a layer's pipeline warm (the layerCompiled
+  // response). Coalesced (flat key), so any acked layer clears the shared pill.
   readonly finishLoading: () => void;
   readonly dispose: () => void;
 }

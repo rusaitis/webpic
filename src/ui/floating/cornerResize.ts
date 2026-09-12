@@ -15,8 +15,8 @@ export interface ResizeBounds {
   readonly maxHeight: number;
 }
 
-/** New width/height after dragging the corner by (dx, dy) from a start size, clamped to bounds. The
- *  max is floored at the min so a too-small viewport can't invert the range. Pure — unit-tested. */
+// New width/height after dragging the corner by (dx, dy) from a start size, clamped to bounds. The
+// max is floored at the min so a too-small viewport can't invert the range. Pure — unit-tested.
 export function resizeDims(
   startWidth: number,
   startHeight: number,
@@ -33,9 +33,9 @@ export function resizeDims(
 export interface CornerResizeOptions {
   readonly minWidth?: number;
   readonly minHeight?: number;
-  /** Viewport breathing room kept past the element's far edge. Defaults to VIEWPORT_MARGIN_PX. */
+  // Viewport breathing room kept past the element's far edge. Defaults to VIEWPORT_MARGIN_PX.
   readonly margin?: number;
-  /** Fired after each applied size change (e.g. to reflow content). */
+  // Fired after each applied size change (e.g. to reflow content).
   readonly onResize?: () => void;
 }
 

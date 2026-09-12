@@ -16,17 +16,12 @@ import {
   stepReadout,
 } from "./topBarInfo.ts";
 
-// The top menu bar (magviz's glass-pill topbar, rebuilt to webpic's structure): a brand, a dataset
-// dropdown (label prefers the run name the data carries), a "content" button that opens the available
-// fields + their metadata, a timestep chip that opens a scrub popover (the custom range control +
-// prev/next) on click/tap, a projection chip + PNG-export button, and a click-opened
-// cluster of disabled placeholder actions behind a chevron — both reveals share one installReveal. On
-// a narrow viewport (matchMedia) the bar goes compact: the timestep scrub relocates into the chevron's
-// panel so the row still fits and the chevron never spills off-screen.
-// ui → store only — every control reads a slice or dispatches a
-// typed intent; no render import. It owns dataset/field/time now, so those docked panels drop from the
-// default layout (schema/theme defaultPanels). Hides with the global UI toggle like ui/cameraRail,
-// force-closing its popovers + reveal so neither floats over a hidden bar.
+// The top menu bar: a brand, a dataset dropdown (label prefers the run name the data carries), a
+// "content" button listing the available fields, a timestep chip that opens a scrub popover, a
+// projection chip + PNG-export button, and a chevron cluster of disabled placeholder actions — both
+// reveals share one installReveal. On a narrow viewport (matchMedia) the bar goes compact: the scrub
+// relocates into the chevron's panel so the row still fits. ui → store only. Hides with the global UI
+// toggle, force-closing its popovers + reveal so neither floats over a hidden bar.
 
 // 16×16 inline SVGs (no icon-font dep); `fill: none; stroke: currentColor` come from the bar CSS.
 const BRAND_SVG = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.6 9.4c2.1-4.8 4.4-4.8 6.4 0"/><path d="M8 6.6c2 4.8 4.3 4.8 6.4 0"/></svg>`;
@@ -52,7 +47,7 @@ export function installTopBar(
   const caret = (): HTMLSpanElement => makeCaret(doc, "webpic-topbar_caret", ICON_CARET_FLAT);
   const iconButton = (control: string, icon: string, title: string): HTMLButtonElement =>
     makeIconButton(doc, "webpic-topbar_btn webpic-topbar_icon", icon, { control, title });
-  // Compact, borderless step buttons (magviz's subtle scrubber) — distinct from the filled picker /
+  // Compact, borderless step buttons — distinct from the filled picker /
   // icon buttons; styled by .webpic-topbar_step-btn.
   const stepButton = (control: string, icon: string, title: string): HTMLButtonElement =>
     makeIconButton(doc, "webpic-topbar_step-btn", icon, { control, title });

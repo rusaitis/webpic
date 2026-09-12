@@ -12,15 +12,15 @@ export const Z_FLOATING_BASE = 15;
 let zTop = Z_FLOATING_BASE;
 let raiserCount = 0;
 
-/** Lift `element` above every other floating panel. */
+// Lift `element` above every other floating panel.
 export function bringToFront(element: HTMLElement): void {
   zTop += 1;
   element.style.zIndex = `${zTop}`;
 }
 
-/** Raise `element` on pointerdown (capture, so it wins before inner drag/click handlers). Returns a
- *  disposer; pass a `signal` instead to tie removal to an AbortController. Either release path is
- *  idempotent — the raiser is counted out exactly once. */
+// Raise `element` on pointerdown (capture, so it wins before inner drag/click handlers). Returns a
+// disposer; pass a `signal` instead to tie removal to an AbortController. Either release path is
+// idempotent — the raiser is counted out exactly once.
 export function installRaise(element: HTMLElement, signal?: AbortSignal): () => void {
   if (signal?.aborted) return () => {};
   const onDown = (): void => bringToFront(element);

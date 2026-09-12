@@ -1,17 +1,12 @@
 import type { Box } from "../floating/dragSnap.ts";
 import { VIEWPORT_MARGIN_PX } from "../layout.ts";
 
-// Co-centering of the bottom button rail and a bottom-docked colorbar (magviz's installColorbarDock,
-// distilled to pure geometry). When the colorbar docks at the bottom edge *near* the centered rail
-// the two lay out as one centered group: the rail's cluster slides aside (a translateX the caller
-// applies) to make room and the colorbar sits flush beside it with GROUP_GAP_PX between. Drop the
-// colorbar far along the bottom — or to another edge — and it floats: the rail re-centers alone
-// (railShift 0) and the colorbar stays where the dock placed it.
-//
-// Every offset is derived from the rail's *natural* centered position (the viewport center), never
-// from its currently-shifted rect, so applying the returned railShift as an absolute transform is
-// idempotent — re-running on resize/collapse never double-shifts. Pure — unit-tested; the caller
-// measures the DOM (cluster width, corner widget) and applies the result.
+// Co-centering of the bottom button rail and a bottom-docked colorbar, as pure geometry. Docked at the
+// bottom edge *near* the centered rail, the two lay out as one centered group: the rail's cluster
+// slides aside (a translateX the caller applies) and the colorbar sits flush beside it. Dropped far
+// along the bottom — or on another edge — both float free. Every offset derives from the rail's
+// *natural* centered position, never its currently-shifted rect, so applying railShift as an absolute
+// transform is idempotent: re-running on resize or collapse never double-shifts.
 
 export const GROUP_GAP_PX = 12; // gap between the rail cluster and the colorbar when grouped
 const DOCK_PROXIMITY_PX = 72; // max gap from the natural cluster band for a bottom drop to group
@@ -22,26 +17,26 @@ const GNOMON_RESERVE_PX = 80;
 const GNOMON_CRAMP_HYSTERESIS_PX = 24; // extra width required to *restore* the gnomon (anti-flicker)
 
 export interface BottomDockInput {
-  /** The colorbar's settled rect: its width drives the group, its center picks the side + proximity. */
+  // The colorbar's settled rect: its width drives the group, its center picks the side + proximity.
   readonly colorbar: Box;
-  /** Width of the rail's button cluster (translate-invariant). 0 → nothing to group with. */
+  // Width of the rail's button cluster (translate-invariant). 0 → nothing to group with.
   readonly clusterWidth: number;
   readonly viewportWidth: number;
-  /** Right edge (viewport px) of the lower-left corner widget the cluster must clear; 0 if none. */
+  // Right edge (viewport px) of the lower-left corner widget the cluster must clear; 0 if none.
   readonly cornerClearRight: number;
 }
 
 export interface BottomDockResult {
-  /** translateX for the rail cluster off its natural center (0 = centered alone). */
+  // translateX for the rail cluster off its natural center (0 = centered alone).
   readonly railShift: number;
-  /** Left for the colorbar when grouped; null → leave it where the dock placed it. */
+  // Left for the colorbar when grouped; null → leave it where the dock placed it.
   readonly colorbarLeft: number | null;
   readonly isGrouped: boolean;
   readonly side: "left" | "right";
 }
 
-/** Resolve the rail-shift + colorbar-left that center [cluster | gap | colorbar] (or the mirror) as
- *  one group, or signal "floating" (rail centered alone) when the colorbar dropped clear of the rail. */
+// Resolve the rail-shift + colorbar-left that center [cluster | gap | colorbar] (or the mirror) as
+// one group, or signal "floating" (rail centered alone) when the colorbar dropped clear of the rail.
 export function bottomDockLayout(input: BottomDockInput): BottomDockResult {
   const { colorbar, clusterWidth: cluster, viewportWidth: vw, cornerClearRight } = input;
   const center = vw / 2;
@@ -89,16 +84,16 @@ export type ColorbarFitMode = "expanded" | "collapsed" | "migrate";
 
 export interface ColorbarFitInput {
   readonly viewportWidth: number;
-  /** Rail button-cluster width; 0 → no rail to group with, so the strip always stays expanded. */
+  // Rail button-cluster width; 0 → no rail to group with, so the strip always stays expanded.
   readonly clusterWidth: number;
-  /** Right edge (px) of the lower-left corner widget the group must clear; 0 if none/suppressed. */
+  // Right edge (px) of the lower-left corner widget the group must clear; 0 if none/suppressed.
   readonly cornerClearRight: number;
   readonly expandedWidth: number;
   readonly collapsedWidth: number;
 }
 
-/** Widest mode whose [cluster | gap | strip] group still fits between the corner widget and the
- *  right margin; "migrate" when not even the collapsed strip does. */
+// Widest mode whose [cluster | gap | strip] group still fits between the corner widget and the
+// right margin; "migrate" when not even the collapsed strip does.
 export function colorbarFitMode(input: ColorbarFitInput): ColorbarFitMode {
   const {
     viewportWidth: vw,
@@ -115,8 +110,8 @@ export function colorbarFitMode(input: ColorbarFitInput): ColorbarFitMode {
   return "migrate";
 }
 
-/** True when the centered rail cluster can't keep the gnomon's reserved corner clear on both sides,
- *  so the gnomon should be hidden. Hysteresis: once hidden, require extra width before restoring. */
+// True when the centered rail cluster can't keep the gnomon's reserved corner clear on both sides,
+// so the gnomon should be hidden. Hysteresis: once hidden, require extra width before restoring.
 export function railGnomonCramped(
   viewportWidth: number,
   clusterWidth: number,

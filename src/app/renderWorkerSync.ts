@@ -22,14 +22,14 @@ import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 export interface RenderWorkerSyncOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
-  /** Owns the timing panel's "Measure" toggle the worker's continuous-repaint mode follows. */
+  // Owns the timing panel's "Measure" toggle the worker's continuous-repaint mode follows.
   readonly perfStore: PerfStore;
 }
 
 export interface RenderWorkerSync {
-  /** Replay the live pose (+ a non-default projection) once the worker is ready (catch-up). */
+  // Replay the live pose (+ a non-default projection) once the worker is ready (catch-up).
   readonly flushAll: () => void;
-  /** Route a worker pick reply: place the marker, and for "focus" retarget the running fly. */
+  // Route a worker pick reply: place the marker, and for "focus" retarget the running fly.
   readonly applyPickResult: (
     message: Extract<RenderWorkerResponse, { kind: "pickResult" }>,
   ) => void;

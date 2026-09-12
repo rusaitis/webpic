@@ -92,7 +92,7 @@ export function markerHandlePositions(
 
 // World point one zoom-scaled core radius to the screen-right of the marker. Projecting it beside
 // the core measures the marker's on-screen radius, so the hover hit target can track the rendered
-// size across dolly (magviz's projectedCubeScreen). screenRight matches worldToScreen's basis.
+// size across dolly. screenRight matches worldToScreen's basis.
 export function markerEdgePoint(pose: CameraPose, point: Vec3, orthographic: boolean): Vec3 {
   const radius = MARKER_SPHERE_RADIUS * markerCoreScale(pose, point, orthographic);
   return [

@@ -12,9 +12,9 @@ import type { FrameClock } from "@schema/timing.ts";
 
 export interface FrameTimer {
   readonly mode: FrameClock;
-  /** Call before the render submit; stamps the wall clock. */
+  // Call before the render submit; stamps the wall clock.
   beginFrame(): void;
-  /** Bracket time for the just-submitted frame in ms; NaN to skip (a read still in flight). */
+  // Bracket time for the just-submitted frame in ms; NaN to skip (a read still in flight).
   sampleAfterSubmit(): Promise<number>;
 }
 

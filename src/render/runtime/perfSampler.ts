@@ -17,31 +17,31 @@ export type PerfSampleMessage = Extract<RenderWorkerResponse, { kind: "perfSampl
 export type FrameTimingMessage = Extract<RenderWorkerResponse, { kind: "frameTiming" }>;
 
 export interface PerfSamplerHost {
-  /** The live per-frame timer; undefined pre-init / post-dispose (the GPU field rides as NaN). */
+  // The live per-frame timer; undefined pre-init / post-dispose (the GPU field rides as NaN).
   frameTimer(): FrameTimer | undefined;
-  /** The frame-time governor's render-scale ceiling, surfaced in every sample. */
+  // The frame-time governor's render-scale ceiling, surfaced in every sample.
   governorScale(): number;
   vramSnapshot(): VramSnapshot;
   readHeapBytes(): number | null;
   post(sample: PerfSampleMessage | FrameTimingMessage): void;
   reportFault(error: unknown): void;
-  /** Wall clock in ms — performance.now unless a test injects one. */
+  // Wall clock in ms — performance.now unless a test injects one.
   readonly now?: () => number;
 }
 
 export interface PerfSampler {
-  /** Gate sampling. Enabling resets the interval EMA + GPU throttle so a re-open neither folds the
-   *  idle gap into the EMA nor fires the GPU sync on the stale clock. */
+  // Gate sampling. Enabling resets the interval EMA + GPU throttle so a re-open neither folds the
+  // idle gap into the EMA nor fires the GPU sync on the stale clock.
   setActive(active: boolean): void;
   isActive(): boolean;
-  /** Paint one continuous-mode frame through `paint` with the GPU timer bracketed around it, and post
-   *  its frameTiming (fire-and-forget: the read is async and NaNs for a sample the timer rejects). */
+  // Paint one continuous-mode frame through `paint` with the GPU timer bracketed around it, and post
+  // its frameTiming (fire-and-forget: the read is async and NaNs for a sample the timer rejects).
   paintTimed(paint: () => void): void;
-  /** Paint one on-demand frame through `paint`, bracketed by the cheap CPU-encode timing + interval
-   *  EMA, with the throttled GPU wall-clock sample when one is due. */
+  // Paint one on-demand frame through `paint`, bracketed by the cheap CPU-encode timing + interval
+  // EMA, with the throttled GPU wall-clock sample when one is due.
   paintPerf(paint: () => void): void;
-  /** A frame the continuous path already measured on the shared wall clock: post it as a HUD sample
-   *  (CPU-encode + interval aren't measured there and ride as NaN). No-op while inactive. */
+  // A frame the continuous path already measured on the shared wall clock: post it as a HUD sample
+  // (CPU-encode + interval aren't measured there and ride as NaN). No-op while inactive.
   postContinuousSample(gpuTimeMs: number): void;
 }
 

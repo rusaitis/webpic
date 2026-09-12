@@ -1,16 +1,9 @@
-// The range slider — webpic's owned window/level primitive, ported from magviz. Pure DOM +
-// ./rangeMath (no three/scene/framework deps), built off an injected `ownerDocument` so it
-// runs under happy-dom and inside an embed iframe. Callbacks-out / set()-in: it emits edits
-// via onInput (live) / onChange (commit) and reflects external state via set() without echo.
-//
-// Single or interval (two grips; dragging the fill between them moves both ends). `step`
-// quantizes drag + keyboard only — the coupled text field sets a raw value. The value↔track
-// map is linear/log/symlog; on log/symlog drag + keyboard snap to a log-decade grid
-// (…, 10, 20, 50, 100, …). Pointer Events throughout → touch + desktop share one path.
-//
-// Geometry: JS sets normalized fractions (`--t`/`--tlo`/`--thi`, fill `--fa`/`--fb`,
-// tick `--mt`) in [0,1]; the CSS insets them by half a grip width (`--gs`) so grips stay
-// inside the track at the extremes.
+// The range slider — webpic's owned window/level primitive. Pure DOM + ./rangeMath (no
+// three/scene/framework deps), built off an injected `ownerDocument` so it runs under happy-dom and
+// inside an embed iframe. Callbacks-out / set()-in: it emits edits via onInput (live) / onChange
+// (commit) and reflects external state via set() without echo. Single or interval (two grips;
+// dragging the fill between them moves both ends); `step` quantizes drag + keyboard only, while the
+// coupled text field sets a raw value. Pointer Events throughout → touch + desktop share one path.
 
 import { makeEl } from "./dom.ts";
 import {
@@ -35,31 +28,31 @@ type Pair = readonly [number, number];
 export interface RangeWidgetOptions {
   readonly min: number;
   readonly max: number;
-  /** Single-mode initial value (ignored when `range` is given). */
+  // Single-mode initial value (ignored when `range` is given).
   readonly value?: number;
-  /** Presence selects interval mode: [lo, hi]. */
+  // Presence selects interval mode: [lo, hi].
   readonly range?: Pair;
-  /** Drag/keyboard granularity only; text entry bypasses it. Omit ⇒ continuous. */
+  // Drag/keyboard granularity only; text entry bypasses it. Omit ⇒ continuous.
   readonly step?: number;
-  /** Position↔value mapping. Default 'linear'. */
+  // Position↔value mapping. Default 'linear'.
   readonly scale?: ScaleKind;
-  /** symlog linear half-width around 0. */
+  // symlog linear half-width around 0.
   readonly linthresh?: number;
-  /** Subtle vertical ticks. `true` derives a count from `step`/scale. */
+  // Subtle vertical ticks. `true` derives a count from `step`/scale.
   readonly ticks?: boolean | number;
-  /** Lighter sub-decade minor ticks on log/symlog. Default on when `ticks`. */
+  // Lighter sub-decade minor ticks on log/symlog. Default on when `ticks`.
   readonly minorTicks?: boolean;
-  /** Coupled numeric field(s) for precise entry. Default true. */
+  // Coupled numeric field(s) for precise entry. Default true.
   readonly text?: boolean;
-  /** Value→string for the text field/aria. */
+  // Value→string for the text field/aria.
   readonly format?: (v: number) => string;
-  /** Single-mode fill anchor (default min; set 0 for a bipolar field). */
+  // Single-mode fill anchor (default min; set 0 for a bipolar field).
   readonly origin?: number;
-  /** Interval minimum gap (default = step ?? 0). */
+  // Interval minimum gap (default = step ?? 0).
   readonly minGap?: number;
-  /** Live, during drag/keys. */
+  // Live, during drag/keys.
   readonly onInput?: (v: RangeValue) => void;
-  /** Commit, on pointer release / text change. */
+  // Commit, on pointer release / text change.
   readonly onChange?: (v: RangeValue) => void;
 }
 

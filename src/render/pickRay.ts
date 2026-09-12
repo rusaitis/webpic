@@ -38,10 +38,10 @@ function sampleNearest(field: ScalarField, px: number, py: number, pz: number): 
   return Number.isFinite(raw) ? raw : 0;
 }
 
-/** World point a double-click should focus: the median-visual-depth sample along the ray, the chord
- *  midpoint when the volume there is visually empty (or no layers), null on a box miss. `halfExtent`
- *  is the per-axis world half-size — the unit box [-0.5,0.5]³ for a cubic dataset, anisotropic for a
- *  non-cubic one (the scaled volume box) — used for both the ray-box clip and the world→texture map. */
+// World point a double-click should focus: the median-visual-depth sample along the ray, the chord
+// midpoint when the volume there is visually empty (or no layers), null on a box miss. `halfExtent`
+// is the per-axis world half-size — the unit box [-0.5,0.5]³ for a cubic dataset, anisotropic for a
+// non-cubic one (the scaled volume box) — used for both the ray-box clip and the world→texture map.
 export function pickPointOnRay(
   origin: Vec3,
   dir: Vec3,

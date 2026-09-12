@@ -9,20 +9,20 @@
 
 const allocations = new Map<string, number>();
 
-/** Record (or replace) the byte size held under `key`. Idempotent: a realloc on resize
- *  overwrites rather than accumulates. */
+// Record (or replace) the byte size held under `key`. Idempotent: a realloc on resize
+// overwrites rather than accumulates.
 export function trackAlloc(key: string, bytes: number): void {
   allocations.set(key, bytes);
 }
 
-/** Drop `key` from the ledger (on dispose). Unknown keys are a no-op. */
+// Drop `key` from the ledger (on dispose). Unknown keys are a no-op.
 export function releaseAlloc(key: string): void {
   allocations.delete(key);
 }
 
 export interface VramSnapshot {
   readonly totalBytes: number;
-  /** Per-key breakdown, largest-first for display. */
+  // Per-key breakdown, largest-first for display.
   readonly byKey: readonly (readonly [string, number])[];
 }
 
@@ -33,8 +33,8 @@ export function snapshot(): VramSnapshot {
   return { totalBytes, byKey };
 }
 
-/** Drop every key — on device loss, before fresh allocations re-register, so VRAM doesn't
- *  double-count across a recovery. */
+// Drop every key — on device loss, before fresh allocations re-register, so VRAM doesn't
+// double-count across a recovery.
 export function resetLedger(): void {
   allocations.clear();
 }

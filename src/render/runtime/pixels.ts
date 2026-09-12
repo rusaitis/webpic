@@ -1,13 +1,11 @@
 // Pure pixel-buffer helpers, deliberately free of three/webgpu so they unit-test in
 // Node (renderer.ts can't be imported there — it pulls in the WebGPU renderer).
 
-/**
- * Normalize a GPU readback result to a standalone, exactly-sized Uint8Array safe to
- * transfer wholesale via `postMessage(buf, [buf.buffer])`. A view with a nonzero
- * `byteOffset`, or a backing buffer larger than the logical pixels, would otherwise
- * ship the wrong bytes — the receiver reconstructs from offset 0 over the full buffer.
- * Copies only when the input isn't already compact (the common case is a no-op).
- */
+// Normalize a GPU readback result to a standalone, exactly-sized Uint8Array safe to
+// transfer wholesale via `postMessage(buf, [buf.buffer])`. A view with a nonzero
+// `byteOffset`, or a backing buffer larger than the logical pixels, would otherwise
+// ship the wrong bytes — the receiver reconstructs from offset 0 over the full buffer.
+// Copies only when the input isn't already compact (the common case is a no-op).
 export function toTransferablePixels(data: ArrayBufferView): Uint8Array {
   const u8 =
     data instanceof Uint8Array
@@ -16,11 +14,9 @@ export function toTransferablePixels(data: ArrayBufferView): Uint8Array {
   return u8.byteOffset === 0 && u8.byteLength === u8.buffer.byteLength ? u8 : u8.slice();
 }
 
-/**
- * RGBA readback → ImageData bytes: copy + force alpha to 255. The composite's blend math can
- * leave sub-255 alpha on translucent layers even over the opaque clear, and a PNG carrying it
- * would re-blend against whatever background displays it. A screenshot is what-you-see → opaque.
- */
+// RGBA readback → ImageData bytes: copy + force alpha to 255. The composite's blend math can
+// leave sub-255 alpha on translucent layers even over the opaque clear, and a PNG carrying it
+// would re-blend against whatever background displays it. A screenshot is what-you-see → opaque.
 export function toOpaqueImageBytes(pixels: Uint8Array): Uint8ClampedArray<ArrayBuffer> {
   // Fresh allocation (never mutate the readback in place); length-constructed so the backing
   // buffer is a plain ArrayBuffer — ImageData rejects a potentially-shared one.
@@ -30,13 +26,11 @@ export function toOpaqueImageBytes(pixels: Uint8Array): Uint8ClampedArray<ArrayB
   return out;
 }
 
-/**
- * Strip WebGPU copy padding from a readback. Three r184's `copyTextureToBuffer` pads
- * `bytesPerRow` to the mandatory 256-byte alignment but returns the mapped buffer verbatim,
- * so any readback whose width × 4 isn't a 256 multiple arrives with garbage between rows
- * (`readRenderTargetPixelsAsync` passes it straight through). Length-guarded: input that is
- * already tight — aligned widths today, or a fixed upstream tomorrow — passes through untouched.
- */
+// Strip WebGPU copy padding from a readback. Three r184's `copyTextureToBuffer` pads
+// `bytesPerRow` to the mandatory 256-byte alignment but returns the mapped buffer verbatim,
+// so any readback whose width × 4 isn't a 256 multiple arrives with garbage between rows
+// (`readRenderTargetPixelsAsync` passes it straight through). Length-guarded: input that is
+// already tight — aligned widths today, or a fixed upstream tomorrow — passes through untouched.
 export function compactPaddedRows(
   data: ArrayBufferView,
   width: number,

@@ -24,17 +24,17 @@ export type FieldState =
   | { readonly kind: "ready"; readonly computed: FieldArray; readonly dataRange: DataRange | null }
   | { readonly kind: "error"; readonly message: string };
 
-/** Per-layer outcome of a field-line retrace. `traced < requested` means seeds were skipped (a field
- *  null, or outside the domain after a dataset switch); `error` is a genuine trace failure. */
+// Per-layer outcome of a field-line retrace. `traced < requested` means seeds were skipped (a field
+// null, or outside the domain after a dataset switch); `error` is a genuine trace failure.
 export interface TraceNotice {
   readonly requested: number;
   readonly traced: number;
   readonly nullSeeds: number;
   readonly outsideSeeds: number;
-  /** Seeds that started but produced no usable line (a first step that leaves the domain both ways). */
+  // Seeds that started but produced no usable line (a first step that leaves the domain both ways).
   readonly failedSeeds: number;
-  /** The vector the trace followed ("B", "E") — known even when nothing traced; null on a failure
-   *  that never reached the tracer. */
+  // The vector the trace followed ("B", "E") — known even when nothing traced; null on a failure
+  // that never reached the tracer.
   readonly fieldName: string | null;
   readonly error: string | null;
 }
@@ -81,8 +81,8 @@ export interface DataSlice {
   setDataset(dataset: FieldDataset, signal?: AbortSignal): Promise<void>;
   selectDataset(id: string): void;
   selectField(name: FieldName, signal?: AbortSignal): Promise<void>;
-  /** Recompute the active field from the current dataset. The app calls it once it has handed the
-   *  previous buffer to the renderer (a transfer detaches it) and a new layer needs the data. */
+  // Recompute the active field from the current dataset. The app calls it once it has handed the
+  // previous buffer to the renderer (a transfer detaches it) and a new layer needs the data.
   recomputeField(): Promise<void>;
   setStep(step: number): void;
   setAvailableSteps(steps: readonly number[]): void;
@@ -103,10 +103,10 @@ export interface LayersSlice {
   // per-layer settings panel toggles it; ui/pointerSeedPlacer claims canvas clicks while it is set.
   readonly seedPlacementLayerId: string | null;
   addLayer(spec: LayerSpec): void;
-  /** Add a fresh instance of `kind` on the active field (the rail's add buttons): a volume or slice
-   *  gets its field data from the app (which recomputes if the last buffer was transferred); a
-   *  field-line layer is seeded with a default rake over the dataset and traced. No-op without a
-   *  dataset. */
+  // Add a fresh instance of `kind` on the active field (the rail's add buttons): a volume or slice
+  // gets its field data from the app (which recomputes if the last buffer was transferred); a
+  // field-line layer is seeded with a default rake over the dataset and traced. No-op without a
+  // dataset.
   addLayerOfKind(kind: LayerKind): void;
   // The `T` shortcut and the `?fieldlines` boot flag.
   addFieldlinesLayer(): void;
@@ -116,17 +116,17 @@ export interface LayersSlice {
   setLayerVisible(id: string, visible: boolean): void;
   setLayerOpacity(id: string, opacity: number): void;
   setLayerShading(id: string, shaded: boolean): void;
-  /** Set a slice layer's held axis (live — the app forwards it to the render worker). */
+  // Set a slice layer's held axis (live — the app forwards it to the render worker).
   setSliceAxis(id: string, axis: SliceAxis): void;
-  /** Set a slice layer's plane position along the held axis, [0, 1] (live). */
+  // Set a slice layer's plane position along the held axis, [0, 1] (live).
   setSlicePosition(id: string, position: number): void;
-  /** Replace a fieldlines layer's seed set, then re-trace. */
+  // Replace a fieldlines layer's seed set, then re-trace.
   setFieldlineSeeds(id: string, seeds: ReadonlyArray<Vec3>): void;
-  /** Regenerate a fieldlines layer's seeds as a default rake of `count` over the dataset, then trace. */
+  // Regenerate a fieldlines layer's seeds as a default rake of `count` over the dataset, then trace.
   setFieldlineSeedCount(id: string, count: number): void;
-  /** Append one physical-grid seed to a fieldlines layer, then re-trace (the click-to-place path). */
+  // Append one physical-grid seed to a fieldlines layer, then re-trace (the click-to-place path).
   addFieldlineSeed(id: string, seed: Vec3): void;
-  /** Enter (`id`) or leave (`null`) click-to-place seed mode for a fieldlines layer. */
+  // Enter (`id`) or leave (`null`) click-to-place seed mode for a fieldlines layer.
   setSeedPlacement(id: string | null): void;
 }
 

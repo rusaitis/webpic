@@ -5,9 +5,9 @@
 const BANNER_ID = "webpic-blocking-banner";
 
 export interface BlockingBannerOptions {
-  /** Adds a Reload button — worth offering for a transient fault, not for an unsupported browser. */
+  // Adds a Reload button — worth offering for a transient fault, not for an unsupported browser.
   readonly reload?: boolean;
-  /** Rendered under the message in a dimmer weight. */
+  // Rendered under the message in a dimmer weight.
   readonly detail?: string;
 }
 

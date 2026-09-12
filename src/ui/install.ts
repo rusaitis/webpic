@@ -24,7 +24,7 @@ import { installTopBar } from "./topBar.ts";
 export interface InstallUiOptions {
   readonly parent: HTMLElement;
   readonly simulationStore: SimulationStore;
-  /** Render timing for the Developer window's frame-timing panel (+ the dev HUD when enabled). */
+  // Render timing for the Developer window's frame-timing panel (+ the dev HUD when enabled).
   readonly perfStore: PerfStore;
   readonly uiStore: UiStore;
   readonly theme?: Theme;
@@ -71,7 +71,7 @@ export function installUi(options: InstallUiOptions): () => void {
 
   // The left tool rail — View (toggles the Scene panel) + Probe (the point marker), the instance-first
   // rail's first occupants on the operations axis. Outside the shell on the left edge, UI-toggle-
-  // hidden; the layer add-buttons + future tools mount here too. The gnomon stays on the bottom rail.
+  // hidden; the layer add-buttons and the tool tabs mount here too. The gnomon stays on the bottom rail.
   disposers.push(installSideRail(options.parent, options.simulationStore, options.uiStore));
 
   // The Layers overlay — the rail-toggled, fixed translucent panel of renderable instances (one row
@@ -85,11 +85,11 @@ export function installUi(options: InstallUiOptions): () => void {
   disposers.push(installLayerSettings(options.parent, options.simulationStore, options.uiStore));
 
   // The floating colorbar — the selected layer's color mapping as a draggable, edge-snapping
-  // gradient strip; its gear opens the colormap/scale/window controls. Replaces the old docked
+  // gradient strip; its gear opens the colormap/scale/window controls. Supersedes the docked
   // colormap panel. Outside the shell on a free-floating layer, UI-toggle-hidden.
   disposers.push(installColorbar(options.parent, options.simulationStore, options.uiStore));
 
-  // The Developer tool — a small, free-floating, resizable window (replaces the old docked panel).
+  // The Developer tool — a small, free-floating, resizable window.
   // Outside the shell on a free-floating layer, UI-toggle-hidden, like the colorbar.
   disposers.push(
     installDevWindow(options.parent, options.simulationStore, options.perfStore, options.uiStore),

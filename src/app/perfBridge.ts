@@ -24,16 +24,16 @@ export interface PerfBridgeOptions {
   readonly uiStore: UiStore;
   readonly uiParent: HTMLElement;
   readonly renderWorker: Pick<Worker, "postMessage">;
-  /** Drives the data worker's self-report (backed by streamingBridge, or a no-op when no stream). */
+  // Drives the data worker's self-report (backed by streamingBridge, or a no-op when no stream).
   readonly setDataPerfActive: (active: boolean) => void;
   readonly isRenderReady: () => boolean;
   readonly isDataPresent: () => boolean;
 }
 
 export interface PerfBridge {
-  /** Route a render-worker perfSample into the store (called from the worker message handler). */
+  // Route a render-worker perfSample into the store (called from the worker message handler).
   ingestRenderSample(sample: RenderPerfSample): void;
-  /** Route a data-worker perfSample into the topology (called from streamingBridge.onPerfSample). */
+  // Route a data-worker perfSample into the topology (called from streamingBridge.onPerfSample).
   ingestDataSample(sample: {
     readonly heapBytes: number | null;
     readonly lastReadMs: number | null;

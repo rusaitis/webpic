@@ -62,7 +62,7 @@ function createWorkerWorld(context: WorkerContext): {
   let devicePixelRatio = 1; // retained for the rebuild's drawing-buffer scale
   let hasFloat32Filterable = false; // R32F linear volume texture when the device supports it
   // The init promise; every other message waits behind it so none can race a half-built renderer,
-  // even if a future caller stops gating on the `ready` response.
+  // even for a caller that does not gate on the `ready` response.
   let initDone: Promise<void> | undefined;
   let frameTimer: FrameTimer | undefined; // per-frame GPU timing (wall-clock bracket)
   let lastErrorMessage: string | undefined; // dedupe so a persistent bad frame can't flood the channel

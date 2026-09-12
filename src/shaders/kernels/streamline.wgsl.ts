@@ -1,20 +1,9 @@
 // WGSL streamline compute kernel — the GPU twin of the CPU field-line tracer (numerics/tracing.ts +
 // integrators.ts + interp.ts). One invocation per (seed, direction) work-item integrates dr/ds = ±B̂(r)
-// with adaptive Dormand-Prince 5(4) and the elementary **I** step controller, arc-length parameterized.
+// with adaptive Dormand-Prince 5(4) and the elementary I step controller, arc-length parameterized.
 // Standalone WGSL (a strict WESL subset, no preprocessor) — shared forward with rustpic, consumed by
-// `gpu/streamlineKernel.ts`, not three.js TSL. Every routine below is a line-for-line transliteration of
-// the f64 reference so GPU≡CPU≡pypic golden parity holds at f32 tolerance:
-//   sampleField ← interp.ts `sample`/`blend`   (cell-centered −0.5 index map, row-major (i*ny+j)*nz+k)
-//   rhs         ← tracing.ts `makeRhs`          (unit field direction, sign-bearing; null on exit/null)
-//   dpStep      ← integrators.ts `dormandPrinceStep` (7-stage FSAL, exact tableau fractions)
-//   errorNorm   ← integrators.ts `embeddedErrorNorm`
-//   iController ← integrators.ts `iStepController`  (PI is *not* implemented — pypic ships I; DESIGN §Field lines)
-//   streamline_main ← tracing.ts `traceSingleDirectionAdaptive`
-//
-// Field B is bound as three storage buffers (not a 3D texture): manual trilinear reproduces the f64
-// `blend()` operation order exactly, so the only gap is f32 roundoff — hardware `textureSampleLevel` has
-// implementation-defined sub-texel rounding that would risk the trace tolerance. The "both"/backward
-// stitch + FieldLine assembly stay on the CPU (the orchestrator reuses tracing.ts `stitch`).
+// `gpu/streamlineKernel.ts`, not three.js TSL. Every routine transliterates its f64 twin line for
+// line, and B is read from three storage buffers, not a 3D texture: DESIGN §Field lines.
 
 export const STREAMLINE_ENTRY = "streamline_main";
 export const STREAMLINE_WORKGROUP_SIZE = 64;

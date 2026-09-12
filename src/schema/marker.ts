@@ -6,7 +6,7 @@ import type { Vec3 } from "./types.ts";
 // interaction (store/ + ui/). Shared here in schema since render and store can't import each other.
 //
 // All lengths are object space: the volume is the unit box [-0.5, 0.5]³ with identity transform, so
-// object = world. z-up adaptation of magviz's y-up picker: "vertical" drag is world z, the equatorial
+// object = world. In a z-up world "vertical" drag is world z, the equatorial
 // plane is xy (z held), and the cross-screen axis is world x or y.
 
 // Which part of the marker the cursor is over / grabbing. "vertical" = the ↕ (z) handle; "horizontal"
@@ -23,7 +23,7 @@ export type HandleAxis = "x" | "y";
 // Core sphere radius, object space. The ring + handles are children scaled with the core, so this
 // also sets their absolute size via the *_SCALE factors below.
 export const MARKER_SPHERE_RADIUS = 0.012;
-// Knob distance from the core, and knob sprite size, as multiples of the sphere radius (magviz tunables).
+// Knob distance from the core, and knob sprite size, as multiples of the sphere radius.
 export const HANDLE_OFFSET_SCALE = 8.5;
 export const HANDLE_KNOB_SCALE = 2.7;
 
@@ -65,7 +65,7 @@ export function markerHandleOffset(pose: CameraPose, point: Vec3, orthographic: 
 }
 
 // Camera elevation above the equatorial plane, degrees: 0° edge-on, 90° top-down. The pose carries
-// elevation explicitly, so no view-direction trig is needed (unlike magviz).
+// elevation explicitly, so no view-direction trig is needed.
 export function cameraElevationDeg(pose: CameraPose): number {
   return Math.abs(pose.elevation) * DEG_PER_RAD;
 }

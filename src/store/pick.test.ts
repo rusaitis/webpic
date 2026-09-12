@@ -101,7 +101,7 @@ describe("focusPoseOnPoint", () => {
     ];
   }
 
-  it("dollies 30% in and re-aims the camera from where it stands (magviz swivel)", () => {
+  it("dollies 30% in and re-aims the camera from where it stands", () => {
     const point = [0.2, -0.1, 0.3] as const;
     const focused = focusPoseOnPoint(POSE, point);
     expect(focused.target).toEqual(point);

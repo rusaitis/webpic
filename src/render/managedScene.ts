@@ -2,12 +2,8 @@
 // prospective composite's pipelines off the render path (createRenderPipelineAsync), swallowing a warm
 // failure so it never blocks the commit — the paint falls back to a sync compile. An epoch guard makes
 // the async warm superseding: a newer replace/remove (or a device rebuild) bumps the id's epoch
-// mid-warm, so this scene is stale and must be discarded rather than committed.
-//
-// Returns true when the caller should commit `next`, false when it was superseded (disposed here). A
-// `next` of undefined is a teardown (overlay/marker cleared) — there's nothing to warm, so it always
-// commits. The divergent commit (deferred vs same-tick dispose, source retention, marker re-seed) is
-// the caller's, kept inline and visible.
+// mid-warm, so this scene is stale and gets discarded. Returns true when the caller should commit
+// `next`; an undefined `next` is a teardown, with nothing to warm, so it always commits.
 export async function warmScene<T>(
   next: T | undefined,
   warm: () => Promise<unknown> | undefined,

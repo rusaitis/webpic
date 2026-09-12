@@ -74,7 +74,7 @@ describe("synthetic reader", () => {
 });
 
 describe("synthetic dipole", () => {
-  // magviz's default Earth dipole on its non-cubic grid (x∈[-10,5], y,z∈[-5,5], 0.1 R_E cells).
+  // The static Earth dipole on its non-cubic grid (x∈[-10,5], y,z∈[-5,5], 0.1 R_E cells).
   const NX = 150;
   const NY = 100;
   const NZ = 100;
@@ -83,7 +83,7 @@ describe("synthetic dipole", () => {
   const idx = (ix: number, iy: number, iz: number): number => iz + NZ * (iy + NY * ix);
   const center = (axis: 0 | 1 | 2, i: number): number => ORIGIN[axis] + (i + 0.5) * SP;
 
-  it("is one static step on the magviz grid (non-cubic shape + fields)", async () => {
+  it("is one static step on a non-cubic grid, with the dipole fields", async () => {
     expect(await reader.availableTimesteps(dipoleHandle())).toEqual([0]);
     const ds = await reader.readTimestep(dipoleHandle(), 0);
     expect(ds.step).toBe(0);

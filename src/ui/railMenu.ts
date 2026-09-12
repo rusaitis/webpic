@@ -6,7 +6,7 @@ import { positionArrowFlyout } from "./layout.ts";
 // existing instances of one layer kind as quick-jumps, then an "Add new". Not the single-select
 // createPopover — its listbox/check-column semantics are wrong for an action list where "Add new"
 // isn't a value. A flyout-style panel beside the anchor (tail on the button center), built off
-// anchor.ownerDocument (happy-dom + embed safe). Hover-preview/pin is a deferred follow-up.
+// anchor.ownerDocument (happy-dom + embed safe).
 
 export interface RailMenuItem {
   readonly id: string;

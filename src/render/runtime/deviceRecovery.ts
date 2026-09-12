@@ -9,33 +9,33 @@ import type { GpuRecoveryReason } from "../messages.ts";
 // The worker keeps every GPU resource the steps touch and exposes them as cohesive capabilities, so
 // this sequences the recovery without owning any three/renderer handle.
 export interface DeviceRecoveryHost {
-  /** Has the first renderer been built? A pre-init loss has nothing to rebuild. */
+  // Has the first renderer been built? A pre-init loss has nothing to rebuild.
   hasCanvas(): boolean;
-  /** Bump every scene epoch so an in-flight warm discards instead of landing a dead-device scene. */
+  // Bump every scene epoch so an in-flight warm discards instead of landing a dead-device scene.
   supersedeInFlightWarms(): void;
-  /** Best-effort drop of the dead device's renderer + scene handles (teardown can throw; swallowed). */
+  // Best-effort drop of the dead device's renderer + scene handles (teardown can throw; swallowed).
   teardownDeadResources(): void;
-  /** Install a fresh renderer on the restored device and rebuild every scene from its retained CPU
-   *  source, re-asserting the live quality level. (One step so the install→rebuild order is atomic.) */
+  // Install a fresh renderer on the restored device and rebuild every scene from its retained CPU
+  // source, re-asserting the live quality level. (One step so the install→rebuild order is atomic.)
   rebuildOnDevice(device: GPUDevice): Promise<void>;
-  /** Warm the rebuilt composite before the loop un-pauses (a warm fault is reported, not fatal). */
+  // Warm the rebuilt composite before the loop un-pauses (a warm fault is reported, not fatal).
   warmComposite(): Promise<void>;
-  /** Repaint now the device is live again. */
+  // Repaint now the device is live again.
   requestRender(): void;
-  /** Halt the loop on an unrecoverable loss. */
+  // Halt the loop on an unrecoverable loss.
   stopLoop(): void;
   reportError(message: string): void;
   reportFault(error: unknown): void;
-  /** Tell the app a loss was unrecoverable so it can surface a reload state. */
+  // Tell the app a loss was unrecoverable so it can surface a reload state.
   postRecoveryFailed(reason: GpuRecoveryReason, message: string): void;
 }
 
 export interface DeviceRecovery {
-  /** Subscribe to gpu/'s loss + restore signals (call from init). */
+  // Subscribe to gpu/'s loss + restore signals (call from init).
   start(): void;
-  /** Is the device currently lost? The display loop pauses while true. */
+  // Is the device currently lost? The display loop pauses while true.
   isDeviceLost(): boolean;
-  /** Unsubscribe (call from dispose). */
+  // Unsubscribe (call from dispose).
   stop(): void;
 }
 

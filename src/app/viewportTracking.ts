@@ -23,7 +23,7 @@ export function currentDevicePixelRatio(): number {
 
 export interface ViewportTrackingOptions extends RenderWorkerLink {
   readonly canvas: HTMLCanvasElement;
-  /** Logical (CSS) size of the mounted canvas — the worker scales it by devicePixelRatio. */
+  // Logical (CSS) size of the mounted canvas — the worker scales it by devicePixelRatio.
   readonly logicalSize: () => { width: number; height: number };
 }
 

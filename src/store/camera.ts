@@ -23,20 +23,20 @@ export const ELEVATION_LIMIT = Math.PI / 2 - 1e-3;
 export const DISTANCE_MIN = 0.1;
 export const DISTANCE_MAX = 50;
 
-// Pointer sensitivities, in OrbitControls' exact units so webpic matches the magviz feel at any
+// Pointer sensitivities, in OrbitControls' exact units so the feel is unchanged at any
 // viewport size. Drag deltas arrive as *viewport-height fractions* (px / viewport height px —
 // ui/pointerCamera normalizes); wheel deltas stay raw. All tunable math lives here so
 // ui/pointerCamera carries none.
 const ORBIT_SENS = 2 * Math.PI; // rad per viewport-height of drag (OrbitControls rotateSpeed 1)
 // OrbitControls dollies 0.95^(|ΔY|/100) per wheel event; this is the same curve in geometric-exp
-// form (≈ ×0.94 per 120-unit notch) — uniform zoom feel at any distance, magviz parity.
+// form (≈ ×0.94 per 120-unit notch) — uniform zoom feel at any distance.
 const DOLLY_SENS = Math.log(1 / 0.95) / 100;
 // World units per (distance × viewport-height fraction): 2·tan(fov/2) makes a panned world point
 // track the cursor exactly — OrbitControls' screen-space pan.
 const PAN_WORLD_PER_VIEWPORT = 2 * CAMERA_HALF_FOV_TAN;
 
-// Inertial damping (magviz parity): OrbitControls applies the fraction f of the pending drag per
-// update() *call* — and magviz updates per pointermove AND per rAF (~3 calls/frame), so its
+// Inertial damping: OrbitControls applies the fraction f of the pending drag per
+// update() *call*, driven per pointermove AND per rAF (~3 calls/frame), so its
 // f = 0.035 decays like ≈ 0.10 per 60 fps frame. 0.10 here matches that exactly (τ ≈ 158 ms —
 // the long, cinematic gliding stop). dt-normalized so the glide is frame-rate independent:
 // pending decays by exp(−λ·dt).
@@ -146,7 +146,7 @@ export function viewPlaneOffset(pose: CameraPose, kr: number, ku: number): Vec3 
   return [-kr * sa - ku * ca * se, kr * ca - ku * sa * se, ku * ce];
 }
 
-// Wheel → dolly toward the cursor (magviz's zoomToCursor): the world point under the pointer stays
+// Wheel → dolly toward the cursor: the world point under the pointer stays
 // put on screen. The cursor ray hits the plane through the target ⟂ forward at
 // A = target + viewPlaneOffset(D·tan(fov/2)·ndcX·aspect, D·tan(fov/2)·ndcY) — the offset is
 // ⟂ forward, so the along-ray distance is exactly D. Scaling camera and target toward A by
@@ -260,7 +260,7 @@ export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
-// The pose-space displacement a fly-to applies incrementally (magviz's blending tween): per-frame
+// The pose-space displacement a fly-to applies incrementally: per-frame
 // eased fractions of this delta land ON TOP of the live pose, so concurrent drags/wheel/momentum
 // add instead of being canceled. Every component is additive — azimuth shortest-arc, distance in
 // log space (geometric dolly feel) — so fractions summing to 1 reproduce `b` exactly on an
@@ -310,7 +310,7 @@ export function applyPoseDelta(pose: CameraPose, delta: PoseDelta, fraction: num
 
 // Held-key camera motion: constant velocity, dt-scaled — NOT the momentum impulses (key repeat
 // rates vary by OS; feeding repeats as impulses gives a stuttery, rate-dependent glide, while a
-// held key wants flat velocity with a hard stop on release). Rates match magviz's keyboard orbit.
+// held key wants flat velocity with a hard stop on release).
 export interface KeyNudge {
   readonly azimuth: -1 | 0 | 1; // +1 sweeps the camera CCW about +z (view pans right)
   readonly elevation: -1 | 0 | 1; // +1 lifts toward +z
@@ -456,7 +456,7 @@ export function parsePoseParam(raw: string): CameraPose | null {
 export type AxisView = "+x" | "-x" | "+y" | "-y" | "+z" | "-z";
 
 // Axis-aligned snap target (gnomon tip clicks): look down the named world axis at the current
-// target, distance preserved — magviz's ViewHelper behavior. ±z keeps the current azimuth (the
+// target, distance preserved. ±z keeps the current azimuth (the
 // camera tips straight over, no surprise spin) and clamps at ELEVATION_LIMIT, so the up vector
 // never crosses the pole.
 // Axis snaps level the horizon (roll: 0) so each canonical view is upright.

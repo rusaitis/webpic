@@ -36,7 +36,7 @@ export interface SceneOverlay {
 }
 
 // Object-space label placement (the box spans [-0.5, 0.5]³). Grid lines overhang the labeled edge
-// by a short foot; tick labels sit past the foot with a clear gap (the magviz grid treatment);
+// by a short foot; tick labels sit past the foot with a clear gap;
 // axis-name labels just past the axis tip. World height fixes the on-screen label scale.
 const GRID_LINE_FOOT = 0.03;
 const LABEL_EDGE_OFFSET = 0.08;
@@ -253,7 +253,7 @@ export function createSceneOverlay(config: SceneOverlayConfig): SceneOverlay {
   }
 
   // Axis lines from the data origin (0,0,0) outward to the +face, colored by THREE axis (gnomon
-  // palette) + name labels — magviz's look, so the triad meets at the data origin (interior for the
+  // palette) + name labels, so the triad meets at the data origin (interior for the
   // dipole), not the box corner. The cross clamps to the nearest face when 0 is outside the bounds.
   if (config.show.axes) {
     const axisColors: readonly Rgba01[] = [

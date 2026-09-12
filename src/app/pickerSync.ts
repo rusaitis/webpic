@@ -12,10 +12,10 @@ import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 // Default accent when the theme omits one — a warm amber that reads on the dark default background.
 const FALLBACK_ACCENT: Rgba01 = [1, 0.78, 0.25, 1];
-// The drop-line + crosshair reuse the grid color, nudged more opaque for legibility (magviz's boost).
+// The drop-line + crosshair reuse the grid color, nudged more opaque for legibility.
 const GUIDE_MIN_OPACITY = 0.55;
 
-/** Resolve the marker's build config from a theme — accent core + grid-derived guide color. Pure. */
+// Resolve the marker's build config from a theme — accent core + grid-derived guide color. Pure.
 function buildMarkerConfig(theme?: Theme): MarkerConfig {
   const grid = resolveOverlayColors(theme).grid;
   return {
@@ -28,14 +28,14 @@ function buildMarkerConfig(theme?: Theme): MarkerConfig {
 
 export interface PickerSyncOptions extends RenderWorkerLink {
   readonly store: SimulationStore;
-  /** The boot theme; a runtime switch rides setTheme (the app theme bridge). */
+  // The boot theme; a runtime switch rides setTheme (the app theme bridge).
   readonly theme?: Theme;
 }
 
 export interface PickerSync {
-  /** Post the current marker config + position (catch-up on the worker `ready`, like sceneSync). */
+  // Post the current marker config + position (catch-up on the worker `ready`, like sceneSync).
   readonly flushAll: () => void;
-  /** Re-resolve the marker palette from a new theme and rebuild it (the theme switcher). */
+  // Re-resolve the marker palette from a new theme and rebuild it (the theme switcher).
   readonly setTheme: (theme: Theme | undefined) => void;
   readonly dispose: () => void;
 }

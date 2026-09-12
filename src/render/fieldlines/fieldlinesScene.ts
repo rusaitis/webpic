@@ -11,35 +11,35 @@ import { packSegments } from "./segmentPack.ts";
 // and GPU-resident. No per-frame readback (the streamline buffers reach here as a one-time transfer,
 // not a re-read each frame). `Line2NodeMaterial` is the WebGPU/TSL fat line; it reads the viewport size
 // through TSL, so screen-space width needs no resolution plumbing. (The classic `LineMaterial` is raw
-// GLSL — incompatible with WebGPURenderer.) v0.1 colors lines solid; color-by-scalar is deferred.
+// GLSL — incompatible with WebGPURenderer.) Lines are a solid color.
 
 export interface FieldlinesSceneOptions {
-  /** Flat world-space xyz for every vertex of every line, concatenated in line order. */
+  // Flat world-space xyz for every vertex of every line, concatenated in line order.
   readonly positions: Float32Array;
-  /** Vertex count per line (partitions `positions`). */
+  // Vertex count per line (partitions `positions`).
   readonly counts: Uint32Array;
-  /** Solid line color (alpha multiplies the layer opacity). */
+  // Solid line color (alpha multiplies the layer opacity).
   readonly color: Rgba01;
-  /** Per-layer opacity multiplier, [0,1]; default 1. */
+  // Per-layer opacity multiplier, [0,1]; default 1.
   readonly opacity?: number;
-  /** Screen-space line width in pixels; default 2. */
+  // Screen-space line width in pixels; default 2.
   readonly linewidth?: number;
-  /** Layer id keying the segment buffer into the VRAM ledger (perf HUD); omit to skip tracking. */
+  // Layer id keying the segment buffer into the VRAM ledger (perf HUD); omit to skip tracking.
   readonly ledgerKey?: string;
 }
 
 export interface FieldlinesScene {
   readonly scene: Scene;
-  /** Recolor in place (uniform only, no rebuild). */
+  // Recolor in place (uniform only, no rebuild).
   setColor(color: Rgba01): void;
-  /** Update the per-layer opacity in place (uniform only). */
+  // Update the per-layer opacity in place (uniform only).
   setOpacity(opacity: number): void;
   dispose(): void;
 }
 
 const DEFAULT_LINEWIDTH = 2; // pixels
 
-/** Build a batched field-line scene from packed world-space polylines. */
+// Build a batched field-line scene from packed world-space polylines.
 export function createFieldlinesScene(options: FieldlinesSceneOptions): FieldlinesScene {
   const segments = packSegments(options.positions, options.counts);
   const geometry = new LineSegmentsGeometry();
