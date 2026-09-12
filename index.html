@@ -30,7 +30,7 @@
       /* 100dvh tracks the live viewport so mobile Safari's retracting address bar can't clip the
          bottom rail (dvh predates WebGPU in every browser that can run this, so no 100vh fallback). */
       #app { width: 100vw; height: 100dvh; overflow: hidden; }
-      /* Boot splash: a pre-painted copy of the ui/statusPill.ts pill (same geometry, the
+      /* Boot splash: a pre-painted copy of the ui/status/statusPill.ts pill (same geometry, the
          styles.ts fallback palette as literals) so feedback paints at HTML parse — the FCP
          anchor scripts/perf-gate.ts measures, distinct from the WebGPU first frame. It lives
          outside #app to survive the canvas mount; installStatusPill adopts it in place. */

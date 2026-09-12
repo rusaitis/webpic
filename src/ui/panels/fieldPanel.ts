@@ -3,7 +3,7 @@ import type { FieldName } from "@schema/types.ts";
 import type { SimulationStore } from "@store";
 import { createPane, type Disposer, type SelectChoice } from "../controls/index.ts";
 import { createSubscriptions } from "../subscriptions.ts";
-import { orderedFieldNames } from "../topBarInfo.ts";
+import { orderedFieldNames } from "../topbar/info.ts";
 
 // The wired field selector: reads the store's computed `availableFields`, dispatches
 // `selectField` on change, and reflects external selections (and dataset switches) back

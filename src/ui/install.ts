@@ -1,21 +1,21 @@
 import { DEFAULT_WEBPIC_CONFIG, type Theme } from "@schema/theme.ts";
 import type { PerfStore, SimulationStore, UiStore } from "@store";
-import { installBootReveal } from "./bootReveal.ts";
-import { installCameraChrome } from "./cameraChrome.ts";
-import { installCameraRail } from "./cameraRail.ts";
+import { installBottomRail } from "./camera/bottomRail.ts";
+import { installGnomon } from "./camera/gnomon.ts";
 import { installColorbar } from "./colorbar/colorbar.ts";
-import { installHelpOverlay } from "./helpOverlay.ts";
-import { installLayerSettings } from "./layerSettings.ts";
-import { installLayersPanel } from "./layersPanel.ts";
+import { createShortcutRegistry } from "./keys/shortcuts.ts";
+import { installLayersPanel } from "./layers/panel.ts";
+import { installLayerSettings } from "./layers/settings.ts";
+import { installToolRail } from "./layers/toolRail.ts";
 import { installDevWindow } from "./panels/devWindow.ts";
 import { isDockable, mountPanel } from "./panels/registry.ts";
-import { createShell } from "./shell/shell.ts";
-import { createShortcutRegistry } from "./shortcuts.ts";
-import { installSideRail } from "./sideRail.ts";
-import { installStatusPill } from "./statusPill.ts";
+import { createShell } from "./panels/shell.ts";
+import { installBootReveal } from "./status/bootReveal.ts";
+import { installHelpOverlay } from "./status/helpOverlay.ts";
+import { installStatusPill } from "./status/statusPill.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 import { applyControlStyles } from "./theme/styles.ts";
-import { installTopBar } from "./topBar.ts";
+import { installTopBar } from "./topbar/bar.ts";
 
 // The UI subsystem's install entry (install*() => () => void): styles + docked shell +
 // panels + the global show/hide shortcut. Dispatches store intents and subscribes — never
@@ -63,16 +63,16 @@ export function installUi(options: InstallUiOptions): () => void {
 
   // The camera gnomon is a fixed bottom-left overlay, not a docked panel — it sits outside the shell
   // so it stays put when panels collapse, and hides with the global UI toggle.
-  subscriptions.add(installCameraChrome(options.parent, options.simulationStore, options.uiStore));
+  subscriptions.add(installGnomon(options.parent, options.simulationStore, options.uiStore));
 
   // The centered bottom button rail (gnomon/fly/projection/coord/help) — also outside the shell, also
   // UI-toggle-hidden. It reserves the gnomon's footprint so the two never collide.
-  subscriptions.add(installCameraRail(options.parent, options.simulationStore, options.uiStore));
+  subscriptions.add(installBottomRail(options.parent, options.simulationStore, options.uiStore));
 
   // The left tool rail — View (toggles the Scene panel) + Probe (the point marker), the instance-first
   // rail's first occupants on the operations axis. Outside the shell on the left edge, UI-toggle-
   // hidden; the layer add-buttons and the tool tabs mount here too. The gnomon stays on the bottom rail.
-  subscriptions.add(installSideRail(options.parent, options.simulationStore, options.uiStore));
+  subscriptions.add(installToolRail(options.parent, options.simulationStore, options.uiStore));
 
   // The Layers overlay — the rail-toggled, fixed translucent panel of renderable instances (one row
   // per layer: eye / select / reorder). Mounts next to the rail's interaction cluster; owns the "L"

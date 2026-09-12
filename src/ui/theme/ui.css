@@ -63,7 +63,7 @@
   font: 500 12px / 1.4 var(--webpic-mono);
   transition: opacity 240ms ease;
 }
-/* Cold-start reveal (ui/bootReveal.ts): chrome held invisible while the boot phase is live,
+/* Cold-start reveal (ui/status/bootReveal.ts): chrome held invisible while the boot phase is live,
    fading in when the class drops. visibility (not pointer-events) so the gnomon tips' own
    pointer-events: auto can't reach through. The status pill is deliberately not matched. */
 .webpic-booting .webpic-shell,
@@ -522,7 +522,7 @@
 .webpic-gnomon_tip.is-nz {
   border-color: var(--webpic-axis-z);
 }
-/* Centered bottom button rail (ui/cameraRail): subtle icon toggles. pointer-events:
+/* Centered bottom button rail (ui/camera/bottomRail): subtle icon toggles. pointer-events:
    none on the bar so it never blocks the canvas — each button options back in. has-gnomon reserves the
    bottom-left gnomon's footprint (12 + 56 + 12) symmetrically, keeping the cluster centered + clear. */
 .webpic-rail {
@@ -609,7 +609,7 @@
   border-color: var(--webpic-active-edge);
   background: var(--webpic-active);
 }
-/* Left tool rail (ui/sideRail): a glass card of flush, borderless icon tabs on the left
+/* Left tool rail (ui/layers/toolRail): a glass card of flush, borderless icon tabs on the left
    edge, vertically centered — the instance-first rail's first occupants (View/Scene, Probe), kept
    distinct from the data layers. Shares the topbar's glass treatment (blur + bg lift on hover) so the
    chrome reads as one family; each tab's slide-out label is its aria-label (the ::after pill). */
@@ -723,8 +723,8 @@
 .webpic-siderail_btn[aria-expanded="true"]::after {
   display: none;
 }
-/* Rail flyout (ui/sideRail): a panel that opens beside a rail tab, a speech-bubble tail
-   pointing back at the button. Glass like the topbar; ui/sideRail writes top/left + --arrow-pos on
+/* Rail flyout (ui/layers/toolRail): a panel that opens beside a rail tab, a speech-bubble tail
+   pointing back at the button. Glass like the topbar; ui/layers/toolRail writes top/left + --arrow-pos on
    open, and overflow stays visible so the tail can sit outside the left edge. */
 .webpic-flyout {
   position: fixed;
@@ -860,7 +860,7 @@
   color: var(--webpic-muted);
 }
 
-/* Rail add-button menu (ui/railMenu): an action list of existing instances + "Add new", opening
+/* Rail add-button menu (ui/layers/railMenu): an action list of existing instances + "Add new", opening
    beside the +Kind button with the same speech-bubble tail as the flyout. Glass like the flyout. */
 .webpic-railmenu {
   position: fixed;
@@ -1002,7 +1002,7 @@
   stroke-linejoin: round;
 }
 
-/* Layers overlay (ui/layersPanel): the rail-toggled, fixed translucent panel of renderable instances.
+/* Layers overlay (ui/layers/panel): the rail-toggled, fixed translucent panel of renderable instances.
    Left is anchored to the rail's right edge by JS; top is fixed below the top bar. Glass like the
    flyout, but a persistent workspace panel (no tail, no outside-click dismiss). */
 .webpic-layers {
@@ -1230,7 +1230,7 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* Grid-info card: a parent-level floating dialog above the rail (ui/cameraRail). pointer-events: auto
+/* Grid-info card: a parent-level floating dialog above the rail (ui/camera/bottomRail). pointer-events: auto
    so its copy button works; z-index over the transient status pill (11), under the help modal (20). */
 .webpic-coords-card {
   position: fixed;
@@ -1272,7 +1272,7 @@
   padding-bottom: 6px;
   border-bottom: 1px solid var(--webpic-border);
 }
-/* Status pill: bottom-center loading/error feedback (ui/statusPill.ts). Geometry mirrors the
+/* Status pill: bottom-center loading/error feedback (ui/status/statusPill.ts). Geometry mirrors the
    index.html boot splash exactly so the HTML→JS handoff is pixel-stable (keep the bottom in sync). Sits
    just above the bottom rail (12px inset + 32px button), tracking the same safe-area inset so it clears
    the rail on devices with a home indicator. The delayed visibility transition on fade-out keeps the
@@ -1344,7 +1344,7 @@
     animation-duration: 2s;
   }
 }
-/* Keyboard cheat-sheet modal (ui/helpOverlay.ts): full-viewport dimmer + a centered card. z-index in a
+/* Keyboard cheat-sheet modal (ui/status/helpOverlay.ts): full-viewport dimmer + a centered card. z-index in a
    high band (above the floating-window stack, which rises from 15 without bound — see floating/zStack). */
 .webpic-help {
   position: fixed;
@@ -1406,7 +1406,7 @@
     background: var(--webpic-dim-strong);
   }
 }
-/* Top menu bar (ui/topBar): brand + dataset/field pickers + time scrub + a hover-revealed action
+/* Top menu bar (ui/topbar/bar): brand + dataset/field pickers + time scrub + a hover-revealed action
    cluster. A centered, content-sized translucent glass pill: ~25% bg + blur, with
    content dimmed via --topbar-fg at rest and brightening on hover/focus. The SVG marks stroke with
    currentColor, so dimming the 'color' prop dims text + icons together; the accent brand mark is exempt.
@@ -2606,7 +2606,7 @@
 .webpic-window.is-resizing .webpic-window_resize {
   opacity: 0.85;
 }
-/* Per-layer settings window (ui/layerSettings): the action row beneath the controls — reorder ▲▼,
+/* Per-layer settings window (ui/layers/settings): the action row beneath the controls — reorder ▲▼,
    clear seeds, remove. Buttons read like the rail menu's action list (transparent, hover-lift). */
 .webpic-layerset_empty {
   color: var(--webpic-muted);

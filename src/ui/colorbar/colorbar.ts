@@ -7,7 +7,7 @@ import {
   type UiStore,
 } from "@store";
 import { shallow } from "zustand/vanilla/shallow";
-import { createBottomBand } from "../bottomBand.ts";
+import { createBottomBand } from "../bottomBand/band.ts";
 import { installChromeVisibility } from "../chromeVisibility.ts";
 import { isInteractiveTarget, makeEl, makeIconButton } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
@@ -23,7 +23,7 @@ import { colorbarStack } from "./colorbarStack.ts";
 // distinct bindings shows a soft-warn "+N" badge naming the fields without a strip. It snaps to a
 // viewport edge and springs clear of the chrome. The gear opens a popover of colormap/scale/window
 // controls for the *selected* layer's binding. ui → store only. On the bottom row it is a client of
-// ui/bottomBand: this module owns the strips, the band owns the row.
+// ui/bottomBand/band: this module owns the strips, the band owns the row.
 
 // Static chrome the colorbar must not cover on drop; zero-area (hidden) matches are skipped. The
 // bottom rail's tight per-button rects (not its full-width .webpic-rail container, which can't be

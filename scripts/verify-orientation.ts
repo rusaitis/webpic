@@ -33,7 +33,7 @@ async function main(): Promise<number> {
       // leave it up and the drags grab the marker instead of the camera. Off for the whole run.
       const probe = page.locator('[aria-label="Hide point marker"]');
       if ((await probe.count()) > 0) await probe.first().click();
-      // The pose lives in the C-toggled coords card's View + Center rows (ui/cameraRail) — the two rows
+      // The pose lives in the C-toggled coords card's View + Center rows (ui/camera/bottomRail) — the two rows
       // parented directly by the card, next to the nested grid rows. Every canvas gesture below is an
       // outside pointer-down, which dismisses the card, so re-open it before each read.
       const card = page.locator(".webpic-coords-card");

@@ -100,7 +100,7 @@ Goal: persist derived fields + screenshots; lock bundle budgets.
 ### M5 — UI polish *(next up)*
 Pure-frontend, no new deps — make daily use pleasant before the heavy features land, and clear the deferred-UI debt in one sweep.
 - [ ] 1. Floating **window manager** — lift magviz's `windowManager` + `draggablePanels`: free-drag/resize/persist/focus-stack for the fixed translucent overlays (`ui/floating/floatingWindow.ts` is the seed; the Developer window already floats)
-- [ ] 2. Command palette (`Cmd+K`) — fuzzy match over the `ui/shortcuts.ts` registry (stays the cheat-sheet authority)
+- [ ] 2. Command palette (`Cmd+K`) — fuzzy match over the `ui/keys/shortcuts.ts` registry (stays the cheat-sheet authority)
 - [ ] 3. Remappable-shortcuts UI — runtime keymap editing, OPFS-persisted
 - [ ] 4. Comparison view — side-by-side datasets via a secondary viewport
 - [ ] 5. High-contrast theme

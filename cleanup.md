@@ -25,7 +25,7 @@ After the 2026-09 code-health review landed (`1a9f723`, `073ee66`, `4d80afb`), L
 | milestone tags (`M6.6`, `M3+`, `v0.2`…) in CLAUDE.md vs `src/` | **13 vs 0** |
 | `toBeCloseTo` with the default 2-digit tolerance | 16 |
 | `@schema/log` scopes | 9 strings, 3 naming schemes (`"zarr"`, `"render worker"`, `"boot"`) |
-| files at 0 % coverage that aren't GPU-only | `ui/perfHud.ts` (244 L), `app/perfBridge.ts`, `workers/data.worker.ts` |
+| files at 0 % coverage that aren't GPU-only | `ui/perf/hud.ts` (244 L), `app/perfBridge.ts`, `workers/data.worker.ts` |
 | WGSL sources validated off-GPU | 0 of 3 |
 | `src/workers` seen by `check-boundaries` | **no** (`tsconfig.json` excludes it; `ALLOWED_IMPORTS.workers` is dead config) |
 | app bundle budget | `package.json` 550 kB; `README.md:132`, `DESIGN.md:808,899,967` still say 1.6 MB |
@@ -163,7 +163,7 @@ Not adding: coverage gate (stays a report), `useNamingConvention`, `noBarrelFile
 4. **`numerics/interp.test.ts`** (new): the five guards at `interp.ts:38-42`, the −0.5 cell-center invariant at `t=0` and `t=dim−1`, out-of-domain returns `false` with `out` untouched.
 5. **`store/supersedingTask.test.ts`** (new): superseded body resolving last sees `isCurrent() === false` and its commit never lands.
 6. **Worker malformed messages**: post `{kind:"nonsense"}` and a `dtype`/`byteLength` mismatch to `render/worker.ts` (via `render/testing/workerHarness.ts`) and `workers/data.worker.ts`; assert the never-arms throw with the payload in the message. Gives `data.worker.ts` its first coverage.
-7. **`ui/perfHud.dom.test.ts`** (new): number formatting + `Infinity`/`NaN` sample paths, modeled on `timingPanel.dom.test.ts`. `app/perfBridge.test.ts` (new): message routing.
+7. **`ui/perf/hud.dom.test.ts`** (new): number formatting + `Infinity`/`NaN` sample paths, modeled on `timingPanel.dom.test.ts`. `app/perfBridge.test.ts` (new): message routing.
 8. **Fixtures consolidation**: promote `makeGrid(shape, spacing, origin?)`, `makeField(name, data, shape)`, `ballField(n, radius)` into `tests/fixtures.ts` (+ `tests/fixtures.browser.ts` for the GPU suites); delete the 8 local clones (`numerics/tracing.test.ts:21`, `data/stagger.test.ts:125-152`, `store/seedPick.test.ts:15`, `data/writers/zarr.test.ts:52-68`, `tests/writer-parity.test.ts:22-35`, `containers/grid.test.ts:5`, `store/simulation.test.ts:14`, `app/sceneSync.test.ts:9`, the 4 `ballField` copies in `render/*.browser.test.ts`).
 9. **`theme.ts:252`**: wrap `parseToml` so a syntax error surfaces as the promised `Invalid theme in "<name>"`; test with malformed TOML + wrong-type value.
 10. **Dispose-during-in-flight** for `installGpu` and `createStreamRing` (one test each).
@@ -233,7 +233,7 @@ Deviations, each after inspection rather than by omission:
 
 ### 5b. Comments (rule-driven, mechanical)
 - Every non-embed-layer `/**` block → either a single `//` line (if it says something the signature doesn't) or deleted. ~385 blocks; `render/messages.ts` (136 comment lines) and `store/state.ts` (86) first.
-- File headers > 6 lines (16 files): keep the invariant, move the rest to the DESIGN § the header already cites (or add the §). Worst: `data/prefetch.ts`, `shaders/kernels/streamline.wgsl.ts`, `ui/pointerPicker.ts`, `ui/controls/rangeControl.ts`, `numerics/interp.ts`.
+- File headers > 6 lines (16 files): keep the invariant, move the rest to the DESIGN § the header already cites (or add the §). Worst: `data/prefetch.ts`, `shaders/kernels/streamline.wgsl.ts`, `ui/picking/pointerPicker.ts`, `ui/controls/rangeControl.ts`, `numerics/interp.ts`.
 - Delete the ~20 history and ~28 roadmap comments and the 53 magviz-provenance mentions (keep provenance in DESIGN §Magviz).
 - The 96 comment-longer-than-code blocks: `compute/backend.ts:5-13` (9 lines → 2 code) etc. — trim to one WHY line each.
 - `ui/theme/styles.ts`: extract the 953-line `UI_CSS` literal to `src/ui/theme/ui.css` imported `?raw` (Vite inlines it; same bundle), leaving `styles.ts` with the token logic. The 60+ `/* */` design notes inside the CSS shrink to the non-obvious ones.
@@ -307,7 +307,7 @@ definition instead of re-deriving them"* — 13 sites re-derive it.
 | functions over the stated 150-line cap | 18 (worst 268: `installCameraGestures`) |
 | functions over the stated complexity-20 cap | 24 (worst 51: `traceSingleDirectionAdaptive`) |
 | live Biome ceilings vs today's worst | `maxLines` **310 vs 268** · `maxAllowedComplexity` **52 vs 51** |
-| slowest test file | `ui/pointerCamera.dom.test.ts` **6 849 ms** of 14.9 s total test time |
+| slowest test file | `ui/camera/pointerCamera.dom.test.ts` **6 849 ms** of 14.9 s total test time |
 | lowest-coverage non-GPU source | `markerScene` 7 % · `pointerPicker` 40 % · `dragSnap` 54 % · `data.worker` 26 % |
 | inline `as unknown as Worker` fakes | 29, across 9 test files |
 | hand-rolled `Math.min(Math.max(…))` | 13, against `clamp` in `@schema/math` |
@@ -337,8 +337,8 @@ checks unused exports at all**. That exclusion is why several deletions below su
    one `setFlag(state, key: OverlayFlag, on)`. ~33 lines; `overlay.test.ts` already groups four
    under a single `describe`, so the test collapses with the code.
 5. **Use `clamp` from `@schema/math`** — `render/pickRay.ts:34,35,36,82`, `store/pick.ts:72,102,106`,
-   `store/overlay.ts:42`, `ui/layerSettings.ts:259,305` (same expression twice → one
-   `seedCountFor`), `ui/railMenu.ts:57`, `ui/colorbar/bottomDock.ts:57`, `app/viewportTracking.ts:21`.
+   `store/overlay.ts:42`, `ui/layers/settings.ts:259,305` (same expression twice → one
+   `seedCountFor`), `ui/layers/railMenu.ts:57`, `ui/bottomBand/band/dock.ts:57`, `app/viewportTracking.ts:21`.
    `pickRay.ts:82` is the one per-ray-loop site to glance at.
 6. **`render/grid/overlayRemap.ts:17` `fieldAxisToThree` is the identity function** — 4 call sites,
    one `expect(f(0)).toBe(0)` test, and a comment carrying banned history. Delete; the invariant is
@@ -386,7 +386,7 @@ boolean) · `layerComposite.ts:14` `CompositeEntry` / `runtime/renderer.ts:27` `
 - `ac` → `abortController` (80) and `subs` → `subscriptions` (118), one mechanical commit each.
 - `useF64` (`derived/magnitude.ts:17`) vs `useFloat64` (`coordinates/operators.ts:79+`) →
   `isFloat64Output`. Same boolean, two spellings, sibling pure-math layers, neither a question.
-- `teardown` → `dispose` for the 2 remaining identifiers (`ui/layerSettings.ts:132`).
+- `teardown` → `dispose` for the 2 remaining identifiers (`ui/layers/settings.ts:132`).
 - **`ui` icons: 4 homes → 1.** Fold the local `const ICON` maps (`topBar`, `cameraRail`,
   `sideRail`, `colorbar`) and the loose `ICON_*` consts into `ui/icons.ts`; `layerIcons.ts` keeps
   only `LAYER_KIND_ICON`. Deletes the one exact duplicate glyph (`ICON_CARET` ≡ `ICON_CARET_DOWN`).
@@ -454,13 +454,13 @@ Checked clean: 0 `handleX`, 0 `cfg`/`tmp`/`msg`/`evt`, no exported one-word `Opt
 
 **Not splitting:** `render/worker.ts` (its body *is* the worker's state — keeps its sanctioned
 `biome-ignore`), `store/camera.ts`, `render/messages.ts`, `data/readers/zarr.ts`,
-`data/readers/decode.ts`, `compute/calibration.ts`, `schema/theme.ts`. `ui/topBar.ts` (327 L) is
+`data/readers/decode.ts`, `compute/calibration.ts`, `schema/theme.ts`. `ui/topbar/bar.ts` (327 L) is
 borderline but its five widgets share the `overlayClosers` mutual-exclusion map at `:65-69`.
 
 ### 6d. Tests — "only what matters", in both directions
 
 **Delete / rewrite.**
-- **`ui/pointerCamera.dom.test.ts` is 6 849 ms of 14.9 s.** `pumpUntil:34` polls rAF against
+- **`ui/camera/pointerCamera.dom.test.ts` is 6 849 ms of 14.9 s.** `pumpUntil:34` polls rAF against
   `Date.now()` while `cameraGlide` tweens on real elapsed time — its own comment admits *"tweens
   run on real elapsed time, ~450 ms"*. That is the banned `setTimeout(r, N>0)` evaded through rAF.
   **Test-only fix:** `glide(nowMs)` (`cameraGlide.ts:138`) is driven by the rAF timestamp, so
@@ -506,7 +506,7 @@ borderline but its five widgets share the `overlayClosers` mutual-exclusion map 
 - `dragSnap.dom.test.ts` (installer at 54 %, the largest untested installer, owning pointer capture
   + docking): *a drag past the snap threshold docks to the nearest edge and releases pointer
   capture*; *dispose stops responding to a drag already in progress*.
-- `ui/pointerPicker.ts` at 40 % — the suite is scoped `describe("installPointerPicker arrow keys")`;
+- `ui/picking/pointerPicker.ts` at 40 % — the suite is scoped `describe("installPointerPicker arrow keys")`;
   the pointer path is untested: *a drag on the marker moves it along the view plane and dispatches
   one pick intent per pointerup*.
 - `workers/data.worker.ts` at 26 % — `:109` `"stream read before open"` (the realistic

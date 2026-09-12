@@ -12,7 +12,7 @@ import {
 } from "./camera.ts";
 
 // Pick-to-focus math: the cursor ray through a pose, its chord through the unit render box, and
-// the focus pose that re-pivots the orbit there. Pure — ui/pointerCamera uses it as the synchronous
+// the focus pose that re-pivots the orbit there. Pure — ui/camera/pointerCamera uses it as the synchronous
 // double-click miss test, app/main as the fallback when the render worker can't refine the pick.
 
 export interface CursorRay {

@@ -1,7 +1,7 @@
 import { ICON_CHECK } from "../icons.ts";
 import { installOutsideClickDismiss, makeEl } from "./dom.ts";
 
-// A lightweight anchored single-select popover (the dataset + content pickers in ui/topBar share it).
+// A lightweight anchored single-select popover (the dataset + content pickers in ui/topbar/bar share it).
 // Content-agnostic: the caller supplies each row's body via renderRow, so one interaction shell —
 // lazy build on open, reposition on scroll/resize, optional outside-pointerdown + Esc + arrow-key nav, focus
 // return to the trigger — serves both a plain dataset list and a rich field-metadata list. Built off

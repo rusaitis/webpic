@@ -807,7 +807,7 @@ Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirr
 
 ### Point-picker gestures
 
-`ui/pointerPicker.ts` owns these; the marker itself lives in the render worker.
+`ui/picking/pointerPicker.ts` owns these; the marker itself lives in the render worker.
 
 - Drag the sphere to move it on the equatorial plane; Shift — or a steep view — switches the drag to vertical z. The ↕/↔ handles drag along a single axis.
 - A press on empty volume falls through to `pointerCamera` (orbit/pan; its double-click focuses). There is deliberately **no tap-to-place**, so a stray tap — touch especially — never jumps the marker; reposition by dragging it or with the held arrow keys.
@@ -816,7 +816,7 @@ Fallback: missing `[webpic]` → built-in defaults silently. Bundled themes mirr
 
 ### Shortcuts
 
-Hand-rolled registry (`ui/shortcuts.ts` is the cheat-sheet authority; OPFS remapping rides the M5 shortcuts UI). Shipped defaults: `V`/`T` add volume/field-lines — `S` is **deliberately unbound** (collides with the W/S dolly; slices add via the rail) and `P` went to the PNG screenshot, so particles get a binding at M6 — `L` toggle Layers, `F` toggle UI, `O` projection, `R`/`Z` reset/fit, digits axis-snap, `?`/`H` shortcut overlay, `Cmd+K` palette (v0.2). Stepping rides the top bar's scrub chip + prev/next buttons (no `[`/`]` binding shipped).
+Hand-rolled registry (`ui/keys/shortcuts.ts` is the cheat-sheet authority; OPFS remapping rides the M5 shortcuts UI). Shipped defaults: `V`/`T` add volume/field-lines — `S` is **deliberately unbound** (collides with the W/S dolly; slices add via the rail) and `P` went to the PNG screenshot, so particles get a binding at M6 — `L` toggle Layers, `F` toggle UI, `O` projection, `R`/`Z` reset/fit, digits axis-snap, `?`/`H` shortcut overlay, `Cmd+K` palette (v0.2). Stepping rides the top bar's scrub chip + prev/next buttons (no `[`/`]` binding shipped).
 
 **Accessibility.** Tab order, focus rings, palette keyboard nav, ARIA roles. High-contrast theme to v0.2.
 

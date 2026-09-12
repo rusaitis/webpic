@@ -16,7 +16,7 @@ export interface LoadingPhase {
 
 // Every long-running phase the status pill can show. One closed table, because a begin and its end
 // must agree on the key and a typo strands the pill: "boot" is begun at bootstrap and ended on the
-// worker's first frame, and ui/bootReveal watches for it by name.
+// worker's first frame, and ui/status/bootReveal watches for it by name.
 export const PHASE_KEYS = {
   boot: "boot",
   render: "render",

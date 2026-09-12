@@ -13,7 +13,7 @@ import type { Vec3 } from "@schema/types.ts";
 import type { CursorRay } from "./pick.ts";
 
 // Main-thread point-picker math: project the marker / its handles to screen for hit-testing, and
-// solve the cursor ray against a drag plane or axis. Pure (no DOM, no THREE) — ui/pointerPicker owns
+// solve the cursor ray against a drag plane or axis. Pure (no DOM, no THREE) — ui/picking/pointerPicker owns
 // the pointer state machine and feeds these. Shares the unit-box object space and the exact orbit
 // basis with store/pick.cursorRay, so a projected point round-trips with its ray (tested).
 
@@ -68,7 +68,7 @@ export function worldToScreen(
 
 // World positions of the ↕ (z) and ↔ (x|y) handle knobs at the current pose — null when that handle
 // is gated off (vertical near top-down, horizontal outside the equatorial regime). The offset folds
-// in the zoom scale the knob inherits as a child of the core. ui/pointerPicker projects these to
+// in the zoom scale the knob inherits as a child of the core. ui/picking/pointerPicker projects these to
 // hit-test the affordances; render/markerScene positions the real sprites identically.
 export interface HandlePositions {
   readonly vertical: Vec3 | null;

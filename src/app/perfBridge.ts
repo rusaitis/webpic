@@ -5,7 +5,9 @@ import {
   type RenderWorkerResponse,
 } from "@render/messages.ts";
 import type { PerfStore, PerfWorker, UiStore } from "@store";
-import { installPerfHud } from "@ui/perfHud.ts";
+// Deep, not through @ui: this module is a dynamic import (the dev HUD is a lazy chunk), and the
+// barrel would pull the whole ui surface back into the eager graph.
+import { installPerfHud } from "@ui/perf/hud.ts";
 
 // The dev perf-HUD subsystem installer (app-only glue). Mounts the HUD overlay, gates the workers'
 // per-frame sampling on HUD visibility, runs the main-thread metric pump (heap, whole-page memory,

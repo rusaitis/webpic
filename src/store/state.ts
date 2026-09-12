@@ -100,7 +100,7 @@ export interface LayersSlice {
   // the wording. Committed with `traces`, so a layer that traced 6 of 8 seeds still renders its six.
   readonly traceNotices: Readonly<Record<string, TraceNotice>>;
   // Seed-placement mode: the fieldlines-layer id accepting click-to-place seeds, or null (off). The
-  // per-layer settings panel toggles it; ui/pointerSeedPlacer claims canvas clicks while it is set.
+  // per-layer settings panel toggles it; ui/picking/pointerSeedPlacer claims canvas clicks while it is set.
   readonly seedPlacementLayerId: string | null;
   addLayer(spec: LayerSpec): void;
   // Add a fresh instance of `kind` on the active field (the rail's add buttons): a volume or slice
@@ -156,7 +156,7 @@ export interface CameraSlice {
   // / N), NOT auto-engaged by proximity — only W/S's close-up walk (dollyWithWalk) is automatic.
   // Transient interaction state, so it stays out of the pose permalink.
   readonly isFlyMode: boolean;
-  // One-shot fly-to request (gnomon axis snap, fit-to-data, view presets). ui/pointerCamera — the
+  // One-shot fly-to request (gnomon axis snap, fit-to-data, view presets). ui/camera/pointerCamera — the
   // owner of the camera animation loop — consumes it: resolves the target (fit needs the canvas
   // aspect only it knows), eases the pose over, and clears the request. A fresh wrapper object per
   // request so repeating the same view re-fires the subscription.
@@ -173,11 +173,11 @@ export interface PickerSlice {
   // Fresh wrapper per request so a repeated same-spot click re-fires (see PickRequest).
   readonly pickRequest: PickRequest | null;
   // The draggable point-picker marker, object space (unit box [-0.5, 0.5]³, = world). null hides it.
-  // ui/pointerPicker drags it (setPickerPoint) and the app's opacity-weighted pick places it; the app
+  // ui/picking/pointerPicker drags it (setPickerPoint) and the app's opacity-weighted pick places it; the app
   // forwards it to the render worker via pickerBridge. The seed [0,0,0] shows the marker at box center.
   readonly pickerPoint: Vec3 | null;
   // Which marker part the cursor is over, and whether a drag is in progress — view feedback the
-  // render worker eases (hover/pulse/active). Set by ui/pointerPicker, forwarded by pickerBridge.
+  // render worker eases (hover/pulse/active). Set by ui/picking/pointerPicker, forwarded by pickerBridge.
   readonly pickerHover: MarkerPart;
   readonly pickerActive: boolean;
   requestPick(request: PickRequest | null): void;

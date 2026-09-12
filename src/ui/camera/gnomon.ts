@@ -1,0 +1,168 @@
+import {
+  type AxisView,
+  axisViewPose,
+  type CameraPose,
+  type SimulationStore,
+  type UiStore,
+} from "@store";
+import { installChromeVisibility } from "../chromeVisibility.ts";
+import { makeEl } from "../controls/dom.ts";
+import type { Disposer } from "../controls/index.ts";
+import { createSubscriptions } from "../subscriptions.ts";
+
+// One column-major 4×4 scratch shared by both transforms below — each fills its rotation block and
+// formats the string before returning, so they never interleave. Reused per pose (gesture rate): no
+// array literal, no map/join closure. The affine row/column never changes and is prefilled once.
+const MATRIX_SCRATCH = new Float64Array(16);
+MATRIX_SCRATCH[15] = 1;
+
+// Format the scratch as a CSS matrix3d() string, every entry at 5 decimals.
+function matrix3d(m: Float64Array): string {
+  let out = "matrix3d(";
+  for (let i = 0; i < 16; i++) out += `${i === 0 ? "" : ", "}${(m[i] ?? 0).toFixed(5)}`;
+  return `${out})`;
+}
+
+// Always-on camera gnomon pinned bottom-left: a CSS-3D axis triad driven straight from the store
+// pose. The pose is angle-parameterized, so the gnomon is a CSS transform — no second renderer or
+// worker round-trip. Hides with the rest of the UI on the toggle, and independently via the bottom
+// rail's gnomon control. The ±axis tips are clickable discs: a click
+// dispatches a cameraFlyRequest intent that ui/camera/pointerCamera eases to — chrome never animates the
+// pose itself. The pose readout + view permalink now live in the bottom rail (ui/camera/bottomRail).
+
+// The gnomon shows the world axes as the camera sees them. The arms are a fixed CSS triad — is-x→right,
+// is-y→into-screen, is-z→up at rest (the .is-* CSS) — and this shared transform rotates that triad into
+// the current view. It's the world→screen rotation of the z-up orbit camera (camera.ts applyPose),
+// written straight as matrix3d so it tracks the camera exactly: a rotateX·rotateY Euler form mirrored x/y
+// and spun azimuth backwards under z-up. Columns map the arms' scene-space directions (is-x=+x̂,
+// is-y=−ẑ, is-z=−ŷ) onto each world axis' screen projection; CSS y is down, so the up component flips.
+export function gnomonTransform(pose: CameraPose): string {
+  const sa = Math.sin(pose.azimuth);
+  const ca = Math.cos(pose.azimuth);
+  const se = Math.sin(pose.elevation);
+  const ce = Math.cos(pose.elevation);
+  // Column-major (det +1, a proper rotation): col1 = world-x dir, −col3 = world-y dir, −col2 = world-z
+  // dir, all in CSS coords. screenRight=(−sa,ca,0), screenUp=(−se·ca,−se·sa,ce), screenBack toward viewer.
+  const m = MATRIX_SCRATCH;
+  m[0] = -sa;
+  m[1] = se * ca;
+  m[2] = ce * ca;
+  m[4] = 0;
+  m[5] = ce;
+  m[6] = -se;
+  m[8] = -ca;
+  m[9] = -se * sa;
+  m[10] = -ce * sa;
+  return matrix3d(m);
+}
+
+// The inverse (= transpose, pure rotation) of gnomonTransform. A tip's transform is
+// translate3d(arm tip) · this, so under the scene's rotation R the disc lands at R·tip but keeps a
+// screen-facing orientation (R·T·R⁻¹ = T(R·tip)) — otherwise the discs collapse to lines edge-on.
+export function gnomonCounterTransform(pose: CameraPose): string {
+  const sa = Math.sin(pose.azimuth);
+  const ca = Math.cos(pose.azimuth);
+  const se = Math.sin(pose.elevation);
+  const ce = Math.cos(pose.elevation);
+  const m = MATRIX_SCRATCH;
+  m[0] = -sa;
+  m[1] = 0;
+  m[2] = -ca;
+  m[4] = se * ca;
+  m[5] = ce;
+  m[6] = -se * sa;
+  m[8] = ce * ca;
+  m[9] = -se;
+  m[10] = -ce * sa;
+  return matrix3d(m);
+}
+
+// The arms' scene-space frame (see gnomonTransform): world +x → CSS +x, world +y → CSS −z (into
+// the screen), world +z → CSS −y (CSS y points down). Tip offsets sit at the 24 px arm ends.
+const TIP_OFFSET_PX = 24;
+const GNOMON_TIPS: readonly {
+  readonly view: AxisView;
+  readonly cls: string;
+  readonly offset: readonly [number, number, number];
+}[] = [
+  { view: "+x", cls: "is-px", offset: [TIP_OFFSET_PX, 0, 0] },
+  { view: "-x", cls: "is-nx", offset: [-TIP_OFFSET_PX, 0, 0] },
+  { view: "+y", cls: "is-py", offset: [0, 0, -TIP_OFFSET_PX] },
+  { view: "-y", cls: "is-ny", offset: [0, 0, TIP_OFFSET_PX] },
+  { view: "+z", cls: "is-pz", offset: [0, -TIP_OFFSET_PX, 0] },
+  { view: "-z", cls: "is-nz", offset: [0, TIP_OFFSET_PX, 0] },
+];
+
+export function installGnomon(
+  parent: HTMLElement,
+  store: SimulationStore,
+  uiStore: UiStore,
+): Disposer {
+  const doc = parent.ownerDocument;
+  const container = makeEl(doc, "div", "webpic-chrome");
+
+  const gnomon = makeEl(doc, "div", "webpic-gnomon");
+  gnomon.title = "Camera orientation. Click a tip to snap the view.";
+  const scene = makeEl(doc, "div", "webpic-gnomon_scene");
+  for (const axis of ["x", "y", "z"] as const) {
+    const arm = makeEl(doc, "div", `webpic-gnomon_axis is-${axis}`);
+    arm.dataset.axis = axis.toUpperCase();
+    scene.appendChild(arm);
+  }
+  const tips = GNOMON_TIPS.map((spec) => {
+    const tip = makeEl(doc, "div", `webpic-gnomon_tip ${spec.cls}`);
+    tip.title = `View from ${spec.view}`;
+    tip.addEventListener("click", () => {
+      const state = store.getState();
+      state.requestCameraFly({ kind: "pose", pose: axisViewPose(spec.view, state.cameraPose) });
+    });
+    scene.appendChild(tip);
+    return { element: tip, offset: spec.offset };
+  });
+  gnomon.appendChild(scene);
+
+  container.append(gnomon);
+  parent.appendChild(container);
+
+  const render = (pose: CameraPose): void => {
+    // Hidden chrome/gnomon skips the per-pose matrix3d + tip churn at gesture rate; the show paths
+    // below re-render so nothing coasts on a stale pose.
+    if (container.hidden || gnomon.hidden) return;
+    // Roll is a screen-Z image rotation, so it composes as an outer 2D rotate on the whole triad
+    // (tips ride along through preserve-3d). The scene appears to spin opposite the camera bank.
+    scene.style.transform =
+      pose.roll === 0
+        ? gnomonTransform(pose)
+        : `rotate(${(-pose.roll).toFixed(5)}rad) ${gnomonTransform(pose)}`;
+    const counter = gnomonCounterTransform(pose);
+    for (const tip of tips) {
+      const [x, y, z] = tip.offset;
+      tip.element.style.transform = `translate3d(${x}px, ${y}px, ${z}px) ${counter}`;
+    }
+  };
+  const subscriptions = createSubscriptions();
+  subscriptions.on(store, (s) => s.cameraPose, render, { shouldFireNow: true });
+
+  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+    container.hidden = !isVisible;
+    if (isVisible) render(store.getState().cameraPose); // catch up — the pose moved while hidden
+  });
+
+  // The gnomon is independently toggleable (the bottom rail's "Gnomon" control) so it can be hidden
+  // once the in-scene 3D axes suffice. Effective visibility = that preference AND not responsively
+  // suppressed — the bottom band can be too narrow to hold the gnomon beside the rail, a flag
+  // ui/colorbar owns. Either off hides it (and gates the per-pose render churn via render()'s guard).
+  const applyGnomon = (): void => {
+    const show = store.getState().overlay.showGnomon && !uiStore.getState().isGnomonSuppressed;
+    gnomon.hidden = !show;
+    if (show) render(store.getState().cameraPose); // catch up — the pose moved while hidden
+  };
+  applyGnomon();
+  subscriptions.on(store, (s) => s.overlay.showGnomon, applyGnomon);
+  subscriptions.on(uiStore, (s) => s.isGnomonSuppressed, applyGnomon);
+
+  return () => {
+    subscriptions.dispose();
+    container.remove();
+  };
+}

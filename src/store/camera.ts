@@ -25,8 +25,8 @@ export const DISTANCE_MAX = 50;
 
 // Pointer sensitivities, in OrbitControls' exact units so the feel is unchanged at any
 // viewport size. Drag deltas arrive as *viewport-height fractions* (px / viewport height px —
-// ui/pointerCamera normalizes); wheel deltas stay raw. All tunable math lives here so
-// ui/pointerCamera carries none.
+// ui/camera/pointerCamera normalizes); wheel deltas stay raw. All tunable math lives here so
+// ui/camera/pointerCamera carries none.
 const ORBIT_SENS = 2 * Math.PI; // rad per viewport-height of drag (OrbitControls rotateSpeed 1)
 // OrbitControls dollies 0.95^(|ΔY|/100) per wheel event; this is the same curve in geometric-exp
 // form (≈ ×0.94 per 120-unit notch) — uniform zoom feel at any distance.
@@ -168,7 +168,7 @@ export function panPose(pose: CameraPose, dx: number, dy: number): CameraPose {
 
 // Pending drag deltas not yet applied to the pose — the damped-glide state. Viewport-height
 // fractions, the same unit the orbit/pan helpers take, so a step is just those helpers fed the
-// released fraction. Held by ui/pointerCamera between frames; pure here so the glide is unit-testable.
+// released fraction. Held by ui/camera/pointerCamera between frames; pure here so the glide is unit-testable.
 export interface CameraMomentum {
   readonly orbitDx: number;
   readonly orbitDy: number;
@@ -352,7 +352,7 @@ export function nudgePose(
 }
 
 // What a one-shot camera fly intent asks for: an explicit pose (gnomon snaps, reset) or a fit of
-// the data bounds — resolved by ui/pointerCamera, the only consumer that knows the canvas aspect.
+// the data bounds — resolved by ui/camera/pointerCamera, the only consumer that knows the canvas aspect.
 export type CameraFlyTarget =
   | { readonly kind: "pose"; readonly pose: CameraPose }
   | { readonly kind: "fit" };
