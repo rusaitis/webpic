@@ -130,4 +130,36 @@ describe("createStreamRing", () => {
     expect(h.ring.pending()).toEqual([]);
     for (const signal of signals) expect(signal?.aborted).toBe(true);
   });
+
+  it("drops a read that lands after dispose — no display, no resurrected cache", async () => {
+    const h = harness([0, 1, 2]);
+    h.ring.setCursor(1);
+    h.ring.dispose();
+    // A reader that ignores its signal still resolves; the value must go nowhere.
+    h.resolve(1);
+    h.resolve(2);
+    await tick();
+    expect(h.displayed).toEqual([]);
+    expect(h.ring.resident()).toEqual([]);
+    expect(h.ring.pending()).toEqual([]);
+  });
+
+  it("reports nothing when a post-dispose read fails", async () => {
+    const h = harness([0, 1, 2]);
+    h.ring.setCursor(1);
+    h.ring.dispose();
+    h.reject(1, new Error("decode failed after teardown"));
+    await tick();
+    expect(h.errors).toEqual([]);
+  });
+
+  it("is idempotent, and setCursor after dispose is inert", () => {
+    const h = harness([0, 1, 2]);
+    h.ring.setCursor(1);
+    h.ring.dispose();
+    expect(() => h.ring.dispose()).not.toThrow();
+    const started = h.readStarts.length;
+    h.ring.setCursor(2);
+    expect(h.readStarts).toHaveLength(started);
+  });
 });
