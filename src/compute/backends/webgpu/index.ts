@@ -1,3 +1,4 @@
+// STAGED: activates when the data worker can hand GPU compute to main (a worker holds no device).
 import type { FieldArray, FieldDataset, GridInfo } from "@containers/field_dataset.ts";
 import { runFieldKernel } from "@gpu/computeKernel.ts";
 import { getDevice, hasDevice } from "@gpu/device.ts";
@@ -130,9 +131,7 @@ async function computeRecipeWebgpu(
 }
 
 // The WebGPU compute backend. `supports()` gates on a live device (false in Node and in workers,
-// which can't hold the main thread's device). NOT registered in `compute/field.ts`'s dispatcher
-// yet — live routing needs the data worker to read raw components and hand GPU compute to the main
-// thread (a worker has no GPUDevice). Built + proven against the coordinates twin first.
+// which can't hold the main thread's device). Proven against the coordinates twin first.
 export const webgpuBackend: ComputeBackend = {
   id: "webgpu",
   supports: (recipe) => hasDevice() && isWebgpuOp(recipe),

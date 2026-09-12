@@ -1,8 +1,9 @@
-// GPU frame timing with two interchangeable backends behind one interface:
-// `timestamp-query` (GPUQuerySet, nanosecond-accurate GPU time) when the device
-// supports it, else a `performance.now()` + `queue.onSubmittedWorkDone()` wall-clock
-// fallback (coarser — includes JS/queue latency — but always available). The
-// diagnostics panel drives this; both paths ship now.
+// STAGED: activates when compute-pass timing is needed off the render path.
+// GPU timing with two interchangeable backends behind one interface: `timestamp-query`
+// (GPUQuerySet, nanosecond-accurate GPU time) when the device supports it, else a
+// `performance.now()` + `queue.onSubmittedWorkDone()` wall-clock fallback (coarser — it includes
+// JS/queue latency — but always available). Render frames are timed by render/runtime/frameTimer.ts
+// instead: a render-pass timestamp write loses the Metal device (DESIGN §Volume rendering).
 
 import type { GpuCapabilities } from "./capabilities.ts";
 

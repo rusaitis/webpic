@@ -98,7 +98,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 
 ## Dependencies
 
-Don't add without justification matching `docs/DESIGN.md` §Build system & tooling. *Shipped:* `three` (`three/webgpu`, exact pin), `zarrita` (Zarr v3), `zod` (app), `smol-toml`, `zustand`. *Adopted when their layer lands:* `comlink` (compute worker pool), `zod/v4-mini` (embed build, only if the budget headroom tightens), `wesl-js` (gated on rustpic shared kernels), `h5wasm`, `hyparquet`, `apache-arrow`, `@duckdb/duckdb-wasm` (dynamic import only, with the HDF5/Parquet/Arrow readers). GPU timing comes from `gpu/profiler.ts`, not `stats-gl`. Pin majors — except three.js: **pin exactly `three@0.185.1`** for PR-#31607 (OffscreenCanvas-on-Worker), not a floating range; bump deliberately, with the full GPU gate.
+Don't add without justification matching `docs/DESIGN.md` §Build system & tooling. *Shipped:* `three` (`three/webgpu`, exact pin), `zarrita` (Zarr v3), `zod` (app), `smol-toml`, `zustand`. *Adopted when their layer lands:* `comlink` (compute worker pool), `zod/v4-mini` (embed build, only if the budget headroom tightens), `wesl-js` (gated on rustpic shared kernels), `h5wasm`, `hyparquet`, `apache-arrow`, `@duckdb/duckdb-wasm` (dynamic import only, with the HDF5/Parquet/Arrow readers). GPU frame timing is `render/runtime/frameTimer.ts` (wall-clock), not `stats-gl`. Pin majors — except three.js: **pin exactly `three@0.185.1`** for PR-#31607 (OffscreenCanvas-on-Worker), not a floating range; bump deliberately, with the full GPU gate.
 
 ## Dev commands
 
