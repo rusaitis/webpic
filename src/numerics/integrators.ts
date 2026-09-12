@@ -1,3 +1,4 @@
+import { clamp } from "@schema/math.ts";
 // Dormand-Prince 5(4) adaptive ODE step — the CPU reference the field-line tracer is built on.
 // Seven-stage FSAL Runge-Kutta: the 5th-order weights (DP_B5) propagate the solution, the embedded
 // 4th-order weights (DP_B4) give the error estimate that drives step-size control. State-vector-
@@ -140,6 +141,6 @@ export interface StepControl {
 export function iStepController(h: number, errNorm: number, control: StepControl): number {
   const order = control.order ?? 5;
   const raw = SAFETY * Math.max(errNorm, ERR_FLOOR) ** (-1 / order);
-  const factor = Math.min(GROWTH_MAX, Math.max(GROWTH_MIN, raw));
-  return Math.min(control.maxStep, Math.max(control.minStep, h * factor));
+  const factor = clamp(raw, GROWTH_MIN, GROWTH_MAX);
+  return clamp(h * factor, control.minStep, control.maxStep);
 }

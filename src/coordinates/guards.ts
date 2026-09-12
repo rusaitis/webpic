@@ -20,7 +20,7 @@ export function requirePositiveSpacing(spacing: readonly number[], operation: st
   }
 }
 
-export function gridVolume(shape: readonly number[]): number {
+function gridVolume(shape: readonly number[]): number {
   let volume = 1;
   for (const dim of shape) volume *= dim;
   return volume;

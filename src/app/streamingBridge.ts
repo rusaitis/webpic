@@ -2,6 +2,7 @@ import type { DataHandle, DataStreamRequest, DataStreamResponse } from "@data";
 import { REQUEST_IDS, type RenderWorkerRequest } from "@render/messages.ts";
 import { logError } from "@schema/log.ts";
 import type { SimulationStore, UiStore } from "@store";
+import { PHASE_KEYS } from "@store";
 
 // Owns the streaming data worker (app-only glue). The worker reads + computes each scrubbed step
 // off-main and streams the scalar straight to the render worker over a private MessageChannel (no main
@@ -47,17 +48,18 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
     switch (message.kind) {
       case "opened":
         store.getState().setAvailableSteps(message.steps); // override the 1-element seed
-        uiStore.getState().endLoading("open");
+        uiStore.getState().endLoading(PHASE_KEYS.openDataset);
         return;
       case "stepLoaded":
         // Only the ack for the *current* cursor ends the phase — a stale ack in transit from a
         // scrubbed-past step must not clear the newer load's pill.
-        if (message.step === store.getState().currentStep) uiStore.getState().endLoading("step");
+        if (message.step === store.getState().currentStep)
+          uiStore.getState().endLoading(PHASE_KEYS.step);
         return;
       case "streamError":
         logError("data worker", message.message);
-        uiStore.getState().endLoading("open");
-        uiStore.getState().endLoading("step");
+        uiStore.getState().endLoading(PHASE_KEYS.openDataset);
+        uiStore.getState().endLoading(PHASE_KEYS.step);
         uiStore.getState().flashError(message.message);
         return;
       case "perfSample":
@@ -82,7 +84,7 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
       hasStreamedStep = true;
       // Rapid scrubs just retitle the live "step" phase; the stepLoaded ack ends it. Cached neighbours
       // ack within ms — inside the pill's show delay, so no flash.
-      uiStore.getState().beginLoading("step", `loading step ${step}`);
+      uiStore.getState().beginLoading(PHASE_KEYS.step, `loading step ${step}`);
     },
   );
 
@@ -97,7 +99,7 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
       } satisfies DataStreamRequest);
       // Pre-scrub the worker has no cursor and never acks (main's synchronous layerBridge covers that
       // case) — an unconditional begin would strand the phase forever.
-      if (hasStreamedStep) uiStore.getState().beginLoading("step", `computing ${field}`);
+      if (hasStreamedStep) uiStore.getState().beginLoading(PHASE_KEYS.step, `computing ${field}`);
     },
   );
 
@@ -106,7 +108,7 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
       // The store seeds its layer in setDataset (streamed fields address it by id); open after that.
       const layerId = store.getState().selectedLayerId;
       if (layerId === null) return;
-      uiStore.getState().beginLoading("open", "opening dataset");
+      uiStore.getState().beginLoading(PHASE_KEYS.openDataset, "opening dataset");
       dataWorker.postMessage(
         {
           kind: "open",
@@ -132,7 +134,7 @@ export function installStreamingBridge(options: StreamingBridgeOptions): Streami
     },
     reopen(handle) {
       if (!isOpened) return;
-      uiStore.getState().beginLoading("open", "opening dataset");
+      uiStore.getState().beginLoading(PHASE_KEYS.openDataset, "opening dataset");
       dataWorker.postMessage({
         kind: "reopen",
         handle,

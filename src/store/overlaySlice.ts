@@ -1,16 +1,12 @@
 import * as overlayOps from "./overlay.ts";
-import { DEFAULT_OVERLAY, type OverlayState } from "./overlay.ts";
-import type { OverlaySlice, SliceContext } from "./state.ts";
+import { DEFAULT_OVERLAY } from "./overlay.ts";
+import { identityUpdater, type OverlaySlice, type SliceContext } from "./state.ts";
 
 // Scene overlay display prefs (axes, grid, gnomon, picker) — every setter runs a pure op and commits
 // only a real change.
 
-export function createOverlaySlice({ get, set }: SliceContext): OverlaySlice {
-  const update = (op: (overlay: OverlayState) => OverlayState): void => {
-    const { overlay } = get();
-    const next = op(overlay);
-    if (next !== overlay) set({ overlay: next });
-  };
+export function createOverlaySlice(context: SliceContext): OverlaySlice {
+  const update = identityUpdater(context, "overlay");
   return {
     overlay: DEFAULT_OVERLAY,
     setOverlayShowGrid(on) {

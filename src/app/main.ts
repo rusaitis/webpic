@@ -9,12 +9,12 @@ import {
 import { rejectionLogger } from "@schema/log.ts";
 import type { Theme } from "@schema/theme.ts";
 import {
-  BOOT_PHASE_KEY,
   type CameraPose,
   type CameraProjection,
   createPerfStore,
   createSimulationStore,
   createUiStore,
+  PHASE_KEYS,
   type SimulationStore,
   type UiStore,
 } from "@store";
@@ -168,7 +168,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   // adding a bridge cannot silently leave it running (CLAUDE.md §Lifecycle & shape).
   const teardown = createSubscriptions();
   // "webpic" matches the index.html splash text, so the splash→pill adoption is pixel-stable.
-  uiStore.getState().beginLoading(BOOT_PHASE_KEY, "webpic");
+  uiStore.getState().beginLoading(PHASE_KEYS.boot, "webpic");
   let isWorkerReady = false;
   const isReady = (): boolean => isWorkerReady; // the bridges gate every post on this
 
@@ -266,7 +266,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     // The mark's startTime is ms since navigation, which scripts/perf-gate.ts reads alongside First
     // Contentful Paint to check the gate.
     performance.mark("webpic:first-frame");
-    uiStore.getState().endLoading(BOOT_PHASE_KEY);
+    uiStore.getState().endLoading(PHASE_KEYS.boot);
     options.onFirstFrame?.();
   };
 
@@ -283,7 +283,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     routeWorkerResponse(event.data, {
       uiStore,
       perfStore,
-      endBootPhase: () => uiStore.getState().endLoading(BOOT_PHASE_KEY),
+      endBootPhase: () => uiStore.getState().endLoading(PHASE_KEYS.boot),
       isWorkerReady: () => isWorkerReady,
       onReady: () => {
         isWorkerReady = true;

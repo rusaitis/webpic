@@ -5,7 +5,7 @@ import type {
   Normalization,
   PhysicsParams,
 } from "@containers/field_dataset.ts";
-import { fieldInfo } from "@schema/registry.ts";
+import { fieldInfo, MAGNETIC_COMPONENTS } from "@schema/registry.ts";
 import type { FieldName } from "@schema/types.ts";
 import type {
   ConfidenceFn,
@@ -224,8 +224,6 @@ export function dipoleStep(): FieldDataset {
   };
 }
 
-const COMPONENTS: readonly FieldName[] = ["B_1", "B_2", "B_3"];
-
 function datasetForStep(parsed: SyntheticHandle, step: number): FieldDataset {
   return parsed.kind === "dipole" ? dipoleStep() : syntheticStep(parsed.n, step, parsed.steps);
 }
@@ -261,7 +259,9 @@ export function createSyntheticReader(): SimulationReader & FieldListingReader {
       for (const name of options.fields) {
         const field = dataset.fields.get(name);
         if (field === undefined) {
-          throw new Error(`${READER_ID}: unknown field "${name}" (has ${COMPONENTS.join(", ")})`);
+          throw new Error(
+            `${READER_ID}: unknown field "${name}" (has ${MAGNETIC_COMPONENTS.join(", ")})`,
+          );
         }
         fields.set(name, field);
       }
@@ -270,11 +270,11 @@ export function createSyntheticReader(): SimulationReader & FieldListingReader {
     async availableFields(handle) {
       const params = parseHandle(handle);
       if (params === null) throw new Error(`${READER_ID}: not a synthetic handle`);
-      return [...COMPONENTS];
+      return [...MAGNETIC_COMPONENTS];
     },
     async availableFieldsMapping() {
       // Every field is synthesized — no on-disk name.
-      return Object.fromEntries(COMPONENTS.map((name) => [name, null]));
+      return Object.fromEntries(MAGNETIC_COMPONENTS.map((name) => [name, null]));
     },
   };
 }

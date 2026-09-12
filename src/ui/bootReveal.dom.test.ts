@@ -1,4 +1,4 @@
-import { BOOT_PHASE_KEY, createUiStore } from "@store";
+import { createUiStore, PHASE_KEYS } from "@store";
 import { afterEach, describe, expect, it } from "vitest";
 import { BOOTING_CLASS, installBootReveal } from "./bootReveal.ts";
 
@@ -12,7 +12,7 @@ function setup(boot = true) {
   const parent = document.createElement("div");
   document.body.appendChild(parent);
   const uiStore = createUiStore();
-  if (boot) uiStore.getState().beginLoading(BOOT_PHASE_KEY, "webpic");
+  if (boot) uiStore.getState().beginLoading(PHASE_KEYS.boot, "webpic");
   const dispose = installBootReveal(parent, uiStore);
   disposers.push(dispose);
   return { parent, uiStore, dispose };
@@ -24,14 +24,14 @@ describe("installBootReveal", () => {
   it("hides the chrome while boot is live and reveals when it ends", () => {
     const { parent, uiStore } = setup();
     expect(isHidden(parent)).toBe(true);
-    uiStore.getState().endLoading(BOOT_PHASE_KEY);
+    uiStore.getState().endLoading(PHASE_KEYS.boot);
     expect(isHidden(parent)).toBe(false);
   });
 
   it("reveals on boot end even while other phases are still live", () => {
     const { parent, uiStore } = setup();
     uiStore.getState().beginLoading("open", "opening dataset");
-    uiStore.getState().endLoading(BOOT_PHASE_KEY);
+    uiStore.getState().endLoading(PHASE_KEYS.boot);
     expect(isHidden(parent)).toBe(false);
   });
 
@@ -44,8 +44,8 @@ describe("installBootReveal", () => {
 
   it("never re-hides: a re-begun boot phase leaves the revealed UI alone", () => {
     const { parent, uiStore } = setup();
-    uiStore.getState().endLoading(BOOT_PHASE_KEY);
-    uiStore.getState().beginLoading(BOOT_PHASE_KEY, "webpic");
+    uiStore.getState().endLoading(PHASE_KEYS.boot);
+    uiStore.getState().beginLoading(PHASE_KEYS.boot, "webpic");
     expect(isHidden(parent)).toBe(false);
   });
 
@@ -53,7 +53,7 @@ describe("installBootReveal", () => {
     const { parent, uiStore, dispose } = setup();
     dispose();
     expect(isHidden(parent)).toBe(false);
-    uiStore.getState().beginLoading(BOOT_PHASE_KEY, "webpic");
+    uiStore.getState().beginLoading(PHASE_KEYS.boot, "webpic");
     expect(isHidden(parent)).toBe(false);
   });
 });

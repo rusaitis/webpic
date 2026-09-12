@@ -14,9 +14,18 @@ export interface LoadingPhase {
   readonly kind: "loading" | "task"; // "task" reserved for future dismissible jobs
 }
 
-// The cold-start phase: begun at bootstrap, ended on the worker's first frame. Shared
-// so the app (who runs it) and the ui's boot reveal (who watches it) agree on the key.
-export const BOOT_PHASE_KEY = "boot";
+// Every long-running phase the status pill can show. One closed table, because a begin and its end
+// must agree on the key and a typo strands the pill: "boot" is begun at bootstrap and ended on the
+// worker's first frame, and ui/bootReveal watches for it by name.
+export const PHASE_KEYS = {
+  boot: "boot",
+  render: "render",
+  screenshot: "screenshot",
+  openDataset: "open",
+  step: "step",
+} as const;
+
+type PhaseKey = (typeof PHASE_KEYS)[keyof typeof PHASE_KEYS];
 
 export interface UiState {
   readonly isUiVisible: boolean;
@@ -59,8 +68,8 @@ export interface UiState {
   setGnomonSuppressed(suppressed: boolean): void;
   togglePanel(name: string): void;
   setPanelVisible(name: string, visible: boolean): void;
-  beginLoading(key: string, message: string): void;
-  endLoading(key: string): void;
+  beginLoading(key: PhaseKey, message: string): void;
+  endLoading(key: PhaseKey): void;
   flashError(message: string): void;
   clearError(): void;
   requestScreenshot(): void;

@@ -1,3 +1,4 @@
+import { MAGNETIC_COMPONENTS } from "@schema/registry.ts";
 // Trilinear vector-field interpolation — the sampler the field-line tracer's dr/ds = B̂(r) RHS
 // evaluates at arbitrary positions. Mirrors pypic's traces.VectorFieldInterpolator (scipy
 // RegularGridInterpolator, linear, fill_value=nan) over a uniform grid.
@@ -18,8 +19,6 @@ export interface VectorFieldInterpolator {
   sample(point: Float64Array, out: Float64Array): boolean;
 }
 
-const DEFAULT_COMPONENTS = ["B_1", "B_2", "B_3"] as const;
-
 function requireComponent(data: FieldDataset, name: string): FieldArray {
   const field = data.fields.get(name);
   if (field === undefined) {
@@ -37,7 +36,7 @@ function requireComponent(data: FieldDataset, name: string): FieldArray {
  */
 export function interpolatorFromDataset(
   data: FieldDataset,
-  components: readonly [string, string, string] = DEFAULT_COMPONENTS,
+  components: readonly [string, string, string] = MAGNETIC_COMPONENTS,
 ): VectorFieldInterpolator {
   const { grid } = data;
   if (grid.geometry !== "cartesian") {

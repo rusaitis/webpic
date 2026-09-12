@@ -215,6 +215,21 @@ export interface SliceContext {
   readonly get: StoreGet;
 }
 
+// Run a pure op over one key of the store and commit only a real change. The ops return the same
+// object when nothing moved, so identity is the change test — a slice that re-set regardless would
+// wake every subscriber on that key for nothing.
+export function identityUpdater<K extends keyof SimulationState>(
+  { get, set }: SliceContext,
+  key: K,
+): (op: (value: SimulationState[K]) => SimulationState[K]) => void {
+  return (op) => {
+    const current = get()[key];
+    const next = op(current);
+    // The Partial<SimulationState> shape a computed key cannot be narrowed into without help.
+    if (next !== current) set({ [key]: next } as Partial<SimulationState>);
+  };
+}
+
 // Per-store monotonic ids shared by the slices that mint layers and bindings.
 export interface SceneIds {
   nextLayerId(): string;

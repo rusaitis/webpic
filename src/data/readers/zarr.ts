@@ -61,6 +61,16 @@ function abortOptions(signal: AbortSignal | undefined): { signal?: AbortSignal }
   return signal === undefined ? {} : { signal };
 }
 
+// `zarr.open`'s options, with the signal omitted rather than passed as undefined —
+// exactOptionalPropertyTypes rejects the latter, which is why every call site would otherwise
+// spell out the same ternary.
+function openOptions<K extends "group" | "array">(
+  kind: K,
+  signal: AbortSignal | undefined,
+): { kind: K; signal?: AbortSignal } {
+  return signal === undefined ? { kind } : { kind, signal };
+}
+
 interface StoreContents {
   contents(): { path: string; kind: "array" | "group" }[];
 }
@@ -168,20 +178,14 @@ async function openPypicStore(
   const store = await openStore(handle);
   signal?.throwIfAborted();
 
-  const root = await zarr.open(
-    store,
-    signal === undefined ? { kind: "group" } : { kind: "group", signal },
-  );
+  const root = await zarr.open(store, openOptions("group", signal));
   // zarrita types Group.attrs loosely; a pypic store writes a JSON object at the root.
   const rootAttrs = root.attrs as Record<string, unknown>;
   assertPypicSchema(rootAttrs, source);
 
   let fields: zarr.Group<zarr.Readable>;
   try {
-    fields = await zarr.open(
-      root.resolve("fields"),
-      signal === undefined ? { kind: "group" } : { kind: "group", signal },
-    );
+    fields = await zarr.open(root.resolve("fields"), openOptions("group", signal));
   } catch (error) {
     if (error instanceof zarr.NotFoundError) {
       throw new Error(`${source}: schema.version declared but no /fields group present`, {
@@ -208,10 +212,7 @@ async function openPypicStore(
 
   let timeSteps: readonly number[] | null = null;
   try {
-    const timeArr = await zarr.open(
-      fields.resolve("time"),
-      signal === undefined ? { kind: "array" } : { kind: "array", signal },
-    );
+    const timeArr = await zarr.open(fields.resolve("time"), openOptions("array", signal));
     const nt = timeArr.shape[0] ?? 0;
     timeSteps = Array.from({ length: nt }, (_, i) => i);
   } catch (error) {
@@ -243,10 +244,7 @@ async function openField(
   name: string,
   signal: AbortSignal | undefined,
 ): Promise<OpenedField> {
-  const array = await zarr.open(
-    fields.resolve(name),
-    signal === undefined ? { kind: "array" } : { kind: "array", signal },
-  );
+  const array = await zarr.open(fields.resolve(name), openOptions("array", signal));
   const meta = resolveFieldMeta(name);
   if (meta === undefined) {
     throw new Error(`zarr reader: "${name}" is not a known canonical field`);
@@ -419,15 +417,13 @@ export function createZarrReader(
 // /fields group exists (metadata-only, no chunk reads). Injectable for testing.
 export function createZarrConfidence(openStore: StoreOpener = defaultOpenStore): ConfidenceFn {
   return async (handle, signal) => {
-    const openOptions =
-      signal === undefined ? { kind: "group" as const } : { kind: "group" as const, signal };
     try {
       const store = await openStore(handle);
-      const root = await zarr.open(store, openOptions);
+      const root = await zarr.open(store, openOptions("group", signal));
       // zarrita types attrs as opaque; read the schema-version discriminator structurally.
       const schema = (root.attrs as { schema?: { version?: unknown } }).schema;
       if (schema?.version !== SCHEMA_VERSION) return 0;
-      await zarr.open(root.resolve("fields"), openOptions);
+      await zarr.open(root.resolve("fields"), openOptions("group", signal));
       return 1;
     } catch {
       return 0; // not a pypic store (or unreachable/aborted) — the registry reports 0 either way

@@ -11,6 +11,7 @@ import {
   gridToWorld,
   isFieldLayer,
   type Layer,
+  PHASE_KEYS,
   type SimulationStore,
   type UiStore,
 } from "@store";
@@ -28,7 +29,6 @@ const FIELDLINE_COLOR_T = 0.75;
 
 // The pill key both field upserts share; a second upsert retitles the same pill and any layerCompiled
 // drops it.
-export const RENDER_PHASE_KEY = "render";
 
 // The wire's per-kind build params from a store layer. `worldHalfExtent` is the dataset's volume-box
 // aspect — the worker scales the mesh to it (cubic → unit cube); slices ignore it.
@@ -101,7 +101,7 @@ export function createLayerUpserts(options: LayerUpsertsOptions): LayerUpserts {
     worker.postMessage(request, [payload.buffer]);
     fieldUpserted.add(layer.id);
     // The warm (compileAsync) runs off the render path; hold a pill until the worker acks layerCompiled.
-    uiStore.getState().beginLoading(RENDER_PHASE_KEY, "preparing render");
+    uiStore.getState().beginLoading(PHASE_KEYS.render, "preparing render");
   };
 
   // Live per-layer color update — colormap + window/level + scale, no field transfer.
@@ -202,7 +202,7 @@ export function createLayerUpserts(options: LayerUpsertsOptions): LayerUpserts {
       opacity: layer.opacity,
     };
     worker.postMessage(request, [positions.buffer, counts.buffer]);
-    uiStore.getState().beginLoading(RENDER_PHASE_KEY, "preparing render");
+    uiStore.getState().beginLoading(PHASE_KEYS.render, "preparing render");
   };
 
   return {

@@ -4,6 +4,7 @@ import {
   type RenderWorkerResponse,
 } from "@render/messages.ts";
 import type { SimulationStore, UiStore } from "@store";
+import { PHASE_KEYS } from "@store";
 import type { RenderWorkerLink } from "./storeBridge.ts";
 
 // PNG-screenshot glue (app-only: ui dispatches the store intent, the worker captures). Subscribes
@@ -25,8 +26,6 @@ export interface ScreenshotBridge {
   ) => void;
   readonly dispose: () => void;
 }
-
-const PHASE_KEY = "screenshot";
 
 function sanitizeFilePart(part: string): string {
   return part.replace(/[^\w.-]+/g, "_");
@@ -53,7 +52,7 @@ export function installScreenshotBridge(options: ScreenshotBridgeOptions): Scree
     () => {
       if (!isReady() || isInFlight) return;
       isInFlight = true;
-      uiStore.getState().beginLoading(PHASE_KEY, "saving png");
+      uiStore.getState().beginLoading(PHASE_KEYS.screenshot, "saving png");
       worker.postMessage({
         kind: "screenshot",
         requestId: REQUEST_IDS.screenshot,
@@ -64,7 +63,7 @@ export function installScreenshotBridge(options: ScreenshotBridgeOptions): Scree
   return {
     deliverScreenshot(message) {
       isInFlight = false;
-      uiStore.getState().endLoading(PHASE_KEY);
+      uiStore.getState().endLoading(PHASE_KEYS.screenshot);
       if (message.blob === null) return; // capture failed — reported on the error channel
       const state = store.getState();
       const filename = `webpic-${sanitizeFilePart(state.datasetId)}-step${state.currentStep}.png`;

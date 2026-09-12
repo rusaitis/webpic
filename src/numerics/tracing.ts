@@ -1,3 +1,4 @@
+import { MAGNETIC_COMPONENTS } from "@schema/registry.ts";
 // Adaptive field-line tracing — integrates dr/ds = B̂(r) with the Dormand-Prince 5(4) step from
 // ./integrators.ts, arc-length parameterized. Mirrors pypic.traces (trace_field_line[s]_adaptive,
 // TerminationReason, FieldLine + the closed-loop arc-length gate). Pure leaf — typed arrays in/out,
@@ -83,8 +84,6 @@ export interface FieldLine {
   readonly reason: TerminationReason;
   readonly metadata: TraceMetadata;
 }
-
-const DEFAULT_COMPONENTS = ["B_1", "B_2", "B_3"] as const;
 
 /** pypic's `max_step` / `step_size_init` defaults (physical units) — exported so display-side step
  *  policy can refine them without restating the literals. */
@@ -482,7 +481,7 @@ export function resolveTraceParams(
     options.loopMinArclen ?? null,
     stepSizeInit,
   );
-  const components = options.fieldComponents ?? DEFAULT_COMPONENTS;
+  const components = options.fieldComponents ?? MAGNETIC_COMPONENTS;
   return {
     atol: options.atol ?? 1e-6,
     rtol: options.rtol ?? 1e-3,

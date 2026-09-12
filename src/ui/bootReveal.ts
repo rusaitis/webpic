@@ -1,4 +1,4 @@
-import { BOOT_PHASE_KEY, type LoadingPhase, type UiStore } from "@store";
+import { type LoadingPhase, PHASE_KEYS, type UiStore } from "@store";
 import type { Disposer } from "./controls/index.ts";
 import { createSubscriptions } from "./subscriptions.ts";
 
@@ -11,7 +11,7 @@ import { createSubscriptions } from "./subscriptions.ts";
 export const BOOTING_CLASS = "webpic-booting";
 
 const isBooting = (phases: readonly LoadingPhase[]): boolean =>
-  phases.some((phase) => phase.key === BOOT_PHASE_KEY);
+  phases.some((phase) => phase.key === PHASE_KEYS.boot);
 
 export function installBootReveal(parent: HTMLElement, uiStore: UiStore): Disposer {
   if (!isBooting(uiStore.getState().loadingPhases)) return () => {};

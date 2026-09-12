@@ -4,11 +4,12 @@ import { transferableBuffer } from "@schema/transfer.ts";
 import {
   isFieldLayer,
   type Layer,
+  PHASE_KEYS,
   type SimulationStore,
   selectComputed,
   type UiStore,
 } from "@store";
-import { createLayerUpserts, RENDER_PHASE_KEY } from "./layerUpserts.ts";
+import { createLayerUpserts } from "./layerUpserts.ts";
 import { createStoreBridge, type RenderWorkerLink } from "./storeBridge.ts";
 
 // The loading pill raised while a layer upsert warms its GPU pipeline off the render path (the warm is
@@ -231,7 +232,7 @@ export function installLayerBridge(options: LayerBridgeOptions): LayerBridge {
   return {
     flushAll,
     finishLoading() {
-      uiStore.getState().endLoading(RENDER_PHASE_KEY);
+      uiStore.getState().endLoading(PHASE_KEYS.render);
     },
     dispose() {
       bridge.dispose();

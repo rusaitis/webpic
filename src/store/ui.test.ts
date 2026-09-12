@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createUiStore } from "./ui.ts";
+import { createUiStore, PHASE_KEYS } from "./ui.ts";
 
 describe("uiStore", () => {
   it("toggles global UI visibility", () => {
@@ -100,7 +100,7 @@ describe("uiStore", () => {
       },
     );
     store.getState().beginLoading("step", "loading step 1"); // identical — silent
-    store.getState().endLoading("missing"); // absent key — silent
+    store.getState().endLoading(PHASE_KEYS.screenshot); // a key that is not active — silent
     expect(fires).toBe(0);
     store.getState().endLoading("step");
     expect(fires).toBe(1);

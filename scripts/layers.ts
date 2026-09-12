@@ -27,7 +27,7 @@ export const ALLOWED_IMPORTS: Record<LayerName, readonly LayerName[]> = {
   schema: [],
   containers: ["schema"],
   coordinates: ["containers", "schema"],
-  numerics: ["containers"],
+  numerics: ["schema", "containers"],
   reductions: ["schema", "containers", "coordinates"],
   derived: ["coordinates", "numerics", "containers", "schema"],
   diagnostics: ["coordinates", "containers"],
