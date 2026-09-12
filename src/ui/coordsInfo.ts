@@ -40,7 +40,7 @@ export function formatOrientation(pose: CameraPose, isOrthographic: boolean): st
       ? `  roll ${(pose.roll * RAD_TO_DEG).toFixed(0)}°`
       : "";
   const suffix = isOrthographic ? "  ·  ortho" : "";
-  return `az ${az}°  element ${elevation}°  d ${pose.distance.toFixed(2)}${roll}${suffix}`;
+  return `az ${az}°  el ${elevation}°  d ${pose.distance.toFixed(2)}${roll}${suffix}`;
 }
 
 // The orbit target — the card's "Center" row (the world point the camera looks at / pivots around).

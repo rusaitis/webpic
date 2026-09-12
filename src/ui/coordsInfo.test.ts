@@ -62,11 +62,23 @@ describe("gridInfoRows", () => {
 describe("formatOrientation + formatCenter", () => {
   const pose: CameraPose = { target: [1, -2, 0.5], azimuth: 0, elevation: 0, distance: 2, roll: 0 };
 
+  it("orientation reads as azimuth, elevation and distance", () => {
+    // Pinned whole: an identifier sweep once rewrote the "el" label to "element" in this very string.
+    expect(formatOrientation({ ...pose, azimuth: Math.PI / 4 }, false)).toBe(
+      "az 45°  el 0°  d 2.00",
+    );
+  });
+
   it("orientation carries angles/zoom + an ortho suffix only under orthographic, not the center", () => {
     expect(formatOrientation(pose, false)).toContain("d 2.00");
     expect(formatOrientation(pose, false)).not.toContain("ortho");
     expect(formatOrientation(pose, true)).toContain("ortho");
     expect(formatOrientation(pose, false)).not.toContain("1.00"); // the target lives in formatCenter
+  });
+
+  it("orientation shows roll only once the view is actually banked", () => {
+    expect(formatOrientation(pose, false)).not.toContain("roll");
+    expect(formatOrientation({ ...pose, roll: Math.PI / 6 }, false)).toContain("roll 30°");
   });
 
   it("center is the orbit target alone", () => {
