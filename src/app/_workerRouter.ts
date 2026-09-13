@@ -1,4 +1,4 @@
-import type { RenderWorkerResponse } from "@render/messages.ts";
+import type { RenderResponse, RenderWorkerResponse } from "@render/messages.ts";
 import { logError } from "@schema/log.ts";
 import type { PerfStore, UiStore } from "@store";
 import { showBlockingBanner } from "./blockingBanner.ts";
@@ -17,16 +17,10 @@ export interface WorkerRouterHost {
   readonly endBootPhase: () => void;
   readonly isWorkerReady: () => boolean;
   readonly onReady: () => void;
-  readonly ingestRenderSample: (
-    message: Extract<RenderWorkerResponse, { kind: "perfSample" }>,
-  ) => void;
-  readonly applyPickResult: (
-    message: Extract<RenderWorkerResponse, { kind: "pickResult" }>,
-  ) => void;
+  readonly ingestRenderSample: (message: RenderResponse<"perfSample">) => void;
+  readonly applyPickResult: (message: RenderResponse<"pickResult">) => void;
   readonly finishLayerLoading: () => void;
-  readonly deliverScreenshot: (
-    message: Extract<RenderWorkerResponse, { kind: "screenshot" }>,
-  ) => void;
+  readonly deliverScreenshot: (message: RenderResponse<"screenshot">) => void;
   // The worker acked `dispose`; terminate now instead of waiting out the grace timer.
   readonly onDisposed: () => void;
 }

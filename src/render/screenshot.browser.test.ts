@@ -3,11 +3,11 @@
 // absent (the Node PR gate skips it green); runs under `npm run test:gpu`.
 
 import { describe, expect, it } from "vitest";
-import type { RenderWorkerRequest, RenderWorkerResponse } from "./messages.ts";
+import type { RenderResponse, RenderWorkerRequest, RenderWorkerResponse } from "./messages.ts";
 
 const SIZE = 64;
 
-type ScreenshotReply = Extract<RenderWorkerResponse, { kind: "screenshot" }>;
+type ScreenshotReply = RenderResponse<"screenshot">;
 
 function workerScreenshot(): Promise<ScreenshotReply> {
   return new Promise<ScreenshotReply>((resolve, reject) => {

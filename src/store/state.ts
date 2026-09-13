@@ -12,7 +12,7 @@ import type {
   CameraProjection,
 } from "./interaction/camera.ts";
 import type { Layer, LayerSpec } from "./layers.ts";
-import type { GridPlane, OverlayState } from "./overlay.ts";
+import type { GridPlane, OverlayFlag, OverlayState } from "./overlay.ts";
 
 // The simulation store's shape, one slice per concern. Each slice is its own factory (dataSlice,
 // layersSlice, …) composed into ONE zustand store by createSimulationStore, so subscribers still read
@@ -195,12 +195,8 @@ export interface OverlaySlice {
   // Scene overlay (axes + grid + gnomon) display prefs — user-owned, independent of the dataset. The
   // app forwards the render-bound parts to the worker (sceneBridge); cameraChrome consumes showGnomon.
   readonly overlay: OverlayState;
-  setOverlayShowGrid(on: boolean): void;
+  setOverlayFlag(flag: OverlayFlag, on: boolean): void;
   setOverlayPlane(plane: GridPlane, on: boolean): void;
-  setOverlayShowAxes(on: boolean): void;
-  setOverlayShowLabels(on: boolean): void;
-  setOverlayShowGnomon(on: boolean): void;
-  setOverlayShowPicker(on: boolean): void;
   setGridDivisions(n: number): void;
 }
 

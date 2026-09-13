@@ -3,10 +3,7 @@ import { Mesh, PlaneGeometry, Scene } from "three";
 import { texture, uniform, uv, vec2, vec3 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import type { LayerScene } from "../layer/scene.ts";
-import type { FieldSceneOptions } from "./fieldSceneOptions.ts";
-import { createNormalization } from "./normalization.ts";
-import { createTransferFunctionTexture } from "./transferFunction.ts";
-import { createVolumeTexture } from "./volumeTexture.ts";
+import { createFieldSceneBase, type FieldSceneOptions } from "./fieldScene.ts";
 
 // One orthogonal slice sampling the shared `uVolume` 3D texture (the raymarcher and further
 // slices sample the same texture).
@@ -47,15 +44,7 @@ function sliceCoord(
 
 // Build a themed orthogonal-slice scene from a 3D scalar field.
 export function createSliceScene(options: SliceSceneOptions): SliceScene {
-  const volume = createVolumeTexture(
-    options.field,
-    options.hasFloat32Filterable,
-    options.ledgerKey,
-  );
-  const tf = createTransferFunctionTexture(options.colormap);
-
-  // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const norm = createNormalization(volume.min, volume.max, options.windowLevel, options.scale);
+  const { volume, tf, norm } = createFieldSceneBase(options);
   const uPosition = uniform(options.position);
   const uLayerOpacity = uniform(options.opacity ?? 1);
 

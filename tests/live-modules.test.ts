@@ -1,8 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { LAYERS } from "../scripts/layers.ts";
+import { typescriptFiles } from "./sourceTree.ts";
 
 // knip lists `src/**/*.test.ts` as an entry point — correctly, since a test is a root — but that makes
 // any module kept alive solely by its own test invisible to `check:dead`. gpu/profiler.ts lived there
@@ -27,16 +28,6 @@ const isBarrel = (path: string): boolean => /^src\/[^/]+\/index\.ts$/.test(path)
 const isStaged = (path: string): boolean =>
   readFileSync(resolve(ROOT, path), "utf8").includes("// STAGED:");
 
-function sourceFiles(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
-    const path = `${dir}/${entry.name}`;
-    if (entry.isDirectory()) out.push(...sourceFiles(path));
-    else if (entry.name.endsWith(".ts")) out.push(path);
-  }
-  return out;
-}
-
 // Static imports, `export … from`, and dynamic `import()` — the same reach as check-boundaries.
 function specifiers(path: string): string[] {
   const text = readFileSync(resolve(ROOT, path), "utf8");
@@ -57,7 +48,11 @@ function resolveSpecifier(specifier: string, fromFile: string): string | undefin
 
 describe("src module graph", () => {
   it("has no module reachable only from its own test", () => {
-    const all = [...sourceFiles("src"), ...sourceFiles("scripts"), ...sourceFiles("tests")];
+    const all = [
+      ...typescriptFiles("src"),
+      ...typescriptFiles("scripts"),
+      ...typescriptFiles("tests"),
+    ];
     const productionImporters = new Map<string, string[]>();
     for (const file of all) {
       for (const specifier of specifiers(file)) {
@@ -68,7 +63,7 @@ describe("src module graph", () => {
       }
     }
 
-    const orphans = sourceFiles("src").filter(
+    const orphans = typescriptFiles("src").filter(
       (file) =>
         !isTest(file) &&
         !isBarrel(file) &&

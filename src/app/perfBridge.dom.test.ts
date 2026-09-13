@@ -2,12 +2,12 @@
 // land in the store as one topology, and teardown stops the pump + the workers. The metric pump runs
 // on a real interval, so the tests drive it with fake timers rather than waiting.
 
-import type { RenderWorkerResponse } from "@render/messages.ts";
+import type { RenderResponse } from "@render/messages.ts";
 import { createPerfStore, createUiStore } from "@store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installPerf, type PerfBridge } from "./perfBridge.ts";
 
-const renderSample: Extract<RenderWorkerResponse, { kind: "perfSample" }> = {
+const renderSample: RenderResponse<"perfSample"> = {
   kind: "perfSample",
   cpuEncodeMs: 3,
   frameWallMs: 9,

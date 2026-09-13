@@ -13,12 +13,7 @@ import {
 import { createSliceScene, type SliceScene } from "../field/sliceScene.ts";
 import { NO_FINITE_RANGE, type ScalarField } from "../field/volumeTexture.ts";
 import { createFieldlinesScene, type FieldlinesScene } from "../fieldlines/fieldlinesScene.ts";
-import type {
-  FieldLayerKind,
-  FieldLayerParams,
-  FieldPayload,
-  RenderWorkerRequest,
-} from "../messages.ts";
+import type { FieldLayerKind, FieldLayerParams, FieldPayload, RenderRequest } from "../messages.ts";
 import type { PickLayer } from "../pickRay.ts";
 import type { RenderModule, RenderModuleContext } from "../renderModule.ts";
 import type { DrawItem } from "../runtime/renderer.ts";
@@ -86,16 +81,14 @@ export interface LayerHost extends RenderModuleContext {
 }
 
 export interface LayerRegistry extends RenderModule {
-  upsert(request: Extract<RenderWorkerRequest, { kind: "upsertLayer" }>): Promise<void>;
-  upsertFieldlines(
-    request: Extract<RenderWorkerRequest, { kind: "upsertFieldlines" }>,
-  ): Promise<void>;
+  upsert(request: RenderRequest<"upsertLayer">): Promise<void>;
+  upsertFieldlines(request: RenderRequest<"upsertFieldlines">): Promise<void>;
   remove(id: string): void;
   swapField(message: StreamStepMessage): void;
   setLayerOrder(order: readonly LayerOrderEntry[]): void;
-  setColormap(request: Extract<RenderWorkerRequest, { kind: "setLayerColormap" }>): void;
-  setShading(request: Extract<RenderWorkerRequest, { kind: "setLayerShading" }>): void;
-  setSliceParams(request: Extract<RenderWorkerRequest, { kind: "setSliceParams" }>): void;
+  setColormap(request: RenderRequest<"setLayerColormap">): void;
+  setShading(request: RenderRequest<"setLayerShading">): void;
+  setSliceParams(request: RenderRequest<"setSliceParams">): void;
   // Push a new interaction step-scale to every volume scene (the per-layer half of applyQuality).
   applyStepScale(stepScale: number): void;
   // Flip every volume scene's ray generation (the per-layer half of setProjection).
@@ -229,7 +222,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // step so a device-restore rebuild reproduces it. Undefined entry (no such layer yet) is a no-op.
   function applyColormap(
     entry: LayerEntry | undefined,
-    request: Extract<RenderWorkerRequest, { kind: "setLayerColormap" }>,
+    request: RenderRequest<"setLayerColormap">,
   ): void {
     if (entry === undefined || entry.kind === "fieldlines") return;
     entry.scene.setColormap(request.colormap);

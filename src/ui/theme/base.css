@@ -1,11 +1,50 @@
+/* Every inline icon SVG. ui/controls/dom.ts tags each host (makeIconButton / makeCaret) with
+   .webpic-icon, so a surface overrides only what differs — size and stroke weight — instead of
+   restating the whole recipe. */
+.webpic-icon svg {
+  display: block;
+  width: var(--webpic-icon-size, 16px);
+  height: var(--webpic-icon-size, 16px);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--webpic-icon-stroke, 1.5);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The panel close (×): one button, three hosts (floating window, rail flyout, layers panel) — all
+   built by makeCloseButton in ui/controls/dom.ts. */
+.webpic-close-btn {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--webpic-muted);
+  cursor: pointer;
+  opacity: 0.6;
+  --webpic-icon-stroke: 1.6;
+  transition: var(--webpic-transition-control);
+}
+.webpic-close-btn:hover,
+.webpic-close-btn:focus-visible {
+  opacity: 1;
+  outline: none;
+  color: var(--webpic-fg);
+  background: var(--webpic-hover);
+}
 /* Control-sizing scope: hosts outside .webpic-shell that mount shell-style controls must redeclare
    these tokens, or var() falls back to auto (facade-control-css-vars). One grouped rule states the
    contract once; the topbar (pill: 999px/30px) and popover (radius-only) keep their own deliberate
-   values, and the (pointer: coarse) block at the end raises --webpic-unit after this. */
+   values later in the cascade, and the (pointer: coarse) block at the end raises --webpic-unit. */
 .webpic-shell,
 .webpic-flyout,
 .webpic-cbar,
 .webpic-cbar-pop,
+.webpic-topbar,
 .webpic-window {
   --webpic-input-bg: rgba(0, 0, 0, 0.28);
   --webpic-radius: 4px;
@@ -37,7 +76,6 @@
 /* Selectable opt-ins: the editable value fields (so the number/text can be selected + edited) and any
    region a caller tags .webpic-selectable (an info window body, a readout) — text inherits into the
    tagged subtree. */
-.webpic-text,
 .webpic-range_input,
 .webpic-selectable {
   user-select: text;

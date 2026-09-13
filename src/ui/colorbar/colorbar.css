@@ -23,10 +23,7 @@
   font: 500 11px / 1.4 var(--webpic-mono);
   transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
   transition:
-    opacity 240ms ease,
-    background 0.18s ease,
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
+    var(--webpic-transition-glass),
     left 0.3s var(--webpic-ease),
     right 0.3s var(--webpic-ease),
     top 0.3s var(--webpic-ease),
@@ -352,10 +349,7 @@
   color: var(--webpic-muted);
   border: none;
   border-radius: 5px;
-  transition:
-    opacity 0.12s ease,
-    background 0.12s ease,
-    color 0.12s ease;
+  transition: var(--webpic-transition-control);
 }
 .webpic-cbar_btn:hover,
 .webpic-cbar_btn:focus-visible {
@@ -369,15 +363,9 @@
   color: var(--webpic-fg);
   background: var(--webpic-active-strong);
 }
-.webpic-cbar_btn svg {
-  display: block;
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.webpic-cbar_btn {
+  --webpic-icon-size: 14px;
+  --webpic-icon-stroke: 1.4;
 }
 /* Soft warn: more distinct bindings among visible layers than strips — a small "+N" amber pill in
    the long-axis margin opposite the gear (its title names the stripless fields). Always visible

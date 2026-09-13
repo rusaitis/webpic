@@ -66,7 +66,7 @@ worker, data reads and scrub-path compute in a data worker.
 Numerical code that renders pretty pictures is easy to get subtly wrong, so the physics is
 pinned down rather than eyeballed:
 
-- **1200+ tests** — pure-function suites over the math layers, the store intents, and the
+- **1480 tests** — pure-function suites over the math layers, the store intents, and the
   compute backends.
 - **Analytical fixtures** at explicit per-kernel × per-precision tolerances, over named MHD
   configurations (Orszag–Tang, Harris sheet, GEM reconnection).
@@ -113,7 +113,7 @@ npm run docs:api         # TypeDoc for @webpic/embed → docs/api (published und
 npm run check:size       # size-limit budgets (needs build + build:embed first)
 ```
 
-CI runs everything except `test:gpu`, `perf:gate` (both need a real adapter) and `test:parity` (needs a pypic checkout). A `lefthook` pre-commit runs Biome on staged files and pre-push runs typecheck + tests; skip once with `LEFTHOOK=0`.
+CI runs everything except `test:gpu`, `perf:gate` (both need a real adapter) and `test:parity` (needs a pypic checkout). A `lefthook` pre-commit runs Biome on staged files; pre-push runs typecheck, boundaries, lint and tests. Skip once with `LEFTHOOK=0`.
 
 Architecture and design rationale — the layer DAG, schema codegen, the compute dispatcher,
 tolerance policy, and the open risks — live in
@@ -130,7 +130,7 @@ and field-line rendering over Zarr v3, with time-series scrub and export. Known 
 - The remote client for `pypic.server` (Arrow IPC over WebSocket) is designed but not built.
 - Particle rendering, LIC, and oblique slices are v0.2.
 
-The embed bundle is budget-gated in CI (540 kB of 1 MB gzipped; app 411 kB of 550 kB).
+Both bundles are budget-gated in CI (embed 540 kB of 560 kB gzipped; app 401 kB of 420 kB).
 See [TASKS.md](TASKS.md) for the full roadmap.
 
 ## Citing

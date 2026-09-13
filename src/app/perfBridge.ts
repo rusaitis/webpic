@@ -1,9 +1,5 @@
 import { readHeapBytes } from "@containers/perf_probe.ts";
-import {
-  REQUEST_IDS,
-  type RenderWorkerRequest,
-  type RenderWorkerResponse,
-} from "@render/messages.ts";
+import { REQUEST_IDS, type RenderResponse, type RenderWorkerRequest } from "@render/messages.ts";
 import type { PerfStore, PerfWorker, UiStore } from "@store";
 // Deep, not through @ui: this module is a dynamic import (the dev HUD is a lazy chunk), and the
 // barrel would pull the whole ui surface back into the eager graph.
@@ -15,7 +11,7 @@ import { installPerfHud } from "@ui/perf/hud.ts";
 // dynamic-imports this module behind import.meta.env.DEV || ?perf, so the whole feature (HUD + bridge)
 // tree-shakes out of the default production bundle.
 
-type RenderPerfSample = Extract<RenderWorkerResponse, { kind: "perfSample" }>;
+type RenderPerfSample = RenderResponse<"perfSample">;
 
 const PUMP_INTERVAL_MS = 500; // main-heap + topology refresh (~2 Hz)
 const PAGE_MEMORY_MIN_MS = 20_000; // measureUserAgentSpecificMemory cadence floor (it's slow + async)

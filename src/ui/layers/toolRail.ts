@@ -1,7 +1,7 @@
 import { LAYER_KIND_ORDER, LAYER_KINDS, type SimulationStore, type UiStore } from "@store";
 import { installChromeVisibility } from "../chromeVisibility.ts";
 import { installAnchoredOverlay } from "../controls/anchoredOverlay.ts";
-import { makeEl, makeIconButton } from "../controls/dom.ts";
+import { makeEl, makeIconButton, makePanelHeader } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { ICON_CLOSE } from "../icons.ts";
 import { createShortcutRegistry } from "../keys/shortcuts.ts";
@@ -132,11 +132,7 @@ export function installToolRail(
   flyout.setAttribute("aria-label", "Axes & grid");
   flyout.hidden = true;
   const arrow = makeEl(doc, "div", "webpic-flyout_arrow");
-  const header = makeEl(doc, "div", "webpic-flyout_header");
-  const title = makeEl(doc, "span", "webpic-flyout_title");
-  title.textContent = "Axes & grid";
-  const closeBtn = makeIconButton(doc, "webpic-flyout_close", ICON_CLOSE, { ariaLabel: "Close" });
-  header.append(title, closeBtn);
+  const { header, closeBtn } = makePanelHeader(doc, "Axes & grid", ICON_CLOSE);
   const body = makeEl(doc, "div", "webpic-flyout_body");
   flyout.append(arrow, header, body);
   parent.appendChild(flyout);
@@ -172,7 +168,7 @@ export function installToolRail(
     "click",
     () => {
       const state = store.getState();
-      state.setOverlayShowPicker(!state.overlay.showPicker);
+      state.setOverlayFlag("showPicker", !state.overlay.showPicker);
     },
     { signal },
   );

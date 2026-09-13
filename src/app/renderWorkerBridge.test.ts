@@ -1,4 +1,4 @@
-import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
+import type { RenderResponse, RenderWorkerRequest } from "@render";
 import { createPerfStore, createSimulationStore } from "@store";
 import { describe, expect, it } from "vitest";
 import { installRenderWorkerBridge } from "./renderWorkerBridge.ts";
@@ -85,7 +85,7 @@ describe("installRenderWorkerBridge", () => {
       point: [0.1, 0.2, 0.3],
       purpose: "focus",
       focusDistance: 1.5,
-    } satisfies Extract<RenderWorkerResponse, { kind: "pickResult" }>);
+    } satisfies RenderResponse<"pickResult">);
     expect(store.getState().pickerPoint).toEqual([0.1, 0.2, 0.3]);
     expect(store.getState().cameraFlyRequest?.target.kind).toBe("pose");
   });
@@ -98,7 +98,7 @@ describe("installRenderWorkerBridge", () => {
       requestId: 10,
       point: null,
       purpose: "place",
-    } satisfies Extract<RenderWorkerResponse, { kind: "pickResult" }>);
+    } satisfies RenderResponse<"pickResult">);
     expect(store.getState().pickerPoint).toBe(before);
     expect(store.getState().cameraFlyRequest).toBeNull();
   });

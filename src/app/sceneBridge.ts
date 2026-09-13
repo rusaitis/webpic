@@ -99,12 +99,11 @@ export function installSceneBridge(options: SceneBridgeOptions): SceneBridge {
   // The readiness gate lives in the bridge (subscribeWhenReady); flushAll is only called post-ready.
   const post = (): void => {
     const { overlay, dataset } = store.getState();
-    const request: RenderWorkerRequest = {
+    worker.postMessage({
       kind: "setSceneOverlay",
       requestId: REQUEST_IDS.scene,
       overlay: buildOverlayPayload(overlay, dataset?.grid ?? null, colors),
-    };
-    worker.postMessage(request);
+    } satisfies RenderWorkerRequest);
   };
 
   // Overlay flags + density (one selector, identity-skipped in the store) and dataset (bounds change).

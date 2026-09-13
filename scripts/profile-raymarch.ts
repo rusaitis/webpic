@@ -6,7 +6,7 @@ import {
   readDrawingSurface,
   waitForFirstFrame,
 } from "./harness/pageProbes.ts";
-import { quantile } from "./harness/stats.ts";
+import { summarize } from "./harness/stats.ts";
 
 // Raymarch perf instrument (not a CI gate): drives real Chrome stable with the `?n=256` synthetic
 // override so the auto-seeded volume layer raymarches a full 256³ field at the gate's 256 steps,
@@ -52,12 +52,7 @@ async function main(): Promise<void> {
           await page.waitForTimeout(SAMPLE_MS);
         }
 
-        const finite = means.filter(Number.isFinite);
-        const sorted = [...finite].sort((a, b) => a - b);
-        const min = sorted[0] ?? Number.NaN;
-        const max = sorted[sorted.length - 1] ?? Number.NaN;
-        const p50 = quantile(sorted, 0.5);
-        const last = finite[finite.length - 1] ?? Number.NaN;
+        const { min, max, p50, last, count } = summarize(means);
         const pass = Number.isFinite(p50) && p50 <= GATE_MS;
 
         const megaPixels = (ctx.bufferW * ctx.bufferH) / 1e6;
@@ -70,7 +65,7 @@ async function main(): Promise<void> {
         console.log(`  adapter:    ${ctx.adapter}`);
         console.log(`  clock:      ${clock || "unknown"}`);
         console.log(
-          `\n  sustained per-frame (30-frame rolling mean, ${finite.length} samples over ~10 s):`,
+          `\n  sustained per-frame (30-frame rolling mean, ${count} samples over ~10 s):`,
         );
         console.log(
           `    min ${min.toFixed(2)}   p50 ${p50.toFixed(2)}   max ${max.toFixed(2)}   last ${last.toFixed(2)}  ms`,
@@ -79,7 +74,12 @@ async function main(): Promise<void> {
         console.log(
           `  verdict:    p50 ${p50.toFixed(2)} ms ${pass ? "≤" : ">"} ${GATE_MS} ms → ${pass ? "PASS (under gate on this surface)" : "OVER gate — needs a gate lever (steps / resolution cap / LOD) or an M2 Pro re-run"}`,
         );
-        if (errors.length > 0) console.error(`\n  page errors: ${errors.join(" | ")}`);
+        // A page error means the numbers above were measured on a broken page — the one instrument
+        // whose whole job is credibility must not report success.
+        if (errors.length > 0) {
+          console.error(`\n  page errors: ${errors.join(" | ")}`);
+          return 1;
+        }
         return 0;
       },
       { chromeArgs: [`--window-size=${WINDOW}`] },

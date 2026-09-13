@@ -1,6 +1,6 @@
 import { LAYER_KINDS, type Layer, type SimulationStore, type UiStore } from "@store";
 import { installChromeVisibility } from "../chromeVisibility.ts";
-import { makeEl, makeIconButton } from "../controls/dom.ts";
+import { makeEl, makeIconButton, makePanelHeader } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { ICON_CARET, ICON_CARET_UP, ICON_CLOSE } from "../icons.ts";
 import { createShortcutRegistry } from "../keys/shortcuts.ts";
@@ -36,11 +36,7 @@ export function installLayersPanel(
   root.setAttribute("aria-label", "Layers");
   root.hidden = true;
 
-  const header = makeEl(doc, "div", "webpic-layers_header");
-  const title = makeEl(doc, "span", "webpic-layers_title");
-  title.textContent = "Layers";
-  const closeBtn = makeIconButton(doc, "webpic-layers_close", ICON_CLOSE, { ariaLabel: "Close" });
-  header.append(title, closeBtn);
+  const { header, closeBtn } = makePanelHeader(doc, "Layers", ICON_CLOSE);
   const listEl = makeEl(doc, "div", "webpic-layers_list");
   root.append(header, listEl);
   parent.appendChild(root);
@@ -65,7 +61,7 @@ export function installLayersPanel(
 
     const main = makeEl(doc, "button", "webpic-layers_main");
     main.type = "button";
-    const kind = makeEl(doc, "span", "webpic-layers_kind");
+    const kind = makeEl(doc, "span", "webpic-icon webpic-layers_kind");
     kind.innerHTML = LAYER_KIND_ICON[layer.kind];
     const name = makeEl(doc, "span", "webpic-layers_name");
     name.textContent = `${LAYER_KINDS[layer.kind].shortLabel} ${layer.field}`;

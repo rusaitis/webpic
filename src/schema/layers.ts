@@ -8,6 +8,9 @@ export type SliceAxis = "x" | "y" | "z";
 /** Layers that draw a 3D scalar texture (one upsert path: `upsertLayer`). */
 export type FieldLayerKind = "slice" | "volume";
 
-/** Every renderable layer kind: field layers plus packed-polyline field lines (`upsertFieldlines`).
- *  The composite camera and the store's layer union both discriminate on it. */
-export type LayerKind = FieldLayerKind | "fieldlines";
+/** Layers that own traced polylines (`upsertFieldlines`) and trigger a retrace on change. */
+export type TracingLayerKind = "fieldlines";
+
+/** Every renderable layer kind, as the union of the two roles a kind can play — so a kind cannot
+ *  join without claiming one. The composite camera and the store's layer union discriminate on it. */
+export type LayerKind = FieldLayerKind | TracingLayerKind;

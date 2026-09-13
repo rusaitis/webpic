@@ -28,7 +28,7 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
   const grid: ControlHandle<boolean> = folder.addCheckbox({
     label: "Grid",
     value: initial.showGrid,
-    onChange: (on) => store.getState().setOverlayShowGrid(on),
+    onChange: (on) => store.getState().setOverlayFlag("showGrid", on),
   });
 
   const planes = GRID_PLANES.map((plane) => ({
@@ -43,13 +43,13 @@ export function installScenePanel(host: HTMLElement, store: SimulationStore): Di
   const axes: ControlHandle<boolean> = folder.addCheckbox({
     label: "Axes",
     value: initial.showAxes,
-    onChange: (on) => store.getState().setOverlayShowAxes(on),
+    onChange: (on) => store.getState().setOverlayFlag("showAxes", on),
   });
 
   const labels: ControlHandle<boolean> = folder.addCheckbox({
     label: "Labels",
     value: initial.showLabels,
-    onChange: (on) => store.getState().setOverlayShowLabels(on),
+    onChange: (on) => store.getState().setOverlayFlag("showLabels", on),
   });
 
   const density: ControlHandle<number> = folder.addSlider({

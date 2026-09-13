@@ -82,8 +82,7 @@
   stroke: var(--webpic-accent);
   stroke-width: 2;
 }
-.webpic-select,
-.webpic-text {
+.webpic-select {
   box-sizing: border-box;
   width: 100%;
   height: var(--webpic-unit);
@@ -93,9 +92,6 @@
   background: var(--webpic-input-bg);
   color: var(--webpic-fg);
   font: inherit;
-}
-.webpic-text {
-  text-align: right;
 }
 /* Range geometry is a JS/CSS split: JS sets normalized fractions (--t/--tlo/--thi, fill --fa/--fb,
    tick --mt) in [0,1] and CSS insets them by half a grip width (--gs), so grips stay inside the
@@ -290,15 +286,8 @@
   color: var(--webpic-muted);
   transition: transform 0.15s ease;
 }
-.webpic-swatch_caret svg {
-  display: block;
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.webpic-swatch_caret {
+  --webpic-icon-size: 12px;
 }
 .webpic-swatch[aria-expanded="true"] .webpic-swatch_caret {
   transform: rotate(180deg);

@@ -65,7 +65,7 @@ export function installBottomRail(
     "click",
     () => {
       const state = store.getState();
-      state.setOverlayShowGnomon(!state.overlay.showGnomon);
+      state.setOverlayFlag("showGnomon", !state.overlay.showGnomon);
     },
     { signal },
   );

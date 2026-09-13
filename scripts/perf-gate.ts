@@ -1,6 +1,7 @@
 import type { BrowserContext } from "playwright-core";
 import { errorMessage, withPreviewedApp } from "./harness/browserSession.ts";
 import { collectPageErrors, waitForFirstFrame } from "./harness/pageProbes.ts";
+import { summarize } from "./harness/stats.ts";
 
 // Foundation exit gate: cold-start page paint <500 ms; first frame <1500 ms (M2 Pro
 // Chrome stable). Builds the production bundle, serves it via `vite preview` (so COOP/COEP
@@ -56,15 +57,6 @@ async function measure(context: BrowserContext, url: string): Promise<FrameMetri
   }
 }
 
-function median(values: readonly number[]): number {
-  if (values.length === 0) return Number.NaN;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 === 1
-    ? (sorted[mid] ?? Number.NaN)
-    : ((sorted[mid - 1] ?? Number.NaN) + (sorted[mid] ?? Number.NaN)) / 2;
-}
-
 function fmt(ms: number | null): string {
   return ms === null ? "  n/a" : `${Math.round(ms)} ms`;
 }
@@ -83,8 +75,8 @@ async function main(): Promise<void> {
         const warmRuns: FrameMetrics[] = [];
         for (let i = 0; i < WARM_RUNS; i++) warmRuns.push(await measure(context, baseUrl));
 
-        const warmFcp = median(warmRuns.map((m) => m.fcpMs ?? Number.NaN));
-        const warmFrame = median(warmRuns.map((m) => m.firstFrameMs ?? Number.NaN));
+        const warmFcp = summarize(warmRuns.map((m) => m.fcpMs ?? Number.NaN)).p50;
+        const warmFrame = summarize(warmRuns.map((m) => m.firstFrameMs ?? Number.NaN)).p50;
 
         const paintPass = cold.fcpMs !== null && cold.fcpMs < PAGE_PAINT_BUDGET_MS;
         const framePass = cold.firstFrameMs !== null && cold.firstFrameMs < FIRST_FRAME_BUDGET_MS;

@@ -1,13 +1,13 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { LAYERS, type LayerName } from "../scripts/layers.ts";
+import { typescriptFiles } from "./sourceTree.ts";
 
-// An API-doc block outside the published surface restates a signature that is already the spec, and a
-// file header longer than six lines is design rationale that belongs in docs/DESIGN.md (CLAUDE.md
-// §Comments & docs). Both are strict now: every undocumented layer is at zero JSDoc blocks, and the
-// per-layer header ratchet reached the six-line limit on every layer, so it became the rule it was
-// converging on.
+// An API-doc block outside the published surface restates a signature that is already the spec, and
+// a file header over six lines is rationale the design doc owns — CLAUDE.md §Comments & docs. Both
+// are strict now: every undocumented layer is at zero JSDoc blocks, and the per-layer header ratchet
+// reached the six-line limit on every layer, so it became the rule it was converging on.
 const UNDOCUMENTED_LAYERS = [
   "render",
   "ui",
@@ -39,10 +39,9 @@ const HEADER_LIMIT = 6;
 const ROOT = join(import.meta.dirname, "..");
 
 function sourceFiles(layer: LayerName): string[] {
-  return readdirSync(join(ROOT, "src", layer), { recursive: true, encoding: "utf8" })
-    .filter((name) => name.endsWith(".ts"))
-    .filter((name) => !name.endsWith(".test.ts") && !name.includes(".generated."))
-    .map((name) => join(ROOT, "src", layer, name));
+  return typescriptFiles(`src/${layer}`)
+    .filter((path) => !path.endsWith(".test.ts") && !path.includes(".generated."))
+    .map((path) => join(ROOT, path));
 }
 
 function jsdocBlocks(layer: LayerName): number {

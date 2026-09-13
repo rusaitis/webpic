@@ -6,7 +6,7 @@ import {
   readDrawingSurface,
   waitForFirstFrame,
 } from "./harness/pageProbes.ts";
-import { quantile } from "./harness/stats.ts";
+import { summarize } from "./harness/stats.ts";
 
 // Manual verification instrument (not a CI gate): drives real Chrome stable, ticks the timing panel's
 // "Measure (continuous)" toggle, and scrubs the time control back and forth on a synthetic
@@ -108,11 +108,7 @@ async function main(): Promise<void> {
         const maxLongTask = longtasks.length > 0 ? Math.max(...longtasks) : 0;
         const mainResponsive = maxLongTask < LONGTASK_BUDGET_MS;
 
-        const means = readings.filter(Number.isFinite);
-        const sorted = [...means].sort((a, b) => a - b);
-        const min = sorted[0] ?? Number.NaN;
-        const max = sorted[sorted.length - 1] ?? Number.NaN;
-        const p50 = quantile(sorted, 0.5);
+        const { min, max, p50, count } = summarize(readings);
         const underGate = Number.isFinite(p50) && p50 <= GATE_MS;
         const megaPixels = (ctx.bufferW * ctx.bufferH) / 1e6;
 
@@ -128,9 +124,7 @@ async function main(): Promise<void> {
         );
         console.log(`  adapter:    ${ctx.adapter}`);
         console.log(`  clock:      ${clock || "unknown"}`);
-        console.log(
-          `\n  sustained per-frame during scrub (rolling mean, ${means.length} samples):`,
-        );
+        console.log(`\n  sustained per-frame during scrub (rolling mean, ${count} samples):`);
         console.log(
           `    min ${min.toFixed(2)}   p50 ${p50.toFixed(2)}   max ${max.toFixed(2)}  ms`,
         );

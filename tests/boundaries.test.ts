@@ -84,13 +84,15 @@ describe("gatherEdges + findViolations (in-memory project)", () => {
 
 describe("real source tree", () => {
   // The ts-morph whole-project load scales with the tree and runs beside the rest of the suite —
-  // it drifts past the 5 s vitest default under parallel load without being unhealthy.
+  // it drifts past the 5 s vitest default under parallel load without being unhealthy. Parsed once
+  // for the whole block: the edge set is the same input both assertions read.
+  const edges = gatherEdges(createSourceProject());
+
   it("has no layer-boundary violations", { timeout: 60_000 }, () => {
-    expect(findViolations(gatherEdges(createSourceProject()))).toEqual([]);
+    expect(findViolations(edges)).toEqual([]);
   });
 
   it("sees the worker sources tsconfig.json excludes", { timeout: 60_000 }, () => {
-    const edges = gatherEdges(createSourceProject());
     expect(edges.some((e) => e.fromLayer === "workers")).toBe(true);
   });
 });

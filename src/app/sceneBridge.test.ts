@@ -112,7 +112,7 @@ describe("installSceneBridge", () => {
   it("stays silent until the worker is ready", () => {
     const { store, posts } = harness(false);
     store.getState().setDataset(volumeDataset());
-    store.getState().setOverlayShowGrid(false);
+    store.getState().setOverlayFlag("showGrid", false);
     expect(posts).toHaveLength(0);
   });
 
@@ -165,7 +165,7 @@ describe("installSceneBridge", () => {
     const { store, posts } = harness(true);
     store.getState().setDataset(volumeDataset());
     posts.length = 0;
-    store.getState().setOverlayShowGrid(true); // already true → store returns same ref, no fire
+    store.getState().setOverlayFlag("showGrid", true); // already true → store returns same ref, no fire
     expect(posts).toHaveLength(0);
   });
 

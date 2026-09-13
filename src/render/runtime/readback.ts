@@ -1,5 +1,5 @@
 import { transferableBuffer } from "@schema/transfer.ts";
-import type { RenderWorkerRequest, RenderWorkerResponse } from "../messages.ts";
+import type { RenderRequest, RenderResponse } from "../messages.ts";
 import { type DrawItem, type InstalledRenderer, requireRenderer } from "./renderer.ts";
 import { pixelsToPngBlob } from "./screenshot.ts";
 
@@ -15,17 +15,14 @@ export interface ReadbackHost {
   // Pause / resume the display loop around the borrowed renderer (resume re-dirties).
   beginReadback(): void;
   endReadback(): void;
-  post(
-    message: Extract<RenderWorkerResponse, { kind: "frame" | "screenshot" }>,
-    transfer?: Transferable[],
-  ): void;
+  post(message: RenderResponse<"frame" | "screenshot">, transfer?: Transferable[]): void;
 }
 
 export interface Readback {
   // Raw RGBA8 pixels, transferred.
-  frame(request: Extract<RenderWorkerRequest, { kind: "renderFrame" }>): Promise<void>;
+  frame(request: RenderRequest<"renderFrame">): Promise<void>;
   // The same readback PNG-encoded worker-side.
-  screenshot(request: Extract<RenderWorkerRequest, { kind: "screenshot" }>): Promise<void>;
+  screenshot(request: RenderRequest<"screenshot">): Promise<void>;
 }
 
 export function createReadback(host: ReadbackHost): Readback {

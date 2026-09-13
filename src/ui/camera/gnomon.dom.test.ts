@@ -62,7 +62,7 @@ describe("installGnomon", () => {
     expect(gnomon?.hidden).toBe(false);
 
     // With the preference off, it stays hidden regardless of suppression.
-    store.getState().setOverlayShowGnomon(false);
+    store.getState().setOverlayFlag("showGnomon", false);
     uiStore.getState().setGnomonSuppressed(true);
     uiStore.getState().setGnomonSuppressed(false);
     expect(gnomon?.hidden).toBe(true);

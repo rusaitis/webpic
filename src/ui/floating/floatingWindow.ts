@@ -1,4 +1,4 @@
-import { makeEl, makeIconButton } from "../controls/dom.ts";
+import { makeCloseButton, makeEl } from "../controls/dom.ts";
 import { ICON_CLOSE } from "../icons.ts";
 import { installCornerResize } from "./cornerResize.ts";
 import { installDragSnap } from "./dragSnap.ts";
@@ -28,6 +28,9 @@ interface FloatingWindowInitial {
 export interface FloatingWindowOptions {
   readonly parent: HTMLElement;
   readonly title: string;
+  // Stable `data-window` hook for tests and the headed-Chrome instruments to locate this window by.
+  // The title is copy and can be reworded; this is the contract.
+  readonly name: string;
   readonly width?: number;
   readonly height?: number;
   readonly minWidth?: number;
@@ -56,6 +59,7 @@ export function createFloatingWindow(options: FloatingWindowOptions): FloatingWi
   const container = makeEl(doc, "div", "webpic-window");
   container.setAttribute("role", "group");
   container.setAttribute("aria-label", options.title);
+  container.dataset.window = options.name;
   container.style.width = `${options.width ?? DEFAULT_WIDTH_PX}px`;
   container.style.height = `${options.height ?? DEFAULT_HEIGHT_PX}px`;
 
@@ -69,7 +73,7 @@ export function createFloatingWindow(options: FloatingWindowOptions): FloatingWi
   const actions = makeEl(doc, "div", "webpic-window_actions");
   actions.dataset.noDrag = "";
   if (options.onClose !== undefined) {
-    const closeBtn = makeIconButton(doc, "webpic-window_close", ICON_CLOSE, { ariaLabel: "Close" });
+    const closeBtn = makeCloseButton(doc, ICON_CLOSE);
     closeBtn.addEventListener("click", () => options.onClose?.(), {
       signal: abortController.signal,
     });

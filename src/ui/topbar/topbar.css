@@ -24,15 +24,11 @@
   backdrop-filter: blur(var(--webpic-blur));
   box-shadow: var(--webpic-shadow-1);
   font: 500 12px / 1.4 var(--webpic-mono);
-  --webpic-input-bg: rgba(0, 0, 0, 0.28);
   --webpic-radius: 999px;
   --webpic-unit: 30px;
   --topbar-fg: 0.78;
   transition:
-    opacity 240ms ease,
-    background 0.18s ease,
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
+    var(--webpic-transition-glass),
     color 0.18s ease;
 }
 .webpic-topbar:hover,
@@ -59,15 +55,9 @@
   place-items: center;
   color: var(--webpic-accent);
 }
-.webpic-topbar_mark svg {
-  display: block;
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.webpic-topbar_mark {
+  --webpic-icon-size: 18px;
+  --webpic-icon-stroke: 1.4;
 }
 .webpic-topbar_btn {
   box-sizing: border-box;
@@ -123,15 +113,8 @@
   padding: 0;
   justify-content: center;
 }
-.webpic-topbar_btn svg {
-  display: block;
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.webpic-topbar_btn {
+  --webpic-icon-stroke: 1.4;
 }
 .webpic-topbar_label {
   flex: 0 1 auto;
@@ -150,15 +133,9 @@
   place-items: center;
   color: var(--webpic-muted);
 }
-.webpic-topbar_caret svg {
-  display: block;
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.webpic-topbar_caret {
+  --webpic-icon-size: 12px;
+  --webpic-icon-stroke: 1.4;
 }
 /* Time control: a compact "step N ▾" chip that reveals a scrub popover (track + prev/next) on the
    wrapper's hover/focus/pin (see the shared .webpic-topbar_pop reveal below). --webpic-radius scoped
@@ -209,6 +186,7 @@
   background: transparent;
   color: var(--webpic-muted);
 }
+.webpic-topbar_chevron svg,
 .webpic-topbar_chip .webpic-topbar_caret svg {
   transition: transform 0.18s ease;
 }
@@ -254,15 +232,9 @@
 .webpic-topbar_step-btn:disabled:hover {
   background: transparent;
 }
-.webpic-topbar_step-btn svg {
-  display: block;
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.webpic-topbar_step-btn {
+  --webpic-icon-size: 14px;
+  --webpic-icon-stroke: 1.4;
 }
 /* The custom range control wants width:100% for a panel row; pin it to a fixed track in the popover.
    The inner track keeps its half-grip side margins (load-bearing — grip stays inside at index 0/max). */
@@ -288,9 +260,6 @@
 .webpic-topbar:hover .webpic-topbar_chevron,
 .webpic-topbar:focus-within .webpic-topbar_chevron {
   opacity: 1;
-}
-.webpic-topbar_chevron svg {
-  transition: transform 0.18s ease;
 }
 .webpic-topbar_reveal.is-expanded .webpic-topbar_chevron svg {
   transform: rotate(180deg);

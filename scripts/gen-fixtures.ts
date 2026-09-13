@@ -8,6 +8,7 @@ import {
   SMOOTH_SPACING,
   sampleScalar,
 } from "../tests/analyticFieldCore.ts";
+import { SYNTHETIC_RECIPES } from "../tests/syntheticFieldsCore.ts";
 
 // Generate the pypic golden fixtures consumed by tests/goldens.test.ts (TS backend) and the
 // crossBackend.browser golden block (WebGPU backend). For each case we sample the field in f64 here,
@@ -21,9 +22,7 @@ import {
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT_DIR = join(ROOT, "tests", "fixtures", "v1");
 
-// Mirrors tests/crossBackend.ts CROSS_BACKEND_CASES — the recipes both compute backends bind. The
-// node golden test asserts the fixture covers exactly these, so the two lists can't silently drift.
-const RECIPES = ["|B|", "div_B", "curl_B_1", "curl_B_2", "curl_B_3"] as const;
+const RECIPES = SYNTHETIC_RECIPES;
 
 interface FixtureCase {
   readonly name: string;

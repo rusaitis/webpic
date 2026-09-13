@@ -40,7 +40,7 @@ const gpuProject = {
 // Three projects: the default `node` env for the pure math/store/app tests, a `happy-dom` env
 // for the `ui` facade smoke tests (DOM construction can't run in node), and the env-gated `gpu`
 // browser project above. `.dom.test.ts` → happy-dom, `.browser.test.ts` → gpu, the rest → node.
-// Coverage is a report, not a gate: `npm run test:coverage` (CI uploads it as an artifact). `include`
+// Coverage runs as a floor: `npm run test:coverage` (CI uploads it as an artifact). `include`
 // lists files that must appear even when no test imports them, so zero-reach modules show as 0%.
 export default defineConfig({
   resolve: { alias },
@@ -48,15 +48,12 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      exclude: [
-        "src/**/*.test.ts",
-        "src/**/testing/**",
-        "src/**/*.generated.ts",
-        "src/**/*.d.ts",
-        "src/**/index.ts",
-      ],
+      exclude: ["src/**/*.test.ts", "src/**/*.generated.ts", "src/**/*.d.ts", "src/**/index.ts"],
       reporter: ["text-summary", "html", "json-summary"],
       reportsDirectory: "coverage",
+      // A floor at today's integer, not a target: TASKS.md held the gate until the number had a
+      // history (75.4 → 77.1 → 82.55 → 84.7 → 85.6). It only ever rises.
+      thresholds: { lines: 85, statements: 84, functions: 87, branches: 73 },
     },
     projects: [
       {

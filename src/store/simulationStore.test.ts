@@ -421,8 +421,8 @@ describe("simulationStore picker", () => {
     store.getState().setPickerHover("core"); // no-op
     store.getState().setPickerActive(true);
     store.getState().setPickerActive(true); // no-op
-    store.getState().setOverlayShowPicker(false);
-    store.getState().setOverlayShowPicker(false); // no-op
+    store.getState().setOverlayFlag("showPicker", false);
+    store.getState().setOverlayFlag("showPicker", false); // no-op
     unsubH();
     unsubA();
     unsubS();

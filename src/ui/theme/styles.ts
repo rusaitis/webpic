@@ -153,6 +153,11 @@ const DERIVED_TOKENS = {
   "--webpic-mono": 'ui-monospace, "SF Mono", Menlo, monospace',
   "--webpic-blur": "10px",
   "--webpic-ease": "cubic-bezier(0.25, 1, 0.5, 1)",
+  // The two transition lists the sheet repeated verbatim: a chrome button's hover feedback, and a
+  // glass surface reacting to show/hide + theme.
+  "--webpic-transition-control": "opacity 0.12s ease, background 0.12s ease, color 0.12s ease",
+  "--webpic-transition-glass":
+    "opacity 240ms ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
 } as const satisfies Record<string, string>;
 
 // Map the theme onto every UI custom property: base palette + axis triad + the derived ladder.

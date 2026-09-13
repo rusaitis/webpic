@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { smoothVectorField } from "../../tests/analyticField.ts";
 import { makeDataset, makeField, makeGrid, vectorTriple } from "../../tests/fixtures.ts";
+import { isTsComputable } from "./backends/ts/index.ts";
+import { isWebgpuComputable } from "./backends/webgpu/index.ts";
 import { computableFields, computeField } from "./field.ts";
+import type { RecipeMeta } from "./recipe.ts";
+import { RECIPES } from "./recipes.generated.ts";
 
 describe("computeField", () => {
   it("computes |B| via the canonical recipe registry", async () => {
@@ -62,5 +66,28 @@ describe("computableFields", () => {
 
   it("returns nothing when no recipe's inputs are satisfiable", () => {
     expect(computableFields(makeDataset({}))).toEqual([]);
+  });
+});
+
+// The two backends bind the same func names by design — computableFields is the union over
+// BACKENDS.supports, so a kernel added to one and forgotten in the other does not fail anywhere:
+// the recipe just keeps working on one backend and silently degrades on the other.
+describe("isTsComputable ≡ isWebgpuComputable", () => {
+  const computableBy = (supports: (recipe: RecipeMeta) => boolean): string[] =>
+    Object.values(RECIPES)
+      .filter(supports)
+      .map((recipe) => recipe.func)
+      .sort();
+
+  it("binds the same op set on both backends", () => {
+    expect(computableBy(isTsComputable)).toEqual(computableBy(isWebgpuComputable));
+  });
+
+  it("binds an op only for a func some recipe actually names", () => {
+    const bound = new Set(computableBy(isTsComputable));
+    expect(bound.size).toBeGreaterThan(0);
+    for (const func of bound) {
+      expect(Object.values(RECIPES).some((recipe) => recipe.func === func)).toBe(true);
+    }
   });
 });

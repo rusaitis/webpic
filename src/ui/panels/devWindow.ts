@@ -1,5 +1,5 @@
 import type { PerfStore, SimulationStore, UiStore } from "@store";
-import { installChromeVisibility } from "../chromeVisibility.ts";
+import { installWindowVisibility } from "../chromeVisibility.ts";
 import type { Disposer } from "../controls/index.ts";
 import { createFloatingWindow } from "../floating/floatingWindow.ts";
 import { createSubscriptions } from "../subscriptions.ts";
@@ -20,6 +20,7 @@ export function installDevWindow(
   uiStore: UiStore,
 ): Disposer {
   const win = createFloatingWindow({
+    name: "dev",
     parent,
     title: "Developer",
     onClose: () => uiStore.getState().setPanelVisible("dev", false),
@@ -32,13 +33,10 @@ export function installDevWindow(
 
   // Shown when the UI is visible AND the dev window has been opened from the rail.
   const subscriptions = createSubscriptions();
-  const applyVisible = installChromeVisibility(
+  const applyVisible = installWindowVisibility(
     subscriptions,
     uiStore,
-    (isVisible) => {
-      if (isVisible) win.show();
-      else win.hide();
-    },
+    win,
     () => uiStore.getState().panels.dev ?? false,
   );
   subscriptions.on(uiStore, (s) => s.panels.dev, applyVisible);

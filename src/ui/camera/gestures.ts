@@ -106,6 +106,19 @@ export function installCameraGestures(
   // Two-pointer pinch: dolly by the spread ratio about the centroid (immediate, like wheel), pan by
   // the centroid translation (damped, like a drag), and roll by the finger-pair twist (immediate,
   // once it out-votes the zoom). All three compose — an RTS-style zoom/pan/rotate in one gesture.
+  // Dolly anchored at a client point. Both callers — the two-finger pinch and the wheel/Safari-pinch
+  // path — measure their own rect (a live gesture rect, a cached wheel rect); only the anchoring is
+  // shared, and a target with no layout falls back to a plain dolly.
+  const dollyWithRect = (delta: number, clientX: number, clientY: number, rect: DOMRect): void => {
+    const { cameraPose, setCameraPose } = store.getState();
+    if (rect.width > 0 && rect.height > 0) {
+      const { x: ndcX, y: ndcY } = clientToNdc(clientX, clientY, rect); // screen up = +ndcY
+      setCameraPose(dollyPoseToCursor(cameraPose, delta, ndcX, ndcY, rect.width / rect.height));
+    } else {
+      setCameraPose(dollyPose(cameraPose, delta)); // unlaid-out target — no cursor anchor
+    }
+  };
+
   const onPinchMove = (event: PointerEvent, moved: TrackedPointer): void => {
     let other: TrackedPointer | undefined;
     for (const [id, p] of pointers) {
@@ -126,15 +139,8 @@ export function installCameraGestures(
       glide.pan((cx - prevCx) / viewportHeight, (cy - prevCy) / viewportHeight);
     }
     if (spread > 0 && prevSpread > 0 && spread !== prevSpread) {
-      const { cameraPose, setCameraPose } = store.getState();
       const delta = dollyDeltaForScale(prevSpread / spread);
-      const rect = gestureRect ?? target.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        const { x: ndcX, y: ndcY } = clientToNdc(cx, cy, rect);
-        setCameraPose(dollyPoseToCursor(cameraPose, delta, ndcX, ndcY, rect.width / rect.height));
-      } else {
-        setCameraPose(dollyPose(cameraPose, delta));
-      }
+      dollyWithRect(delta, cx, cy, gestureRect ?? target.getBoundingClientRect());
     }
     // Twist → roll. Shortest-arc the angle delta first — the ±π atan2 branch would otherwise spike it.
     let dTwist = twistAngle - prevTwist;
@@ -200,16 +206,9 @@ export function installCameraGestures(
   // Shared dolly-at-cursor path for wheel notches and Safari pinch ratios (both feed pixel-unit
   // deltas). Anchors to the cursor when the target has layout; rides the wheel trail for liveness.
   const dollyAt = (deltaY: number, clientX: number, clientY: number): void => {
-    const { cameraPose, setCameraPose } = store.getState();
     // Re-measure only when the previous trail expired — one layout read per burst of notches.
     if (wheelRect === undefined || !glide.isWheelLive()) wheelRect = target.getBoundingClientRect();
-    const rect = wheelRect;
-    if (rect.width > 0 && rect.height > 0) {
-      const { x: ndcX, y: ndcY } = clientToNdc(clientX, clientY, rect); // screen up = +ndcY
-      setCameraPose(dollyPoseToCursor(cameraPose, deltaY, ndcX, ndcY, rect.width / rect.height));
-    } else {
-      setCameraPose(dollyPose(cameraPose, deltaY)); // unlaid-out target — no cursor anchor
-    }
+    dollyWithRect(deltaY, clientX, clientY, wheelRect);
     glide.touchWheel();
   };
 

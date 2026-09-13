@@ -93,15 +93,8 @@
   border-color: var(--webpic-active-edge);
   background: var(--webpic-active);
 }
-.webpic-rail_btn svg {
-  display: block;
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.webpic-rail_btn {
+  --webpic-icon-stroke: 1.4;
 }
 /* Coordinate chip: a text button (geometry · field units) that opens the grid-info card — auto width
    instead of the 30px icon square, single-line with ellipsis. aria-expanded reuses the pressed

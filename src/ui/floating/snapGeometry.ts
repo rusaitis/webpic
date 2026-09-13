@@ -92,9 +92,12 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
   const dockLeft = W - rect.width - EDGE_GAP_PX; // left value when docked to the right edge
   const dockTop = H - rect.height - EDGE_GAP_PX; // top value when docked to the bottom edge
 
+  // Which side of each axis the strip leans toward. Branch-invariant — every arm below returns the
+  // same h/v from it, and stickyLess only reads distances and the previous edge.
+  const leftSide = stickyLess(distL, distR, prevEdge, "left", "right");
+  const topSide = stickyLess(distT, distB, prevEdge, "top", "bottom");
+
   if (cornerNearH && cornerNearV) {
-    const leftSide = stickyLess(distL, distR, prevEdge, "left", "right");
-    const topSide = stickyLess(distT, distB, prevEdge, "top", "bottom");
     // Orient along whichever axis gives the more natural strip (wider → horizontal).
     const edge: PaneEdge =
       rect.width >= rect.height ? (topSide ? "top" : "bottom") : leftSide ? "left" : "right";
@@ -111,8 +114,6 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
   // next resize (a bottom-right strip stays glued to the right corner instead of drifting left as
   // the centered rail re-centers) rather than always pinning the low edge.
   if (nearH) {
-    const leftSide = stickyLess(distL, distR, prevEdge, "left", "right");
-    const topSide = stickyLess(distT, distB, prevEdge, "top", "bottom");
     return {
       edge: leftSide ? "left" : "right",
       h: leftSide ? "left" : "right",
@@ -123,8 +124,6 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
     };
   }
   if (nearV) {
-    const leftSide = stickyLess(distL, distR, prevEdge, "left", "right");
-    const topSide = stickyLess(distT, distB, prevEdge, "top", "bottom");
     return {
       edge: topSide ? "top" : "bottom",
       h: leftSide ? "left" : "right",

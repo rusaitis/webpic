@@ -16,7 +16,7 @@ Sources of truth (in precedence order):
 
 Read all of TASKS.md and CLAUDE.md, and the relevant sections of DESIGN.md (use the
 `/design` access pattern — `grep -n '^#'` then read scoped sections; don't blindly read all
-~900 lines unless a finding requires it).
+~880 lines unless a finding requires it).
 
 Check for:
 

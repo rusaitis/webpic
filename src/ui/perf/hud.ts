@@ -21,9 +21,8 @@ import {
 
 const IDLE_MS = 400; // no new sample within this → the on-demand loop is isIdle, show "idle" not stale fps
 const IDLE_TICK_MS = 250; // isIdle-flip + detail refresh cadence while visible (replaces the per-frame rAF)
-const GPU_KEY = "#f5b050"; // the band's legend swatch (opaque amber)
 const OK_COLOR = "#8fbf8f"; // frame within the 60 fps budget (desaturated green)
-const WARN_COLOR = "#f5b050"; // frame within 30 fps (reuses the amber warning hue)
+const WARN_COLOR = "#f5b050"; // frame within 30 fps (amber); also the band's legend swatch
 const BAD_COLOR = "#d98a78"; // frame over the 30 fps budget (soft terracotta)
 
 function formatMs(ms: number): string {
@@ -101,7 +100,7 @@ export function installPerfHud(
   const legend = makeEl(doc, "div", "webpic-perf_legend");
   legend.append(
     makeKey(CPU_COLOR, "cpu"),
-    makeKey(GPU_KEY, "gpu ≈", true),
+    makeKey(WARN_COLOR, "gpu ≈", true),
     makeKey(FRAME_COLOR, "frame"),
   );
   container.append(legend);

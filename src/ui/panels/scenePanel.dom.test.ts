@@ -65,7 +65,7 @@ describe("installScenePanel", () => {
 
   it("reflects an external overlay change into the controls without a feedback loop", () => {
     const { host, store, dispose } = mount();
-    store.getState().setOverlayShowAxes(false);
+    store.getState().setOverlayFlag("showAxes", false);
     expect(checkbox(host, "Axes").checked).toBe(false);
     // The reflection must not echo back into a second store write (value already matched).
     expect(store.getState().overlay.showAxes).toBe(false);

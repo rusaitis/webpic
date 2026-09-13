@@ -27,22 +27,19 @@ const PLACE_HINT = 'toggle "Place seeds", then click the volume';
 
 // The field-lines status line: seeds asked for, lines drawn, the vector they followed, and why any
 // seed was dropped. `notice` is undefined until the layer's first retrace lands.
+const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
 function seedSummary(n: number, notice: TraceNotice | undefined): string {
-  const seeds = `${n} seed${n === 1 ? "" : "s"}`;
+  const seeds = plural(n, "seed");
   if (notice === undefined) return `${seeds} · ${PLACE_HINT}`;
   if (notice.error !== null) return `${seeds} · ${notice.error}`;
-  const drawn =
-    notice.traced === 0 ? "no lines" : `${notice.traced} line${notice.traced === 1 ? "" : "s"}`;
+  const drawn = notice.traced === 0 ? "no lines" : plural(notice.traced, "line");
   const parts = [seeds, drawn];
   if (notice.fieldName !== null) parts.push(notice.fieldName);
-  if (notice.nullSeeds > 0)
-    parts.push(`${notice.nullSeeds} seed${notice.nullSeeds === 1 ? "" : "s"} at a field null`);
+  if (notice.nullSeeds > 0) parts.push(`${plural(notice.nullSeeds, "seed")} at a field null`);
   if (notice.outsideSeeds > 0)
-    parts.push(
-      `${notice.outsideSeeds} seed${notice.outsideSeeds === 1 ? "" : "s"} outside the domain`,
-    );
-  if (notice.failedSeeds > 0)
-    parts.push(`${notice.failedSeeds} seed${notice.failedSeeds === 1 ? "" : "s"} would not trace`);
+    parts.push(`${plural(notice.outsideSeeds, "seed")} outside the domain`);
+  if (notice.failedSeeds > 0) parts.push(`${plural(notice.failedSeeds, "seed")} would not trace`);
   if (notice.traced === n) parts.push(PLACE_HINT);
   return parts.join(" · ");
 }

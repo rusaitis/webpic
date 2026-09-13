@@ -2,7 +2,7 @@
 description: Surface the relevant section(s) of docs/DESIGN.md on demand without loading the whole file
 ---
 
-`docs/DESIGN.md` is the full design rationale for webpic (~900 lines). It is deliberately
+`docs/DESIGN.md` is the full design rationale for webpic (~880 lines). It is deliberately
 **not** `@`-imported into context (it would bloat every session), so this command is the
 intended way to read it: locate the relevant section(s) and pull only those into context.
 

@@ -247,16 +247,18 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
     });
   };
 
-  const request: RenderWorkerRequest = {
-    kind: "init",
-    requestId: REQUEST_IDS.init,
-    canvas: offscreen,
-    width: initial.width,
-    height: initial.height,
-    devicePixelRatio: currentDevicePixelRatio(),
-    ...(options.showDebugScene === true ? { showDebugScene: true } : {}),
-  };
-  worker.postMessage(request, [offscreen]); // transfer the OffscreenCanvas
+  worker.postMessage(
+    {
+      kind: "init",
+      requestId: REQUEST_IDS.init,
+      canvas: offscreen,
+      width: initial.width,
+      height: initial.height,
+      devicePixelRatio: currentDevicePixelRatio(),
+      ...(options.showDebugScene === true ? { showDebugScene: true } : {}),
+    } satisfies RenderWorkerRequest,
+    [offscreen],
+  ); // transfer the OffscreenCanvas
 
   // The recompute that seeds the layer streamed fields address is async (compute is Promise-based), so
   // open the stream once that layer lands — open() carries its id. The UI reacts to computed/status

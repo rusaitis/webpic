@@ -47,18 +47,23 @@ export type { FieldLayerKind, FieldPayload };
 
 // The per-kind build params of a field layer — what a slice needs (its held axis + plane) and what
 // a volume needs (march + look + box aspect), each only on its own kind. Omitted volume params fall
-// back to the scene factory defaults.
-export type FieldLayerParams =
-  | { readonly layerKind: "slice"; readonly axis: SliceAxis; readonly position: number }
-  | {
-      readonly layerKind: "volume";
-      readonly steps?: number;
-      readonly density?: number;
-      readonly shaded?: boolean; // Phong toggle
-      // Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (unit cube). Scales the
-      // volume mesh to the dataset's physical aspect (non-cubic grids).
-      readonly worldHalfExtent?: Vec3;
-    };
+// back to the scene factory defaults. Keyed on FieldLayerKind so a new kind fails to compile here
+// rather than crossing the seam and drawing nothing.
+interface FieldLayerParamsByKind {
+  slice: { readonly axis: SliceAxis; readonly position: number };
+  volume: {
+    readonly steps?: number;
+    readonly density?: number;
+    readonly shaded?: boolean; // Phong toggle
+    // Per-axis world half-extent of the volume box; default [0.5,0.5,0.5] (unit cube). Scales the
+    // volume mesh to the dataset's physical aspect (non-cubic grids).
+    readonly worldHalfExtent?: Vec3;
+  };
+}
+
+export type FieldLayerParams = {
+  [K in FieldLayerKind]: { readonly layerKind: K } & FieldLayerParamsByKind[K];
+}[FieldLayerKind];
 
 // One field axis's physical extent + sample count + name, for the scene overlay's labeled grid/axes.
 // FIELD-axis order (0/1/2 = pypic GridInfo). `bounds` are inclusive [min, max] in code units (the app
@@ -356,3 +361,14 @@ export type RenderWorkerResponse =
       readonly message: string;
     }
   | { readonly kind: "disposed"; readonly requestId: number };
+
+// One wire variant by its discriminant. Every consumer on both sides of the seam narrows this way;
+// spelled once here so a signature reads `Request<"upsertLayer">` instead of an inline `Extract`.
+export type RenderRequest<K extends RenderWorkerRequest["kind"]> = Extract<
+  RenderWorkerRequest,
+  { kind: K }
+>;
+export type RenderResponse<K extends RenderWorkerResponse["kind"]> = Extract<
+  RenderWorkerResponse,
+  { kind: K }
+>;

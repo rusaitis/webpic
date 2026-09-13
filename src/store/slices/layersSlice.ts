@@ -3,7 +3,7 @@ import * as colormapOps from "../colormap.ts";
 import { FALLBACK_WINDOW } from "../fieldCompute.ts";
 import type { Retrace } from "../fieldTrace.ts";
 import { defaultSeedRake } from "../interaction/seedPick.ts";
-import { LAYER_KINDS } from "../layerKinds.ts";
+import { isTracingLayer, LAYER_KINDS } from "../layerKinds.ts";
 import type { Layer } from "../layers.ts";
 import * as layerOps from "../layers.ts";
 import { selectDataRange } from "../selectors.ts";
@@ -121,7 +121,7 @@ export function createLayersSlice({ get, set, ids, retrace }: LayersSliceHost): 
     },
     addFieldlineSeed(id, seed) {
       const layer = get().layers.find((l) => l.id === id);
-      if (layer === undefined || layer.kind !== "fieldlines") return;
+      if (layer === undefined || !isTracingLayer(layer)) return;
       get().setFieldlineSeeds(id, [...layer.seeds, seed]);
     },
     setSeedPlacement(id) {

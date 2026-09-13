@@ -88,27 +88,19 @@ export function installDragSnap(
     element.style.setProperty("--drag-y", `${y}px`);
   };
 
-  const setAnchors = (
-    h: "left" | "right",
-    v: "top" | "bottom",
-    left: number,
-    top: number,
-    w: number,
-    hgt: number,
-    vp: Viewport,
-  ): void => {
+  const setAnchors = (h: "left" | "right", v: "top" | "bottom", rect: Box, vp: Viewport): void => {
     if (h === "left") {
-      element.style.left = `${left}px`;
+      element.style.left = `${rect.left}px`;
       element.style.right = "auto";
     } else {
-      element.style.right = `${vp.width - left - w}px`;
+      element.style.right = `${vp.width - rect.right}px`;
       element.style.left = "auto";
     }
     if (v === "top") {
-      element.style.top = `${top}px`;
+      element.style.top = `${rect.top}px`;
       element.style.bottom = "auto";
     } else {
-      element.style.bottom = `${vp.height - top - hgt}px`;
+      element.style.bottom = `${vp.height - rect.bottom}px`;
       element.style.top = "auto";
     }
   };
@@ -116,21 +108,13 @@ export function installDragSnap(
   // Center-anchor the free axis (CSS translate(-50%) on it pivots a resize on the center); pin the
   // docked axis to its edge. The visual top-left still resolves to (left, top); only the resize pivot
   // changes. A free drop (docked=false) centers both axes.
-  const placeCentered = (
-    edge: PaneEdge,
-    isDocked: boolean,
-    left: number,
-    top: number,
-    w: number,
-    hgt: number,
-    vp: Viewport,
-  ): void => {
+  const placeCentered = (edge: PaneEdge, isDocked: boolean, rect: Box, vp: Viewport): void => {
     const centerX = (): void => {
-      element.style.left = `${left + w / 2}px`;
+      element.style.left = `${rect.left + rect.width / 2}px`;
       element.style.right = "auto";
     };
     const centerY = (): void => {
-      element.style.top = `${top + hgt / 2}px`;
+      element.style.top = `${rect.top + rect.height / 2}px`;
       element.style.bottom = "auto";
     };
     if (!isDocked) {
@@ -141,19 +125,19 @@ export function installDragSnap(
     if (edge === "top" || edge === "bottom") {
       centerX(); // horizontal is free → center it
       if (edge === "bottom") {
-        element.style.bottom = `${vp.height - top - hgt}px`;
+        element.style.bottom = `${vp.height - rect.bottom}px`;
         element.style.top = "auto";
       } else {
-        element.style.top = `${top}px`;
+        element.style.top = `${rect.top}px`;
         element.style.bottom = "auto";
       }
     } else {
       centerY(); // vertical is free → center it
       if (edge === "right") {
-        element.style.right = `${vp.width - left - w}px`;
+        element.style.right = `${vp.width - rect.right}px`;
         element.style.left = "auto";
       } else {
-        element.style.left = `${left}px`;
+        element.style.left = `${rect.left}px`;
         element.style.right = "auto";
       }
     }
@@ -177,10 +161,11 @@ export function installDragSnap(
   // rect would read the mid-transition value, not the target.
   const apply = (placement: SnapPlacement, w: number, h: number, vp: Viewport): Box => {
     const set = (left: number, top: number): void => {
+      const target = box(left, top, w, h);
       if (options.centerFreeAxis) {
-        placeCentered(placement.edge, placement.isDocked, left, top, w, h, vp);
+        placeCentered(placement.edge, placement.isDocked, target, vp);
       } else {
-        setAnchors(placement.h, placement.v, left, top, w, h, vp);
+        setAnchors(placement.h, placement.v, target, vp);
       }
     };
     set(placement.left, placement.top);
@@ -205,7 +190,7 @@ export function installDragSnap(
     if (options.mode === "free") {
       const { left, top } = freePlacement(box(r.left, r.top, r.width, r.height), vp);
       writeOffset(0, 0);
-      setAnchors("left", "top", left, top, r.width, r.height, vp);
+      setAnchors("left", "top", box(left, top, r.width, r.height), vp);
       return;
     }
     const prevEdge = readEdge(element);
@@ -238,7 +223,7 @@ export function installDragSnap(
     if (r.width === 0 && r.height === 0) return;
     if (options.mode === "free") {
       const { left, top } = freePlacement(box(r.left, r.top, r.width, r.height), vp);
-      setAnchors("left", "top", left, top, r.width, r.height, vp);
+      setAnchors("left", "top", box(left, top, r.width, r.height), vp);
       return;
     }
     const edge = readEdge(element) ?? "bottom";

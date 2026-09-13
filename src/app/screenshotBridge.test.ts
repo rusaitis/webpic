@@ -1,9 +1,9 @@
-import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
+import type { RenderResponse, RenderWorkerRequest } from "@render";
 import { createSimulationStore, createUiStore } from "@store";
 import { describe, expect, it } from "vitest";
 import { installScreenshotBridge } from "./screenshotBridge.ts";
 
-type ScreenshotReply = Extract<RenderWorkerResponse, { kind: "screenshot" }>;
+type ScreenshotReply = RenderResponse<"screenshot">;
 
 function harness(ready = true) {
   const posts: RenderWorkerRequest[] = [];

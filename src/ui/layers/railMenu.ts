@@ -87,7 +87,7 @@ export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
     const add = makeEl(doc, "button", "webpic-railmenu_add");
     add.type = "button";
     add.setAttribute("role", "menuitem");
-    const plus = makeEl(doc, "span", "webpic-railmenu_plus");
+    const plus = makeEl(doc, "span", "webpic-icon webpic-railmenu_plus");
     plus.innerHTML = ICON_PLUS;
     const addLabel = makeEl(doc, "span", "webpic-railmenu_label");
     addLabel.textContent = "Add new";

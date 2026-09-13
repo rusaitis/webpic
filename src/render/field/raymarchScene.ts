@@ -25,11 +25,11 @@ import {
 } from "three/tsl";
 import { type Node, NodeMaterial } from "three/webgpu";
 import type { VolumeLayerScene } from "../layer/scene.ts";
-import type { FieldSceneOptions } from "./fieldSceneOptions.ts";
-import { createNormalization, type Normalization } from "./normalization.ts";
+import { createFieldSceneBase, type FieldSceneOptions } from "./fieldScene.ts";
+import type { Normalization } from "./normalization.ts";
 import { GRAD_EPS, PHONG } from "./shading.ts";
-import { createTransferFunctionTexture, type TransferFunctionTexture } from "./transferFunction.ts";
-import { createVolumeTexture, type VolumeTexture } from "./volumeTexture.ts";
+import type { TransferFunctionTexture } from "./transferFunction.ts";
+import type { VolumeTexture } from "./volumeTexture.ts";
 
 // Single-pass volume raymarcher over the shared `uVolume`. The analytic ray-box clip is
 // `wgslFn hitBox` — the WGSL twin of rayBox.ts.
@@ -295,16 +295,8 @@ export const buildRaymarchMaterial: RaymarchMaterialBuilder = (g) => {
 
 // Build a themed single-pass raymarch scene from a 3D scalar field.
 export function createRaymarchScene(options: RaymarchSceneOptions): RaymarchScene {
-  const volume = createVolumeTexture(
-    options.field,
-    options.hasFloat32Filterable,
-    options.ledgerKey,
-  );
-  const tf = createTransferFunctionTexture(options.colormap);
+  const { volume, tf, norm } = createFieldSceneBase(options);
   const steps = options.steps ?? DEFAULT_STEPS;
-
-  // Default window spans the full finite range, reproducing the old (v−min)/(max−min) map.
-  const norm = createNormalization(volume.min, volume.max, options.windowLevel, options.scale);
   const graph = buildRaymarchGraph(
     { volume, tf, norm },
     {

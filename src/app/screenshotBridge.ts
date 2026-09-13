@@ -1,8 +1,4 @@
-import {
-  REQUEST_IDS,
-  type RenderWorkerRequest,
-  type RenderWorkerResponse,
-} from "@render/messages.ts";
+import { REQUEST_IDS, type RenderResponse, type RenderWorkerRequest } from "@render/messages.ts";
 import type { SimulationStore, UiStore } from "@store";
 import { PHASE_KEYS } from "@store";
 import type { RenderWorkerLink } from "./_storeBridge.ts";
@@ -21,9 +17,7 @@ export interface ScreenshotBridgeOptions extends RenderWorkerLink {
 }
 
 export interface ScreenshotBridge {
-  readonly deliverScreenshot: (
-    message: Extract<RenderWorkerResponse, { kind: "screenshot" }>,
-  ) => void;
+  readonly deliverScreenshot: (message: RenderResponse<"screenshot">) => void;
   readonly dispose: () => void;
 }
 

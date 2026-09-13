@@ -63,7 +63,7 @@ export function installTopBar(
   // Brand: an inline-SVG field-line mark + wordmark (no logo asset exists; this matches the boot
   // splash identity and tints with the theme accent).
   const brand = makeEl(doc, "div", "webpic-topbar_brand");
-  const mark = makeEl(doc, "span", "webpic-topbar_mark");
+  const mark = makeEl(doc, "span", "webpic-icon webpic-topbar_mark");
   mark.innerHTML = BRAND_SVG;
   const word = makeEl(doc, "span", "webpic-topbar_word");
   word.textContent = "webpic";

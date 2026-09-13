@@ -29,8 +29,9 @@ await withPreviewedApp(
     await page.waitForTimeout(SETTLE_MS); // re-read + recompute + retrace against the new grid
 
     // The probe marker defaults on and lands dead centre of the frame — off for the still.
-    const probe = page.locator('[aria-label="Hide point marker"]');
-    if ((await probe.count()) > 0) await probe.first().click();
+    const probe = page.locator('[data-control="probe"]');
+    await probe.waitFor({ state: "attached" }); // missing hook is a broken probe, not "already off"
+    if ((await probe.getAttribute("aria-pressed")) === "true") await probe.click();
 
     await page.mouse.move(WINDOW.width - 4, WINDOW.height - 4); // park the pointer clear of hovers
     await page.waitForTimeout(SETTLE_MS);

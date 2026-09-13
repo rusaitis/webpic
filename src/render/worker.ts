@@ -19,6 +19,7 @@ import type {
   CameraMotion,
   CameraPose,
   CameraProjection,
+  RenderRequest,
   RenderWorkerRequest,
   RenderWorkerResponse,
 } from "./messages.ts";
@@ -40,8 +41,6 @@ interface WorkerContext {
   onmessage: ((event: MessageEvent<RenderWorkerRequest>) => void) | null;
   postMessage(message: RenderWorkerResponse, transfer?: Transferable[]): void;
 }
-
-type Request<K extends RenderWorkerRequest["kind"]> = Extract<RenderWorkerRequest, { kind: K }>;
 
 // Everything the render worker owns — GPU handles, cameras, the managed subsystems and the message
 // handlers over them — built once per worker so no state lives at module scope.
@@ -255,7 +254,7 @@ function createWorkerWorld(context: WorkerContext): {
       context.postMessage({ kind: "gpuRecoveryFailed", requestId: -1, reason, message }),
   });
 
-  async function init(request: Request<"init">): Promise<void> {
+  async function init(request: RenderRequest<"init">): Promise<void> {
     // high-performance picks the discrete GPU on hybrid machines — a volume raymarcher wants the fast
     // adapter; installGpu retains the option for device recovery too.
     gpu = await installGpu({ powerPreference: "high-performance" });
@@ -288,7 +287,7 @@ function createWorkerWorld(context: WorkerContext): {
   // the warm completes, errors, or is superseded, the first paint won't hitch on a sync compile — so
   // main always hears layerCompiled and drops the layer's loading pill.
   async function compileLayer(
-    request: Request<"upsertLayer" | "upsertFieldlines">,
+    request: RenderRequest<"upsertLayer" | "upsertFieldlines">,
     build: () => Promise<void>,
   ): Promise<void> {
     requireRenderer(renderer, request.kind);
@@ -302,7 +301,7 @@ function createWorkerWorld(context: WorkerContext): {
   // Always repaints — a volume-only guard silently drops the frame during composite-build races and
   // visibility toggles, leaving the 3D view stale while the store-driven gnomon keeps turning. Slices
   // stay pose-invariant via the ortho camera, so the repaint just re-presents them.
-  function setCameraPose(request: Request<"setCameraPose">): void {
+  function setCameraPose(request: RenderRequest<"setCameraPose">): void {
     requireRenderer(renderer, request.kind);
     pose = request.pose;
     applyVolumePose();
@@ -312,7 +311,7 @@ function createWorkerWorld(context: WorkerContext): {
   // Pick the other pose-driven camera and flip every volume scene's ray generation (a uniform, no
   // rebuild). The matched ortho frustum (halfH = d·tan(fov/2)) keeps the on-screen scale at the target
   // plane, so the flip is visually seamless except for parallax.
-  function setProjection(request: Request<"setProjection">): void {
+  function setProjection(request: RenderRequest<"setProjection">): void {
     if (projection === request.projection) return;
     projection = request.projection;
     applyVolumePose(); // the incoming camera re-aims at the live pose before it paints
@@ -320,7 +319,7 @@ function createWorkerWorld(context: WorkerContext): {
     requestRender();
   }
 
-  function resize(request: Request<"resize">): void {
+  function resize(request: RenderRequest<"resize">): void {
     const live = requireRenderer(renderer, request.kind);
     canvasSize = { width: request.width, height: request.height };
     devicePixelRatio = request.devicePixelRatio;
@@ -329,7 +328,7 @@ function createWorkerWorld(context: WorkerContext): {
     requestRender();
   }
 
-  function setPickerPoint(request: Request<"setPickerPoint">): void {
+  function setPickerPoint(request: RenderRequest<"setPickerPoint">): void {
     marker.setPoint(request.point, request.hovered, request.active);
     // Active edges only (the position rides every move) drive the shared quality tier, so a marker
     // drag coarsens the volume like a camera gesture; the merge keeps a concurrent fly/orbit live.
@@ -341,7 +340,7 @@ function createWorkerWorld(context: WorkerContext): {
 
   // Pick-to-focus: march the cursor ray through the retained CPU fields (no GPU round-trip), the ray
   // taken from the live volume camera so it matches the frame this click saw (postMessage ordering).
-  function pickRay(request: Request<"pickRay">): void {
+  function pickRay(request: RenderRequest<"pickRay">): void {
     const camera = volumeCamera();
     if (camera === undefined) throw new Error("pickRay before init");
     const { origin, dir } = unprojectRay(camera, request.ndcX, request.ndcY);
@@ -359,7 +358,7 @@ function createWorkerWorld(context: WorkerContext): {
 
   // Assigning onmessage implicitly starts the port, so streamStep messages posted before this pairing
   // drain here in order — no lost frames.
-  function pair(request: Request<"pair">): void {
+  function pair(request: RenderRequest<"pair">): void {
     streamPort?.close();
     streamPort = request.port;
     streamPort.onmessage = (event: MessageEvent<StreamStepMessage>) => {
@@ -375,7 +374,7 @@ function createWorkerWorld(context: WorkerContext): {
   // swap every volume layer's material in place — texture, uniforms and pose carry over (no 64 MiB
   // re-upload). Re-warm off the render path, then repaint; a bad edit is reported and leaves the prior
   // shader rendering. Gated on import.meta.env.DEV so prod tree-shakes this branch + shaderReload.
-  async function rebuildShader(request: Request<"rebuildShader">): Promise<void> {
+  async function rebuildShader(request: RenderRequest<"rebuildShader">): Promise<void> {
     if (renderer === undefined) return;
     if (!import.meta.env.DEV) return; // prod: dead branch → shaderReload never enters the bundle
     try {
@@ -391,7 +390,7 @@ function createWorkerWorld(context: WorkerContext): {
   // Orderly teardown ahead of main's terminate(). Recovery stops before the device goes — its
   // intentional-loss signal must not trigger a rebuild; a pending init is awaited so a half-built
   // renderer is never torn down mid-construction.
-  async function dispose(request: Request<"dispose">): Promise<void> {
+  async function dispose(request: RenderRequest<"dispose">): Promise<void> {
     try {
       await initDone;
     } catch {

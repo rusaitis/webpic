@@ -1,13 +1,16 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { typescriptFiles } from "./sourceTree.ts";
 
 // `§Name` cites in code must name a real heading: a line-number pin (`§443`) rots the moment the
 // doc moves, and a renamed section leaves a cite pointing nowhere. Generated files are exempt —
 // their docstrings come from pypic and cite pypic's own numbered schema.md.
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
-const SOURCE_DIRS = ["src", "scripts"];
+const SOURCE_DIRS = ["src", "scripts", "tests"];
+// This file's own prose carries illustrative `§` tokens that name nothing — it cannot scan itself.
+const SELF = "tests/design-citations.test.ts";
 const DOCS = { "docs/DESIGN.md": "DESIGN", "CLAUDE.md": "CLAUDE.md" } as const;
 
 interface Citation {
@@ -85,9 +88,7 @@ function citations(files: readonly string[]): Citation[] {
 
 function sourceFiles(): string[] {
   const found = SOURCE_DIRS.flatMap((dir) =>
-    readdirSync(join(ROOT, dir), { recursive: true, encoding: "utf8" })
-      .filter((name) => name.endsWith(".ts") && !name.includes(".generated."))
-      .map((name) => join(dir, name)),
+    typescriptFiles(dir).filter((path) => !path.includes(".generated.") && path !== SELF),
   );
   return [...found, "CLAUDE.md"];
 }

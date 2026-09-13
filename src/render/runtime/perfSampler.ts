@@ -1,5 +1,5 @@
 import type { VramSnapshot } from "@gpu";
-import type { RenderWorkerResponse } from "../messages.ts";
+import type { RenderResponse } from "../messages.ts";
 import type { FrameTimer } from "./frameTimer.ts";
 
 // The timing samples the worker posts off painted frames. Continuous render timing (paintTimed)
@@ -13,8 +13,8 @@ export const PERF_EMA_ALPHA = 0.2; // painted-frame interval smoothing
 export const PERF_IDLE_GAP_MS = 500; // a longer gap means we resumed after idle — don't fold it into the EMA
 const VRAM_TOP_N = 5; // largest tracked allocations surfaced in the HUD detail panel
 
-export type PerfSampleMessage = Extract<RenderWorkerResponse, { kind: "perfSample" }>;
-export type FrameTimingMessage = Extract<RenderWorkerResponse, { kind: "frameTiming" }>;
+export type PerfSampleMessage = RenderResponse<"perfSample">;
+export type FrameTimingMessage = RenderResponse<"frameTiming">;
 
 export interface PerfSamplerHost {
   // The live per-frame timer; undefined pre-init / post-dispose (the GPU field rides as NaN).

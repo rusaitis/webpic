@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { sampleScalar } from "../tests/analyticFieldCore.ts";
 import {
   SYNTHETIC_FIELDS,
+  SYNTHETIC_RECIPES,
   type SyntheticField,
-  type SyntheticRecipe,
   spacingFor,
 } from "../tests/syntheticFieldsCore.ts";
 
@@ -16,8 +16,6 @@ import {
 // the field definitions:
 //   npm run gen:synthetic        (plain node — no `uv`, no ../pypic)
 // node strips the types but does NOT resolve @layer aliases, so this imports only the alias-free cores.
-
-const RECIPES: readonly SyntheticRecipe[] = ["|B|", "div_B", "curl_B_1", "curl_B_2", "curl_B_3"];
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT_DIR = join(ROOT, "tests", "fixtures", "synthetic");
@@ -30,7 +28,7 @@ function generate(field: SyntheticField): void {
   const [b1, b2, b3] = field.components;
   const inputs = { B_1: sample(b1), B_2: sample(b2), B_3: sample(b3) };
   const analytic = Object.fromEntries(
-    RECIPES.map((recipe) => [recipe, sample(field.analytic[recipe])]),
+    SYNTHETIC_RECIPES.map((recipe) => [recipe, sample(field.analytic[recipe])]),
   );
 
   const fixture = {
@@ -53,7 +51,7 @@ function generate(field: SyntheticField): void {
 
   const path = join(OUT_DIR, `${field.name}.json`);
   writeFileSync(path, `${JSON.stringify(fixture, null, 2)}\n`);
-  console.log(`✓ ${field.name}: ${RECIPES.length} analytic goldens → ${path}`);
+  console.log(`✓ ${field.name}: ${SYNTHETIC_RECIPES.length} analytic goldens → ${path}`);
 }
 
 mkdirSync(OUT_DIR, { recursive: true });

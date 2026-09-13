@@ -24,7 +24,7 @@ export function makeIconButton(
   svg: string,
   options: { title?: string; control?: string; ariaLabel?: string } = {},
 ): HTMLButtonElement {
-  const button = makeEl(doc, "button", className);
+  const button = makeEl(doc, "button", `webpic-icon ${className}`);
   button.type = "button";
   if (options.control !== undefined) button.dataset.control = options.control;
   if (options.title !== undefined) button.title = options.title;
@@ -33,11 +33,33 @@ export function makeIconButton(
   return button;
 }
 
+// The panel close (×). Its three hosts — floating window, rail flyout, layers panel — were three
+// identical buttons under three BEM names; the class is the contract, so they share one.
+export function makeCloseButton(doc: Document, svg: string): HTMLButtonElement {
+  return makeIconButton(doc, "webpic-close-btn", svg, { ariaLabel: "Close" });
+}
+
+// A panel's title bar: an uppercase label and the close button, in the lifted strip above the body.
+// The rail flyout and the layers panel are the same header under two BEM names; the class is the
+// contract, so they share one.
+export function makePanelHeader(
+  doc: Document,
+  titleText: string,
+  closeIcon: string,
+): { header: HTMLDivElement; closeBtn: HTMLButtonElement } {
+  const header = makeEl(doc, "div", "webpic-panel_header");
+  const title = makeEl(doc, "span", "webpic-panel_title");
+  title.textContent = titleText;
+  const closeBtn = makeCloseButton(doc, closeIcon);
+  header.append(title, closeBtn);
+  return { header, closeBtn };
+}
+
 // The dropdown-affordance caret/chevron: a <span> carrying a constant inline SVG, trailing the
 // topbar pickers/chips and the swatch trigger. Class + icon vary per host; the SVG is a trusted
 // module constant (same innerHTML-of-trusted-markup contract as makeIconButton).
 export function makeCaret(doc: Document, className: string, svg: string): HTMLSpanElement {
-  const span = makeEl(doc, "span", className);
+  const span = makeEl(doc, "span", `webpic-icon ${className}`);
   span.innerHTML = svg;
   return span;
 }

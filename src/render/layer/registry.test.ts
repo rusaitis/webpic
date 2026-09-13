@@ -1,6 +1,6 @@
 import type { StreamStepMessage } from "@data";
 import { describe, expect, it, vi } from "vitest";
-import type { RenderWorkerRequest } from "../messages.ts";
+import type { RenderRequest } from "../messages.ts";
 
 // Mock the GPU scene factories — the registry's logic (draw order, overrides, pick filtering, the
 // in-place-vs-rebuild decision, epoch superseding) is what we isolate; the real raymarch/slice scenes
@@ -129,7 +129,7 @@ function upsert(
   id: string,
   layerKind: "slice" | "volume",
   shape: readonly number[] = [2, 2, 2],
-): Extract<RenderWorkerRequest, { kind: "upsertLayer" }> {
+): RenderRequest<"upsertLayer"> {
   return {
     kind: "upsertLayer",
     requestId: 1,

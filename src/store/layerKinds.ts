@@ -1,5 +1,5 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
-import type { FieldLayerKind, LayerKind } from "@schema/layers.ts";
+import type { FieldLayerKind, LayerKind, TracingLayerKind } from "@schema/layers.ts";
 import type { FieldName } from "@schema/types.ts";
 import { defaultSeedRake } from "./interaction/seedPick.ts";
 import type { Layer, LayerSpec } from "./layers.ts";
@@ -87,4 +87,12 @@ export type FieldLayer = Extract<Layer, { readonly kind: FieldLayerKind }>;
 // Narrow to the layers that draw the active scalar field.
 export function isFieldLayer(layer: Layer): layer is FieldLayer {
   return LAYER_KINDS[layer.kind].drawsField;
+}
+
+export type TracingLayer = Extract<Layer, { readonly kind: TracingLayerKind }>;
+
+// Narrow to the layers that own traced polylines. Routing on the descriptor rather than the literal
+// is what makes `tracesLines` load-bearing: a new kind that declares it is traced everywhere at once.
+export function isTracingLayer(layer: Layer): layer is TracingLayer {
+  return LAYER_KINDS[layer.kind].tracesLines;
 }

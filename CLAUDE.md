@@ -69,6 +69,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 
 ## Schema, validation, boundaries
 
+- **A layer barrel is its `@embed` surface, not an app convenience.** `@schema` re-exports generated modules the app never calls; app-path modules deep-import (`@schema/theme.ts`) or the barrel drags them into the eager bundle.
 - **Validate at boundaries only.** `smol-toml` parse + Zod on TOML loads, remote replies, OPFS reads. Never inside hot paths.
 - **Reject unknown field names loudly.** Mirrors pypic's `KeyError` rule — silent warnings get swallowed in notebooks and pipelines. `src/schema/registry.ts` is the only mapping from labels to canonical names.
 - TOML via `smol-toml` (already a dep). Don't add `@iarna/toml`.
@@ -108,18 +109,21 @@ Don't add without justification matching `docs/DESIGN.md` §Build system & tooli
 npm run check       # the full gate — exactly what CI runs
 npm run dev         # Vite dev server
 npm run dev:lan     # HTTPS + LAN-exposed (iPad testing; certs via scripts/setup-lan-certs.sh)
+                    # preview:lan — the same exposure over the production build
 npm run build       # production build   ·   build:embed — the @webpic/embed bundle
 npm run typecheck   # app + worker + node tsconfigs
 npm run lint        # Biome check   ·   lint:ci — the CI form   ·   format — Biome --write
 npm run test        # Vitest (node + dom projects)
-npm run test:coverage # Vitest + v8 coverage (report only, no gate) — what `check` runs
+npm run test:coverage # Vitest + v8 coverage, floored at today's value — what `check` runs
 npm run check:boundaries # the layer DAG (ts-morph)
 npm run check:dead  # knip — unused files, exports, deps
 npm run check:size  # size-limit budgets (needs build + build:embed first)
 npm run docs:api    # TypeDoc, treatWarningsAsErrors — a CI gate
-npm run gen         # schema/recipe codegen from pypic (gen:export + gen:emit; gen:check diffs it)
+npm run gen         # schema/recipe codegen from pypic (gen:export + gen:emit); `gen:check` diffs it
+                    # by hand — CI relies on tests/schema-parity.test.ts, which asserts the same hermetically
 npm run gen:fixtures / gen:synthetic / gen:trace-fixtures  # refresh test fixtures via pypic
-npm run gen:themes:check # local-only (needs ../pypic)
+npm run gen:themes  # re-vendor pypic's theme TOMLs   ·   gen:themes:check diffs them
+                    # both local-only (need ../pypic); never in CI
 npm run test:parity # schema + writer parity vs live pypic — local-only (needs ../pypic)
 npm run test:gpu    # real-GPU suites in headed system Chrome — local-only (needs a real GPU)
 npm run perf:gate   # cold-paint / first-frame gate — local-only (needs a real GPU)

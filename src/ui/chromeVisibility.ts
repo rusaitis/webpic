@@ -15,3 +15,22 @@ export function installChromeVisibility(
   subscriptions.on(uiStore, (state) => state.isUiVisible, apply, { shouldFireNow: true });
   return apply;
 }
+
+// A floating window's visibility: the same store rule, driving show/hide instead of a class. Both
+// windows (Developer, Layer settings) mount this way.
+export function installWindowVisibility(
+  subscriptions: Subscriptions,
+  uiStore: UiStore,
+  win: { show(): void; hide(): void },
+  isOpen: () => boolean,
+): () => void {
+  return installChromeVisibility(
+    subscriptions,
+    uiStore,
+    (isVisible) => {
+      if (isVisible) win.show();
+      else win.hide();
+    },
+    isOpen,
+  );
+}

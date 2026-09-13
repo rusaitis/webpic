@@ -58,13 +58,7 @@
   border-color: var(--webpic-active-edge);
   background: var(--webpic-active);
 }
-.webpic-layerset_move svg {
-  display: block;
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.webpic-layerset_move {
+  --webpic-icon-size: 14px;
+  --webpic-icon-stroke: 1.6;
 }

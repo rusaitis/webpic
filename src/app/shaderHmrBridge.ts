@@ -29,12 +29,11 @@ export function installShaderHmr(
 ): () => void {
   if (hot === undefined) return () => {};
   const onShaderEdit = (data: ShaderHmrEvent): void => {
-    const request: RenderWorkerRequest = {
+    worker.postMessage({
       kind: "rebuildShader",
       requestId: REQUEST_IDS.shaderHmr,
       timestamp: data.timestamp,
-    };
-    worker.postMessage(request);
+    } satisfies RenderWorkerRequest);
   };
   hot.on(SHADER_HMR_EVENT, onShaderEdit);
   return () => hot.off(SHADER_HMR_EVENT, onShaderEdit);

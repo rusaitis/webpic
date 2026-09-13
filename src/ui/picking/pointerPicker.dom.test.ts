@@ -17,7 +17,7 @@ function setup(point: readonly [number, number, number] = [0, 0, 0]) {
   const target = document.createElement("div");
   document.body.appendChild(target);
   const store = createSimulationStore();
-  store.getState().setOverlayShowPicker(true);
+  store.getState().setOverlayFlag("showPicker", true);
   store.getState().setPickerPoint([point[0], point[1], point[2]]);
   const dispose = installPointerPicker(target, store);
   disposers.push(dispose);
@@ -77,7 +77,7 @@ describe("installPointerPicker arrow keys", () => {
 
   it("ignores arrows while the picker is hidden", async () => {
     const { store } = setup();
-    store.getState().setOverlayShowPicker(false);
+    store.getState().setOverlayFlag("showPicker", false);
     expect(document.dispatchEvent(key("keydown", "ArrowRight"))).toBe(true); // unclaimed
     await frame();
     expect(store.getState().pickerPoint).toEqual([0, 0, 0]);

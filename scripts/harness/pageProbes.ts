@@ -86,7 +86,7 @@ export async function armContinuousTiming(page: Page): Promise<Locator> {
   // change handler. Scoped to the Developer window — a docked copy can coexist and makes a bare pane
   // locator ambiguous under strict mode. By data hook, not by title: titles are copy.
   const diagnostics = page
-    .getByLabel("Developer", { exact: true })
+    .locator('[data-window="dev"]')
     .locator('.webpic-pane[data-pane="timing"]');
   await diagnostics.locator(".webpic-checkbox_input").check({ force: true });
 

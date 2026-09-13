@@ -67,55 +67,35 @@ Enforced by **three layers of defense in depth** (Biome has no `eslint-plugin-bo
 3. **Deferred:** pnpm workspaces — install-time rejection of undeclared cross-package imports; arrives only if the package split ever happens (§Package shape).
 
 ```
-schema      ──►  (none)                       Zod, registry, units, aliases, selections
-containers  ──►  schema                       FieldDataset, ParticleData, TabularData,
-                                              SimulationConfig, StaggerInfo, GridInfo
-                                              (mirrors pypic.containers + pypic.dataset)
-coordinates ──►  containers, schema           curl, div, grad, transforms,
-                                              GeometryType (mirrors pypic.coordinates)
-numerics    ──►  containers                   interp (trilinear, tricubic),
-                                              integrators (RK4, Dormand-Prince 5(4) + I step control)
-reductions  ──►  schema, containers,          reduce() — mirrors pypic.reductions;
-                 coordinates                  Reduction Literal re-exported from schema
-                                              (round-trip semantics: see §Data layer)
-shaders     ──►  (none)                       WGSL string assets (WESL-ready; see §Shader sharing)
-gpu         ──►  (none)                       GPUDevice, capabilities, device.lost, profiler
-derived     ──►  coordinates, numerics,       recipe-math (|B|, beta, v_A, …) — mirrors pypic.derived
-                 containers, schema
-diagnostics ──►  coordinates, containers      div_B, div_E, field_energy (mirrors pypic.diagnostics)
-compute     ──►  schema, coordinates,         dispatcher + backends + recipe registry
-                 numerics, reductions,        — mirrors pypic.compute; can chain a
-                 shaders, gpu,                reduction onto a recipe result
-                 derived, containers
-data        ──►  schema, containers,          readers (stackable protocols), writers,
-                 reductions                   prefetch, cache; round-trips
-                                              attrs.reduction (see §Data layer)
-remote      ──►  schema, containers, data,    pypic.server client (v0.2);
-                 reductions                   ReductionSpec wire type
-render      ──►  schema, containers,          Three.js WebGPURenderer + WGSL passes
-                 coordinates, numerics,
-                 reductions, compute, data, gpu
-store       ──►  schema, containers,          reactive state; canonical names as keys
-                 reductions, compute
-ui          ──►  schema, containers, store,   no direct render imports; theming is
-                 remote                        @schema/theme + ui/theme/ (not a layer)
-app         ──►  everything (composition root only)
-workers     ──►  schema, coordinates,          no DOM, no THREE, no GPUDevice
-                 numerics, compute (ts/wasm
-                 only), data, containers
-embed       ──►  (re-export facade only)      public lib surface; never
-                 schema, containers,          render/ui/app/store/remote-client
-                 coordinates, numerics,
-                 reductions, derived,
-                 diagnostics, compute, data
+schema       Zod, registry, units, aliases, selections — the root, depends on nothing
+containers   FieldDataset, ParticleData, TabularData, StaggerInfo, GridInfo (pypic.containers + .dataset)
+coordinates  curl, div, grad, transforms, GeometryType (pypic.coordinates)
+numerics     interp (trilinear, tricubic), integrators (RK4, Dormand-Prince 5(4) + I step control)
+reductions   reduce() (pypic.reductions); Reduction literal re-exported from schema (§Data layer)
+derived      recipe-math (|B|, beta, v_A, …) (pypic.derived)
+diagnostics  div_B, div_E, field_energy (pypic.diagnostics) — reserved
+shaders      WGSL string assets (WESL-ready; §Shader sharing)
+gpu          GPUDevice, capabilities, device.lost
+compute      dispatcher + backends + recipe registry (pypic.compute); can chain a reduction onto a recipe
+data         readers (stackable protocols), writers, prefetch, cache; round-trips attrs.reduction
+remote       pypic.server client, ReductionSpec wire type — reserved
+render       Three.js WebGPURenderer + WGSL passes
+store        reactive state; canonical names as keys
+ui           no direct render imports; theming is @schema/theme + ui/theme/ (not a layer)
+app          composition root — imports everything
+workers      no DOM, no THREE, no GPUDevice
+embed        public lib surface; re-export facade only, never render/ui/app/store/remote
 ```
+
+The **edges** are `ALLOWED_IMPORTS` in `scripts/layers.ts` — the single authority, and the only place
+they are written down. A reserved layer's row carries the reason its edges are held open.
 
 **Hard rules**
 - `coordinates/` and `numerics/` use typed arrays + `Vec3 = readonly [number, number, number]`. No `THREE.Vector3`, and **no external math dep** — the planned `gl-matrix` adoption proved unnecessary (both layers shipped dependency-free in v0.1; adopt only if a future kernel demonstrates the need).
 - `compute/` returns typed arrays packaged in `FieldDataset`-shaped values from `@webpic/containers`. Wrapping into `THREE.DataTexture`/`GPUTexture` is the render layer's job.
 - `derived/` is pure functions over fields (mirrors `pypic.derived`). No backend awareness. `compute/` registers recipes from `derived/`; `derived/` does not import `compute/`.
 - **Single TS reference impl per operator.** `compute/backends/ts/field.curl` delegates to `coordinates/operators/curl` rather than reimplementing — same for `divergence` and `gradient`; `field.magnitude` delegates likewise but to `derived/magnitude` (magnitude is a `derived/` recipe, not a `coordinates/` operator). Cross-backend equivalence tests then compare `coordinates.curl` against the WGSL kernel in `compute/backends/webgpu/`, not against a duplicate TS-side curl.
-- `gpu/` owns the singleton `GPUDevice`. Both `compute/backends/webgpu/` and `render/` import from it. `gpu/` owns `device.lost` recovery, capability probing, and `timestamp-query` profiling.
+- `gpu/` owns the singleton `GPUDevice`. Both `compute/backends/webgpu/` and `render/` import from it. `gpu/` owns `device.lost` recovery and capability probing.
 - `ui/` talks to `render` only through `store` intents. UI never calls `scene.add(...)`.
 - `data/` produces canonical-named typed-array payloads in `FieldDataset` containers; it does not know what's plotted.
 - **WebGPU backend runs inline on main thread** (`GPUDevice` can't transfer to workers). TS/WASM backends are *designed* to run in a `comlink`-backed worker pool; v0.1 runs the single TS backend synchronously on the main thread (one cheap `|B|` op), and the pool lands when compute gets heavy (M3+). The dispatcher routes based on selected backend.
@@ -152,166 +132,18 @@ type SimulationState = {
 > - **Costs:** inter-package version drift, slower install, `package.json` boilerplate, publish-flow complexity.
 > - **Decided at M2 (M2.14): stay single-package for v0.1.** The DAG is already enforced three ways — `scripts/check-boundaries.ts` (ts-morph), Biome `noRestrictedImports`, and `tests/boundaries.test.ts` — so a workspace split buys only install-time enforcement at the cost of 18 `package.json` files, several for 3-line leaf layers (`coordinates`, `reductions`, `diagnostics`, `shaders`) with no external consumer yet. **Revisited at M6 close (2026-07-03): stayed single-package.** `@webpic/embed` shipped from the single package via `vite.embed.config.ts` + `size-limit` (M6.6 TypeDoc, M6.7 budget) — publishing needed a build target, not a package boundary. Next trigger: an actual npm publish of `@webpic/embed`, or a first external consumer. **If it ever splits, collapse to coarse packages** — one `@webpic/core` for the math-y mirror layers (`containers`, `coordinates`, `numerics`, `reductions`, `derived`, `diagnostics`; same external dep surface, ship together), plus `@webpic/app` and `@webpic/embed` — not 18. `check-boundaries.ts` keeps enforcing `src/<layer>/` dirs within the single package either way.
 
-**The tree below (and the `// packages/<layer>/src/…` headers in later code blocks) shows the eventual `@webpic/<layer>` *target* layout** — pnpm workspace, one package per layer. v0.1 ships these same modules under **`src/<layer>/` in a single package**, so any `packages/…` path here lives under `src/…` today (path aliases `@schema/*`, `@compute/*`, … bridge the two).
+A `// packages/<layer>/src/…` header in a later code block names the eventual `@webpic/<layer>` *target* path; the same module lives under `src/<layer>/` today, and the path aliases (`@schema/*`, `@compute/*`, …) bridge the two.
 
 ```
-webpic/
-  package.json                    # workspace root (target: pnpm workspace; today: single package)
-  pnpm-workspace.yaml
-  tsconfig.base.json
-  biome.jsonc                     # lint + format config (jsonc: the ratchet ceilings carry their WHY)
-  vite.config.ts                  # COOP/COEP headers; OffscreenCanvas plumbing (vite-plugin-wesl deferred — see §Build)
-  vitest.config.ts
-  index.html
-  packages/
-    schema/                       # @webpic/schema — canonical TOML schema, Zod, units, aliases
-      src/
-        types.ts                  #   Vec3, FieldName, SpeciesIdx
-        validators.{generated.ts,ts}
-        aliases.generated.ts
-        registry.ts               #   FieldInfo, units, LaTeX
-        selections.ts             #   Box / Plane / SphereSelection + Reduction Literal (10 ops)
-        units.ts                  #   Normalization, SI conversions
-        toml.ts                   #   smol-toml parse + validate
-        version.ts                #   schemaVersion + migration hooks
-    containers/                   # @webpic/containers — mirrors pypic.containers + pypic.dataset
-      src/
-        field_dataset.ts          #   FieldDataset (typed-array-backed)
-        particle_data.ts
-        tabular_data.ts
-        simulation_config.ts
-        stagger_info.ts           #   Yee-mesh component offsets
-        grid_info.ts
-    coordinates/                  # @webpic/coordinates — mirrors pypic.coordinates
-      src/
-        operators/                #   curl, divergence, gradient (magnitude lives in derived/)
-        transforms/               #   cart/sph/cyl
-        geometry.ts
-    numerics/                     # @webpic/numerics — mirrors pypic.numerics + pypic.traces sampling helpers
-      src/
-        interp/                   #   trilinear, tricubic
-        integrators/              #   RK4, Dormand-Prince 5(4) + I step control
-        tracing.ts                #   trace_field_line[s]_adaptive, TerminationReason, FieldLine
-    reductions/                   # @webpic/reductions — mirrors pypic.reductions
-      src/
-        reduce.ts                 #   reduce(dataset, { axis, op, weight, selection, nan_policy, fields })
-        types.ts                  #   re-exports Reduction Literal from @webpic/schema
-        attrs.ts                  #   ReductionAttrs + length_axes accumulator
-        index.ts
-    gpu/                          # @webpic/gpu — device, capabilities, profiler, recovery
-      src/
-        device.ts                 #   singleton accessor; device.lost recovery
-        capabilities.ts           #   shader-f16, timestamp-query, subgroups probing
-        profiler.ts               #   timestamp-query wrapper + performance.now() fallback
-        memory.ts                 #   alloc with pressure response
-    shaders/                      # @webpic/shaders — WGSL string assets (WESL-ready; toolchain deferred)
-      src/
-        kernels/                  #   shared with rustpic via @rustpic/shaders later
-        visual/                   #   webpic-only rendering shaders
-    derived/                      # @webpic/derived — recipe-math (mirrors pypic.derived)
-      src/
-        magnitude.ts              #   M1 — |B|, |E|, |J|, |V|, per-species variants
-        plasma_beta.ts, alfven_speed.ts, sound_speed.ts, plasma_frequency.ts,
-        gyrofrequency.ts, skin_depth.ts, energies.ts     # M3
-        magnetosonic_speed.ts, gyroradius.ts, debye_length.ts, poynting.ts  # v0.2
-                                  #   Registry keys mirror pypic.compute.RECIPES; milestone tags
-                                  #   reflect intent (see §Milestones), not contract.
-    diagnostics/                  # @webpic/diagnostics — mirrors pypic.diagnostics
-      src/
-        div_b.ts, div_e.ts        #   ∇·B, ∇·E residuals
-        field_energy.ts
-    compute/                      # @webpic/compute — mirrors pypic.compute
-      src/
-        backends/{ts,wasm,webgpu} #   wasm = @rustpic/plasma-wasm (M9 contingent);
-                                  #   webgpu imports @webpic/shaders + @webpic/gpu
-        kernels.ts                #   typed union of all operations
-        dispatcher.ts             #   compute() + computeIter() with AbortSignal + onProgress
-        compute_field.ts          #   computeField(name, dataset, ctx?)
-        recipes.ts, recipes.generated.ts
-        capabilities.ts           #   per-backend probe
-        calibration.ts            #   background microbench; seeded by adapter heuristics;
-                                  #   scores persisted to OPFS keyed by GPU adapter
-    data/                         # @webpic/data — format adapters
-      src/
-        readers/
-          _protocols.ts           #   SimulationReader / FieldListingReader / ParticleDataReader / AuxiliaryDataReader
-          _registry.ts            #   registerReader + openSimulation (confidence-ranked)
-          zarr.ts                 #   zarrita.js (Zarr v3) — primary
-          hdf5.ts                 #   h5wasm (v0.2)
-          parquet.ts              #   hyparquet (particles, v0.2)
-          arrow.ts                #   apache-arrow for in-memory exchange
-          duckdb.ts               #   @duckdb/duckdb-wasm (dynamic import only)
-        writers/
-          zarr.ts                 #   Zarr v3 writer (M6)
-        config.ts                 #   TOML config loader
-        cache.ts                  #   OPFS / IndexedDB; navigator.locks; writes in worker (Safari)
-        prefetch.ts               #   time-series ring buffer; EWMA + debounce
-        stagger.ts                #   destagger to co-located grid on load
-    remote/                       # @webpic/remote — v0.2
-      src/
-        client.ts                 #   pypic.server HTTP + EventSource/WebSocket
-        protocol.ts               #   typed endpoint contract
-    render/                       # @webpic/render — Three.js + WebGPU; no UI
-      src/
-        renderer.ts               #   WebGPURenderer; OffscreenCanvas-on-Worker entry
-        worker.ts                 #   render worker; owns canvas + scene
-        scene/                    #   axes, gizmos, bounds
-        passes/                   #   raymarch, slice, particles, streamlines, lic
-        materials/                #   NodeMaterial + wgslFn shims
-        adapters/                 #   store→scene projections (one file per concern)
-        export/                   #   PNG screenshot (M6), WebCodecs MP4/WebM (v0.2)
-    store/                        # @webpic/store — reactive state (Zustand)
-      src/
-        simulation.ts             #   datasets, timestep, active field, normalization
-        ui.ts                     #   panel state, hover, selection (separate lifecycle)
-        actions.ts                #   typed intent functions
-    ui/                           # @webpic/ui — owned control primitives + custom shell
-      src/                        #   (small, focused; magviz's TS UI tree is ~3 kLoC for reference)
-        shell/                    #   dockable/draggable/hideable panels
-        controls/                 #   dependency-free DOM primitives (slider, select,
-                                  #     checkbox, text) behind a Pane/Folder/Binding facade —
-                                  #     lifted from magviz/src/ui/controls; schema-aware
-                                  #     bindings via ControlDescriptor
-        command-palette.ts        #   Cmd+K, fuzzy match (v0.2)
-        shortcuts.ts              #   keymap registry, remappable, scoped
-        overlay/                  #   axes, colorbar, coords readout
-        theme/                    #   reads [webpic] section of pypic theme TOML
-    app/                          # @webpic/app — composition root
-      src/
-        main.ts                   #   bootstrap(): capability probe, heuristics seed, store
-                                  #     wiring, spawns the render worker
-        index.ts                  #   app barrel (re-exports bootstrap)
-    workers/                      # @webpic/workers — worker entrypoints
-      src/
-        compute.worker.ts         #   pool worker; imports compute backends/ts,wasm
-        data.worker.ts            #   reader + prefetch worker (owns OPFS writes)
-        messages.ts               #   typed message protocol (RenderWorkerRequest / RenderWorkerResponse; StoreToRender/RenderToStore/DataToRender are conceptual labels)
-    embed/                        # @webpic/embed — headless library export
-      src/
-        index.ts                  #   public API; no UI imports
-  tests/                          # cross-layer meta-guards + shared fixtures; layer tests sit beside
-                                  #   their source (foo.test.ts), so nothing here is a unit test
-    boundaries / aliases / codegen / comment-budget / design-citations / embed / embed-bundle /
-      live-modules / manifest / tolerances / wgsl        #   the guards
-    goldens / schema-parity / writer-parity / traces.golden / synthetic / seedPick
-                                  #   webpic vs pypic numerical agreement
-    fixtures/v1/                  #   pypic-generated golden outputs
-    fixtures/synthetic/           #   Orszag-Tang, Harris, GEM (analytical)
-    tolerances.ts                 #   per-kernel, per-precision tolerance table
-  scripts/
-    codegen/                      #   bundle.ts (pypic export bundle → JSON) + emit.ts +
-                                  #     render-{schema,aliases,recipes,registry}.ts (`npm run gen`)
-    harness/                      #   shared headed-Chrome session + page probes for the instruments
-    check-boundaries.ts           #   primary layer enforcement (ts-morph)
-    sync-themes.ts                #   pull pypic theme TOMLs into the bundle
-    perf-gate.ts                  #   cold-start perf gate (`npm run perf:gate`)
-    profile-raymarch.ts           #   sustained raymarch frame time (`npm run perf:raymarch`)
-    verify-streaming-render.ts    #   streamed steps reach the GPU under scrub (`npm run verify:streaming`)
-    verify-orientation.ts         #   z-up + camera-feel screenshots for review (`npm run verify:orientation`)
-    shot-readme.ts                #   regenerate the README hero (`npm run shot:readme`)
-    gen-fixtures.ts / gen-synthetic.ts / gen-trace-fixtures.ts   #   refresh fixtures via pypic
-    sync-shaders.ts               #   NOT BUILT — rustpic-gated, lands when @rustpic/shaders publishes
+src/<layer>/            one folder per DAG row; a layer's root holds its infrastructure and its
+                        surfaces live in folders named for what they are (CLAUDE.md §Architecture)
+scripts/                codegen, the boundary checker, and the headed-Chrome instruments
+tests/                  cross-layer meta-guards + shared fixtures — anything importing vitest
+docs/                   DESIGN.md (this file), cleanup.md, generated api/
 ```
+
+`ls src/` is the current inventory; this section is the *shape*, not a manifest. Layer contents are
+the DAG list above; the files worth naming are in §Critical files & references.
 
 #### Public library export
 
@@ -475,9 +307,9 @@ Both sides are exhaustive: the worker's `handle()` and the app's response router
 - **`THREE.WebGPURenderer`** (`three/webgpu`) — **pinned to `three@0.185.1`**, not a floating `r172+` range; bump the pin deliberately, with the full GPU gate. r179 broke OffscreenCanvas-in-worker (#31605); PR-#31607 fixed it (guards `HTMLVideoElement instanceof` with a `typeof … !== 'undefined'` presence check) and first shipped in r180/`0.180.0`; `0.185.1` still carries it (worker-frame parity smoke green on bump). Canonical pin reference for the whole doc. CI smoke asserts worker-frame vs main-frame within 1 px.
 - **OffscreenCanvas-on-Worker from day one.** `render/worker.ts` owns canvas + scene + renderer; `app/main.ts` transfers via `transferControlToOffscreen()`; talks to `store/` via `MessageChannel`.
 - **Raw `GPUComputePassEncoder` pipelines** owned by `compute/backends/webgpu/`; shared kernels in `@webpic/shaders`.
-- `gpu/profiler.ts`: `GPUQuerySet` with `timestamp-query`; `performance.now()` + `onSubmittedWorkDone()` fallback.
+- Frame timing is wall-clock: `render/runtime/frameTimer.ts`, gated to continuous mode. `gpu/profiler.ts` carries the `GPUQuerySet`/`timestamp-query` path `STAGED:` — render-pass timestamps lost the Metal device and were removed.
 - **`device.lost` recovery** (`gpu/device.ts`): rebuild `compute/` + `render/` from OPFS-cached source, restore scene from `store/`. UX: canvas freezes on last frame; "GPU was reset; recovering…" banner with elapsed seconds; UI stays interactive (Zustand survives in main); 200 ms fade-in on recovery; OPFS-evicted fields marked "unavailable, refetching" — never silent.
-- Memory pressure (`gpu/memory.ts`): on alloc failure, halve texture resolution + banner.
+- Memory pressure: interaction-time pressure scales the swapchain render scale (`render/runtime/qualityController.ts`), not texture resolution. Big allocations report bytes to `gpu/vramLedger.ts`.
 - Boot: `main.ts` shows a blocking "requires WebGPU" banner naming the supported browsers when `navigator.gpu` is absent, and the same banner (with a reload) when adapter/device acquisition fails before the first frame. There is no WebGL fallback.
 - **Pipeline compile:** `renderer.compileAsync(scene, camera)` (the renderer method — there is no `material.compileAsync`) warms each heavy scene's pipeline before its first `renderOnce`, off the critical path, so first frame doesn't hitch on driver compile. "At boot" only if a default dataset auto-loads — `worker.ts:init()` builds just the triangle at startup, so the warm hangs off `upsertLayer` (the volume/slice layer-build seam). Streamlines/particles compile lazily on toggle. First-frame: <500 ms cold, <100 ms warm. (Dev-only shader HMR is a separate concern — see §Build system & tooling / §Milestones M2 (M2.13); it ships nothing in the prod bundle.)
 
@@ -535,9 +367,9 @@ Single-pass WGSL fragment raymarcher; gradient + Phong from M2. The fixed-step m
 ### Time-series playback
 Streaming is mandatory at 256³ (~64 MiB/field/step as a decoded `Float32Array`; ring depth N≈1–5 per §Performance gate (GPU memory) — can't hold 256), so "scrub without stalls" is a perf-gate clause, not a nicety. **Prerequisite chain:** the reader substrate is ready (`readTimestep`/`availableTimesteps`), but the store has no time cursor yet — it gains `currentStep`/`availableSteps` + a `setStep` intent, and `ui` a scrub `RangeControl`, before prefetch has anything to track.
 
-**Necessary core** (what passes the gate): ring buffer of N steps around cursor + prefetch ±1 + double-buffered GPU upload. Two workers: predict/read in `data.worker.ts`, transfer the decoded buffer over the `MessagePort` (§Worker-to-worker pairing), ping-pong two `Data3DTexture`s in the render worker. The ring vs CLAUDE.md's "transfer, don't clone" tension resolves as: hold until upload, transfer on upload (the buffer detaches), re-read evicted steps from the OPFS cache on scrub-back.
+**Necessary core** (what passes the gate): ring buffer of N steps around cursor + prefetch ±1 + double-buffered GPU upload. Two workers: predict/read in `data.worker.ts`, transfer the decoded buffer over the `MessagePort` (§Worker message protocol), ping-pong two `Data3DTexture`s in the render worker. The ring vs CLAUDE.md's "transfer, don't clone" tension resolves as: hold until upload, transfer on upload (the buffer detaches), re-read evicted steps from the OPFS cache on scrub-back.
 
-**Profile-then-tune prediction** (`data/prefetch.ts`, added only if dumb ±1 stalls — "profile before tuning"): direction from EWMA of recent step deltas (window=8, α=0.7); magnitude → prefetch count (1–5); 250 ms debounce on flips; stationary (2 s) → drop EWMA, prefetch ±1. Fuzz scrubber in `tests/prefetch.test.ts`.
+**Profile-then-tune prediction** (`data/prefetch.ts`, added only if dumb ±1 stalls — "profile before tuning"): direction from EWMA of recent step deltas (window=8, α=0.7); magnitude → prefetch count (1–5); 250 ms debounce on flips; stationary (2 s) → drop EWMA, prefetch ±1. Fuzz scrubber in `src/data/prefetch.test.ts`.
 
 ### Performance gate (not a budget)
 
@@ -552,7 +384,7 @@ Streaming is mandatory at 256³ (~64 MiB/field/step as a decoded `Float32Array`;
 | Streamlines (10⁴ seeds, M4)   | ≤ 2 ms                                  | ≤ 2 ms                         |
 | Compute (derived on change)   | ≤ 1 ms                                  | ≤ 1 ms                         |
 
-**Rule:** if 256³ at 256-step depth doesn't hit 8 ms/frame on the volume raymarch by end of M2, defer 512³ to v0.2 with LOD bricks. Measure with `timestamp-query` when available, `performance.now()` + `onSubmittedWorkDone()` fallback otherwise.
+**Rule:** if 256³ at 256-step depth doesn't hit 8 ms/frame on the volume raymarch by end of M2, defer 512³ to v0.2 with LOD bricks. Measure with `render/runtime/frameTimer.ts` (wall clock around `onSubmittedWorkDone()`).
 
 **GPU memory:** 256³ × 6 fields × `r32float` ≈ 384 MiB (`r16float` fallback ≈ 192 MiB); 512³ × 6 × `r16float` ≈ 1.5 GiB. A single 256³ field is 64 MiB at `r32float` (32 MiB at `r16float`); the decoded CPU ring buffer (`Float32Array`, §Time-series playback) and the resident GPU texture are distinct allocations. Resident GPU is several× the single-timestep figure (× ring depth N≈1–5, + min-max grid, + TF texture) — which forces 256³ preview + LOD bricks for anything larger.
 
@@ -737,42 +569,11 @@ The `SubscribeRequest` JSON shape (mirror in `remote/protocol.ts` field-for-fiel
 
 **Own the control primitives; custom code for shell + palette + keymap + theme.** magviz proved this out:
 - Its dependency-free `ui/controls` layer (a `RangeControl` slider + pure-DOM select/checkbox/text behind a tiny `Pane`/`Folder`/`Binding` facade) carries no `three`/scene/framework deps and lifts into `@webpic/ui/controls` unchanged. Dropped Tweakpane entirely (~50 KB + plugin) once the primitives landed.
-- The schema-aware `ControlDescriptor` binder below sits on top of that facade (in `ui/binding/`); store contract is callbacks-out / `set()`-in (intent dispatch + selective subscribe — no two-way binding, *not* magviz's mutate-the-target `addBinding`).
+- Store contract is callbacks-out / `set()`-in (intent dispatch + selective subscribe — no two-way binding, *not* magviz's mutate-the-target `addBinding`).
 - **Aim small** — magviz's TS UI tree (~3 kLoC) is the comparison, not a target. If the shell starts looking like a framework, stop.
 - **CSP:** control styles inject via a single `<style>` at init (`applyControlStyles`); for strict-CSP hosts, ship extracted CSS via `<link>` with a nonce.
-- **v0.1 reality (M2.2):** the facade is `kind`-tagged callback methods (`addSlider`/`addSelect`/`addCheckbox`/`addText` + `set()`/`dispose()`), *not* magviz's mutate-the-target `addBinding(target, key)` — webpic's no-two-way-binding rule made the rewrite cleaner than the lift, and controls build DOM off `parent.ownerDocument` (no global `document`). `select` is a native `<select>`; the slider is a basic linear `<input type=range>` — the log/symlog/interval `RangeControl` (+ `rangeMath`) ports with M2.3 window/level, and magviz's body-portaled popover dropdown with M5. `ControlDescriptor` is a discriminated union; it resolves *labels* from the registry (`fieldInfo`), but numeric bounds come from the descriptor since `FieldMeta` carries no ranges. The field-selector's option list is the store's `availableFields` (UI can't reach `compute`).
+- **v0.1 reality (M2.2):** the facade is `kind`-tagged callback methods (`addSlider`/`addSelect`/`addCheckbox` + `set()`/`dispose()`), *not* magviz's mutate-the-target `addBinding(target, key)` — webpic's no-two-way-binding rule made the rewrite cleaner than the lift, and controls build DOM off `parent.ownerDocument` (no global `document`). `select` is a native `<select>`; the log/symlog/interval `RangeControl` (+ `rangeMath`) shipped with M2.3 window/level, and magviz's body-portaled popover dropdown is an M5 deferral. A control resolves its *label* from the registry (`fieldInfo`) where it names a canonical field, but numeric bounds come from the call site since `FieldMeta` carries no ranges. The field-selector's option list is the store's `availableFields` (UI can't reach `compute`).
 
-**Schema-aware bindings** via `ControlDescriptor`:
-
-```ts
-// A kind-tagged descriptor (`ui/binding/controlDescriptor.ts`). `canonicalName` resolves the
-// LABEL from the field registry (loud throw on unknown — pypic's KeyError rule); numeric bounds
-// come from the descriptor, since FieldMeta carries longName/latex/siUnit/quantityType, no ranges.
-type ControlDescriptor =
-  | { kind: 'slider'; canonicalName?: FieldName; label?: string;
-      value: number; min: number; max: number; step?: number;
-      format?: (v: number) => string; onChange: (v: number) => void }
-  | { kind: 'select'; canonicalName?: FieldName; label?: string;
-      value: string; options: SelectOption[]; onChange: (v: string) => void }
-  | { kind: 'checkbox'; canonicalName?: FieldName; label?: string;
-      value: boolean; onChange: (v: boolean) => void }
-  | { kind: 'text'; canonicalName?: FieldName; label?: string;
-      value: string; onChange: (v: string) => void };
-
-// Overloaded so each kind hands back its concrete handle; dispatches to folder.addSlider/addSelect/…
-function bindControl(folder: Folder, desc: ControlDescriptor): ControlHandle</* concrete */> {
-  const label = desc.label
-    ?? (desc.canonicalName ? labelFromRegistry(desc.canonicalName) : raiseMissingLabel());
-  switch (desc.kind) {
-    case 'slider':   return folder.addSlider({ label, ...desc });
-    case 'select':   return folder.addSelect({ label, ...desc });
-    case 'checkbox': return folder.addCheckbox({ label, ...desc });
-    case 'text':     return folder.addText({ label, ...desc });
-  }
-}
-```
-
-Runtime introspection — no codegen. Schema changes propagate without rebuild.
 
 **Theme.** Reads pypic's shared TOML themes (`pypic/plotting/themes/*.toml`): the `[webpic]` section for app-specific colors, plus `[colors]`/`[colormaps]`/`[fonts]` for cross-project values. **Canonical fact:** the `[webpic]` block has shipped upstream in all 7 bundled themes — webpic is purely a consumer (other sections cross-ref here). Schema kept for reference and additive bumps:
 
@@ -836,7 +637,7 @@ Hand-rolled registry (`ui/keys/shortcuts.ts` is the cheat-sheet authority; OPFS 
 - **Workers:** Vite `?worker` syntax. The compute pool is designed around `comlink` (~5 KB) for RPC + a 20-line round-robin pool over `new Worker(new URL(...), { type: 'module' })`, sized to `Math.min(navigator.hardwareConcurrency - 1, 8)` (not `tinypool` — Node-only). **v0.1 reality:** only `data.worker.ts` exists, using raw `postMessage`; `comlink` is added when the compute pool lands (M3+).
 - **Lint + format:** **Biome** (single binary, integrated formatter — replaces ESLint + Prettier). Layer enforcement is not a Biome plugin; see §Layered dependency DAG.
 - **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. A `happy-dom` project (devDep) runs the `ui` DOM-unit tests (`*.dom.test.ts`) — node mode can't construct DOM, and these are deterministic, not visual. Browser mode (`@vitest/browser-playwright`) runs the `*.browser.test.ts` real-GPU suites in headed system Chrome via `npm run test:gpu` — local-only (WebGPU on macOS/Metal is unreliable headless), env-gated out of plain `vitest`/CI. Coverage via `@vitest/coverage-v8` (`npm run test:coverage`) is reported, not gated. Playwright E2E flows are deferred (see §Testing strategy).
-- **Git hooks:** `lefthook` (installed by `npm run prepare`) — Biome on staged files at commit, typecheck + tests at push. Mirrors CI so a red build is caught locally first.
+- **Git hooks:** `lefthook` (installed by `npm run prepare`) — Biome on staged files at commit; typecheck, boundaries, lint and tests at push. Mirrors CI so a red build is caught locally first.
 - **Docs:** TypeDoc from public exports.
 - **Bundle size:** `size-limit` with 1.0 MB ceiling on `@webpic/embed`, 550 kB on `@webpic/app` (gzipped).
 - **Shader validation:** `tests/wgsl.test.ts` parses the assembled WGSL with `wgsl_reflect` and pins each kernel's binding layout, workgroup size and `Params`/`TraceMeta` byte lengths against the `gpu/` runners that duplicate them. Parse-level only: CI proves the kernels compile, `test:gpu` proves they run (a `tint` CLI tier was considered and dropped — `wgsl_reflect` is in-process and needs no toolchain).
@@ -856,26 +657,16 @@ Hand-rolled registry (`ui/keys/shortcuts.ts` is the cheat-sheet authority; OPFS 
 6. **Data adapters** — Zarr readers against pypic-written stores.
 7. **TOML round-trip parity** — `smol-toml` vs Python `tomllib`.
 8. **OffscreenCanvas worker render parity** — frame from worker matches main-thread frame within 1 pixel diff (`render/parity.browser.test.ts`, `test:gpu`, local-only).
-9. **Prefetch fuzz** — `tests/prefetch.test.ts` exercises EWMA direction detection with seeded random scrub patterns.
+9. **Prefetch fuzz** — `src/data/prefetch.test.ts` exercises EWMA direction detection with seeded random scrub patterns.
 10. **Render-worker integration** — the `render/worker.*.test.ts` suites drive the real message loop against mocked scenes (quality tiers, device recovery, streaming ping-pong, shader HMR).
-11. **Meta-guards** — `tests/embed.test.ts` (star-export ambiguity on the public facade), `ui/panels/themeCoverage.dom.test.ts` (every synced theme's `default-panels` is registered), `tests/tolerances.test.ts` (the tolerance ladder stays monotone), `tests/boundaries.test.ts` + `tests/aliases.test.ts` (layer DAG + alias parity).
+11. **Meta-guards** — `tests/embed.test.ts` (star-export ambiguity on the public facade), `ui/panels/themeCoverage.test.ts` (every synced theme's `default-panels` is registered), `tests/tolerances.test.ts` (the tolerance ladder stays monotone), `tests/boundaries.test.ts` + `tests/aliases.test.ts` (layer DAG + alias parity).
 
 **Planned, not yet written** (listed here so the gap is visible, not implied):
 - **Multi-tab cache safety** — two concurrent tabs writing to OPFS; assert no corruption. Needs a two-context browser test.
 - **Migration** — a `tests/migration.test.ts` exercising schema-version transitions, once a second schema version ships (item 3 covers additive compatibility today).
 - **One smoke E2E** — load Zarr URL, render volume, scrub timestep, no crashes. The closest live check is `scripts/verify-streaming-render.ts` (manual, headed Chrome).
 
-**Tolerance table (`tests/tolerances.ts`).** Honest per-kernel × per-precision; bare operator keys, `{rtol, atol}` cells (the atol floor is what keeps curl/div honest at their zero-crossings — magnitude needs none):
-
-```ts
-export const TOL = {
-  magnitude: { ts_f64: { rtol: 1e-12, atol: 1e-12 }, ts_f32: { rtol: 1e-6, atol: 1e-6 },
-               webgpu_f32: { rtol: 1e-5, atol: 1e-6 }, webgpu_f16: { rtol: 1e-3, atol: 1e-3 } },
-  curl:      { ts_f64: { rtol: 1e-12, atol: 1e-12 }, ts_f32: { rtol: 1e-5, atol: 1e-5 },
-               webgpu_f32: { rtol: 1e-5, atol: 1e-6 }, webgpu_f16: { rtol: 5e-3, atol: 5e-3 } },
-  // divergence ≡ curl numerics; gradient too (its webgpu rows derived — no WGSL gradient kernel yet).
-} satisfies Record<Kernel, Record<Precision, Tolerance>>;
-```
+**Tolerance table (`tests/tolerances.ts`).** Honest per-kernel × per-precision; bare operator keys, `{rtol, atol}` cells (the atol floor is what keeps curl/div honest at their zero-crossings — magnitude needs none). The matrix itself lives in that file, guarded for completeness and ladder order by `tests/tolerances.test.ts`; what follows is why the cells read as they do.
 
 Header marks each cell measured vs derived: magnitude/curl/div @ `webgpu_f32` measured (M3.1, small smooth grid); f16 has no compute kernel in v0.1 (`shader-f16` unrequested), so those cells are paper bounds from the f16 unit roundoff (~5×10⁻³ for the cancelling FD ops). The 1e-6 rel f32 row is honest for `|B|` but fiction for curl — f32 cancellation in the difference, so curl/div carry a looser floor. M3.4 may widen curl/div `ts_f64` toward ~1e-10 and the `webgpu_f32` atol on 256³ turbulent goldens — widen only with that measurement. A `tests/tolerances.test.ts` guard keeps the matrix complete and the ladder honest (f64 tightest, f16 loosest, magnitude ≤ the FD ops).
 
@@ -891,9 +682,9 @@ Header marks each cell measured vs derived: magnitude/curl/div @ `webgpu_f32` me
 
 ## CI infrastructure
 
-**What runs (`.github/workflows/ci.yml`, one `ubuntu-latest` job, Node 24):** `typecheck` → `check:boundaries` → `gen:check` → `lint:ci` → `test:coverage` (node + dom projects; the coverage report uploads as an artifact) → `build` → `build:embed` → `docs:api` (TypeDoc with `treatWarningsAsErrors`) → `size`. `pages.yml` deploys `dist/` plus the API reference under `/api/` on every push to `main`, queued rather than cancelled. `gen:themes:check` and `test:parity` need the `../pypic` sibling checkout, so they stay local-only guards.
+**What runs (`.github/workflows/ci.yml`, one `ubuntu-latest` job, Node 24):** the steps of `package.json`'s `check`, in order, one `run:` each so a failure annotates its own step. Two ordering constraints are load-bearing and carry their reason in `ci.yml`: `build`/`build:embed` precede `test:coverage` (`tests/embed-bundle.test.ts` skips when `dist-embed` is absent), and the coverage-artifact upload sits between `test:coverage` and `docs:api`. `pages.yml` deploys `dist/` plus the API reference under `/api/` on every push to `main`, queued rather than cancelled. `gen:themes:check` and `test:parity` need the `../pypic` sibling checkout, so they stay local-only guards.
 
-**Local-only tiers** (need a real GPU or a pypic checkout; never in CI): `test:gpu` (cross-backend parity, streamlines, composite, pick, worker frame parity — headed system Chrome), `perf:gate` (M0/M2 acceptance numbers), `test:parity` (`WEBPIC_PYPIC_PARITY=1`, schema + writer parity against live pypic). The pre-push lefthook runs `typecheck` + `test` so the CI-shaped failures surface before a push.
+**Local-only tiers** (need a real GPU or a pypic checkout; never in CI): `test:gpu` (cross-backend parity, streamlines, composite, pick, worker frame parity — headed system Chrome), `perf:gate` (cold-paint / first-frame numbers), `test:parity` (`WEBPIC_PYPIC_PARITY=1`, schema + writer parity against live pypic). The pre-push lefthook runs the four cheap CI gates — `typecheck`, `check:boundaries`, `lint:ci`, `test` — so CI-shaped failures surface before a push.
 
 **Deferred (was the original CI design; nothing here exists yet):** a Linux SwiftShader WebGPU tier (`--enable-unsafe-webgpu --use-vulkan=swiftshader` — functional but too slow and unrepresentative to gate on), a macOS/M2-Pro runner for the perf gate and real-WebGPU suites, a Chrome stable + Canary matrix with Safari TP nightly, and screenshot/`timestamp-query` artifacts on render failures. Revisit when a self-hosted Apple-silicon runner is available; until then the GPU tier is a documented manual step before any render-touching merge.
 
@@ -1015,7 +806,7 @@ Cross-cutting concerns and explicitly deferred items. Milestone-bound work lives
 
 ## Critical files & references
 
-**Codegen + scripts.** Shipped (M0): `scripts/codegen/{bundle,emit,render-schema,render-aliases,render-recipes,render-registry}.ts` (driven by `npm run gen`), `scripts/check-boundaries.ts`, `scripts/sync-themes.ts`, `scripts/perf-gate.ts`. Shipped since: `tests/tolerances.ts` (per-kernel × per-precision `{rtol,atol}` matrix `TOL.<kernel>.<precision>` + structural guard `tests/tolerances.test.ts` — landed M3.2), `gen-synthetic.ts` (analytical fields), `gen-fixtures.ts` + `gen-trace-fixtures.ts` (dev), and the four headed-Chrome instruments (`perf:raymarch`, `verify:streaming`, `verify:orientation`, `shot:readme`). Not built: `sync-shaders.ts` (rustpic-gated). See §Package shape for the full file inventory.
+**Codegen + scripts.** Shipped (M0): `scripts/codegen/{bundle,emit,render-schema,render-aliases,render-recipes,render-registry}.ts` (driven by `npm run gen`), `scripts/check-boundaries.ts`, `scripts/sync-themes.ts`, `scripts/perf-gate.ts`. Shipped since: `tests/tolerances.ts` (per-kernel × per-precision `{rtol,atol}` matrix `TOL.<kernel>.<precision>` + structural guard `tests/tolerances.test.ts` — landed M3.2), `gen-synthetic.ts` (analytical fields), `gen-fixtures.ts` + `gen-trace-fixtures.ts` (dev), and the four headed-Chrome instruments (`perf:raymarch`, `verify:streaming`, `verify:orientation`, `shot:readme`). Not built: `sync-shaders.ts` (rustpic-gated).
 
 **Upstream PR.** pypic theme TOMLs — `[webpic]` section (shipped M0; see §UI for schema).
 

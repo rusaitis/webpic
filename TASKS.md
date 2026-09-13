@@ -151,9 +151,10 @@ pypic.server foundations already shipped (HTTP discovery + WS Arrow-IPC stream) 
 - [x] PWA manifest + icons + iOS standalone meta — guarded by `tests/manifest.test.ts`
 
 ## Code health — 2026-09 review
-Full findings + sequencing: the review plan (session 2026-09-09). Coverage baseline at review time: **75.4% statements / 76.4% lines**; after the three tiers **77.1% / 78.2%** (1240 → 1288 tests) (`npm run test:coverage`, report only — no gate until the number has a history).
+Full findings + sequencing: the review plan (session 2026-09-09). Coverage baseline at review time: **75.4% statements / 76.4% lines**; after the three tiers **77.1% / 78.2%** (1240 → 1288 tests) (`npm run test:coverage`, report only — no gate until the number has a history; the floor was set in Part 8 at 85/84/87/73).
 - [x] A. Guardrails — v8 coverage, lefthook, `docs:api` in CI (`gen:themes:check` stays local-only — it reads the `../pypic` sibling), Biome `useExhaustiveSwitchCases`/`noFloatingPromises`/`noMisusedPromises`/`noConsole`/`noParameterAssign`, `lib: ES2024`, `erasableSyntaxOnly` for scripts, `engines >=22.18` + `.nvmrc` + dependabot, app size budget 1.6 MB → 550 kB, DESIGN §Testing/§CI brought back to reality
 - [x] B. Hygiene — exhaustive response routers, `logError` seam + `.catch` at every fire-and-forget, per-frame allocs out of `cameraChrome` + composite assembly, `AbortSignal` on reader probe + `setDataset`, one `intersectRayBox`/`axisSpan`/`finiteRange` (stands up `reductions/`), render-worker `dispose` message, `Error.cause`, `// STAGED:` marker for built-not-wired code, test + scripts harness dedupe
+- [x] D. Cleanup parts 1–8 (`docs/cleanup.md`) — rules + enforcement, the code cull, the readability pass, the layout/vocabulary sweep, and finally what the build emits: the app bundle stopped carrying a validator nothing calls (412 → 401 kB gzip), the size budgets and the coverage floor became real ratchets, and a new `LayerKind` now fails to compile across the worker seam
 - [x] C. Structure — shared types to `schema/`, split `store/simulationStore.ts` (+ discriminated field state, timing → `store/perf.ts`), `LAYER_KINDS` descriptor table + nested `upsertLayer` params, de-globalize `render/worker.ts`, `ui` subscription bridge, `colorbar`/`pointerCamera` splits, worker tsconfig, render "diagnostics" → "timing"
 
 ## Post-v1.0

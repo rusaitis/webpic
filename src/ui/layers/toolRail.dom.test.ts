@@ -140,7 +140,7 @@ describe("installToolRail", () => {
     const { button, flyout } = setup();
     const view = button("view");
     view.dispatchEvent(new MouseEvent("click"));
-    const close = flyout().querySelector<HTMLButtonElement>(".webpic-flyout_close");
+    const close = flyout().querySelector<HTMLButtonElement>(".webpic-close-btn");
     if (close === null) throw new Error("no close button");
     close.dispatchEvent(new MouseEvent("click"));
     expect(flyout().hidden).toBe(true);

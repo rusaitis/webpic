@@ -20,8 +20,10 @@ import type { ScalarFn } from "./analyticFieldCore.ts";
 const TWO_PI = 2 * Math.PI;
 const sech2 = (u: number): number => 1 / Math.cosh(u) ** 2;
 
-// The five recipes both compute backends bind, matching crossBackend.ts CROSS_BACKEND_CASES.
-export type SyntheticRecipe = "|B|" | "div_B" | "curl_B_1" | "curl_B_2" | "curl_B_3";
+// The recipes both compute backends bind. One list for every consumer that has to agree on it:
+// crossBackend.ts's tolerance table, the two fixture generators, and the golden cross-check.
+export const SYNTHETIC_RECIPES = ["|B|", "div_B", "curl_B_1", "curl_B_2", "curl_B_3"] as const;
+export type SyntheticRecipe = (typeof SYNTHETIC_RECIPES)[number];
 
 export interface SyntheticField {
   readonly name: string; // fixture filename stem

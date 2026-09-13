@@ -31,8 +31,9 @@ async function main(): Promise<number> {
       await page.waitForTimeout(600); // volume warm-compile + commit + a few settled frames
       // The probe marker defaults on and sits at the box center, where every gesture below is anchored —
       // leave it up and the drags grab the marker instead of the camera. Off for the whole run.
-      const probe = page.locator('[aria-label="Hide point marker"]');
-      if ((await probe.count()) > 0) await probe.first().click();
+      const probe = page.locator('[data-control="probe"]');
+      await probe.waitFor({ state: "attached" }); // missing hook is a broken probe, not "already off"
+      if ((await probe.getAttribute("aria-pressed")) === "true") await probe.click();
       // The pose lives in the C-toggled coords card's View + Center rows (ui/camera/bottomRail) — the two rows
       // parented directly by the card, next to the nested grid rows. Every canvas gesture below is an
       // outside pointer-down, which dismisses the card, so re-open it before each read.

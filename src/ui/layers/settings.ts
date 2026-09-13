@@ -6,7 +6,7 @@ import {
   selectActiveLayer,
   type UiStore,
 } from "@store";
-import { installChromeVisibility } from "../chromeVisibility.ts";
+import { installWindowVisibility } from "../chromeVisibility.ts";
 import { installColormapControls } from "../colorbar/colormapControls.ts";
 import { makeEl, makeIconButton } from "../controls/dom.ts";
 import {
@@ -37,6 +37,7 @@ export function installLayerSettings(
   const getState = store.getState;
 
   const win = createFloatingWindow({
+    name: "layer-settings",
     parent,
     title: "Layer",
     width: 272,
@@ -193,13 +194,10 @@ export function installLayerSettings(
   rebuild();
 
   const subscriptions = createSubscriptions();
-  const applyVisible = installChromeVisibility(
+  const applyVisible = installWindowVisibility(
     subscriptions,
     uiStore,
-    (isVisible) => {
-      if (isVisible) win.show();
-      else win.hide();
-    },
+    win,
     () => uiStore.getState().isLayerSettingsOpen,
   );
   subscriptions.on(store, (s) => s.selectedLayerId, rebuild);

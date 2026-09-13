@@ -1,5 +1,6 @@
 import { displayTraceSteps, type FieldLine, traceFields, vectorComponentsForField } from "@compute";
 import { errorMessage, logWarn } from "@schema/log.ts";
+import { isTracingLayer } from "./layerKinds.ts";
 import type { SliceContext, TraceNotice } from "./state.ts";
 import { createSupersedingTask } from "./supersedingTask.ts";
 
@@ -38,7 +39,7 @@ export function createRetrace({ get, set }: SliceContext): Retrace {
     const notices: Record<string, TraceNotice> = {};
     const steps = displayTraceSteps(dataset.grid);
     for (const layer of layers) {
-      if (layer.kind !== "fieldlines") continue;
+      if (!isTracingLayer(layer)) continue;
       const requested = layer.seeds.length;
       if (requested === 0) {
         // Commit the empty set so a cleared rake clears the scene — omitting the key would strand

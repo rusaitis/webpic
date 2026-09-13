@@ -107,6 +107,14 @@ function thinDecades(values: readonly number[], maxCount: number): number[] {
 // math, so the strip and the window slider agree; symlog uses the renderer's default linthresh
 // (max|extent|/100), so ticks line up with the painted gradient. log falls back to a linear read
 // if the window reaches ≤ 0.
+// Both tick paths degenerate the same way: no tick fits, so label the window's ends.
+function endpointTicks(lo: number, hi: number): ColorbarTick[] {
+  return [
+    { t: 0, label: formatValue(lo) },
+    { t: 1, label: formatValue(hi) },
+  ];
+}
+
 export function tickLabels(
   window: WindowLevel,
   scale: ScaleKind,
@@ -118,12 +126,7 @@ export function tickLabels(
 
   if (safeScale === "linear") {
     const { values, step } = niceLinearTicks(lo, hi, targetCount);
-    if (values.length === 0) {
-      return [
-        { t: 0, label: formatValue(lo) },
-        { t: 1, label: formatValue(hi) },
-      ];
-    }
+    if (values.length === 0) return endpointTicks(lo, hi);
     if (values.length === 1) {
       const [only = lo] = values; // constant window: one centered readout
       return [{ t: 0.5, label: formatValue(only) }];
@@ -140,11 +143,6 @@ export function tickLabels(
     tickValues(s).sort((a, b) => a - b),
     Math.max(targetCount, 7),
   );
-  if (values.length === 0) {
-    return [
-      { t: 0, label: formatValue(lo) },
-      { t: 1, label: formatValue(hi) },
-    ];
-  }
+  if (values.length === 0) return endpointTicks(lo, hi);
   return values.map((v) => ({ t: s.toT(v), label: formatValue(v) })).sort((a, b) => a.t - b.t);
 }

@@ -1,8 +1,4 @@
-import {
-  REQUEST_IDS,
-  type RenderWorkerRequest,
-  type RenderWorkerResponse,
-} from "@render/messages.ts";
+import { REQUEST_IDS, type RenderResponse, type RenderWorkerRequest } from "@render/messages.ts";
 import {
   type CameraPose,
   type CameraProjection,
@@ -30,9 +26,7 @@ export interface RenderWorkerBridge {
   // Replay the live pose (+ a non-default projection) once the worker is ready (catch-up).
   readonly flushAll: () => void;
   // Route a worker pick reply: place the marker, and for "focus" retarget the running fly.
-  readonly applyPickResult: (
-    message: Extract<RenderWorkerResponse, { kind: "pickResult" }>,
-  ) => void;
+  readonly applyPickResult: (message: RenderResponse<"pickResult">) => void;
   readonly dispose: () => void;
 }
 

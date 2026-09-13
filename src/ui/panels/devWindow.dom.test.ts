@@ -57,7 +57,7 @@ describe("installDevWindow", () => {
     uiStore.getState().setPanelVisible("dev", true);
     expect(win.hidden).toBe(false);
 
-    query<HTMLButtonElement>(win, ".webpic-window_close").click();
+    query<HTMLButtonElement>(win, ".webpic-close-btn").click();
     expect(win.hidden).toBe(true);
 
     dispose();
