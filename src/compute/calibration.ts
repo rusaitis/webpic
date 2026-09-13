@@ -38,7 +38,9 @@ export interface BenchKernel {
   run(elements: number): number | Promise<number>;
 }
 
-const ScoresSchema = z.object({
+// Marked pure so the bundler drops it: nothing calls decodeScores yet, but a bare z.object()
+// expression statement is not provably side-effect-free, so it reached both shipped chunks.
+const ScoresSchema = /* @__PURE__ */ z.object({
   calibrationVersion: z.string(),
   adapterKey: z.string(),
   // Unknown backend ids and non-positive/NaN/Infinity throughputs are rejected.
