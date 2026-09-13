@@ -31,7 +31,7 @@ export interface EasedChannels<K extends string> {
 export function createEasedChannels<K extends string>(
   specs: Readonly<Record<K, ChannelSpec>>,
 ): EasedChannels<K> {
-  const keys = Object.keys(specs) as K[];
+  const keys = Object.keys(specs) as K[]; // Object.keys widens to string; the spec's keys are K
   const values = new Map<K, number>();
   const targets = new Map<K, number>();
   for (const key of keys) {
