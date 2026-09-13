@@ -77,6 +77,17 @@ function stickyLess(
 // Resolve where `rect` should dock given the viewport and its previous edge. Snaps to a corner
 // (both axes) or a single edge when within threshold; otherwise a free drop that still reorients
 // `data-edge` across the viewport midline along the current axis. Pure — unit-tested.
+// A drop too far from any edge to dock still reorients `data-edge`, flipping across the viewport
+// midline along the axis the element is already on — so the CSS tail/anchor points the right way.
+function freeDropEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefined): PaneEdge {
+  if (prevEdge === "top" || prevEdge === "bottom") {
+    const cy = rect.top + rect.height / 2;
+    return stickyLess(cy, vp.height - cy, prevEdge, "top", "bottom") ? "top" : "bottom";
+  }
+  const cx = rect.left + rect.width / 2;
+  return stickyLess(cx, vp.width - cx, prevEdge, "left", "right") ? "left" : "right";
+}
+
 export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefined): SnapPlacement {
   const { width: W, height: H } = vp;
   const distL = rect.left;
@@ -115,17 +126,7 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
   if (nearH) return { edge: h, h, v, left: dockedLeft, top: freeTop, isDocked: true };
   if (nearV) return { edge: v, h, v, left: freeLeft, top: dockedTop, isDocked: true };
 
-  // Free drop: flip the edge across the midline along the element's current axis.
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  const verticalAxis = prevEdge === "top" || prevEdge === "bottom";
-  const edge: PaneEdge = verticalAxis
-    ? stickyLess(cy, H - cy, prevEdge, "top", "bottom")
-      ? "top"
-      : "bottom"
-    : stickyLess(cx, W - cx, prevEdge, "left", "right")
-      ? "left"
-      : "right";
+  const edge = freeDropEdge(rect, vp, prevEdge);
   return {
     edge,
     h: edge === "right" ? "right" : "left",
@@ -146,6 +147,36 @@ export function freePlacement(rect: Box, vp: Viewport): { left: number; top: num
     left: clamp(rect.left, keepX - rect.width, Math.max(keepX - rect.width, vp.width - keepX)),
     top: clamp(rect.top, VIEWPORT_MARGIN_PX, Math.max(VIEWPORT_MARGIN_PX, vp.height - keepY)),
   };
+}
+
+// Where a docked element sits once re-flushed to its edge; a free drop keeps its visual position.
+export function flushedToEdge(rect: Box, edge: PaneEdge, isDocked: boolean, vp: Viewport): Box {
+  if (!isDocked) return rect;
+  const left =
+    edge === "left"
+      ? EDGE_GAP_PX
+      : edge === "right"
+        ? vp.width - rect.width - EDGE_GAP_PX
+        : rect.left;
+  const top =
+    edge === "top"
+      ? EDGE_GAP_PX
+      : edge === "bottom"
+        ? vp.height - rect.height - EDGE_GAP_PX
+        : rect.top;
+  return box(left, top, rect.width, rect.height);
+}
+
+// Anchor the free axis to whichever side the element leans toward, so it tracks that edge on the
+// next resize instead of drifting from a stale fixed offset.
+export function leaningAnchors(
+  edge: PaneEdge,
+  rect: Box,
+  vp: Viewport,
+): { h: "left" | "right"; v: "top" | "bottom" } {
+  return edge === "left" || edge === "right"
+    ? { h: edge, v: rect.top + rect.height / 2 > vp.height / 2 ? "bottom" : "top" }
+    : { h: rect.left + rect.width / 2 > vp.width / 2 ? "right" : "left", v: edge };
 }
 
 function overlaps(a: Box, b: Box): boolean {

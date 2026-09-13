@@ -1,14 +1,16 @@
 import { isInteractiveTarget } from "../controls/dom.ts";
 import { clampIntoViewport } from "../layout.ts";
 import { coalesceFrame } from "../pointerMath.ts";
+import { createAnchorWriter } from "./anchorWriter.ts";
 import { installPressDrag } from "./pressDrag.ts";
 import {
   type Box,
   box,
   chooseEdge,
-  EDGE_GAP_PX,
+  flushedToEdge,
   freePlacement,
   isPaneEdge,
+  leaningAnchors,
   type PaneEdge,
   pushOutOf,
   type SnapPlacement,
@@ -69,6 +71,7 @@ export function installDragSnap(
   const handle = options.handle ?? element;
   const doc = element.ownerDocument;
   const view = doc.defaultView;
+  const anchors = createAnchorWriter(element, options.centerFreeAxis === true);
   const abortController = new AbortController();
   const { signal } = abortController;
 
@@ -83,66 +86,6 @@ export function installDragSnap(
   });
   const readVar = (name: string): number =>
     Number.parseFloat(element.style.getPropertyValue(name)) || 0;
-  const writeOffset = (x: number, y: number): void => {
-    element.style.setProperty("--drag-x", `${x}px`);
-    element.style.setProperty("--drag-y", `${y}px`);
-  };
-
-  const setAnchors = (h: "left" | "right", v: "top" | "bottom", rect: Box, vp: Viewport): void => {
-    if (h === "left") {
-      element.style.left = `${rect.left}px`;
-      element.style.right = "auto";
-    } else {
-      element.style.right = `${vp.width - rect.right}px`;
-      element.style.left = "auto";
-    }
-    if (v === "top") {
-      element.style.top = `${rect.top}px`;
-      element.style.bottom = "auto";
-    } else {
-      element.style.bottom = `${vp.height - rect.bottom}px`;
-      element.style.top = "auto";
-    }
-  };
-
-  // Center-anchor the free axis (CSS translate(-50%) on it pivots a resize on the center); pin the
-  // docked axis to its edge. The visual top-left still resolves to (left, top); only the resize pivot
-  // changes. A free drop (docked=false) centers both axes.
-  const placeCentered = (edge: PaneEdge, isDocked: boolean, rect: Box, vp: Viewport): void => {
-    const centerX = (): void => {
-      element.style.left = `${rect.left + rect.width / 2}px`;
-      element.style.right = "auto";
-    };
-    const centerY = (): void => {
-      element.style.top = `${rect.top + rect.height / 2}px`;
-      element.style.bottom = "auto";
-    };
-    if (!isDocked) {
-      centerX();
-      centerY();
-      return;
-    }
-    if (edge === "top" || edge === "bottom") {
-      centerX(); // horizontal is free → center it
-      if (edge === "bottom") {
-        element.style.bottom = `${vp.height - rect.bottom}px`;
-        element.style.top = "auto";
-      } else {
-        element.style.top = `${rect.top}px`;
-        element.style.bottom = "auto";
-      }
-    } else {
-      centerY(); // vertical is free → center it
-      if (edge === "right") {
-        element.style.right = `${vp.width - rect.right}px`;
-        element.style.left = "auto";
-      } else {
-        element.style.left = `${rect.left}px`;
-        element.style.right = "auto";
-      }
-    }
-  };
-
   const obstacles = (): Box[] => {
     if (!options.chromeSelector) return [];
     const out: Box[] = [];
@@ -160,42 +103,38 @@ export function installDragSnap(
   // axis. Returns the resolved (visual top-left) box so the caller can hand it to onSettled — the live
   // rect would read the mid-transition value, not the target.
   const apply = (placement: SnapPlacement, w: number, h: number, vp: Viewport): Box => {
-    const set = (left: number, top: number): void => {
-      const target = box(left, top, w, h);
-      if (options.centerFreeAxis) {
-        placeCentered(placement.edge, placement.isDocked, target, vp);
-      } else {
-        setAnchors(placement.h, placement.v, target, vp);
-      }
-    };
-    set(placement.left, placement.top);
+    const at = box(placement.left, placement.top, w, h);
+    anchors.write(placement, at, vp);
     // A free drop stays where released; only a docked element springs clear of the rails/bars.
-    if (!placement.isDocked) return box(placement.left, placement.top, w, h);
-    const cleared = pushOutOf(
-      box(placement.left, placement.top, w, h),
-      obstacles(),
-      placement.edge,
+    if (!placement.isDocked) return at;
+    const cleared = pushOutOf(at, obstacles(), placement.edge, vp);
+    if (cleared.left === placement.left && cleared.top === placement.top) return at;
+    const sprung = box(cleared.left, cleared.top, w, h);
+    anchors.write(placement, sprung, vp);
+    return sprung;
+  };
+
+  // A free-mode element only ever clamps into the viewport, top-left anchored.
+  const placeFree = (rect: Box, vp: Viewport): void => {
+    const { left, top } = freePlacement(rect, vp);
+    anchors.write(
+      { edge: "top", h: "left", v: "top", left, top, isDocked: false },
+      box(left, top, rect.width, rect.height),
       vp,
     );
-    if (cleared.left !== placement.left || cleared.top !== placement.top) {
-      set(cleared.left, cleared.top);
-      return box(cleared.left, cleared.top, w, h);
-    }
-    return box(placement.left, placement.top, w, h);
   };
 
   const snap = (): void => {
     const vp = viewport();
     const r = element.getBoundingClientRect(); // visual drop position (includes the drag transform)
     if (options.mode === "free") {
-      const { left, top } = freePlacement(box(r.left, r.top, r.width, r.height), vp);
-      writeOffset(0, 0);
-      setAnchors("left", "top", box(left, top, r.width, r.height), vp);
+      anchors.offset(0, 0);
+      placeFree(box(r.left, r.top, r.width, r.height), vp);
       return;
     }
     const prevEdge = readEdge(element);
     const placement = chooseEdge(box(r.left, r.top, r.width, r.height), vp, prevEdge);
-    writeOffset(0, 0);
+    anchors.offset(0, 0);
     element.dataset.docked = placement.isDocked ? "true" : "false";
     const settled = apply(placement, r.width, r.height, vp);
     if (placement.edge !== prevEdge) {
@@ -222,44 +161,21 @@ export function installDragSnap(
     // out — floatingWindow re-runs reflow on show, so a default-hidden window settles when first shown.
     if (r.width === 0 && r.height === 0) return;
     if (options.mode === "free") {
-      const { left, top } = freePlacement(box(r.left, r.top, r.width, r.height), vp);
-      setAnchors("left", "top", box(left, top, r.width, r.height), vp);
+      placeFree(box(r.left, r.top, r.width, r.height), vp);
       return;
     }
     const edge = readEdge(element) ?? "bottom";
     const isDocked = element.dataset.docked !== "false";
-    // Re-flush a docked element to its edge; a free drop keeps its current visual position.
-    let left = r.left;
-    let top = r.top;
-    if (isDocked) {
-      if (edge === "left") left = EDGE_GAP_PX;
-      if (edge === "right") left = vp.width - r.width - EDGE_GAP_PX;
-      if (edge === "top") top = EDGE_GAP_PX;
-      if (edge === "bottom") top = vp.height - r.height - EDGE_GAP_PX;
-    }
-    ({ left, top } = clampIntoViewport({ left, top, width: r.width, height: r.height }, vp));
+    const flushed = flushedToEdge(box(r.left, r.top, r.width, r.height), edge, isDocked, vp);
+    const { left, top } = clampIntoViewport(
+      { left: flushed.left, top: flushed.top, width: r.width, height: r.height },
+      vp,
+    );
 
-    if (options.centerFreeAxis) {
-      const settled = apply(
-        { edge, h: "left", v: "top", left, top, isDocked },
-        r.width,
-        r.height,
-        vp,
-      );
-      options.onSettled?.(edge, settled, vp);
-      return;
-    }
-    // Corner-anchor path (no center pivot): anchor the free axis to the nearer side so the
-    // element tracks that edge on the next resize instead of drifting from a stale fixed offset.
-    let h: "left" | "right";
-    let v: "top" | "bottom";
-    if (edge === "left" || edge === "right") {
-      h = edge;
-      v = top + r.height / 2 > vp.height / 2 ? "bottom" : "top";
-    } else {
-      h = left + r.width / 2 > vp.width / 2 ? "right" : "left";
-      v = edge;
-    }
+    // Under centerFreeAxis the CSS -50% translate owns the free axis, so h/v carry no information.
+    const { h, v } = options.centerFreeAxis
+      ? ({ h: "left", v: "top" } as const)
+      : leaningAnchors(edge, box(left, top, r.width, r.height), vp);
     const settled = apply({ edge, h, v, left, top, isDocked }, r.width, r.height, vp);
     options.onSettled?.(edge, settled, vp);
   };
@@ -275,7 +191,7 @@ export function installDragSnap(
       baseY = readVar("--drag-y");
       return true;
     },
-    onMove: (dx, dy) => writeOffset(baseX + dx, baseY + dy),
+    onMove: (dx, dy) => anchors.offset(baseX + dx, baseY + dy),
     onEnd: () => {
       snap();
       recentlyDragged = true; // suppress the trailing click; a microtask is too early
