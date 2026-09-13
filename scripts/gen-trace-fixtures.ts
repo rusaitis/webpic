@@ -1,8 +1,8 @@
-import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SMOOTH_COMPONENTS, sampleCellCentered } from "../tests/analyticFieldCore.ts";
+import { runPypic } from "./harness/pypic.ts";
 
 // Generate the pypic golden field-line traces consumed by tests/traces.golden.test.ts. For each
 // fixture we sample the field CELL-CENTERED in f64 here (sample i at origin + (i+0.5)·dx — the
@@ -83,25 +83,6 @@ interface GoldenResponse {
   readonly traces: readonly GoldenTrace[];
 }
 
-function runPypic(request: unknown): GoldenResponse {
-  const result = spawnSync(
-    "uv",
-    ["run", "--project", "../pypic", "python", "scripts/pypic_trace_goldens.py"],
-    {
-      cwd: ROOT,
-      input: JSON.stringify(request),
-      encoding: "utf8",
-      timeout: 120_000,
-      maxBuffer: 512 * 1024 * 1024,
-    },
-  );
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    throw new Error(`pypic_trace_goldens.py exited ${result.status}:\n${result.stderr}`);
-  }
-  return JSON.parse(result.stdout) as GoldenResponse;
-}
-
 function generate(fix: TraceFixture): void {
   const [f1, f2, f3] = fix.components;
   const inputs = {
@@ -111,12 +92,15 @@ function generate(fix: TraceFixture): void {
   };
   const grid = { dimensions: fix.shape, spacing: fix.spacing, origin: fix.origin };
 
-  const { pypicVersion, traces } = runPypic({
-    grid,
-    components: inputs,
-    seeds: fix.seeds.map((s) => [...s]),
-    options: fix.options,
-  });
+  const { pypicVersion, traces } = runPypic<GoldenResponse>(
+    ["python", "scripts/pypic_trace_goldens.py"],
+    {
+      grid,
+      components: inputs,
+      seeds: fix.seeds.map((s) => [...s]),
+      options: fix.options,
+    },
+  );
 
   const fixture = {
     provenance: {

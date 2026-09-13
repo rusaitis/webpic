@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +8,7 @@ import {
   sampleScalar,
 } from "../tests/analyticFieldCore.ts";
 import { SYNTHETIC_RECIPES } from "../tests/syntheticFieldsCore.ts";
+import { runPypic } from "./harness/pypic.ts";
 
 // Generate the pypic golden fixtures consumed by tests/goldens.test.ts (TS backend) and the
 // crossBackend.browser golden block (WebGPU backend). For each case we sample the field in f64 here,
@@ -54,26 +54,6 @@ interface GoldenResponse {
   readonly goldens: Record<string, number[]>;
 }
 
-function runPypic(request: unknown): GoldenResponse {
-  const result = spawnSync(
-    "uv",
-    ["run", "--project", "../pypic", "python", "scripts/pypic_goldens.py"],
-    {
-      cwd: ROOT,
-      input: JSON.stringify(request),
-      encoding: "utf8",
-      timeout: 120_000,
-      maxBuffer: 512 * 1024 * 1024, // headroom for M3.5's larger MHD fields
-    },
-  );
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    throw new Error(`pypic_goldens.py exited ${result.status}:\n${result.stderr}`);
-  }
-  // JSON.parse is untyped; the helper's response shape is the GoldenResponse contract above.
-  return JSON.parse(result.stdout) as GoldenResponse;
-}
-
 function generate(testCase: FixtureCase): void {
   const [fn1, fn2, fn3] = testCase.components;
   const f1 = sampleScalar(testCase.shape, testCase.spacing, fn1, Float64Array);
@@ -81,12 +61,15 @@ function generate(testCase: FixtureCase): void {
   const f3 = sampleScalar(testCase.shape, testCase.spacing, fn3, Float64Array);
   const inputs = { B_1: Array.from(f1), B_2: Array.from(f2), B_3: Array.from(f3) };
 
-  const { pypicVersion, goldens } = runPypic({
-    shape: [...testCase.shape],
-    spacing: [...testCase.spacing],
-    components: inputs,
-    recipes: [...RECIPES],
-  });
+  const { pypicVersion, goldens } = runPypic<GoldenResponse>(
+    ["python", "scripts/pypic_goldens.py"],
+    {
+      shape: [...testCase.shape],
+      spacing: [...testCase.spacing],
+      components: inputs,
+      recipes: [...RECIPES],
+    },
+  );
 
   const missing = RECIPES.filter((recipe) => !(recipe in goldens));
   if (missing.length > 0) {

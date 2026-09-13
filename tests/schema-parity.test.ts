@@ -15,6 +15,7 @@ import { renderAliases } from "../scripts/codegen/render-aliases.ts";
 import { renderRecipes } from "../scripts/codegen/render-recipes.ts";
 import { renderRegistry } from "../scripts/codegen/render-registry.ts";
 import { renderValidators } from "../scripts/codegen/render-schema.ts";
+import { type PypicRun, spawnPypic } from "../scripts/harness/pypic.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const BIOME_BIN = resolve(ROOT, "node_modules/.bin/biome");
@@ -53,14 +54,8 @@ describe("regenerated artifacts match checked-in", () => {
 
 const RUN_PYPIC = process.env.WEBPIC_PYPIC_PARITY === "1";
 
-function pypic(args: readonly string[]): { status: number | null; stdout: string; stderr: string } {
-  const result = spawnSync("uv", ["run", "--project", "../pypic", "pypic", ...args], {
-    cwd: ROOT,
-    encoding: "utf8",
-    timeout: 120_000,
-  });
-  return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
-}
+// Raw result, not runPypic: these assertions are about the exit status itself.
+const pypic = (args: readonly string[]): PypicRun => spawnPypic(["pypic", ...args]);
 
 // Opt-in: needs uv + the sibling ../pypic repo. Guards against pypic making a *breaking*
 // (non-additive) change out from under webpic's checked-in artifacts.

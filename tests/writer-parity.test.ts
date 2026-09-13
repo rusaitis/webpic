@@ -4,17 +4,15 @@
 // schema-parity. This is the check that caught zarrita's spec gaps (null fill_value,
 // empty codec chain) that spec-strict zarr-python rejects.
 
-import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
 import { writeZarr } from "@data/writers/zarr.ts";
 import { beforeAll, describe, expect, it } from "vitest";
+import { runPypic } from "../scripts/harness/pypic.ts";
 import { makeDataset, makeField, makeGrid } from "./fixtures.ts";
 
-const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const RUN_PYPIC = process.env.WEBPIC_PYPIC_PARITY === "1";
 
 const CELLS = 2 * 3 * 4;
@@ -144,15 +142,7 @@ describe.skipIf(!RUN_PYPIC)("written store opens through live pypic from_zarr", 
       writeFileSync(file, bytes);
     }
 
-    const result = spawnSync(
-      "uv",
-      ["run", "--project", "../pypic", "python", "-c", READBACK_SCRIPT, storeDir],
-      { cwd: ROOT, encoding: "utf8", timeout: 120_000 },
-    );
-    if (result.status !== 0) {
-      throw new Error(`pypic readback failed (status ${result.status}): ${result.stderr}`);
-    }
-    readback = JSON.parse(result.stdout) as Readback;
+    readback = runPypic<Readback>(["python", "-c", READBACK_SCRIPT, storeDir]);
     // Timeout sized to the spawnSync budget — concurrent uv invocations (schema-parity
     // shells out too) contend on the project env and can exceed the vitest default.
   }, 120_000);
