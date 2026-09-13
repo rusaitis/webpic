@@ -71,7 +71,7 @@ function applyCacheRequest(request: DataCacheRequest): Promise<void> {
         return cacheRemove(request);
       default: {
         const unreachable: never = request;
-        throw new Error(`unknown request: ${JSON.stringify(unreachable)}`);
+        throw new Error(`data worker: unknown request kind, got ${JSON.stringify(unreachable)}`);
       }
     }
   });
@@ -104,7 +104,8 @@ function streamError(error: unknown, step?: number): void {
 // compute both honor the abort signal (the ring cancels work the cursor scrubbed past); the TS backend
 // resolves synchronously, but the async dispatcher lets a GPU backend cancel mid-compute.
 async function readStep(step: number, signal: AbortSignal): Promise<FieldArray> {
-  if (reader === undefined || handle === undefined) throw new Error("stream read before open");
+  if (reader === undefined || handle === undefined)
+    throw new Error("readStep: stream read before open — call open() first");
   const startMs = performance.now();
   const dataset = await reader.readTimestep(handle, step, { signal });
   const field = computeField(activeField, dataset, signal); // takes a plain string (validated upstream)

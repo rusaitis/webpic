@@ -142,7 +142,9 @@ export async function requestGpu(options?: GpuRequestOptions): Promise<GpuSuppor
 // first if you need to branch on the unsupported reason without a try/catch.
 export async function installGpu(options?: GpuRequestOptions): Promise<InstalledGpu> {
   if (current !== undefined) {
-    throw new Error("GPU already installed; dispose the previous handle before reinstalling.");
+    throw new Error(
+      "installGpu: GPU already installed — dispose the previous handle before reinstalling",
+    );
   }
   const support = await requestGpu(options);
   if (!support.ok) {
@@ -158,7 +160,8 @@ export async function installGpu(options?: GpuRequestOptions): Promise<Installed
 }
 
 function requireInstalled(): GpuSingleton {
-  if (current === undefined) throw new Error("GPU not installed; call installGpu() first.");
+  if (current === undefined)
+    throw new Error("requireInstalled: GPU not installed — call installGpu() first");
   return current;
 }
 

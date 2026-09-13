@@ -469,7 +469,7 @@ function createWorkerWorld(context: WorkerContext): {
         return dispose(request);
       default: {
         const unreachable: never = request;
-        throw new Error(`unknown request: ${JSON.stringify(unreachable)}`);
+        throw new Error(`render worker: unknown request kind, got ${JSON.stringify(unreachable)}`);
       }
     }
   }

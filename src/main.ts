@@ -7,7 +7,7 @@ import { parsePoseParam } from "@store";
 // Bail before spawning workers or touching OPFS: without `navigator.gpu` nothing downstream can
 // succeed, and a silent empty canvas is the worst way to say so.
 if (!requireWebGpu()) {
-  throw new Error("WebGPU unavailable");
+  throw new Error(`main: WebGPU unavailable — navigator.gpu is ${typeof navigator.gpu}`);
 }
 
 // `?n=<size>` overrides the scaffold volume's per-axis resolution — a dev/profiling affordance for
@@ -27,7 +27,10 @@ const isOrthographic = params.get("proj") === "ortho";
 // `?debugScene` opts into the RGB test triangle as the empty-layers frame (renderer-alive sanity).
 const catalog = datasetCatalog(n);
 const initial = catalog.get(DEFAULT_DATASET_ID);
-if (initial === undefined) throw new Error(`unknown default dataset: ${DEFAULT_DATASET_ID}`);
+if (initial === undefined)
+  throw new Error(
+    `main: unknown default dataset "${DEFAULT_DATASET_ID}", have ${[...catalog.keys()].join(", ")}`,
+  );
 
 // Boot theme: the persisted OPFS pref when it names a bundled theme, else the default. Awaited
 // (one small OPFS read, ~ms) so the first paint carries the user's theme — no default-theme flash.
