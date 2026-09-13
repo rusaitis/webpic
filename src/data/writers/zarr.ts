@@ -11,6 +11,7 @@ import { rowMajorStrides, sameShape } from "@schema/math.ts";
 import type { FloatArray } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import * as zarr from "zarrita";
+import { isRecord, PYPIC_CLASS } from "../pypicJson.ts";
 
 // Zarr v3 writer for pypic-blessed stores (mirrors pypic.io.zarr.to_zarr, single-timestep).
 // Encodes the schema-v1.0 root attrs as the exact inverse of readers/decode.ts, so a written
@@ -23,12 +24,6 @@ export interface ZarrWriteOptions {
   /** Downcast all field arrays to this dtype on write; default preserves source dtype. */
   readonly dtype?: WriteDtype;
   readonly signal?: AbortSignal;
-}
-
-const PYPIC_CLASS = "__pypic_class__";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isFloatView(value: unknown): value is FloatArray {

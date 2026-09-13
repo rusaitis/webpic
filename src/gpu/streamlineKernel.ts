@@ -1,4 +1,5 @@
 import { BYTES_PER_F32, createBufferPool } from "./bufferPool.ts";
+import { TRACE_META_BYTE_LENGTH } from "./traceMeta.ts";
 
 // One-shot WebGPU runner for the streamline kernel — the GPU twin of `computeKernel.ts`, but for the
 // fixed 7-binding streamline layout (3 field buffers + params + seeds + two read-write outputs) with
@@ -9,7 +10,6 @@ import { BYTES_PER_F32, createBufferPool } from "./bufferPool.ts";
 
 const WORKGROUP_SIZE = 64;
 const FLOATS_PER_POINT = 4; // vec4<f32>: xyz + arclength
-const TRACE_META_BYTES = 16; // u32 nPoints, u32 reason, u32 nSteps, f32 maxLocalError
 
 export interface StreamlineKernelSpec {
   readonly device: GPUDevice;
@@ -45,7 +45,7 @@ export async function runStreamlineKernel(
   signal?.throwIfAborted();
 
   const pointsBytes = Math.max(nWork * capacity * FLOATS_PER_POINT * BYTES_PER_F32, BYTES_PER_F32);
-  const metaBytes = Math.max(nWork * TRACE_META_BYTES, TRACE_META_BYTES);
+  const metaBytes = Math.max(nWork * TRACE_META_BYTE_LENGTH, TRACE_META_BYTE_LENGTH);
 
   const pool = createBufferPool(device);
 

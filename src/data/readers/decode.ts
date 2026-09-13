@@ -11,18 +11,13 @@ import { vec3 } from "@schema/math.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import { formatZodError } from "@schema/zodError.ts";
 import { z } from "zod";
+import { isRecord, PYPIC_CLASS } from "../pypicJson.ts";
 
 // Decodes pypic's on-disk Zarr attrs into webpic container types. Mirrors
 // pypic.io.metadata (decode_pypic_attrs, from_json_native) and pypic.grid.GridInfo.
 // Validation lives here (the data boundary), never in hot paths. Unknown keys are
 // stripped, not rejected — forward-compatible with newer pypic writers; missing
 // *required* structure throws loudly with the source label.
-
-const PYPIC_CLASS = "__pypic_class__";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 // Reverse pypic's JSON coercion: tuples, non-string-keyed dicts, and StaggerInfo carry a
 // `__pypic_class__` tag; recurse through plain containers. The `"inf"` sentinel is NOT decoded

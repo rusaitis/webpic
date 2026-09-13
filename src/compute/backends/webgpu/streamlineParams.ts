@@ -1,4 +1,5 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
+import { TRACE_META_BYTE_LENGTH } from "@gpu/traceMeta.ts";
 import type { ResolvedTraceParams } from "@numerics/tracing.ts";
 
 // Pure CPU-side byte-layout mirrors for the WGSL streamline kernel — no GPU access, so they unit-test in
@@ -48,9 +49,9 @@ export function buildStreamlineParams(
   return buffer;
 }
 
-// Packed `TraceMeta` layout (one per work-item). Mirrors the WGSL `TraceMeta` struct: 16 bytes, std430
-// array stride 16. `reason` is a `REASON_CODES` integer (decode via `reasonFromCode`).
-export const TRACE_META_BYTE_LENGTH = 16;
+// `reason` is a `REASON_CODES` integer (decode via `reasonFromCode`); the layout itself is
+// @gpu/traceMeta.ts, which the kernel sizes its readback against.
+export { TRACE_META_BYTE_LENGTH };
 
 export interface DecodedTraceMeta {
   readonly nPoints: number;

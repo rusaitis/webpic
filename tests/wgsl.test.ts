@@ -121,8 +121,5 @@ describe("streamline.wgsl", () => {
   it("packs Params and TraceMeta exactly as the CPU-side DataViews do", () => {
     expect(structByteLength(STREAMLINE_WGSL, "Params")).toBe(STREAMLINE_PARAMS_BYTE_LENGTH);
     expect(structByteLength(STREAMLINE_WGSL, "TraceMeta")).toBe(TRACE_META_BYTE_LENGTH);
-    expect(constInGpuSource("streamlineKernel.ts", "TRACE_META_BYTES")).toBe(
-      TRACE_META_BYTE_LENGTH,
-    );
   });
 });
