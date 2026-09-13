@@ -74,7 +74,7 @@ describe("chooseEdge", () => {
 });
 
 describe("pushOutOf", () => {
-  it("springs a bottom-isDocked strip sideways, never off its edge", () => {
+  it("springs a bottom-docked strip sideways, never off its edge", () => {
     const rect = box(320, 764, 360, 24); // centered horizontally, on the bottom edge
     const rail = box(440, 760, 120, 40); // the centered camera rail
     const { left, top } = pushOutOf(rect, [rail], "bottom", VP);
@@ -84,7 +84,7 @@ describe("pushOutOf", () => {
     expect(left).toBeGreaterThanOrEqual(560);
   });
 
-  it("springs a left-isDocked strip vertically", () => {
+  it("springs a left-docked strip vertically", () => {
     const rect = box(12, 300, 24, 220);
     const obstacle = box(0, 360, 60, 60); // chrome on the left edge
     const { left, top } = pushOutOf(rect, [obstacle], "left", VP);

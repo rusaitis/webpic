@@ -77,7 +77,7 @@ describe("createDeviceRecovery", () => {
     expect(order).toEqual(["supersede", "teardown", "rebuildOnDevice", "warm", "requestRender"]);
   });
 
-  it("a isTerminal loss halts the loop + reports failure, and never rebuilds", () => {
+  it("a terminal loss halts the loop + reports failure, and never rebuilds", () => {
     const { recovery, order } = harness();
     for (const cb of gpu.lostCbs)
       cb(lossEvent({ message: "no GPUAdapter found", isTerminal: true }));

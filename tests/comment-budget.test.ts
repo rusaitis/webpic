@@ -109,12 +109,15 @@ const PROSE_CORRUPTION: ReadonlyArray<{ readonly pattern: RegExp; readonly shape
   },
 ];
 
-// `//` comments only. A `://` immediately before the marker is a URL, not a comment.
-function commentLines(
+// The prose in a file: `//` comments (a `://` before the marker is a URL, not a comment) plus the
+// sentence in each it()/describe() title, which a rename sweep corrupted the same way.
+function proseLines(
   source: string,
 ): ReadonlyArray<{ readonly line: number; readonly text: string }> {
   const out: { line: number; text: string }[] = [];
   source.split("\n").forEach((text, index) => {
+    const title = /\b(?:it|describe)\(\s*"([^"]+)"/.exec(text);
+    if (title?.[1] !== undefined) out.push({ line: index + 1, text: title[1] });
     const at = text.indexOf("//");
     if (at === -1 || text.slice(Math.max(0, at - 1), at + 3).includes("://")) return;
     out.push({ line: index + 1, text: text.slice(at) });
@@ -146,7 +149,7 @@ describe("comment budget", () => {
     for (const path of typescriptFiles("src").concat(typescriptFiles("tests"))) {
       if (path.includes(".generated.")) continue;
       const source = readFileSync(join(ROOT, path), "utf8");
-      for (const { line, text } of commentLines(source)) {
+      for (const { line, text } of proseLines(source)) {
         const hit = PROSE_CORRUPTION.find(({ pattern }) => pattern.test(text));
         if (hit !== undefined) found.push(`${path}:${line} [${hit.shape}] ${text.trim()}`);
       }

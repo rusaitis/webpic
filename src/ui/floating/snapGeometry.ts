@@ -97,42 +97,23 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
   const leftSide = stickyLess(distL, distR, prevEdge, "left", "right");
   const topSide = stickyLess(distT, distB, prevEdge, "top", "bottom");
 
+  const h = leftSide ? "left" : "right";
+  const v = topSide ? "top" : "bottom";
+  const dockedLeft = leftSide ? EDGE_GAP_PX : dockLeft;
+  const dockedTop = topSide ? EDGE_GAP_PX : dockTop;
+  const freeLeft = clamp(rect.left, VIEWPORT_MARGIN_PX, W - rect.width - VIEWPORT_MARGIN_PX);
+  const freeTop = clamp(rect.top, VIEWPORT_MARGIN_PX, H - rect.height - VIEWPORT_MARGIN_PX);
+
   if (cornerNearH && cornerNearV) {
     // Orient along whichever axis gives the more natural strip (wider → horizontal).
-    const edge: PaneEdge =
-      rect.width >= rect.height ? (topSide ? "top" : "bottom") : leftSide ? "left" : "right";
-    return {
-      edge,
-      h: leftSide ? "left" : "right",
-      v: topSide ? "top" : "bottom",
-      left: leftSide ? EDGE_GAP_PX : dockLeft,
-      top: topSide ? EDGE_GAP_PX : dockTop,
-      isDocked: true,
-    };
+    const edge: PaneEdge = rect.width >= rect.height ? v : h;
+    return { edge, h, v, left: dockedLeft, top: dockedTop, isDocked: true };
   }
   // Anchor the free axis to whichever side the strip leans toward, so it tracks that edge on the
   // next resize (a bottom-right strip stays glued to the right corner instead of drifting left as
   // the centered rail re-centers) rather than always pinning the low edge.
-  if (nearH) {
-    return {
-      edge: leftSide ? "left" : "right",
-      h: leftSide ? "left" : "right",
-      v: topSide ? "top" : "bottom",
-      left: leftSide ? EDGE_GAP_PX : dockLeft,
-      top: clamp(rect.top, VIEWPORT_MARGIN_PX, H - rect.height - VIEWPORT_MARGIN_PX),
-      isDocked: true,
-    };
-  }
-  if (nearV) {
-    return {
-      edge: topSide ? "top" : "bottom",
-      h: leftSide ? "left" : "right",
-      v: topSide ? "top" : "bottom",
-      left: clamp(rect.left, VIEWPORT_MARGIN_PX, W - rect.width - VIEWPORT_MARGIN_PX),
-      top: topSide ? EDGE_GAP_PX : dockTop,
-      isDocked: true,
-    };
-  }
+  if (nearH) return { edge: h, h, v, left: dockedLeft, top: freeTop, isDocked: true };
+  if (nearV) return { edge: v, h, v, left: freeLeft, top: dockedTop, isDocked: true };
 
   // Free drop: flip the edge across the midline along the element's current axis.
   const cx = rect.left + rect.width / 2;
@@ -149,8 +130,8 @@ export function chooseEdge(rect: Box, vp: Viewport, prevEdge: PaneEdge | undefin
     edge,
     h: edge === "right" ? "right" : "left",
     v: edge === "bottom" ? "bottom" : "top",
-    left: clamp(rect.left, VIEWPORT_MARGIN_PX, W - rect.width - VIEWPORT_MARGIN_PX),
-    top: clamp(rect.top, VIEWPORT_MARGIN_PX, H - rect.height - VIEWPORT_MARGIN_PX),
+    left: freeLeft,
+    top: freeTop,
     isDocked: false, // a free drop in the middle: kept where released, edge is orientation-only
   };
 }
@@ -219,90 +200,120 @@ function minimalPush(
   return push;
 }
 
-// Spring `rect`'s top-left out of every obstacle by the minimum-translation axis, staying inside
-// the viewport, and return the *least-overlapping reachable* position. Greedy push that keeps the
-// best position seen (fewest overlaps, then least displacement) and stops on a revisited position;
-// if the greedy still overlaps (it stalls on a wide obstacle flanked by narrow ones), a fallback
-// jumps past the union of the dock-band obstacles to the nearer clear side. A genuinely cramped
-// edge with no clear slot settles deterministically instead of oscillating. Pure — unit-tested.
-export function pushOutOf(
+type Axis = "x" | "y";
+
+// How far `rect` may travel and still sit inside the viewport.
+interface Bounds {
+  readonly maxLeft: number;
+  readonly maxTop: number;
+}
+
+// A position and how many obstacles it still overlaps.
+interface Settled {
+  readonly at: Box;
+  readonly overlaps: number;
+}
+
+// Greedy minimum-translation relaxation, iteration-capped and cycle-guarded. Keeps the best position
+// seen — fewest overlaps, then least displacement from where the drag left it — so a cramped edge
+// with no clear slot settles deterministically instead of oscillating.
+function relaxOutOfOverlaps(
   rect: Box,
   obstacles: readonly Box[],
   edge: PaneEdge | undefined,
-  vp: Viewport,
-): { left: number; top: number } {
-  const maxLeft = Math.max(VIEWPORT_MARGIN_PX, vp.width - VIEWPORT_MARGIN_PX - rect.width);
-  const maxTop = Math.max(VIEWPORT_MARGIN_PX, vp.height - VIEWPORT_MARGIN_PX - rect.height);
-  const overlapCount = (b: Box): number =>
-    obstacles.reduce((n, o) => n + (overlaps(b, o) ? 1 : 0), 0);
-
+  bounds: Bounds,
+  overlapCount: (b: Box) => number,
+): Settled {
   let cur = rect;
-  let best = rect;
-  let bestOverlaps = overlapCount(rect);
+  let best: Settled = { at: rect, overlaps: overlapCount(rect) };
   let bestDist = 0;
   const seen = new Set<string>();
-  for (let iter = 0; iter < 12 && bestOverlaps > 0; iter++) {
+  for (let iter = 0; iter < 12 && best.overlaps > 0; iter++) {
     const key = `${Math.round(cur.left)},${Math.round(cur.top)}`;
     if (seen.has(key)) break; // revisited → cycle, no further progress
     seen.add(key);
 
     const push = minimalPush(cur, obstacles, edge);
     if (push === null) break;
-    const left = clamp(cur.left + push.dx, VIEWPORT_MARGIN_PX, maxLeft);
-    const top = clamp(cur.top + push.dy, VIEWPORT_MARGIN_PX, maxTop);
-    cur = box(left, top, rect.width, rect.height);
+    cur = box(
+      clamp(cur.left + push.dx, VIEWPORT_MARGIN_PX, bounds.maxLeft),
+      clamp(cur.top + push.dy, VIEWPORT_MARGIN_PX, bounds.maxTop),
+      rect.width,
+      rect.height,
+    );
 
-    const oc = overlapCount(cur);
-    const dist = Math.abs(left - rect.left) + Math.abs(top - rect.top);
-    if (oc < bestOverlaps || (oc === bestOverlaps && dist < bestDist)) {
-      best = cur;
-      bestOverlaps = oc;
+    const overlaps = overlapCount(cur);
+    const dist = Math.abs(cur.left - rect.left) + Math.abs(cur.top - rect.top);
+    if (overlaps < best.overlaps || (overlaps === best.overlaps && dist < bestDist)) {
+      best = { at: cur, overlaps };
       bestDist = dist;
     }
   }
+  return best;
+}
 
-  // The greedy stalls on a wide obstacle flanked by narrow ones: small pushes past the neighbours
-  // oscillate instead of committing to the larger push that clears the wide one (e.g. the coords
-  // chip between the rail's icon buttons). If still overlapping, jump just past the union of the
-  // obstacles sharing the dock band to the nearer side that lands fully clear.
-  if (bestOverlaps > 0) {
-    const tryPlace = (left: number, top: number): void => {
-      const cand = box(
-        clamp(left, VIEWPORT_MARGIN_PX, maxLeft),
-        clamp(top, VIEWPORT_MARGIN_PX, maxTop),
+// The two positions that clear the union of the obstacles sharing `rect`'s band along `axis`, nearer
+// side first. The x and y cases are the same five steps with the accessors swapped, so they are
+// written once: which obstacles share the band, the union's extent, and the jump past either end.
+function bandEscapes(rect: Box, obstacles: readonly Box[], axis: Axis): readonly Box[] {
+  const isHorizontal = axis === "x";
+  const band = obstacles.filter((o) =>
+    isHorizontal
+      ? o.top < rect.bottom && o.bottom > rect.top
+      : o.left < rect.right && o.right > rect.left,
+  );
+  if (band.length === 0) return [];
+  const lo = Math.min(...band.map((o) => (isHorizontal ? o.left : o.top)));
+  const hi = Math.max(...band.map((o) => (isHorizontal ? o.right : o.bottom)));
+  const extent = isHorizontal ? rect.width : rect.height;
+  const leading = (isHorizontal ? rect.left : rect.top) + extent / 2 >= (lo + hi) / 2;
+  const past = hi + CHROME_GAP_PX;
+  const before = lo - extent - CHROME_GAP_PX;
+  const at = (v: number): Box =>
+    isHorizontal
+      ? box(v, rect.top, rect.width, rect.height)
+      : box(rect.left, v, rect.width, rect.height);
+  return leading ? [at(past), at(before)] : [at(before), at(past)];
+}
+
+// Spring `rect`'s top-left out of every obstacle by the minimum-translation axis, staying inside the
+// viewport, and return the least-overlapping reachable position. The greedy relaxation stalls on a
+// wide obstacle flanked by narrow ones — small pushes past the neighbours oscillate instead of
+// committing to the larger push that clears the wide one (the coords chip between the rail's icon
+// buttons) — so a still-overlapping result then tries the band escapes along whichever axes the dock
+// leaves free. Pure — unit-tested.
+export function pushOutOf(
+  rect: Box,
+  obstacles: readonly Box[],
+  edge: PaneEdge | undefined,
+  vp: Viewport,
+): { left: number; top: number } {
+  const bounds: Bounds = {
+    maxLeft: Math.max(VIEWPORT_MARGIN_PX, vp.width - VIEWPORT_MARGIN_PX - rect.width),
+    maxTop: Math.max(VIEWPORT_MARGIN_PX, vp.height - VIEWPORT_MARGIN_PX - rect.height),
+  };
+  const overlapCount = (b: Box): number =>
+    obstacles.reduce((n, o) => n + (overlaps(b, o) ? 1 : 0), 0);
+
+  let best = relaxOutOfOverlaps(rect, obstacles, edge, bounds, overlapCount);
+
+  // A dock pins one axis, so only the axis along it may escape; a free element may use both.
+  const axes: readonly Axis[] = [
+    ...(edge === "left" || edge === "right" ? [] : (["x"] as const)),
+    ...(edge === "top" || edge === "bottom" ? [] : (["y"] as const)),
+  ];
+  for (const axis of axes) {
+    for (const candidate of bandEscapes(rect, obstacles, axis)) {
+      if (best.overlaps === 0) break;
+      const at = box(
+        clamp(candidate.left, VIEWPORT_MARGIN_PX, bounds.maxLeft),
+        clamp(candidate.top, VIEWPORT_MARGIN_PX, bounds.maxTop),
         rect.width,
         rect.height,
       );
-      const oc = overlapCount(cand);
-      if (oc < bestOverlaps) {
-        best = cand;
-        bestOverlaps = oc;
-      }
-    };
-    if (edge !== "left" && edge !== "right") {
-      const band = obstacles.filter((o) => o.top < rect.bottom && o.bottom > rect.top);
-      if (band.length > 0) {
-        const lo = Math.min(...band.map((o) => o.left));
-        const hi = Math.max(...band.map((o) => o.right));
-        const rightFirst = rect.left + rect.width / 2 >= (lo + hi) / 2;
-        tryPlace(rightFirst ? hi + CHROME_GAP_PX : lo - rect.width - CHROME_GAP_PX, rect.top);
-        if (bestOverlaps > 0) {
-          tryPlace(rightFirst ? lo - rect.width - CHROME_GAP_PX : hi + CHROME_GAP_PX, rect.top);
-        }
-      }
-    }
-    if (bestOverlaps > 0 && edge !== "top" && edge !== "bottom") {
-      const band = obstacles.filter((o) => o.left < rect.right && o.right > rect.left);
-      if (band.length > 0) {
-        const lo = Math.min(...band.map((o) => o.top));
-        const hi = Math.max(...band.map((o) => o.bottom));
-        const downFirst = rect.top + rect.height / 2 >= (lo + hi) / 2;
-        tryPlace(rect.left, downFirst ? hi + CHROME_GAP_PX : lo - rect.height - CHROME_GAP_PX);
-        if (bestOverlaps > 0) {
-          tryPlace(rect.left, downFirst ? lo - rect.height - CHROME_GAP_PX : hi + CHROME_GAP_PX);
-        }
-      }
+      const count = overlapCount(at);
+      if (count < best.overlaps) best = { at, overlaps: count };
     }
   }
-  return { left: best.left, top: best.top };
+  return { left: best.at.left, top: best.at.top };
 }

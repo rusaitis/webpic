@@ -79,7 +79,7 @@ it("rebuilds the renderer + every layer scene on the new device when the device 
   expect(restored?.compileComposite).toHaveBeenCalled();
 });
 
-it("posts gpuRecoveryFailed and does not rebuild on a isTerminal loss", () => {
+it("posts gpuRecoveryFailed and does not rebuild on a terminal loss", () => {
   const self = (globalThis as unknown as { self: { postMessage: ReturnType<typeof vi.fn> } }).self;
   self.postMessage.mockClear();
   const installsBefore = h.installRenderer.mock.calls.length;
