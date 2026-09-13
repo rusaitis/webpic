@@ -21,7 +21,7 @@ function recipe(over: Partial<RecipeMeta>): RecipeMeta {
   };
 }
 
-describe("isWebgpuOp gating", () => {
+describe("isWebgpuComputable", () => {
   it("accepts the bound magnitude / curl / divergence func names", () => {
     expect(isWebgpuComputable(recipe({ func: "magnetic_field_magnitude" }))).toBe(true);
     expect(isWebgpuComputable(recipe({ func: "electric_field_magnitude" }))).toBe(true);

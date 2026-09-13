@@ -150,8 +150,6 @@ Not drift — actually broken, and each found by a pass looking for something el
   the union over `BACKENDS.supports`, so the field just degrades in silence. *(P8)*
 - **The `§` citation guard did not scan `tests/`**; switching it on immediately caught a dangling
   cite (a line wrap had split `CLAUDE.md` from its `§`). *(P8)*
-
----
 - **A rename sweep had rewritten English into identifiers in 25 places** — 21 comments and four test
   titles. `57e83f4` made the renamer string-aware after P7's `el` → `element` incident but never
   comment-aware, so `a slow idle timer` became `a slow isIdle timer` and `e.g.` became `event.g.`
@@ -171,6 +169,8 @@ Not drift — actually broken, and each found by a pass looking for something el
   Same shape as Part 8's validator. `/* @__PURE__ */` took the app bundle 401.5 → 395.1 kB gzip. *(P10)*
 - **`scripts/shot-readme.ts` still failed open** — the one instrument Part 8 missed. It logged
   `pageerror` and then exited 0, so a hero screenshot of a broken page shipped looking fine. *(P10)*
+
+---
 
 ## Settled — do not re-propose
 
@@ -291,7 +291,8 @@ Also: anything in memory `perf-review-non-wins`, `tot-select-chain-no-win`, or
   the cull it was written for and hid a one-caller abstraction and a dead control path for two parts.
 - **A title is copy; a hook is a contract.** Three instruments broke on retitled UI before this landed.
 - **`data-control="layers"` is ambiguous** — the topbar's disabled placeholder and the side-rail button
-  share it. Scope by `.webpic-siderail` in any probe.- **A `biome-ignore` must be a single comment.** A wrapped second `//` line becomes the
+  share it. Scope by `.webpic-siderail` in any probe.
+- **A `biome-ignore` must be a single comment.** A wrapped second `//` line becomes the
   immediately-preceding comment, and the suppression silently reports as unused.
 - **Suppressions and the ceiling drop belong in one commit.** Biome's `suppressions/unused` fires on
   a suppression added while the old ceiling still covers it.

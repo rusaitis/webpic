@@ -34,7 +34,7 @@ export const ALLOWED_IMPORTS: Record<LayerName, readonly LayerName[]> = {
   numerics: ["schema", "containers"],
   reductions: ["schema"],
   derived: ["schema"],
-  // Reserved: the analyzer leg's diagnostics are grid operators over a dataset (DESIGN §Data layer).
+  // Reserved: the analyzer leg's diagnostics are grid operators over a dataset (DESIGN §Layered dependency DAG).
   diagnostics: ["schema", "containers", "coordinates"],
   gpu: [],
   shaders: [],

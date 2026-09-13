@@ -1,6 +1,6 @@
 // TOML parse + validation for the theme model. Split from ./theme.ts because that module is
 // value-imported by the render worker (`cssRgba`), and zod + smol-toml here would ride into the
-// worker chunk behind it. Validate at boundaries only (CLAUDE.md §Schema, validation, boundaries).
+// worker chunk behind it. Validate at boundaries only (CLAUDE.md §"Schema, validation, boundaries").
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod";
 import { errorMessage } from "./log.ts";

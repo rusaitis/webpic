@@ -17,7 +17,7 @@ function entry(kind: "volume" | "slice" | "fieldlines", source: Partial<FieldSou
 
 const WINDOW = { center: 0.5, width: 1 };
 
-describe("createLayerComposite", () => {
+describe("createLayerOrder", () => {
   it("reports only the ids whose opacity moved", () => {
     const composite = createLayerOrder();
     composite.setOrder([

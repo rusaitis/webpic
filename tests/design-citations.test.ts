@@ -53,7 +53,6 @@ function resolves(cite: string, known: ReadonlySet<string>): boolean {
   for (let count = words.length; count > 0; count--) {
     const candidate = normalize(words.slice(0, count).join(" "));
     if (candidate === "") continue;
-    if (known.has(candidate)) return true;
     for (const heading of known) {
       if (heading === candidate || heading.startsWith(`${candidate} `)) return true;
     }
