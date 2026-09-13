@@ -91,8 +91,7 @@ export interface FieldDataset {
   readonly fields: ReadonlyMap<FieldName, FieldArray>;
   readonly grid: GridInfo;
   readonly normalization: Normalization;
-  // species/transforms/metadata stay opaque-but-decoded for now; tightened to typed
-  // SpeciesInfo/FrameTransform when compute/render need them.
+  // pypic owns these shapes; webpic carries them verbatim (decoded) and never reads into them.
   readonly species: ReadonlyArray<Readonly<Record<string, unknown>>>;
   readonly physics: PhysicsParams;
   readonly frame: string;

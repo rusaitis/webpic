@@ -24,8 +24,8 @@ export interface TransferFunctionTexture {
 }
 
 // Sample `name`'s colormap into a packed RGBA half-float LUT (`size` texels wide).
-// Alpha is 1.0 throughout — the opacity transfer function (alpha curve) lands later;
-// for now the slice is opaque and the raymarch keeps its value-proportional opacity.
+// Alpha is 1.0 throughout: opacity comes from the raymarch's value-proportional term, not the LUT,
+// and the slice is opaque.
 export function buildTransferFunctionLut(name: string, size = DEFAULT_LUT_SIZE): Uint16Array {
   const lut = new Uint16Array(size * 4);
   const one = DataUtils.toHalfFloat(1);

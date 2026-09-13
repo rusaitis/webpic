@@ -20,7 +20,7 @@ import {
 // the main thread and dispatches no intent the bridge forwards (on-demand stays on-demand).
 
 const IDLE_MS = 400; // no new sample within this → the on-demand loop is idle, show "idle" not stale fps
-const IDLE_TICK_MS = 250; // idle-flip + detail refresh cadence while visible (replaces the per-frame rAF)
+const IDLE_TICK_MS = 250; // idle-flip + detail refresh cadence while visible
 const OK_COLOR = "#8fbf8f"; // frame within the 60 fps budget (desaturated green)
 const WARN_COLOR = "#f5b050"; // frame within 30 fps (amber); also the band's legend swatch
 const BAD_COLOR = "#d98a78"; // frame over the 30 fps budget (soft terracotta)

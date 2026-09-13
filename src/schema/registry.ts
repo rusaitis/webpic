@@ -5,7 +5,7 @@ import type { FieldMeta } from "./types.ts";
 export { FIELD_REGISTRY };
 
 // The default vector a trace follows and a synthetic reader emits. Canonical, 1-indexed component
-// names (CLAUDE.md §Naming); three modules used to spell the triple out, under two names.
+// names (CLAUDE.md §Naming) — the one spelling the tracer, the synthetic reader and the registry share.
 export const MAGNETIC_COMPONENTS = ["B_1", "B_2", "B_3"] as const;
 
 // pypic's registry lists base canonical forms (B_1, V_1, P_11, n_s0) but synthesizes per-species
