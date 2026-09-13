@@ -6,7 +6,7 @@ const BANNER_ID = "webpic-blocking-banner";
 
 export interface BlockingBannerOptions {
   // Adds a Reload button — worth offering for a transient fault, not for an unsupported browser.
-  readonly reload?: boolean;
+  readonly shouldOfferReload?: boolean;
   // Rendered under the message in a dimmer weight.
   readonly detail?: string;
 }
@@ -28,7 +28,7 @@ export function showBlockingBanner(message: string, options: BlockingBannerOptio
     detail.textContent = options.detail;
     banner.append(detail);
   }
-  if (options.reload === true) {
+  if (options.shouldOfferReload === true) {
     const reload = document.createElement("button");
     reload.type = "button";
     reload.textContent = "Reload";

@@ -45,7 +45,7 @@ export interface DragSnapOptions {
   // so a size change (collapse/expand) pivots on the center. The stylesheet must translate that axis
   // by -50% (`translateX(-50%)` on top/bottom docks, `translateY(-50%)` on left/right, both for a
   // free drop). The colorbar opts in; the free-mode window keeps corner anchoring.
-  readonly centerFreeAxis?: boolean;
+  readonly shouldCenterFreeAxis?: boolean;
   // Fired when the dock edge changes (the colorbar repaints its gradient orientation).
   readonly onEdgeChange?: (edge: PaneEdge) => void;
   // Fired after every settle (drag release, reflow, resize) with the element's resolved edge + box,
@@ -71,7 +71,7 @@ export function installDragSnap(
   const handle = options.handle ?? element;
   const doc = element.ownerDocument;
   const view = doc.defaultView;
-  const anchors = createAnchorWriter(element, options.centerFreeAxis === true);
+  const anchors = createAnchorWriter(element, options.shouldCenterFreeAxis === true);
   const abortController = new AbortController();
   const { signal } = abortController;
 
@@ -145,7 +145,7 @@ export function installDragSnap(
   };
 
   // Re-settle after a resize or a size change: re-flush a docked edge, hold a free drop in place,
-  // then re-clear chrome. A collapse/expand needs no anchor change under centerFreeAxis — the CSS
+  // then re-clear chrome. A collapse/expand needs no anchor change under shouldCenterFreeAxis — the CSS
   // -50% translate keeps the free axis pivoting on its center — this just re-clamps + re-groups.
   const reflow = (): void => {
     const hasInline =
@@ -172,8 +172,8 @@ export function installDragSnap(
       vp,
     );
 
-    // Under centerFreeAxis the CSS -50% translate owns the free axis, so h/v carry no information.
-    const { h, v } = options.centerFreeAxis
+    // Under shouldCenterFreeAxis the CSS -50% translate owns the free axis, so h/v carry no information.
+    const { h, v } = options.shouldCenterFreeAxis
       ? ({ h: "left", v: "top" } as const)
       : leaningAnchors(edge, box(left, top, r.width, r.height), vp);
     const settled = apply({ edge, h, v, left, top, isDocked }, r.width, r.height, vp);

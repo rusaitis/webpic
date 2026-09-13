@@ -249,11 +249,11 @@ function row(label: string, value: string): string {
 }
 
 function workerRow(worker: PerfWorker): string {
-  const dot = worker.live ? "●" : "○";
+  const dot = worker.isLive ? "●" : "○";
   const heap = worker.heapBytes === null ? "" : ` · ${formatBytes(worker.heapBytes)}`;
   const note = worker.note !== undefined ? ` · ${worker.note}` : "";
   return row(
     `${dot} ${worker.role}`,
-    `${heap}${note}`.replace(/^ · /, "") || (worker.live ? "live" : "—"),
+    `${heap}${note}`.replace(/^ · /, "") || (worker.isLive ? "live" : "—"),
   );
 }

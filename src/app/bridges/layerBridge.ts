@@ -79,10 +79,11 @@ function sendLayerEdits(
         break;
       case "slice": {
         if (before.kind !== "slice") break;
-        const axis = before.axis !== layer.axis;
+        const hasAxisChanged = before.axis !== layer.axis;
         // The live drag hot path; only the moved param rides the wire.
-        const position = before.position !== layer.position;
-        if (axis || position) send.sliceParams(layer, { axis, position });
+        const hasPositionChanged = before.position !== layer.position;
+        if (hasAxisChanged || hasPositionChanged)
+          send.sliceParams(layer, { hasAxisChanged, hasPositionChanged });
         break;
       }
       case "fieldlines":

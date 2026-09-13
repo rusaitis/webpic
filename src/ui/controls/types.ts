@@ -113,7 +113,6 @@ export interface NoteHandle {
 
 export interface FolderOptions {
   readonly title: string;
-  readonly expanded?: boolean;
 }
 
 export interface Folder {

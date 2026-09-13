@@ -116,9 +116,9 @@ export function colorbarFitMode(input: ColorbarFitInput): ColorbarFitMode {
 export function railGnomonCramped(
   viewportWidth: number,
   clusterWidth: number,
-  currentlySuppressed: boolean,
+  isCurrentlySuppressed: boolean,
 ): boolean {
   if (clusterWidth <= 0) return false;
   const threshold = clusterWidth + 2 * GNOMON_RESERVE_PX;
-  return viewportWidth < threshold + (currentlySuppressed ? GNOMON_CRAMP_HYSTERESIS_PX : 0);
+  return viewportWidth < threshold + (isCurrentlySuppressed ? GNOMON_CRAMP_HYSTERESIS_PX : 0);
 }

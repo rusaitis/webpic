@@ -42,7 +42,6 @@ function makeFolder(doc: Document, options: FolderOptions): Folder {
   bar.type = "button";
   bar.textContent = options.title;
   const body = makeEl(doc, "div", "webpic-folder_body");
-  if (options.expanded === false) body.hidden = true;
   const abortController = new AbortController();
   const onBar = (): void => {
     body.hidden = !body.hidden;

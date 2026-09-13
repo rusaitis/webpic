@@ -6,7 +6,7 @@ import type { Box, PaneEdge, SnapPlacement, Viewport } from "./snapGeometry.ts";
 // matching translate(-50%)). Pure DOM writes — no geometry decisions, no listeners.
 
 export interface AnchorWriter {
-  // Anchor `rect` per the placement's h/v (or its edge, under centerFreeAxis).
+  // Anchor `rect` per the placement's h/v (or its edge, under shouldCenterFreeAxis).
   write(placement: SnapPlacement, rect: Box, vp: Viewport): void;
   // The CSS-variable drag offset the stylesheet's transform consumes.
   offset(x: number, y: number): void;

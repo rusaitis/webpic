@@ -54,8 +54,8 @@ export interface LayerMessagesOptions extends Pick<RenderWorkerLink, "worker"> {
 // Which of a slice's two params moved. Named rather than two positional booleans: at the call site
 // `(layer, false, true)` says nothing, and the two are swappable without a type error.
 interface SliceChange {
-  readonly axis: boolean;
-  readonly position: boolean;
+  readonly hasAxisChanged: boolean;
+  readonly hasPositionChanged: boolean;
 }
 
 export interface LayerMessages {
@@ -134,8 +134,8 @@ export function createLayerMessages(options: LayerMessagesOptions): LayerMessage
       kind: "setSliceParams",
       requestId: REQUEST_IDS.layer,
       id: layer.id,
-      ...(changed.axis ? { axis: layer.axis } : {}),
-      ...(changed.position ? { position: layer.position } : {}),
+      ...(changed.hasAxisChanged ? { axis: layer.axis } : {}),
+      ...(changed.hasPositionChanged ? { position: layer.position } : {}),
     } satisfies RenderWorkerRequest);
   };
 

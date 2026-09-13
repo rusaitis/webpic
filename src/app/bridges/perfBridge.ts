@@ -60,13 +60,13 @@ export function installPerf(options: PerfBridgeOptions): PerfBridge {
 
   const rebuildTopology = (): void => {
     const topology: PerfWorker[] = [
-      { role: "main", live: true, heapBytes: mainHeapBytes },
-      { role: "render", live: isRenderReady(), heapBytes: renderHeapBytes },
+      { role: "main", isLive: true, heapBytes: mainHeapBytes },
+      { role: "render", isLive: isRenderReady(), heapBytes: renderHeapBytes },
     ];
     if (isDataPresent()) {
       topology.push({
         role: "data",
-        live: true,
+        isLive: true,
         heapBytes: dataHeapBytes,
         ...(dataLastReadMs !== null ? { note: `read ${dataLastReadMs.toFixed(0)} ms` } : {}),
       });

@@ -23,7 +23,7 @@ export interface GpuRequestOptions {
   readonly requiredFeatures?: readonly GPUFeatureName[]; // intersected with the adapter
   readonly requiredLimits?: Record<string, number>;
   readonly label?: string;
-  readonly reacquireOnLoss?: boolean; // auto re-acquire on real device loss (default true)
+  readonly shouldReacquireOnLoss?: boolean; // auto re-acquire on real device loss (default true)
 }
 
 export interface InstalledGpu {
@@ -219,7 +219,7 @@ async function watchForLoss(singleton: GpuSingleton, options?: GpuRequestOptions
   const kind: DeviceLossKind = info.reason === "destroyed" ? "destroyed" : "unknown";
   if (current === singleton) current = undefined;
   // Recover only if the caller opted in AND the breaker hasn't tripped. A tripped breaker is terminal.
-  const reacquire = (options?.reacquireOnLoss ?? true) && recordLossAndAllowRecovery();
+  const reacquire = (options?.shouldReacquireOnLoss ?? true) && recordLossAndAllowRecovery();
   emitLost({ kind, message: info.message, isTerminal: !reacquire });
   if (reacquire) void recover(options).catch(reportUnhandled);
 }

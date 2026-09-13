@@ -53,7 +53,7 @@ export function routeWorkerResponse(message: RenderWorkerResponse, host: WorkerR
         host.endBootPhase();
         showBlockingBanner("webpic could not start the WebGPU renderer.", {
           detail: message.message,
-          reload: true,
+          shouldOfferReload: true,
         });
       }
       return;
@@ -61,7 +61,7 @@ export function routeWorkerResponse(message: RenderWorkerResponse, host: WorkerR
       logError("render worker", `GPU unrecoverable (${message.reason}): ${message.message}`);
       host.endBootPhase();
       showBlockingBanner(`GPU device lost and could not recover. ${message.message}`, {
-        reload: true,
+        shouldOfferReload: true,
       });
       return;
     case "disposed":

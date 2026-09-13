@@ -236,7 +236,7 @@ export function installColorbar(
 
   const drag = installDragSnap(container, {
     chromeSelector: CHROME_SELECTOR,
-    centerFreeAxis: true, // collapse/expand pivots on the strip's center, not an edge
+    shouldCenterFreeAxis: true, // collapse/expand pivots on the strip's center, not an edge
     onEdgeChange: () => {
       repaint();
       settings.reposition();

@@ -112,8 +112,8 @@ describe("installPerfHud", () => {
   it("renders the detail panel's worker topology and jank rows when opened", () => {
     show();
     perfStore.getState().setTopology([
-      { role: "main", live: true, heapBytes: 1024 * 1024 },
-      { role: "data", live: false, heapBytes: null, note: "read 12 ms" },
+      { role: "main", isLive: true, heapBytes: 1024 * 1024 },
+      { role: "data", isLive: false, heapBytes: null, note: "read 12 ms" },
     ]);
     perfStore.getState().togglePerfDetail();
     const detail = host.querySelector(".webpic-perf_detail");

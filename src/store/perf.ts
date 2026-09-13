@@ -34,7 +34,7 @@ type PerfWorkerRole = "main" | "render" | "data";
 // read time) when available.
 export interface PerfWorker {
   readonly role: PerfWorkerRole;
-  readonly live: boolean;
+  readonly isLive: boolean;
   readonly heapBytes: number | null;
   readonly note?: string;
 }

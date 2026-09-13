@@ -47,7 +47,7 @@ describe("createLayerMessages", () => {
 
   it("sends only the slice field that changed", () => {
     const { posts, send } = rig();
-    send.sliceParams(sliceLayer(), { axis: false, position: true });
+    send.sliceParams(sliceLayer(), { hasAxisChanged: false, hasPositionChanged: true });
     expect(posts[0]?.message).toMatchObject({ kind: "setSliceParams", position: 0.25 });
     expect(posts[0]?.message).not.toHaveProperty("axis");
   });

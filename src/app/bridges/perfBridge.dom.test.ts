@@ -85,7 +85,7 @@ describe("installPerf", () => {
     const state = perfStore.getState();
     expect(state.sample).toMatchObject({ cpuEncodeMs: 3, governorScale: 0.85, vramBytes: 128 });
     expect(state.topology.find((worker) => worker.role === "render")).toMatchObject({
-      live: true,
+      isLive: true,
       heapBytes: 4096,
     });
   });

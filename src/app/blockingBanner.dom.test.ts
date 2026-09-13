@@ -11,7 +11,7 @@ afterEach(() => {
 
 describe("showBlockingBanner", () => {
   it("renders the message, the optional detail, and an opt-in reload button", () => {
-    showBlockingBanner("dead", { detail: "why", reload: true });
+    showBlockingBanner("dead", { detail: "why", shouldOfferReload: true });
     const element = banner();
     expect(element).not.toBeNull();
     expect(element?.getAttribute("role")).toBe("alert"); // announced, not just painted
