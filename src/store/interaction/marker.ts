@@ -10,6 +10,7 @@ import {
 } from "@schema/marker.ts";
 import { clamp, UNIT_BOX_HALF_EXTENT, vec3 } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
+import { viewPlaneOffset } from "./camera.ts";
 import type { CursorRay } from "./picker.ts";
 
 // Main-thread point-picker math: project the marker / its handles to screen for hit-testing, and
@@ -105,11 +106,8 @@ export function markerHandlePositions(
 // size across dolly. screenRight matches worldToScreen's basis.
 export function markerEdgePoint(pose: CameraPose, point: Vec3, isOrthographic: boolean): Vec3 {
   const radius = MARKER_SPHERE_RADIUS * markerCoreScale(pose, point, isOrthographic);
-  return [
-    point[0] - radius * Math.sin(pose.azimuth),
-    point[1] + radius * Math.cos(pose.azimuth),
-    point[2],
-  ];
+  const offset = viewPlaneOffset(pose, radius, 0);
+  return vec3(point[0] + offset[0], point[1] + offset[1], point[2] + offset[2]);
 }
 
 // Cursor-ray ∩ plane through `planePoint` with unit `planeNormal`. null when the ray is parallel to

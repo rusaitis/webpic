@@ -1,4 +1,4 @@
-import { createBufferPool } from "./bufferPool.ts";
+import { BYTES_PER_F32, createBufferPool } from "./bufferPool.ts";
 
 // One-shot WebGPU runner for the streamline kernel — the GPU twin of `computeKernel.ts`, but for the
 // fixed 7-binding streamline layout (3 field buffers + params + seeds + two read-write outputs) with
@@ -8,7 +8,6 @@ import { createBufferPool } from "./bufferPool.ts";
 // `nWork` is small, so no grid-stride loop is needed.
 
 const WORKGROUP_SIZE = 64;
-const BYTES_PER_F32 = 4;
 const FLOATS_PER_POINT = 4; // vec4<f32>: xyz + arclength
 const TRACE_META_BYTES = 16; // u32 nPoints, u32 reason, u32 nSteps, f32 maxLocalError
 

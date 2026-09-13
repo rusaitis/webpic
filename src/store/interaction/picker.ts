@@ -87,11 +87,10 @@ export function focusPoseOnPoint(
   point: Vec3,
   distance: number = focusDistance(pose.distance),
 ): CameraPose {
-  const ce = Math.cos(pose.elevation);
-  const [tx, ty, tz] = pose.target;
-  const vx = tx + pose.distance * ce * Math.cos(pose.azimuth) - point[0];
-  const vy = ty + pose.distance * ce * Math.sin(pose.azimuth) - point[1];
-  const vz = tz + pose.distance * Math.sin(pose.elevation) - point[2];
+  const [camX, camY, camZ] = cameraPosition(pose);
+  const vx = camX - point[0];
+  const vy = camY - point[1];
+  const vz = camZ - point[2];
   const len = Math.hypot(vx, vy, vz);
   // Picked point at the camera itself (camera inside the box) — no aim direction; keep the angles.
   if (len < DEGENERATE_AIM_LENGTH) {

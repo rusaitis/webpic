@@ -11,6 +11,7 @@ import { runStreamlineKernel } from "@gpu/streamlineKernel.ts";
 import { interpolatorFromDataset } from "@numerics/interp.ts";
 import {
   type AdaptiveTraceOptions,
+  EMPTY_DIRECTION,
   type FieldLine,
   makeFieldLine,
   reasonFromCode,
@@ -24,12 +25,6 @@ import type { Vec3 } from "@schema/types.ts";
 import { STREAMLINE_ENTRY, STREAMLINE_WGSL } from "@shaders/kernels/streamline.wgsl.ts";
 import { toFloat32 } from "./params.ts";
 import { buildStreamlineParams, decodeTraceMeta } from "./streamlineParams.ts";
-
-const EMPTY_DIR: SingleDirResult = {
-  points: new Float64Array(0),
-  reason: "max_steps",
-  maxLocalError: 0,
-};
 
 function requireField(data: FieldDataset, name: string): FieldArray {
   const field = data.fields.get(name);
@@ -128,8 +123,8 @@ export async function traceFieldLinesWebgpu(
   });
 
   return seedList.map((s, i) => {
-    let fwd = EMPTY_DIR;
-    let bwd = EMPTY_DIR;
+    let fwd = EMPTY_DIRECTION;
+    let bwd = EMPTY_DIRECTION;
     if (resolved.direction === "forward") {
       fwd = readDir(points, meta, capacity, i);
     } else if (resolved.direction === "backward") {

@@ -207,6 +207,14 @@ export interface SingleDirResult {
   readonly maxLocalError: number;
 }
 
+// A direction that was never integrated: the unrequested half of a one-sided trace, and the GPU
+// path's answer for a seed it rejected. Both stitch through the same contract, so they share it.
+export const EMPTY_DIRECTION: SingleDirResult = {
+  points: new Float64Array(0),
+  reason: "max_steps",
+  maxLocalError: 0,
+};
+
 // Has the newest point come back within `loopTol` of an earlier one at least `loopMinArclen` of arc
 // behind it? The arc-length gate is the whole trick: without it the immediate predecessor, always
 // within a step, reads as a closure. Mirrors pypic's closed-loop gate.
@@ -523,13 +531,8 @@ export function traceFieldLineAdaptive(
   const adapt = (sign: number): SingleDirResult =>
     traceSingleDirectionAdaptive(interp, seedArr, sign, p, terminate, signal);
 
-  const empty: SingleDirResult = {
-    points: new Float64Array(0),
-    reason: "max_steps",
-    maxLocalError: 0,
-  };
-  const fwd = p.direction === "forward" || p.direction === "both" ? adapt(1) : empty;
-  const bwd = p.direction === "backward" || p.direction === "both" ? adapt(-1) : empty;
+  const fwd = p.direction === "forward" || p.direction === "both" ? adapt(1) : EMPTY_DIRECTION;
+  const bwd = p.direction === "backward" || p.direction === "both" ? adapt(-1) : EMPTY_DIRECTION;
 
   const stitched = stitch(p.direction, fwd, bwd);
   return makeFieldLine({

@@ -1,4 +1,4 @@
-import { createBufferPool } from "./bufferPool.ts";
+import { BYTES_PER_F32, createBufferPool } from "./bufferPool.ts";
 
 // A thin, one-shot WebGPU compute runner: upload N read-only f32 input buffers plus a params buffer,
 // dispatch a single-output kernel, read the result back. Recipe-agnostic — the WebGPU compute backend
@@ -9,7 +9,6 @@ import { createBufferPool } from "./bufferPool.ts";
 
 const WORKGROUP_SIZE = 256;
 const MAX_WORKGROUPS_PER_DIM = 65535; // WebGPU spec guaranteed minimum; the kernel loops past it
-const BYTES_PER_F32 = 4;
 
 export interface FieldKernelSpec {
   readonly device: GPUDevice;

@@ -5,7 +5,7 @@
 // a storage output the pass writes, and the MAP_READ staging buffer the output is copied into —
 // MAP_READ and STORAGE are mutually exclusive, which is why a readback is always a second buffer.
 
-const BYTES_PER_F32 = 4;
+export const BYTES_PER_F32 = 4;
 
 export interface BufferPool {
   storageInput(data: ArrayBufferView | ArrayBuffer): GPUBuffer;
