@@ -48,7 +48,7 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
   let isVisible = false;
   // The document/window listeners live for one open-cycle, so they get a controller per open rather
   // than four paired add/remove calls whose capture flags have to match.
-  let openAc: AbortController | undefined;
+  let openAbort: AbortController | undefined;
 
   const ensurePanel = (): HTMLElement => {
     if (panel !== null) return panel;
@@ -162,8 +162,8 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
     isVisible = true;
     anchor.setAttribute("aria-expanded", "true");
     reposition();
-    openAc = new AbortController();
-    const { signal } = openAc;
+    openAbort = new AbortController();
+    const { signal } = openAbort;
     if (shouldDismissOnOutside) {
       installOutsideClickDismiss(doc, {
         overlay: element,
@@ -191,8 +191,8 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
     rows = [];
     activeIndex = -1;
     anchor.setAttribute("aria-expanded", "false");
-    openAc?.abort();
-    openAc = undefined;
+    openAbort?.abort();
+    openAbort = undefined;
   }
 
   const toggle = (): void => {
@@ -209,9 +209,9 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
     }
   };
   // Lifetime anchor listeners (the open/close doc listeners above are toggled per-open instead).
-  const anchorAc = new AbortController();
-  anchor.addEventListener("click", onAnchorClick, { signal: anchorAc.signal });
-  anchor.addEventListener("keydown", onAnchorKeyDown, { signal: anchorAc.signal });
+  const anchorAbort = new AbortController();
+  anchor.addEventListener("click", onAnchorClick, { signal: anchorAbort.signal });
+  anchor.addEventListener("keydown", onAnchorKeyDown, { signal: anchorAbort.signal });
 
   return {
     open,
@@ -223,7 +223,7 @@ export function createPopover<T extends PopoverItem>(options: PopoverOptions<T>)
     },
     dispose: () => {
       close();
-      anchorAc.abort();
+      anchorAbort.abort();
       panel?.remove();
       panel = null;
     },

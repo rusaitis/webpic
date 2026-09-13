@@ -210,9 +210,9 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     const epoch = epochs.begin(id);
     const next = buildScene(id, source, host);
     epochs.hold(id, next);
-    let committed: boolean;
+    let isCommitted: boolean;
     try {
-      committed = await warmScene(
+      isCommitted = await warmScene(
         next,
         () => host.warmComposite({ id, entry: next }),
         () => epochs.isCurrent(id, epoch),
@@ -222,7 +222,7 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     } finally {
       epochs.release(id, next);
     }
-    if (!committed) return;
+    if (!isCommitted) return;
     // The warm's await is a real yield: a setProjection / quality change that landed mid-warm only
     // reached committed scenes, so re-assert the live state on this one before it becomes visible.
     if ("setStepScale" in next.scene) next.scene.setStepScale(host.stepScale());

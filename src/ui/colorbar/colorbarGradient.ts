@@ -22,19 +22,19 @@ const GRADIENT_STEPS = 64; // smooth enough; the canvas scales to the CSS strip 
 export function paintGradient(
   canvas: HTMLCanvasElement,
   colormapId: ColormapId,
-  horizontal: boolean,
+  isHorizontal: boolean,
 ): void {
   const ctx = canvas.getContext("2d");
   if (ctx === null) return;
   const w = canvas.width;
   const h = canvas.height;
-  const gradient = horizontal
+  const gradient = isHorizontal
     ? ctx.createLinearGradient(0, 0, w, 0)
     : ctx.createLinearGradient(0, 0, 0, h);
   for (let i = 0; i <= GRADIENT_STEPS; i++) {
     const t = i / GRADIENT_STEPS;
     const [r, g, b] = colormapColor(colormapId, t);
-    const stop = horizontal ? t : 1 - t; // vertical: top is max
+    const stop = isHorizontal ? t : 1 - t; // vertical: top is max
     gradient.addColorStop(stop, `rgb(${r * 255}, ${g * 255}, ${b * 255})`);
   }
   ctx.fillStyle = gradient;

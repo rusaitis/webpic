@@ -19,21 +19,21 @@ import type { ControlHandle, RangeValue, RangeWidgetOptions } from "./types.ts";
 
 export function createRangeControl(
   doc: Document,
-  config: RangeWidgetOptions,
+  options: RangeWidgetOptions,
 ): ControlHandle<RangeValue> {
-  const { min, max } = config;
-  const step = config.step;
-  const initRange = config.range;
+  const { min, max } = options;
+  const step = options.step;
+  const initRange = options.range;
   const isInterval = initRange !== undefined;
   const scale = makeScale(
-    config.scale ?? "linear",
+    options.scale ?? "linear",
     min,
     max,
-    config.linthresh !== undefined ? { linthresh: config.linthresh } : {},
+    options.linthresh !== undefined ? { linthresh: options.linthresh } : {},
   );
-  const formatter = config.format ?? ((v: number): string => String(v));
-  const origin = clamp(config.origin ?? min, min, max);
-  const minGap = config.minGap ?? (step && step > 0 ? step : 0);
+  const formatter = options.format ?? ((v: number): string => String(v));
+  const origin = clamp(options.origin ?? min, min, max);
+  const minGap = options.minGap ?? (step && step > 0 ? step : 0);
   const { snapDrag, snapStep, stepDecades, keyStep, isLogish } = createRangeQuantizer(
     scale,
     min,
@@ -41,7 +41,7 @@ export function createRangeControl(
     step,
   );
 
-  let value = clamp(config.value ?? min, min, max);
+  let value = clamp(options.value ?? min, min, max);
   let [lo, hi] = initRange
     ? clampInterval(initRange[0], initRange[1], min, max, minGap)
     : [min, max];
@@ -50,11 +50,11 @@ export function createRangeControl(
     min,
     max,
     isInterval,
-    hasText: config.hasText !== false,
+    hasText: options.hasText !== false,
     scale,
     ...(step !== undefined ? { step } : {}),
-    ...(config.ticks !== undefined ? { ticks: config.ticks } : {}),
-    hasMinorTicks: config.hasMinorTicks !== false && isLogish,
+    ...(options.ticks !== undefined ? { ticks: options.ticks } : {}),
+    hasMinorTicks: options.hasMinorTicks !== false && isLogish,
     origin,
   });
 
@@ -138,7 +138,7 @@ export function createRangeControl(
     }
     root.classList.add("is-dragging");
     render();
-    emit(config.onInput);
+    emit(options.onInput);
     event.preventDefault();
   };
 
@@ -153,7 +153,7 @@ export function createRangeControl(
       applyGrip(drag.kind, valueAt(event.clientX, rect));
     }
     render();
-    emit(config.onInput);
+    emit(options.onInput);
   };
 
   const onUp = (event: PointerEvent): void => {
@@ -166,7 +166,7 @@ export function createRangeControl(
     drag = null;
     dragRect = null;
     root.classList.remove("is-dragging");
-    emit(config.onChange);
+    emit(options.onChange);
   };
 
   const onKey = (event: KeyboardEvent, end: "value" | "lo" | "hi"): void => {
@@ -196,8 +196,8 @@ export function createRangeControl(
     }
     applyGrip(end, next, isDecadeStep ? snapDrag : snapStep);
     render();
-    emit(config.onInput);
-    emit(config.onChange);
+    emit(options.onInput);
+    emit(options.onChange);
     event.preventDefault();
   };
 
@@ -211,7 +211,7 @@ export function createRangeControl(
     if (isInterval) [lo, hi] = clampInterval(n, hi, min, max, minGap);
     else value = clamp(n, min, max);
     render();
-    emit(config.onChange);
+    emit(options.onChange);
   };
   const onTextB = (): void => {
     const n = Number(inputB?.value);
@@ -221,7 +221,7 @@ export function createRangeControl(
     }
     [lo, hi] = clampInterval(lo, n, min, max, minGap);
     render();
-    emit(config.onChange);
+    emit(options.onChange);
   };
 
   const abortController = new AbortController();

@@ -98,7 +98,7 @@ function paintRingTexture(): Texture | null {
 
 // Paint a drag-handle knob: a light disc carrying a bold dark double-chevron (↕ when vertical, ↔ when
 // not) — the "drag along this axis" affordance.
-function paintKnobTexture(vertical: boolean): Texture | null {
+function paintKnobTexture(isVertical: boolean): Texture | null {
   if (typeof OffscreenCanvas === "undefined") return null;
   const size = 128;
   const canvas = new OffscreenCanvas(size, size);
@@ -114,7 +114,7 @@ function paintKnobTexture(vertical: boolean): Texture | null {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
-  if (vertical) {
+  if (isVertical) {
     ctx.moveTo(c - 24, 52);
     ctx.lineTo(c, 24);
     ctx.lineTo(c + 24, 52); // up chevron
