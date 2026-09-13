@@ -34,7 +34,7 @@ function harness({ hasCanvas = true }: { hasCanvas?: boolean } = {}) {
   const recovery = createDeviceRecovery({
     hasCanvas: () => hasCanvas,
     supersedeInFlightWarms: () => order.push("supersede"),
-    teardownDeadResources: () => order.push("teardown"),
+    disposeDeadResources: () => order.push("dispose"),
     rebuildOnDevice: async () => {
       order.push("rebuildOnDevice");
     },
@@ -74,7 +74,7 @@ describe("createDeviceRecovery", () => {
     await settle(() => expect(recovery.isDeviceLost()).toBe(false));
     // The order is the contract: warm precedes the un-pause + repaint, so the first restored frame
     // neither stalls nor draws on a half-built device.
-    expect(order).toEqual(["supersede", "teardown", "rebuildOnDevice", "warm", "requestRender"]);
+    expect(order).toEqual(["supersede", "dispose", "rebuildOnDevice", "warm", "requestRender"]);
   });
 
   it("a terminal loss halts the loop + reports failure, and never rebuilds", () => {
@@ -105,7 +105,7 @@ describe("createDeviceRecovery", () => {
     const recovery = createDeviceRecovery({
       hasCanvas: () => true,
       supersedeInFlightWarms: () => order.push("supersede"),
-      teardownDeadResources: () => order.push("teardown"),
+      disposeDeadResources: () => order.push("dispose"),
       rebuildOnDevice: async () => {
         throw new Error("install failed");
       },

@@ -31,7 +31,7 @@ export function createShortcutRegistry(doc: Document, signal?: AbortSignal): Sho
   const bindings: Binding[] = [];
   // Signal-bound only (no removeEventListener): a caller's signal and dispose() both tear it down.
   const abortController = new AbortController();
-  const teardownSignal =
+  const disposeSignal =
     signal === undefined
       ? abortController.signal
       : AbortSignal.any([signal, abortController.signal]);
@@ -48,7 +48,7 @@ export function createShortcutRegistry(doc: Document, signal?: AbortSignal): Sho
       return;
     }
   };
-  doc.addEventListener("keydown", onKeyDown, { signal: teardownSignal });
+  doc.addEventListener("keydown", onKeyDown, { signal: disposeSignal });
   const dispose: Disposer = () => abortController.abort();
 
   return {

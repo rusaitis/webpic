@@ -13,7 +13,7 @@ interface DeviceRecoveryHost {
   // Bump every scene epoch so an in-flight warm discards instead of landing a dead-device scene.
   supersedeInFlightWarms(): void;
   // Best-effort drop of the dead device's renderer + scene handles (teardown can throw; swallowed).
-  teardownDeadResources(): void;
+  disposeDeadResources(): void;
   // Install a fresh renderer on the restored device and rebuild every scene from its retained CPU
   // source, re-asserting the live quality level. (One step so the install→rebuild order is atomic.)
   rebuildOnDevice(device: GPUDevice): Promise<void>;
@@ -48,7 +48,7 @@ export function createDeviceRecovery(host: DeviceRecoveryHost): DeviceRecovery {
   async function rebuild(device: GPUDevice): Promise<void> {
     if (!host.hasCanvas()) return; // pre-init loss — nothing to rebuild yet
     host.supersedeInFlightWarms();
-    host.teardownDeadResources();
+    host.disposeDeadResources();
     await host.rebuildOnDevice(device);
     await host.warmComposite();
     isLost = false;

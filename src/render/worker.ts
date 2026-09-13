@@ -209,7 +209,7 @@ function createWorkerWorld(context: WorkerContext): {
       // streamed field heals on the next step) instead of landing a dead-device scene post-rebuild.
       for (const renderModule of modules) renderModule.supersedeWarms();
     },
-    teardownDeadResources: () => {
+    disposeDeadResources: () => {
       try {
         renderer?.dispose();
         for (const renderModule of modules) renderModule.disposeForRebuild();
