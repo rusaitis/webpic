@@ -19,7 +19,6 @@ import {
   Line,
   LineBasicMaterial,
   LineSegments,
-  type Material,
   Mesh,
   MeshBasicMaterial,
   Scene,
@@ -29,6 +28,7 @@ import {
   type Texture,
 } from "three";
 import { finishCanvasTexture } from "../canvasTexture.ts";
+import { createDisposableBag } from "../disposableBag.ts";
 import type { MarkerConfig } from "../messages.ts";
 import { createEasedChannels } from "./easedChannels.ts";
 
@@ -190,27 +190,24 @@ interface Handle {
 
 export function createMarkerScene(config: MarkerConfig): MarkerScene {
   const scene = new Scene();
-  const textures: Texture[] = [];
-  const geometries: BufferGeometry[] = [];
-  const materials: Material[] = [];
+  const bag = createDisposableBag();
   const guidePlaneZ = planeZForPosition(config.planePosition);
   const coreBaseColor = rgbColor(config.coreColor);
   const white = new Color(0xffffff);
 
   // Core sphere — the parent the ring + handles ride, scaled by the zoom factor.
-  const coreGeometry = new SphereGeometry(MARKER_SPHERE_RADIUS, 16, 16);
-  const coreMaterial = new MeshBasicMaterial({ color: coreBaseColor.clone(), transparent: true });
-  geometries.push(coreGeometry);
-  materials.push(coreMaterial);
+  const coreGeometry = bag.add(new SphereGeometry(MARKER_SPHERE_RADIUS, 16, 16));
+  const coreMaterial = bag.add(
+    new MeshBasicMaterial({ color: coreBaseColor.clone(), transparent: true }),
+  );
   const core = new Mesh(coreGeometry, coreMaterial);
   core.visible = false;
   scene.add(core);
 
   // Two-tone outline ring (billboard).
   const ringTexture = paintRingTexture();
-  if (ringTexture !== null) textures.push(ringTexture);
-  const ringMaterial = spriteMaterial(ringTexture, 1);
-  materials.push(ringMaterial);
+  if (ringTexture !== null) bag.add(ringTexture);
+  const ringMaterial = bag.add(spriteMaterial(ringTexture, 1));
   const ring = new Sprite(ringMaterial);
   ring.scale.set(RING_BASE, RING_BASE, 1);
   ring.renderOrder = HANDLE_RENDER_ORDER;
@@ -219,7 +216,7 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   // The two drag handles are one shape: a stem from the core out to `tip` and a knob sprite sitting
   // on it. Only the tip, the idle opacity, the knob artwork and the initial visibility differ.
   const makeHandle = (tip: Vec3, idleOpacity: number, isVertical: boolean): Handle => {
-    const stemGeometry = new BufferGeometry();
+    const stemGeometry = bag.add(new BufferGeometry());
     stemGeometry.setAttribute(
       "position",
       new Float32BufferAttribute([0, 0, 0, tip[0], tip[1], tip[2]], 3),
@@ -232,8 +229,8 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
     core.add(stem);
 
     const knobTexture = paintKnobTexture(isVertical);
-    if (knobTexture !== null) textures.push(knobTexture);
-    const knobMaterial = spriteMaterial(knobTexture, idleOpacity);
+    if (knobTexture !== null) bag.add(knobTexture);
+    const knobMaterial = bag.add(spriteMaterial(knobTexture, idleOpacity));
     const knob = new Sprite(knobMaterial);
     knob.scale.set(KNOB_BASE, KNOB_BASE, 1);
     knob.position.set(tip[0], tip[1], tip[2]);
@@ -241,8 +238,6 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
     knob.visible = isVertical;
     core.add(knob);
 
-    geometries.push(stemGeometry);
-    materials.push(stemMaterial, knobMaterial);
     return { stemGeometry, stemMaterial, stem, knobMaterial, knob };
   };
 
@@ -255,19 +250,15 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
   guides.visible = false;
   const guideColor = rgbColor(config.guideColor);
   const guideOpacity = config.guideColor[3];
-  const dropGeometry = new BufferGeometry();
+  const dropGeometry = bag.add(new BufferGeometry());
   dropGeometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(6), 3));
-  const dropMaterial = lineMaterial(guideColor.clone(), guideOpacity);
-  geometries.push(dropGeometry);
-  materials.push(dropMaterial);
+  const dropMaterial = bag.add(lineMaterial(guideColor.clone(), guideOpacity));
   const dropLine = new Line(dropGeometry, dropMaterial);
   dropLine.frustumCulled = false;
   guides.add(dropLine);
-  const crossGeometry = new BufferGeometry();
+  const crossGeometry = bag.add(new BufferGeometry());
   crossGeometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(12), 3));
-  const crossMaterial = lineMaterial(guideColor.clone(), guideOpacity);
-  geometries.push(crossGeometry);
-  materials.push(crossMaterial);
+  const crossMaterial = bag.add(lineMaterial(guideColor.clone(), guideOpacity));
   const cross = new LineSegments(crossGeometry, crossMaterial);
   cross.frustumCulled = false;
   guides.add(cross);
@@ -403,10 +394,6 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
 
       return isMoving;
     },
-    dispose() {
-      for (const geometry of geometries) geometry.dispose();
-      for (const material of materials) material.dispose();
-      for (const texture of textures) texture.dispose();
-    },
+    dispose: bag.dispose,
   };
 }

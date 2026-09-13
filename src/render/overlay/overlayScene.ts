@@ -5,7 +5,6 @@ import {
   BufferGeometry,
   Color,
   LineSegments,
-  type Material,
   Scene,
   Sprite,
   type Texture,
@@ -13,6 +12,7 @@ import {
 import { cameraPosition, positionWorld, texture, uv, vec3 } from "three/tsl";
 import { LineBasicNodeMaterial, type Node, SpriteNodeMaterial } from "three/webgpu";
 import { finishCanvasTexture } from "../canvasTexture.ts";
+import { createDisposableBag } from "../disposableBag.ts";
 import type { SceneOverlayConfig } from "../messages.ts";
 import { niceStep, ticksForStep } from "./niceTicks.ts";
 import {
@@ -120,9 +120,7 @@ function makeLabelTexture(
 
 export function createOverlayScene(config: SceneOverlayConfig): OverlayScene {
   const scene = new Scene(); // no background — the renderer owns the clear color
-  const geometries: BufferGeometry[] = [];
-  const materials: Material[] = [];
-  const textures: Texture[] = [];
+  const bag = createDisposableBag();
 
   const half = config.worldHalfExtent ?? UNIT_BOX_HALF_EXTENT;
   const halfAt = (axis: number): number => (axis === 0 ? half[0] : axis === 1 ? half[1] : half[2]);
@@ -170,8 +168,8 @@ export function createOverlayScene(config: SceneOverlayConfig): OverlayScene {
     if (text.length === 0) return;
     const made = makeLabelTexture(text, config.labelColor, style);
     if (made === null) return;
-    const sampled = texture(made.texture, uv());
-    const material = new SpriteNodeMaterial();
+    const sampled = texture(bag.add(made.texture), uv());
+    const material = bag.add(new SpriteNodeMaterial());
     material.colorNode = sampled.rgb;
     material.opacityNode = sampled.a.mul(edgeOnFade(fadeAxis));
     material.transparent = true;
@@ -181,14 +179,11 @@ export function createOverlayScene(config: SceneOverlayConfig): OverlayScene {
     sprite.position.set(position[0], position[1], position[2]);
     sprite.scale.set(style.height * made.aspect, style.height, 1);
     scene.add(sprite);
-    materials.push(material);
-    textures.push(made.texture);
   };
 
   // Grid planes — one batched LineSegments per enabled plane, shared major material.
   if (config.show.grid) {
-    const gridMaterial = lineMaterial(config.grid.color, config.grid.majorOpacity);
-    materials.push(gridMaterial);
+    const gridMaterial = bag.add(lineMaterial(config.grid.color, config.grid.majorOpacity));
     for (const plane of PLANES) {
       if (!config.planes[plane.key]) continue;
       const ticksA = axisData[plane.a]?.ticks ?? [];
@@ -218,10 +213,9 @@ export function createOverlayScene(config: SceneOverlayConfig): OverlayScene {
       };
       emitGridLines(ticksA, plane.a, plane.b);
       emitGridLines(ticksB, plane.b, plane.a);
-      const geometry = new BufferGeometry();
+      const geometry = bag.add(new BufferGeometry());
       geometry.setAttribute("position", new BufferAttribute(positions, 3));
       scene.add(new LineSegments(geometry, gridMaterial));
-      geometries.push(geometry);
 
       // Tick-value labels along each in-plane edge, in the grid plane (billboarded). Each row fades
       // by its own tick axis — the direction the row of labels runs along.
@@ -264,15 +258,13 @@ export function createOverlayScene(config: SceneOverlayConfig): OverlayScene {
       const start: [number, number, number] = [cross[0], cross[1], cross[2]];
       const end: [number, number, number] = [cross[0], cross[1], cross[2]];
       end[axis] = halfAt(axis);
-      const geometry = new BufferGeometry();
+      const geometry = bag.add(new BufferGeometry());
       geometry.setAttribute(
         "position",
         new BufferAttribute(new Float32Array([...start, ...end]), 3),
       );
-      const material = lineMaterial(axisColors[axis] ?? [1, 1, 1, 1], 1);
+      const material = bag.add(lineMaterial(axisColors[axis] ?? [1, 1, 1, 1], 1));
       scene.add(new LineSegments(geometry, material));
-      geometries.push(geometry);
-      materials.push(material);
 
       if (config.show.labels) {
         const pos: [number, number, number] = [cross[0], cross[1], cross[2]];
@@ -286,10 +278,6 @@ export function createOverlayScene(config: SceneOverlayConfig): OverlayScene {
 
   return {
     scene,
-    dispose() {
-      for (const geometry of geometries) geometry.dispose();
-      for (const material of materials) material.dispose();
-      for (const tex of textures) tex.dispose();
-    },
+    dispose: bag.dispose,
   };
 }
