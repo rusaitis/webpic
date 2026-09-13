@@ -35,17 +35,7 @@ const RESOLVED: ResolvedTraceParams = {
   loopMinArclen: 5,
 };
 
-const GRID: GridInfo = {
-  dimensions: [8, 9, 10],
-  spacing: [0.5, 0.25, 2],
-  origin: [1, 2, 3],
-  geometry: "cartesian",
-  axisLabels: ["x", "y", "z"],
-  dt: null,
-  boundary: null,
-  survivingAxes: null,
-  stagger: null,
-};
+const GRID: GridInfo = makeGrid([8, 9, 10], [0.5, 0.25, 2], [1, 2, 3]);
 
 describe("buildStreamlineParams — std430 byte layout", () => {
   it("packs every field at its mirrored offset", () => {

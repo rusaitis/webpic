@@ -3,7 +3,7 @@ import type { AdaptiveTraceOptions } from "@numerics/tracing.ts";
 import rotationalJson from "./fixtures/traces/rotational.json";
 import smoothJson from "./fixtures/traces/smooth.json";
 import uniformJson from "./fixtures/traces/uniform.json";
-import { makeDataset, makeField } from "./fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "./fixtures.ts";
 
 // Shared loader for the checked-in pypic golden traces (tests/fixtures/traces/*.json). The node golden
 // test and the GPU browser parity test both rebuild the dataset through this one path, so the two can't
@@ -44,17 +44,7 @@ export type TraceFixtureName = keyof typeof TRACE_FIXTURES;
 /** Rebuild the f64 `FieldDataset` (B_1/B_2/B_3 on a cell-centered cartesian grid) from a fixture. */
 export function datasetFromFixture(fix: TraceFixture): FieldDataset {
   const shape = fix.grid.dimensions;
-  const grid: GridInfo = {
-    dimensions: [...shape],
-    spacing: [...fix.grid.spacing],
-    origin: [...fix.grid.origin],
-    geometry: "cartesian",
-    axisLabels: ["x", "y", "z"],
-    dt: null,
-    boundary: null,
-    survivingAxes: null,
-    stagger: null,
-  };
+  const grid: GridInfo = makeGrid(shape, fix.grid.spacing, fix.grid.origin);
   return makeDataset(
     {
       B_1: makeField("B_1", Float64Array.from(fix.inputs.B_1), shape),

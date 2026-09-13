@@ -1,22 +1,13 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
 import type { CameraPose } from "@store";
 import { describe, expect, it } from "vitest";
+import { makeGrid } from "../../../tests/fixtures.ts";
 import { coordsLabel, formatCenter, formatOrientation, gridInfoRows } from "./coordsInfo.ts";
 
-function grid(overrides: Partial<GridInfo> = {}): GridInfo {
-  return {
-    dimensions: [32, 32, 32],
-    spacing: [1, 1, 1],
-    origin: [0, 0, 0],
-    geometry: "cartesian",
-    axisLabels: ["x", "y", "z"],
-    dt: null,
-    boundary: null,
-    survivingAxes: null,
-    stagger: null,
-    ...overrides,
-  };
-}
+const grid = (overrides: Partial<GridInfo> = {}): GridInfo => ({
+  ...makeGrid([32, 32, 32]),
+  ...overrides,
+});
 
 const rows = (g: GridInfo, frame: string, units: string): Record<string, string> =>
   Object.fromEntries(gridInfoRows(g, frame, units));

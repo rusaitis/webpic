@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SMOOTH_COMPONENTS } from "../tests/analyticFieldCore.ts";
+import { SMOOTH_COMPONENTS, sampleCellCentered } from "../tests/analyticFieldCore.ts";
 
 // Generate the pypic golden field-line traces consumed by tests/traces.golden.test.ts. For each
 // fixture we sample the field CELL-CENTERED in f64 here (sample i at origin + (i+0.5)·dx — the
@@ -68,22 +68,6 @@ const FIXTURES: readonly TraceFixture[] = [
     options: { direction: "forward" },
   },
 ];
-
-function sampleCellCentered(shape: Vec3, spacing: Vec3, origin: Vec3, fn: ScalarFn): Float64Array {
-  const [nx, ny, nz] = shape;
-  const out = new Float64Array(nx * ny * nz);
-  for (let i = 0; i < nx; i++) {
-    for (let j = 0; j < ny; j++) {
-      for (let k = 0; k < nz; k++) {
-        const x = origin[0] + (i + 0.5) * spacing[0];
-        const y = origin[1] + (j + 0.5) * spacing[1];
-        const z = origin[2] + (k + 0.5) * spacing[2];
-        out[(i * ny + j) * nz + k] = fn(x, y, z);
-      }
-    }
-  }
-  return out;
-}
 
 interface GoldenTrace {
   readonly points: number[];

@@ -42,3 +42,27 @@ export function sampleScalar(
   }
   return out;
 }
+
+// The same sampling on pypic's cell-centered convention: sample i sits at origin + (i + 0.5)·dx, not
+// at the node. The trace goldens and their reference twin must agree on this, so it is declared once
+// (memory: pypic grids are cell-centered; interp.ts and the WGSL kernel carry the same -0.5 offset).
+export function sampleCellCentered(
+  shape: Vec3,
+  spacing: Vec3,
+  origin: Vec3,
+  fn: ScalarFn,
+): Float64Array {
+  const [nx, ny, nz] = shape;
+  const out = new Float64Array(nx * ny * nz);
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      for (let k = 0; k < nz; k++) {
+        const x = origin[0] + (i + 0.5) * spacing[0];
+        const y = origin[1] + (j + 0.5) * spacing[1];
+        const z = origin[2] + (k + 0.5) * spacing[2];
+        out[(i * ny + j) * nz + k] = fn(x, y, z);
+      }
+    }
+  }
+  return out;
+}

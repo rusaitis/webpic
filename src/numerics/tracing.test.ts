@@ -1,6 +1,7 @@
 import type { FieldDataset } from "@containers/field_dataset.ts";
 import { vec3 } from "@schema/math.ts";
 import { describe, expect, it } from "vitest";
+import { sampleCellCentered } from "../../tests/analyticFieldCore.ts";
 import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
 import { TOL } from "../../tests/tolerances.ts";
 import { interpolatorFromDataset, type VectorFieldInterpolator } from "./interp.ts";
@@ -24,22 +25,6 @@ const SEED_COINCIDENCE = 1e-9;
 
 type ScalarFn = (x: number, y: number, z: number) => number;
 type Vec3 = readonly [number, number, number];
-
-function sampleCellCentered(shape: Vec3, spacing: Vec3, origin: Vec3, fn: ScalarFn): Float64Array {
-  const [nx, ny, nz] = shape;
-  const out = new Float64Array(nx * ny * nz);
-  for (let i = 0; i < nx; i++) {
-    for (let j = 0; j < ny; j++) {
-      for (let k = 0; k < nz; k++) {
-        const x = origin[0] + (i + 0.5) * spacing[0];
-        const y = origin[1] + (j + 0.5) * spacing[1];
-        const z = origin[2] + (k + 0.5) * spacing[2];
-        out[(i * ny + j) * nz + k] = fn(x, y, z);
-      }
-    }
-  }
-  return out;
-}
 
 function vectorDataset(
   shape: Vec3,
