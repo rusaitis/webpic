@@ -71,13 +71,13 @@ export function cameraElevationDeg(pose: CameraPose): number {
 }
 
 // Whether vertical (z) drag is usable at the current view angle.
-export function verticalDragAllowed(pose: CameraPose): boolean {
+export function isVerticalDragAllowed(pose: CameraPose): boolean {
   return cameraElevationDeg(pose) <= VERTICAL_MAX_ELEV_DEG;
 }
 
 // Whether the free xy-plane drag is usable; below this the equatorial (vertical + single axis) regime
 // takes over.
-export function horizontalDragAllowed(pose: CameraPose): boolean {
+export function isHorizontalDragAllowed(pose: CameraPose): boolean {
   return cameraElevationDeg(pose) >= HORIZONTAL_MIN_ELEV_DEG;
 }
 

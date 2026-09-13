@@ -21,7 +21,7 @@ export interface OperatorOptions {
 // f64 output whenever any input is f64 — preserves the disk precision (f32 render, f64 reference),
 // matching derived/magnitude. Reads still happen in JS f64 regardless of input storage, so an f64
 // output buffer also makes the arithmetic full-precision.
-function anyFloat64(...arrays: readonly FloatArray[]): boolean {
+function hasAnyFloat64(...arrays: readonly FloatArray[]): boolean {
   return arrays.some((array) => array instanceof Float64Array);
 }
 
@@ -93,7 +93,7 @@ export function divergence(
   requireCartesian(options?.geometry, "divergence");
   requirePositiveSpacing(spacing, "divergence");
   require3dVector(f1, f2, f3, shape, "divergence");
-  const isFloat64 = anyFloat64(f1, f2, f3);
+  const isFloat64 = hasAnyFloat64(f1, f2, f3);
   const out = partialAlongAxis(f1, shape, 0, spacing[0], isFloat64);
   const d2 = partialAlongAxis(f2, shape, 1, spacing[1], isFloat64);
   const d3 = partialAlongAxis(f3, shape, 2, spacing[2], isFloat64);
@@ -116,7 +116,7 @@ export function curl(
   requireCartesian(options?.geometry, "curl");
   requirePositiveSpacing(spacing, "curl");
   require3dVector(f1, f2, f3, shape, "curl");
-  const isFloat64 = anyFloat64(f1, f2, f3);
+  const isFloat64 = hasAnyFloat64(f1, f2, f3);
   const [d1, d2, d3] = spacing;
   const c1 = subtractInto(
     partialAlongAxis(f3, shape, 1, d2, isFloat64),

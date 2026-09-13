@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Box } from "../floating/dragSnap.ts";
-import { bottomDockLayout, colorbarFitMode, GROUP_GAP_PX, railGnomonCramped } from "./dock.ts";
+import { bottomDockLayout, colorbarFitMode, GROUP_GAP_PX, isRailGnomonCramped } from "./dock.ts";
 
 const G = GROUP_GAP_PX;
 
@@ -134,20 +134,20 @@ describe("colorbarFitMode", () => {
   });
 });
 
-describe("railGnomonCramped", () => {
+describe("isRailGnomonCramped", () => {
   it("is roomy when the viewport clears the cluster plus both 80px gnomon reserves", () => {
-    expect(railGnomonCramped(600, 240, false)).toBe(false); // 600 >= 240 + 160
-    expect(railGnomonCramped(399, 240, false)).toBe(true); // 399 < 400
+    expect(isRailGnomonCramped(600, 240, false)).toBe(false); // 600 >= 240 + 160
+    expect(isRailGnomonCramped(399, 240, false)).toBe(true); // 399 < 400
   });
 
   it("applies hysteresis so a just-restored gnomon doesn't flicker at the boundary", () => {
     // 410 is past the 400 cramp threshold, but within the +24 restore band while suppressed.
-    expect(railGnomonCramped(410, 240, true)).toBe(true);
-    expect(railGnomonCramped(410, 240, false)).toBe(false);
-    expect(railGnomonCramped(430, 240, true)).toBe(false); // clear of the hysteresis band → restore
+    expect(isRailGnomonCramped(410, 240, true)).toBe(true);
+    expect(isRailGnomonCramped(410, 240, false)).toBe(false);
+    expect(isRailGnomonCramped(430, 240, true)).toBe(false); // clear of the hysteresis band → restore
   });
 
   it("never cramps without a rail cluster", () => {
-    expect(railGnomonCramped(100, 0, false)).toBe(false);
+    expect(isRailGnomonCramped(100, 0, false)).toBe(false);
   });
 });

@@ -16,7 +16,7 @@ interface DataSliceHost extends SliceContext {
 }
 
 // Element-wise step-domain equality, for identity-skipping a no-op setAvailableSteps.
-function sameSteps(a: readonly number[], b: readonly number[]): boolean {
+function isSameSteps(a: readonly number[], b: readonly number[]): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
@@ -93,7 +93,7 @@ export function createDataSlice({ get, set, recompute }: DataSliceHost): DataSli
     },
     setAvailableSteps(steps) {
       const { availableSteps, currentStep } = get();
-      if (sameSteps(availableSteps, steps)) return; // identical domain → no fire
+      if (isSameSteps(availableSteps, steps)) return; // identical domain → no fire
       const snapped = nearestStep(currentStep, steps); // keep the cursor inside the new domain
       set({
         availableSteps: [...steps], // own a copy — external mutation can't corrupt the cursor domain

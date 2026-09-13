@@ -3,12 +3,12 @@ import {
   HANDLE_KNOB_SCALE,
   HANDLE_OFFSET_SCALE,
   type HandleAxis,
-  horizontalDragAllowed,
   horizontalDragAxis,
+  isHorizontalDragAllowed,
+  isVerticalDragAllowed,
   MARKER_SPHERE_RADIUS,
   type MarkerPart,
   markerCoreScale,
-  verticalDragAllowed,
 } from "@schema/marker.ts";
 import type { Vec3 } from "@schema/types.ts";
 import {
@@ -346,8 +346,8 @@ export function createMarkerScene(config: MarkerConfig): MarkerScene {
       pose = nextPose;
       isOrthographic = ortho;
       applyCoreScale();
-      eased.setTarget("verticalGate", verticalDragAllowed(pose) ? 1 : 0);
-      const axis = horizontalDragAllowed(pose) ? null : horizontalDragAxis(pose);
+      eased.setTarget("verticalGate", isVerticalDragAllowed(pose) ? 1 : 0);
+      const axis = isHorizontalDragAllowed(pose) ? null : horizontalDragAxis(pose);
       eased.setTarget("horizontalGate", axis !== null ? 1 : 0);
       if (axis !== null && axis !== hAxis) {
         const pos = horizontal.stemGeometry.getAttribute("position");

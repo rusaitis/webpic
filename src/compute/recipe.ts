@@ -1,5 +1,5 @@
 import type { FieldArray, FieldDataset } from "@containers/field_dataset.ts";
-import { sameShape } from "@schema/math.ts";
+import { isSameShape } from "@schema/math.ts";
 import { fieldInfo } from "@schema/registry.ts";
 
 // Mirrors pypic.compute.SpeciesArgs (StrEnum).
@@ -47,7 +47,7 @@ export function gatherRecipeInputs(
       throw new Error(`${label}: recipe "${name}" requires field "${fieldName}", not in dataset`);
     }
     const first = inputs[0];
-    if (first !== undefined && !sameShape(first.shape, field.shape)) {
+    if (first !== undefined && !isSameShape(first.shape, field.shape)) {
       throw new Error(
         `${label}: recipe "${name}" needs one shape across inputs, got [${first.shape.join(", ")}] and [${field.shape.join(", ")}]`,
       );

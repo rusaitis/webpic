@@ -53,7 +53,7 @@ webpic is a modern TypeScript/WebGPU plasma-physics data visualizer + lightweigh
 - **Parameters:** short scientific — `bx`, `rho`, `dt`, `qOverM`. The doc has the full description.
 - **Variables in code:** descriptive — `electronDensity` not `ne`. Math symbols belong in docstrings, not identifiers.
 - **Constants:** `UPPER_SNAKE_CASE`.
-- **Booleans are questions** — `isPeriodic`, `hasField`, `shouldRetrace` — for fields, params and locals. Two exceptions, both because the name is a wire name someone else owns: the store→render fields mirroring three.js or a shader uniform (`visible`, `shaded`, `continuous`, `active`), and a field mirroring a pypic schema/TOML key 1:1 (`arrows`, `fps-overlay`, `relativistic`).
+- **Booleans are questions** — `isPeriodic`, `hasField`, `shouldRetrace` — for fields, params, locals and boolean return types. Two exceptions, both because the name is a wire name someone else owns: the store→render fields mirroring three.js or a shader uniform (`visible`, `shaded`, `continuous`, `active`), and a field mirroring a pypic schema/TOML key 1:1 (`arrows`, `fps-overlay`, `relativistic`).
 - **One spelling per concept:** `options` (never `opts`), `element` (never `el`), `context` (never `ctx`; `ctx` only for a `CanvasRenderingContext2D`/`GPUCanvasContext` local), `signal`, `dispose` (never `teardown`), `abortController` (never `ac`), `subscriptions` (never `subs`). Store→worker glue in `app/` is a `*Bridge`, never a `*Sync`.
 - **Log scopes** are a closed union in `@schema/log` (`LogScope`): layer names for layers (`"zarr"`, `"theme"`), `"<x> worker"` for workers, `"boot"`/`"app"` for the main thread.
 - No `handleX` — name the verb: `openDataset`, not `handleOpen`.

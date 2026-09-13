@@ -7,7 +7,7 @@ import type {
   ReductionSpec,
   StaggerInfo,
 } from "@containers/field_dataset.ts";
-import { rowMajorStrides, sameShape } from "@schema/math.ts";
+import { isSameShape, rowMajorStrides } from "@schema/math.ts";
 import type { FloatArray } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import * as zarr from "zarrita";
@@ -274,7 +274,7 @@ export async function writeZarr(
 
   for (const [name, field] of dataset.fields) {
     signal?.throwIfAborted();
-    if (!sameShape(field.shape, grid.dimensions)) {
+    if (!isSameShape(field.shape, grid.dimensions)) {
       throw new Error(
         `zarr writer: field "${name}" shape [${field.shape.join(", ")}] does not match ` +
           `grid dimensions [${grid.dimensions.join(", ")}]`,

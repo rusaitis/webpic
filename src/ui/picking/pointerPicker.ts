@@ -1,4 +1,4 @@
-import { horizontalDragAllowed, type MarkerPart, verticalDragAllowed } from "@schema/marker.ts";
+import { isHorizontalDragAllowed, isVerticalDragAllowed, type MarkerPart } from "@schema/marker.ts";
 import type { Vec3 } from "@schema/types.ts";
 import {
   clampToBox,
@@ -118,9 +118,9 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       const axis = markerHandlePositions(cameraPose, point, isOrthographic).horizontal?.axis ?? "x";
       return { kind: "axis", origin: point, dir: axis === "y" ? [0, 1, 0] : [1, 0, 0] };
     }
-    if (isShiftHeld && verticalDragAllowed(cameraPose))
+    if (isShiftHeld && isVerticalDragAllowed(cameraPose))
       return { kind: "axis", origin: point, dir: [0, 0, 1] };
-    if (horizontalDragAllowed(cameraPose)) {
+    if (isHorizontalDragAllowed(cameraPose)) {
       return { kind: "plane", planePoint: point, normal: [0, 0, 1] };
     }
     // Near edge-on: an xy-plane drag is ill-conditioned, so drag on the vertical plane facing the

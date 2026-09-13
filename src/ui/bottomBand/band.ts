@@ -3,7 +3,7 @@ import type { Box, PaneEdge, Viewport } from "../floating/dragSnap.ts";
 import { readEdge } from "../floating/dragSnap.ts";
 import { coalesceFrame } from "../pointerMath.ts";
 import { createSubscriptions } from "../subscriptions.ts";
-import { bottomDockLayout, colorbarFitMode, railGnomonCramped } from "./dock.ts";
+import { bottomDockLayout, colorbarFitMode, isRailGnomonCramped } from "./dock.ts";
 
 // The bottom band coordinator: the one place that knows the bottom row's occupants — the centered
 // button rail, the corner gnomon, and a strip docked flush on the bottom edge — and lays them out as
@@ -155,7 +155,11 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
     // judge cramping off that (the live width collapses with the viewport and would never trip).
     if (cluster > 0 && (vw - cluster) / 2 > NATURAL_CLUSTER_SLACK_PX) naturalCluster = cluster;
     const wasSuppressed = uiStore.getState().isGnomonSuppressed;
-    const shouldSuppress = railGnomonCramped(vw, Math.max(naturalCluster, cluster), wasSuppressed);
+    const shouldSuppress = isRailGnomonCramped(
+      vw,
+      Math.max(naturalCluster, cluster),
+      wasSuppressed,
+    );
     if (shouldSuppress !== wasSuppressed) uiStore.getState().setGnomonSuppressed(shouldSuppress);
 
     // Only a strip docked on the bottom row beside a rail adapts; side/top docks + free drops stay.

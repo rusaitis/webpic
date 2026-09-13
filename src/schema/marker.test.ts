@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { type CameraPose, DEFAULT_POSE } from "./camera.ts";
 import {
   cameraElevationDeg,
-  horizontalDragAllowed,
   horizontalDragAxis,
+  isHorizontalDragAllowed,
+  isVerticalDragAllowed,
   markerCoreScale,
   REFERENCE_VIEW_DISTANCE,
-  verticalDragAllowed,
   ZOOM_SCALE_MAX,
   ZOOM_SCALE_MIN,
 } from "./marker.ts";
@@ -48,10 +48,10 @@ describe("camera-elevation gating", () => {
   });
 
   it("disables vertical drag above 60° and the free plane below 15°", () => {
-    expect(verticalDragAllowed(poseAt(3, 0, (50 * Math.PI) / 180))).toBe(true);
-    expect(verticalDragAllowed(poseAt(3, 0, (70 * Math.PI) / 180))).toBe(false);
-    expect(horizontalDragAllowed(poseAt(3, 0, (50 * Math.PI) / 180))).toBe(true);
-    expect(horizontalDragAllowed(poseAt(3, 0, (5 * Math.PI) / 180))).toBe(false);
+    expect(isVerticalDragAllowed(poseAt(3, 0, (50 * Math.PI) / 180))).toBe(true);
+    expect(isVerticalDragAllowed(poseAt(3, 0, (70 * Math.PI) / 180))).toBe(false);
+    expect(isHorizontalDragAllowed(poseAt(3, 0, (50 * Math.PI) / 180))).toBe(true);
+    expect(isHorizontalDragAllowed(poseAt(3, 0, (5 * Math.PI) / 180))).toBe(false);
   });
 });
 

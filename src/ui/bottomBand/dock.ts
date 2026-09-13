@@ -113,7 +113,7 @@ export function colorbarFitMode(input: ColorbarFitInput): ColorbarFitMode {
 
 // True when the centered rail cluster can't keep the gnomon's reserved corner clear on both sides,
 // so the gnomon should be hidden. Hysteresis: once hidden, require extra width before restoring.
-export function railGnomonCramped(
+export function isRailGnomonCramped(
   viewportWidth: number,
   clusterWidth: number,
   isCurrentlySuppressed: boolean,

@@ -1,12 +1,12 @@
 import { CAMERA_HALF_FOV_TAN, type CameraPose } from "@schema/camera.ts";
 import {
   type HandleAxis,
-  horizontalDragAllowed,
   horizontalDragAxis,
+  isHorizontalDragAllowed,
+  isVerticalDragAllowed,
   MARKER_SPHERE_RADIUS,
   markerCoreScale,
   markerHandleOffset,
-  verticalDragAllowed,
 } from "@schema/marker.ts";
 import { clamp, UNIT_BOX_HALF_EXTENT, vec3 } from "@schema/math.ts";
 import type { Vec3 } from "@schema/types.ts";
@@ -82,12 +82,12 @@ export function markerHandlePositions(
   isOrthographic: boolean,
 ): HandlePositions {
   const offset = markerHandleOffset(pose, point, isOrthographic);
-  const vertical: Vec3 | null = verticalDragAllowed(pose)
+  const vertical: Vec3 | null = isVerticalDragAllowed(pose)
     ? vec3(point[0], point[1], point[2] + offset)
     : null;
   // The ↔ handle lives only in the near-equatorial regime — exactly where the free xy-plane drag is
   // unavailable — and only when one horizontal axis is cleanly cross-screen.
-  const axis = horizontalDragAllowed(pose) ? null : horizontalDragAxis(pose);
+  const axis = isHorizontalDragAllowed(pose) ? null : horizontalDragAxis(pose);
   const horizontal =
     axis !== null
       ? {
