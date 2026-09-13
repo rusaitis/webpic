@@ -1,5 +1,5 @@
 import { withPreviewedApp } from "./harness/browserSession.ts";
-import { waitForFirstFrame } from "./harness/pageProbes.ts";
+import { collectPageErrors, waitForFirstFrame } from "./harness/pageProbes.ts";
 
 // Regenerates the README hero from the real production build: the Earth dipole, |B| volume raymarching
 // under a traced field-line rake that closes on the inner cutoff. Headed Chrome — WebGPU on
@@ -17,9 +17,9 @@ const WINDOW = { width: 1600, height: 900 };
 const POSE = process.env.WEBPIC_POSE ?? "1.0000,0.3000,2.0000,0,0,0,0";
 const SETTLE_MS = 3000; // trace + volume upload, then the camera settle ramp back to full render scale
 
-await withPreviewedApp(
+const exitCode = await withPreviewedApp(
   async ({ page, baseUrl }) => {
-    page.on("pageerror", (e) => console.error("[pageerror]", e.message));
+    const errors = collectPageErrors(page);
 
     await page.goto(`${baseUrl}?fieldlines&pose=${POSE}`, { waitUntil: "load" });
     await waitForFirstFrame(page, 60_000);
@@ -36,7 +36,13 @@ await withPreviewedApp(
     await page.mouse.move(WINDOW.width - 4, WINDOW.height - 4); // park the pointer clear of hovers
     await page.waitForTimeout(SETTLE_MS);
     await page.screenshot({ path: OUT });
+    // A hero taken on a page that threw is worse than no hero: it looks plausible and ships.
+    if (errors.length > 0) {
+      console.error(`\u2716 page errors while shooting ${OUT}:\n${errors.join("\n")}`);
+      return 1;
+    }
     console.log(`wrote ${OUT}`);
+    return 0;
   },
   {
     deviceScaleFactor: 2, // retina-density PNG, so the README image stays crisp when scaled down
@@ -44,3 +50,4 @@ await withPreviewedApp(
     chromeArgs: [`--window-size=${WINDOW.width},${WINDOW.height + 120}`],
   },
 );
+process.exit(exitCode);
