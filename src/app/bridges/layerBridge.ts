@@ -12,8 +12,8 @@ import {
   type TraceNotice,
   type UiStore,
 } from "@store";
+import { createLayerMessages, type LayerMessages } from "../layerMessages.ts";
 import { createStoreBridge, type RenderWorkerLink } from "./_storeBridge.ts";
-import { createLayerMessages, type LayerMessages } from "./layerMessages.ts";
 
 // Bridges the store's instance-first layer registry to the render worker (app-only glue: store and
 // render can't import each other). Two channels: `field` carries field DATA (heavy, transfers the

@@ -1,8 +1,8 @@
 import type { RenderWorkerRequest } from "@render";
 import { createSimulationStore, createUiStore, makeDefaultLayer } from "@store";
 import { describe, expect, it } from "vitest";
-import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
-import { flushAsync } from "../../tests/helpers.ts";
+import { makeDataset, makeField, makeGrid } from "../../../tests/fixtures.ts";
+import { flushAsync } from "../../../tests/helpers.ts";
 import { installLayerBridge } from "./layerBridge.ts";
 
 interface Post {

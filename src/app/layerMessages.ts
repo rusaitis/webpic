@@ -17,7 +17,7 @@ import {
   type UiStore,
   type VolumeLayer,
 } from "@store";
-import type { RenderWorkerLink } from "./_storeBridge.ts";
+import type { RenderWorkerLink } from "./bridges/_storeBridge.ts";
 
 // Every store layer → render-worker message, in one place: what each wire request carries and when a
 // field transfer is involved. installLayerBridge owns *when* to send; this owns *what* is sent, so the

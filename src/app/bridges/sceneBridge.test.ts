@@ -3,7 +3,7 @@ import type { RenderWorkerRequest } from "@render";
 import { parseTheme } from "@schema";
 import { createSimulationStore } from "@store";
 import { describe, expect, it } from "vitest";
-import { makeDataset, makeField, makeGrid } from "../../tests/fixtures.ts";
+import { makeDataset, makeField, makeGrid } from "../../../tests/fixtures.ts";
 import { buildOverlayPayload, installSceneBridge, resolveOverlayColors } from "./sceneBridge.ts";
 
 const grid3d = (overrides: Partial<GridInfo> = {}): GridInfo => ({

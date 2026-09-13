@@ -2,8 +2,8 @@ import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from
 import type { RenderWorkerRequest } from "@render";
 import { createSimulationStore, createUiStore } from "@store";
 import { describe, expect, it, vi } from "vitest";
-import { makeFakeWorker, vectorTriple } from "../../tests/fixtures.ts";
-import { flushAsync } from "../../tests/helpers.ts";
+import { makeFakeWorker, vectorTriple } from "../../../tests/fixtures.ts";
+import { flushAsync } from "../../../tests/helpers.ts";
 import { installStreamingBridge } from "./streamingBridge.ts";
 
 async function harness() {

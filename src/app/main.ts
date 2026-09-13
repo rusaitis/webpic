@@ -28,18 +28,18 @@ import {
   installUi,
 } from "@ui";
 import { routeWorkerResponse } from "./_workerRouter.ts";
+import { installLayerBridge } from "./bridges/layerBridge.ts";
+import type { PerfBridge } from "./bridges/perfBridge.ts";
+import { installPickerBridge } from "./bridges/pickerBridge.ts";
+import { installRenderWorkerBridge } from "./bridges/renderWorkerBridge.ts";
+import { installSceneBridge } from "./bridges/sceneBridge.ts";
+import { installScreenshotBridge } from "./bridges/screenshotBridge.ts";
+import { installStreamingBridge, type StreamingBridge } from "./bridges/streamingBridge.ts";
+import { installThemeBridge } from "./bridges/themeBridge.ts";
+import { currentDevicePixelRatio, installViewportBridge } from "./bridges/viewportBridge.ts";
 import { createCanvasHost } from "./canvasHost.ts";
 import { installDatasetSwitch } from "./datasetSwitch.ts";
 import { createSyntheticDataset, type DatasetEntry } from "./datasets.ts";
-import { installLayerBridge } from "./layerBridge.ts";
-import type { PerfBridge } from "./perfBridge.ts";
-import { installPickerBridge } from "./pickerBridge.ts";
-import { installRenderWorkerBridge } from "./renderWorkerBridge.ts";
-import { installSceneBridge } from "./sceneBridge.ts";
-import { installScreenshotBridge } from "./screenshotBridge.ts";
-import { installStreamingBridge, type StreamingBridge } from "./streamingBridge.ts";
-import { installThemeBridge } from "./themeBridge.ts";
-import { currentDevicePixelRatio, installViewportBridge } from "./viewportBridge.ts";
 
 // The worker's orderly subscriptions normally acks in a few ms; terminate regardless after this so a wedged
 // worker can't hold the page's own subscriptions hostage.
@@ -315,7 +315,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   if (options.perf === true && uiParent !== undefined) {
     subscriptions.add(
       installLazy(
-        () => import("./perfBridge.ts"),
+        () => import("./bridges/perfBridge.ts"),
         ({ installPerf }) => {
           const bridge = installPerf({
             perfStore,
@@ -340,7 +340,7 @@ export function bootstrap(options: BootstrapOptions = {}): () => void {
   if (import.meta.hot) {
     subscriptions.add(
       installLazy(
-        () => import("./shaderHmrBridge.ts"),
+        () => import("./bridges/shaderHmrBridge.ts"),
         ({ installShaderHmr }) => installShaderHmr(worker),
         "shader HMR chunk failed to load",
       ),
