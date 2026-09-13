@@ -11,7 +11,7 @@ import type { LayersSlice, SceneIds, SliceContext } from "../state.ts";
 
 // The instance-first scene: the ordered layer list, the selection, and the field-line traces.
 
-export interface LayersSliceHost extends SliceContext {
+interface LayersSliceHost extends SliceContext {
   readonly ids: SceneIds;
   readonly retrace: Retrace;
 }

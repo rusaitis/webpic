@@ -11,7 +11,7 @@ import { createMarkerScene, type MarkerScene } from "./markerScene.ts";
 // The worker keeps `compositeItems` and reads the committed marker via `current()`; the prospective marker
 // flows back through `host.warmComposite`. Live pose comes from the host (the marker re-runs its zoom
 // scale + handle gating against it on build/restore/pose).
-export interface MarkerHost extends RenderModuleContext {
+interface MarkerHost extends RenderModuleContext {
   pose(): CameraPose;
   isOrthographic(): boolean;
   // Compile the full prospective composite (the worker splices this marker in via drawItems).

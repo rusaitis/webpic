@@ -15,7 +15,7 @@ interface LayerOverride {
   readonly entry: LayerEntry;
 }
 
-export interface DrawListHost {
+interface DrawListHost {
   // The visible layers in draw order paired with their cameras (registry.layerItems).
   layerItems(
     volume: Camera,

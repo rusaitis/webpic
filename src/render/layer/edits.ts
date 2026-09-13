@@ -9,7 +9,7 @@ import type { FieldSource, LayerEntry } from "./registry.ts";
 // Each is a no-op for a missing id: an edit that lands ahead of the first upsert heals on it,
 // because the upsert carries the same values.
 
-export interface LayerEditsHost {
+interface LayerEditsHost {
   readonly host: { requestRender(): void; reportFault(error: unknown): void };
   // The committed entry for an id, and the one warming in the background (they differ mid-warm, and
   // an edit must reach both or it is lost at the commit).

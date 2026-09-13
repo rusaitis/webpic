@@ -21,7 +21,7 @@ const SETTLE_MS = 320;
 const COLLAPSED_WIDTH_ESTIMATE_PX = 132; // collapsed strip + gear + padding, until first measured
 const NATURAL_CLUSTER_ESTIMATE_PX = 320; // un-squished rail (buttons + coords chip), until measured
 
-export interface BottomBandHost {
+interface BottomBandHost {
   readonly store: SimulationStore;
   readonly uiStore: UiStore;
   // The bottom-docked strip: read for its rect + edge/docked state, positioned when grouped.

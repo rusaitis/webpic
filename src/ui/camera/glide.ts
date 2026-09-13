@@ -62,7 +62,7 @@ interface PoseTween {
   lastWritten: CameraPose; // the tween's last setCameraPose object — reference identity check
 }
 
-export interface CameraGlideHost {
+interface CameraGlideHost {
   readonly store: SimulationStore;
   readonly doc: Document;
 }

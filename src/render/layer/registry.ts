@@ -71,7 +71,7 @@ export type LayerEntry =
 // freshly built scenes), the repaint + fault-report seams, and `warmComposite` — which compiles the
 // *full* prospective composite (layers + overlay + marker), so it lives in the worker (the registry
 // doesn't own overlay/marker/cameras).
-export interface LayerHost extends RenderModuleContext {
+interface LayerHost extends RenderModuleContext {
   hasFloat32Filterable(): boolean;
   stepScale(): number;
   isOrthographic(): boolean;

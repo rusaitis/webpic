@@ -7,7 +7,7 @@ import type { GpuRecoveryReason } from "../messages.ts";
 // isDeviceLost flag the loop pauses on, and the rebuild ORDER — the most consequence-laden sequence in
 // render/, where a wrong order leaves a magenta or frozen swapchain. The worker owns the GPU resources
 // and exposes them as capabilities, so this sequences the recovery without holding a three handle.
-export interface DeviceRecoveryHost {
+interface DeviceRecoveryHost {
   // Has the first renderer been built? A pre-init loss has nothing to rebuild.
   hasCanvas(): boolean;
   // Bump every scene epoch so an in-flight warm discards instead of landing a dead-device scene.

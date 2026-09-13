@@ -16,7 +16,7 @@ const VRAM_TOP_N = 5; // largest tracked allocations surfaced in the HUD detail 
 export type PerfSampleMessage = RenderResponse<"perfSample">;
 export type FrameTimingMessage = RenderResponse<"frameTiming">;
 
-export interface PerfSamplerHost {
+interface PerfSamplerHost {
   // The live per-frame timer; undefined pre-init / post-dispose (the GPU field rides as NaN).
   frameTimer(): FrameTimer | undefined;
   // The frame-time governor's render-scale ceiling, surfaced in every sample.

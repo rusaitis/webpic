@@ -8,7 +8,7 @@ import type { CameraGlide } from "./glide.ts";
 // two-finger touch pinch, so the bridge stands down while pointers are live and the pinch handler
 // owns the gesture (else every pinch dollies twice).
 
-export interface WheelDollyHost {
+interface WheelDollyHost {
   readonly target: HTMLElement;
   readonly store: SimulationStore;
   readonly glide: CameraGlide;

@@ -11,7 +11,7 @@ export interface CanvasHostOptions {
   readonly mount?: (canvas: HTMLCanvasElement) => void;
 }
 
-export interface CanvasHost {
+interface CanvasHost {
   readonly canvas: HTMLCanvasElement;
   readonly offscreen: OffscreenCanvas;
   // Logical (CSS) size of the mounted element; explicit options win for the headless test. The

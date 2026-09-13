@@ -8,7 +8,7 @@ import { createOverlayScene, type OverlayScene } from "./overlayScene.ts";
 // The worker keeps `compositeItems` (only it has the cameras + the other scenes) and reads the committed
 // overlay via `current()`; the prospective overlay flows back through `host.warmComposite` so the warm
 // compiles the *full* composite (overlay spliced in).
-export interface OverlayHost extends RenderModuleContext {
+interface OverlayHost extends RenderModuleContext {
   // Compile the full prospective composite (the worker splices this overlay in via drawItems).
   warmComposite(prospective: OverlayScene): Promise<unknown> | undefined;
 }

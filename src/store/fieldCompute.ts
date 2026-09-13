@@ -27,7 +27,7 @@ type Rebind = "selected" | "activeField";
 
 export type Recompute = (rebind?: Rebind, signal?: AbortSignal) => Promise<void>;
 
-export interface RecomputeHost extends SliceContext {
+interface RecomputeHost extends SliceContext {
   readonly ids: SceneIds;
   // Fired after a commit when field-line layers exist — they follow the vector family behind the
   // displayed scalar, and a dataset switch lands here too. Total: never rejects.

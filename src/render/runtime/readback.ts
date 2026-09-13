@@ -7,7 +7,7 @@ import { pixelsToPngBlob } from "./screenshot.ts";
 // pixels — never render-scaled, immune to swapchain-present timing. That await is the only async gap
 // in the worker's single thread, so the display loop's swapchain render is paused across it: a rAF
 // frame between the readback render and its await would corrupt the read pixels.
-export interface ReadbackHost {
+interface ReadbackHost {
   // The live renderer; undefined pre-init / post-dispose (the request then fails loudly).
   renderer(): InstalledRenderer | undefined;
   // What the next paint draws, freshly allocated — the paint scratch would mutate under the await.

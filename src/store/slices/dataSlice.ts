@@ -11,7 +11,7 @@ import type { DataSlice, SliceContext } from "../state.ts";
 
 const DEFAULT_FIELD: FieldName = "|B|";
 
-export interface DataSliceHost extends SliceContext {
+interface DataSliceHost extends SliceContext {
   readonly recompute: Recompute;
 }
 

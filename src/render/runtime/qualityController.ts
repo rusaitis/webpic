@@ -15,7 +15,7 @@ import {
 // device-restore talk to a stable API instead of raw module state. Levels apply through the host — the
 // per-layer step scale and the swapchain render scale — and only a real level change kicks a repaint,
 // so a no-op transition costs nothing.
-export interface QualityHost {
+interface QualityHost {
   // Is the display loop live? When false (Node one-shot) a settle ramp collapses straight to full.
   hasLoop(): boolean;
   // Push the interaction step scale to every volume scene (registry.applyStepScale).
