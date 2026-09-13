@@ -192,7 +192,7 @@ export function installBottomRail(
 
   // Bare `C` toggles (Cmd+C stays copy — the registry's guard).
   createShortcutRegistry(doc, signal).register("KeyC", () => uiStore.getState().toggleCoordsInfo());
-  const disposeCardDismissal = installAnchoredOverlay({
+  installAnchoredOverlay({
     overlay: card,
     trigger: coordsBtn,
     isOpen,
@@ -246,7 +246,6 @@ export function installBottomRail(
   return () => {
     abortController.abort();
     subscriptions.dispose();
-    disposeCardDismissal();
     container.remove();
     card.remove();
   };

@@ -1,11 +1,11 @@
 import { installOutsideClickDismiss } from "./dom.ts";
-import type { Disposer } from "./types.ts";
 
 // The dismissal contract every transient surface anchored to a trigger owes the user: Escape closes
 // it and returns focus, a press outside closes it, and a resize keeps it under its anchor. Each rail
 // flyout, menu, card and popover used to answer two or three of those, and never the same two.
 // `position` is omitted when CSS places the surface; `close` is the caller's, since some close by
-// store intent and some by local state.
+// store intent and some by local state. The caller owns teardown through `signal` — every surface
+// here already has an AbortController for its own listeners.
 export interface AnchoredOverlayOptions {
   readonly overlay: HTMLElement;
   readonly trigger: HTMLElement;
@@ -15,16 +15,12 @@ export interface AnchoredOverlayOptions {
   // The coords card closes without stealing focus back — it is toggled by a shortcut as often as by
   // its button, and yanking focus to the rail mid-flight is worse than leaving it.
   readonly shouldRestoreFocus?: boolean;
-  readonly signal?: AbortSignal;
+  readonly signal: AbortSignal;
 }
 
-export function installAnchoredOverlay(options: AnchoredOverlayOptions): Disposer {
+export function installAnchoredOverlay(options: AnchoredOverlayOptions): void {
   const doc = options.trigger.ownerDocument;
-  const abortController = new AbortController();
-  const signal =
-    options.signal === undefined
-      ? abortController.signal
-      : AbortSignal.any([abortController.signal, options.signal]);
+  const { signal } = options;
 
   doc.addEventListener(
     "keydown",
@@ -55,6 +51,4 @@ export function installAnchoredOverlay(options: AnchoredOverlayOptions): Dispose
     onDismiss: options.close,
     signal,
   });
-
-  return () => abortController.abort();
 }

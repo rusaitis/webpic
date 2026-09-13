@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AnchoredOverlayOptions, installAnchoredOverlay } from "./anchoredOverlay.ts";
-import type { Disposer } from "./types.ts";
 
 // Every install listens on the document, so one left behind answers the next test's Escape first.
-const installed: Disposer[] = [];
+const installed: AbortController[] = [];
 afterEach(() => {
-  for (const dispose of installed.splice(0)) dispose();
+  for (const controller of installed.splice(0)) controller.abort();
 });
 
 function mount(overrides: Partial<AnchoredOverlayOptions> = {}) {
@@ -19,14 +18,19 @@ function mount(overrides: Partial<AnchoredOverlayOptions> = {}) {
   const close = vi.fn(() => {
     isOpen = false;
   });
-  const dispose = installAnchoredOverlay({
+  const abortController = new AbortController();
+  installed.push(abortController);
+  installAnchoredOverlay({
     overlay,
     trigger,
     isOpen: () => isOpen,
     close,
+    signal: abortController.signal,
     ...overrides,
   });
-  installed.push(dispose);
+  const dispose = (): void => {
+    abortController.abort();
+  };
   return { overlay, trigger, outside, close, dispose, setOpen: (next: boolean) => (isOpen = next) };
 }
 

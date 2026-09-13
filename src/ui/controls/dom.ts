@@ -1,5 +1,3 @@
-import type { Disposer } from "./types.ts";
-
 // Create elements off an explicit `Document` (the row's `ownerDocument`) rather than
 // a global `document`, so the facade is testable under happy-dom and safe inside an
 // embed iframe with its own document.
@@ -88,9 +86,9 @@ export function installOutsideClickDismiss(
     onDismiss: () => void;
     eventName?: "mousedown" | "pointerdown";
     isCapturing?: boolean;
-    signal?: AbortSignal;
+    signal: AbortSignal;
   },
-): Disposer {
+): void {
   const onPress = (event: Event): void => {
     if (!options.isOpen()) return;
     const target = event.target;
@@ -102,14 +100,8 @@ export function installOutsideClickDismiss(
     }
     options.onDismiss();
   };
-  const abortController = new AbortController();
-  const signal =
-    options.signal === undefined
-      ? abortController.signal
-      : AbortSignal.any([abortController.signal, options.signal]);
   doc.addEventListener(options.eventName ?? "mousedown", onPress, {
-    signal,
+    signal: options.signal,
     capture: options.isCapturing ?? false,
   });
-  return () => abortController.abort();
 }

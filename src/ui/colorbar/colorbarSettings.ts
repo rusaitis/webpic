@@ -81,7 +81,7 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
     }
   };
 
-  const disposeDismissal = installAnchoredOverlay({
+  installAnchoredOverlay({
     overlay: pop,
     trigger: options.anchor,
     isOpen: () => isOpen,
@@ -99,7 +99,6 @@ export function installColorbarSettings(options: ColorbarSettingsOptions): Color
     },
     dispose() {
       abortController.abort();
-      disposeDismissal();
       controlsDispose();
       pop.remove();
     },

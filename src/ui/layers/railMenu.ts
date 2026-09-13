@@ -161,7 +161,7 @@ export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
     { signal },
   );
 
-  const disposeMenuDismissal = installAnchoredOverlay({
+  installAnchoredOverlay({
     overlay: panel,
     trigger: anchor,
     isOpen: () => isOpen,
@@ -181,7 +181,6 @@ export function installRailMenu(options: RailMenuOptions): RailMenuHandle {
     isOpen: () => isOpen,
     dispose: () => {
       abortController.abort();
-      disposeMenuDismissal();
       panel.remove();
     },
   };

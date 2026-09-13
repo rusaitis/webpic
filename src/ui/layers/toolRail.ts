@@ -173,7 +173,7 @@ export function installToolRail(
     { signal },
   );
 
-  const disposeFlyoutDismissal = installAnchoredOverlay({
+  installAnchoredOverlay({
     overlay: flyout,
     trigger: viewBtn,
     isOpen: () => isOpen,
@@ -235,7 +235,6 @@ export function installToolRail(
     abortController.abort();
     subscriptions.dispose();
     for (const menu of menus) menu.dispose();
-    disposeFlyoutDismissal();
     sceneDispose();
     flyout.remove();
     container.remove();
