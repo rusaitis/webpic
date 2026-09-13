@@ -1,6 +1,6 @@
 import type { DatasetEntry } from "@app";
 import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from "@data";
-import type { RenderWorkerRequest, RenderWorkerResponse } from "@render";
+import type { RenderWorkerRequest, RenderWorkerResponse } from "@render/messages.ts";
 import { REQUEST_IDS } from "@render/messages.ts";
 import { createSimulationStore, createUiStore, DEFAULT_POSE, focusPoseOnPoint } from "@store";
 import { describe, expect, it, vi } from "vitest";

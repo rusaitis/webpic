@@ -1,5 +1,6 @@
 export { installPointerCamera } from "./camera/pointerCamera.ts";
-export * from "./controls/index.ts";
+// `Disposer` is the only control name app needs; the rest are intra-ui (../controls/index.ts).
+export type { Disposer } from "./controls/types.ts";
 export { installUi } from "./install.ts";
 export { installPointerPicker } from "./picking/pointerPicker.ts";
 export { installPointerSeedPlacer } from "./picking/pointerSeedPlacer.ts";

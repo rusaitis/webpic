@@ -1,4 +1,4 @@
-import type { RenderWorkerRequest } from "@render";
+import type { RenderWorkerRequest } from "@render/messages.ts";
 import { afterEach, describe, expect, it } from "vitest";
 import { currentDevicePixelRatio, installViewportBridge } from "./viewportBridge.ts";
 

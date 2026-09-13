@@ -1,5 +1,5 @@
 import { type DataStreamRequest, type DataStreamResponse, syntheticHandle } from "@data";
-import type { RenderWorkerRequest } from "@render";
+import type { RenderWorkerRequest } from "@render/messages.ts";
 import { createSimulationStore, createUiStore } from "@store";
 import { describe, expect, it, vi } from "vitest";
 import { makeFakeWorker, vectorTriple } from "../../../tests/fixtures.ts";

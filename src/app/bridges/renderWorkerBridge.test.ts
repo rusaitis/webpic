@@ -1,4 +1,4 @@
-import type { RenderResponse, RenderWorkerRequest } from "@render";
+import type { RenderResponse, RenderWorkerRequest } from "@render/messages.ts";
 import { createPerfStore, createSimulationStore } from "@store";
 import { describe, expect, it } from "vitest";
 import { installRenderWorkerBridge } from "./renderWorkerBridge.ts";

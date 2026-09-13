@@ -15,7 +15,12 @@
   // Every layer keeps an index.ts barrel so its @layer alias resolves (tests/aliases.test.ts);
   // a barrel with nothing left to re-export is slimmed, never deleted. `*.generated.ts` is NOT
   // ignored: an emitted export nothing imports means the generator itself produces dead code.
-  "ignore": ["src/remote/index.ts", "src/shaders/index.ts", "src/workers/index.ts"],
+  "ignore": [
+    "src/remote/index.ts",
+    "src/render/index.ts",
+    "src/shaders/index.ts",
+    "src/workers/index.ts"
+  ],
   // `uv` runs the pypic sibling for golden/theme generation — never installed by this package.
   "ignoreBinaries": ["uv"],
   "vite": { "config": ["vite.config.ts", "vite.embed.config.ts"] }

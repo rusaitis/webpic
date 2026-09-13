@@ -1,5 +1,5 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
-import type { RenderWorkerRequest } from "@render";
+import type { RenderWorkerRequest } from "@render/messages.ts";
 import { parseTheme } from "@schema";
 import { createSimulationStore } from "@store";
 import { describe, expect, it } from "vitest";

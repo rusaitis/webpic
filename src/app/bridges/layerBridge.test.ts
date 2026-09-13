@@ -1,4 +1,4 @@
-import type { RenderWorkerRequest } from "@render";
+import type { RenderWorkerRequest } from "@render/messages.ts";
 import { createSimulationStore, createUiStore, makeDefaultLayer } from "@store";
 import { describe, expect, it } from "vitest";
 import { makeDataset, makeField, makeGrid } from "../../../tests/fixtures.ts";
