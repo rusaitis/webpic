@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  decodeGrid,
-  decodeReduction,
-  decodeSpeedOfLight,
-  fromJsonNative,
-  isCanonicalFieldName,
-  resolveFieldMeta,
-} from "./decode.ts";
+import { decodeGrid, decodeReduction, decodeSpeedOfLight, fromJsonNative } from "./decode.ts";
 
 describe("fromJsonNative", () => {
   it("decodes the tuple sentinel to a plain array", () => {
@@ -102,25 +95,5 @@ describe("decodeReduction", () => {
   it("returns null when no reduction is present", () => {
     expect(decodeReduction(undefined)).toBeNull();
     expect(decodeReduction(null)).toBeNull();
-  });
-});
-
-describe("canonical field-name resolution", () => {
-  it("accepts base canonical names", () => {
-    expect(isCanonicalFieldName("B_1")).toBe(true);
-    expect(isCanonicalFieldName("rho_c")).toBe(true);
-    expect(resolveFieldMeta("B_1")?.quantityType).toBe("b_field");
-  });
-
-  it("accepts per-species components by stripping the _sN infix", () => {
-    expect(isCanonicalFieldName("n_s0")).toBe(true); // direct registry hit
-    expect(isCanonicalFieldName("V_s0_1")).toBe(true); // base V_1
-    expect(isCanonicalFieldName("P_s0_11")).toBe(true); // base P_11
-  });
-
-  it("rejects coordinates and unknown names", () => {
-    expect(isCanonicalFieldName("x")).toBe(false);
-    expect(isCanonicalFieldName("weird_thing")).toBe(false);
-    expect(resolveFieldMeta("weird_thing")).toBeUndefined();
   });
 });

@@ -7,10 +7,7 @@ import type {
   ReductionSpec,
   StaggerInfo,
 } from "@containers/field_dataset.ts";
-import { SPECIES_SUFFIX_RE } from "@schema/aliases.generated.ts";
 import { vec3 } from "@schema/math.ts";
-import { FIELD_REGISTRY } from "@schema/registry.generated.ts";
-import type { FieldMeta } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import { formatZodError } from "@schema/zodError.ts";
 import { z } from "zod";
@@ -338,29 +335,4 @@ export function mergeReservedRootAttrs(
     out.simulation_toml = rootAttrs.simulation_toml;
   }
   return out;
-}
-
-// Canonical field-name resolution (species-suffix aware).
-// pypic's registry lists base canonical forms (B_1, V_1, P_11, n_s0) but synthesizes
-// per-species *component* names (V_s0_1, P_s0_11) via the species-suffix regex. Strip
-// the `_sN` infix while keeping the trailing component/magnitude suffix: V_s0_1 → V_1,
-// P_s0_11 → P_11, |V_s0| → |V|. n_s0 is itself a registry key (direct hit).
-function deSpecies(name: string): string | null {
-  const match = SPECIES_SUFFIX_RE.exec(name);
-  if (match === null) return null;
-  const suffix = match.groups?.suffix ?? "";
-  return name.slice(0, match.index) + suffix;
-}
-
-// Registry meta for a canonical name, resolving per-species components to their base.
-export function resolveFieldMeta(name: string): FieldMeta | undefined {
-  const direct = FIELD_REGISTRY[name];
-  if (direct !== undefined) return direct;
-  const base = deSpecies(name);
-  if (base !== null && base !== name) return FIELD_REGISTRY[base];
-  return undefined;
-}
-
-export function isCanonicalFieldName(name: string): boolean {
-  return resolveFieldMeta(name) !== undefined;
 }

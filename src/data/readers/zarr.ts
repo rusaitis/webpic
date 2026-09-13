@@ -7,6 +7,7 @@ import type {
 } from "@containers/field_dataset.ts";
 import { destaggerToColocated } from "@data/stagger.ts";
 import { logWarn } from "@schema/log.ts";
+import { isCanonicalFieldName, resolveFieldMeta } from "@schema/registry.ts";
 import type { FieldName } from "@schema/types.ts";
 import { SCHEMA_VERSION } from "@schema/version.ts";
 import * as zarr from "zarrita";
@@ -24,9 +25,7 @@ import {
   decodeNormalization,
   decodePhysics,
   fromJsonNative,
-  isCanonicalFieldName,
   mergeReservedRootAttrs,
-  resolveFieldMeta,
 } from "./decode.ts";
 
 // Zarr v3 reader for pypic-blessed stores (mirrors pypic.io.zarr.from_zarr). Produces
