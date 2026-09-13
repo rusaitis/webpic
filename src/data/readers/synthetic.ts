@@ -84,17 +84,45 @@ function wrapComponent(name: FieldName, data: Float32Array, shape: readonly numb
   return { data, shape: [...shape], meta, units: meta.siUnit, latex: meta.latex, reduction: null };
 }
 
-function makeGrid(n: number): GridInfo {
+function cartesianGrid(
+  dimensions: readonly [number, number, number],
+  spacing: readonly [number, number, number],
+  origin: readonly [number, number, number],
+): GridInfo {
   return {
-    dimensions: [n, n, n],
-    spacing: [1, 1, 1],
-    origin: [0, 0, 0],
+    dimensions: [...dimensions],
+    spacing: [...spacing],
+    origin: [...origin],
     geometry: "cartesian",
     axisLabels: ["x", "y", "z"],
     dt: null,
     boundary: null,
     survivingAxes: null,
     stagger: null,
+  };
+}
+
+// The envelope both generators return: three B components over one grid, everything else empty.
+function magneticFieldDataset(
+  grid: GridInfo,
+  shape: readonly number[],
+  components: readonly [Float32Array, Float32Array, Float32Array],
+  step: number,
+): FieldDataset {
+  return {
+    fields: new Map<FieldName, FieldArray>([
+      ["B_1", wrapComponent("B_1", components[0], shape)],
+      ["B_2", wrapComponent("B_2", components[1], shape)],
+      ["B_3", wrapComponent("B_3", components[2], shape)],
+    ]),
+    grid,
+    normalization: NORMALIZATION,
+    species: [],
+    physics: PHYSICS,
+    frame: "lab",
+    transforms: {},
+    metadata: {},
+    step,
   };
 }
 
@@ -133,23 +161,12 @@ export function syntheticStep(n: number, step: number, steps: number): FieldData
     }
   }
 
-  const fields = new Map<FieldName, FieldArray>([
-    ["B_1", wrapComponent("B_1", b1, shape)],
-    ["B_2", wrapComponent("B_2", b2, shape)],
-    ["B_3", wrapComponent("B_3", b3, shape)],
-  ]);
-
-  return {
-    fields,
-    grid: makeGrid(n),
-    normalization: NORMALIZATION,
-    species: [],
-    physics: PHYSICS,
-    frame: "lab",
-    transforms: {},
-    metadata: {},
+  return magneticFieldDataset(
+    cartesianGrid([n, n, n], [1, 1, 1], [0, 0, 0]),
+    shape,
+    [b1, b2, b3],
     step,
-  };
+  );
 }
 
 // Earth dipole field: moment along
@@ -163,20 +180,6 @@ const DIPOLE_INNER_CUTOFF = 1.1; // R_E — below this the field is zeroed (plan
 // B(nT) = (μ0/4π)·M·1e9 / R_E³ · shape — the analytic dipole scale.
 const DIPOLE_SCALE_NT = (1e-7 * 7.8e22 * 1e9) / 6.371e6 ** 3; // ≈ 3.016e4 nT·R_E³
 const DIPOLE_ORIENTATION = -1; // magnetic north at −z
-
-function makeDipoleGrid(): GridInfo {
-  return {
-    dimensions: [...DIPOLE_DIMS],
-    spacing: [DIPOLE_SPACING, DIPOLE_SPACING, DIPOLE_SPACING],
-    origin: [...DIPOLE_ORIGIN],
-    geometry: "cartesian",
-    axisLabels: ["x", "y", "z"],
-    dt: null,
-    boundary: null,
-    survivingAxes: null,
-    stagger: null,
-  };
-}
 
 /** The static Earth dipole dataset — the `synthetic://dipole` source's only timestep. */
 export function dipoleStep(): FieldDataset {
@@ -205,23 +208,12 @@ export function dipoleStep(): FieldDataset {
     }
   }
 
-  const fields = new Map<FieldName, FieldArray>([
-    ["B_1", wrapComponent("B_1", b1, shape)],
-    ["B_2", wrapComponent("B_2", b2, shape)],
-    ["B_3", wrapComponent("B_3", b3, shape)],
-  ]);
-
-  return {
-    fields,
-    grid: makeDipoleGrid(),
-    normalization: NORMALIZATION,
-    species: [],
-    physics: PHYSICS,
-    frame: "lab",
-    transforms: {},
-    metadata: {},
-    step: 0,
-  };
+  const grid = cartesianGrid(
+    DIPOLE_DIMS,
+    [DIPOLE_SPACING, DIPOLE_SPACING, DIPOLE_SPACING],
+    DIPOLE_ORIGIN,
+  );
+  return magneticFieldDataset(grid, shape, [b1, b2, b3], 0);
 }
 
 function datasetForStep(parsed: SyntheticHandle, step: number): FieldDataset {
