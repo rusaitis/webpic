@@ -1,8 +1,8 @@
 import type { GridInfo } from "@containers/field_dataset.ts";
 import type { FieldLayerKind, LayerKind, TracingLayerKind } from "@schema/layers.ts";
 import type { FieldName } from "@schema/types.ts";
+import type { Layer, LayerSpec } from "./intents/layers.ts";
 import { defaultSeedRake } from "./interaction/seedPick.ts";
-import type { Layer, LayerSpec } from "./layers.ts";
 
 // One registration per layer kind on the store side: how it is named, what it draws, and what a
 // fresh instance looks like. Typed as a complete record, so adding a kind to @schema/layers is a

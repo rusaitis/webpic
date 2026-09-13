@@ -3,9 +3,9 @@ import { finiteRange } from "@reductions";
 import { fullRangeWindow, type WindowLevel } from "@schema/colormap.ts";
 import type { LayerKind } from "@schema/layers.ts";
 import { errorMessage } from "@schema/log.ts";
-import * as colormapOps from "./colormap.ts";
+import * as colormapOps from "./intents/colormap.ts";
+import * as layerOps from "./intents/layers.ts";
 import { isTracingLayer } from "./layerKinds.ts";
-import * as layerOps from "./layers.ts";
 import type { FieldState, SceneIds, SliceContext } from "./state.ts";
 import { createSupersedingTask } from "./supersedingTask.ts";
 

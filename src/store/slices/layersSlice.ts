@@ -1,11 +1,11 @@
 import { fullRangeWindow } from "@schema/colormap.ts";
-import * as colormapOps from "../colormap.ts";
 import { FALLBACK_WINDOW } from "../fieldCompute.ts";
 import type { Retrace } from "../fieldTrace.ts";
+import * as colormapOps from "../intents/colormap.ts";
+import type { Layer } from "../intents/layers.ts";
+import * as layerOps from "../intents/layers.ts";
 import { defaultSeedRake } from "../interaction/seedPick.ts";
 import { isTracingLayer, LAYER_KINDS } from "../layerKinds.ts";
-import type { Layer } from "../layers.ts";
-import * as layerOps from "../layers.ts";
 import { selectDataRange } from "../selectors.ts";
 import type { LayersSlice, SceneIds, SliceContext } from "../state.ts";
 

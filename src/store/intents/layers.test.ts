@@ -1,7 +1,8 @@
 import type { Vec3 } from "@schema/types.ts";
 import { describe, expect, it } from "vitest";
-import { makeDataset, makeField, makeGrid, vectorTriple } from "../../tests/fixtures.ts";
-import { flushAsync } from "../../tests/helpers.ts";
+import { makeDataset, makeField, makeGrid, vectorTriple } from "../../../tests/fixtures.ts";
+import { flushAsync } from "../../../tests/helpers.ts";
+import { createSimulationStore, selectComputed } from "../simulationStore.ts";
 import {
   addLayer,
   type Layer,
@@ -15,7 +16,6 @@ import {
   setSliceAxis,
   setSlicePosition,
 } from "./layers.ts";
-import { createSimulationStore, selectComputed } from "./simulationStore.ts";
 
 // A 4³ uniform B = (0,0,1) field: the default rake traces straight lines the tracer resolves, so the
 // fieldlines intents (seed count / append / placement) have something real to re-trace.

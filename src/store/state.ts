@@ -5,14 +5,14 @@ import type { ColormapBinding, ColormapId, ColorScale } from "@schema/colormap.t
 import type { LayerKind, SliceAxis } from "@schema/layers.ts";
 import type { MarkerPart, PickPurpose } from "@schema/marker.ts";
 import type { FieldName, Vec3 } from "@schema/types.ts";
+import type { Layer, LayerSpec } from "./intents/layers.ts";
+import type { GridPlane, OverlayFlag, OverlayState } from "./intents/overlay.ts";
 import type {
   CameraFlyTarget,
   CameraMotion,
   CameraPose,
   CameraProjection,
 } from "./interaction/camera.ts";
-import type { Layer, LayerSpec } from "./layers.ts";
-import type { GridPlane, OverlayFlag, OverlayState } from "./overlay.ts";
 
 // The simulation store's shape, one slice per concern. Each slice is its own factory (dataSlice,
 // layersSlice, …) composed into ONE zustand store by createSimulationStore, so subscribers still read

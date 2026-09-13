@@ -1,6 +1,6 @@
 import type { FieldArray } from "@containers/field_dataset.ts";
 import type { ColormapBinding } from "@schema/colormap.ts";
-import type { Layer } from "./layers.ts";
+import type { Layer } from "./intents/layers.ts";
 import type { DataRange, SimulationState } from "./state.ts";
 
 // Derived reads over the composed store. Each is a plain function of the state (usable as a

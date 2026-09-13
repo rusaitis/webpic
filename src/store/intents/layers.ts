@@ -2,8 +2,8 @@ import type { GridInfo } from "@containers/field_dataset.ts";
 import type { LayerKind, SliceAxis } from "@schema/layers.ts";
 import { clamp } from "@schema/math.ts";
 import type { FieldName, Vec3 } from "@schema/types.ts";
-import { defaultSeedRake, isSeedInDomain } from "./interaction/seedPick.ts";
-import { LAYER_KINDS } from "./layerKinds.ts";
+import { defaultSeedRake, isSeedInDomain } from "../interaction/seedPick.ts";
+import { LAYER_KINDS } from "../layerKinds.ts";
 
 export type { LayerKind, SliceAxis };
 

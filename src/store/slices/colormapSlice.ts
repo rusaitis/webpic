@@ -1,4 +1,4 @@
-import * as colormapOps from "../colormap.ts";
+import * as colormapOps from "../intents/colormap.ts";
 import { type ColormapSlice, identityUpdater, type SliceContext } from "../state.ts";
 
 // The ColormapBinding registry — every setter runs a pure op and commits only a real change.

@@ -1,5 +1,5 @@
-import * as overlayOps from "../overlay.ts";
-import { DEFAULT_OVERLAY } from "../overlay.ts";
+import * as overlayOps from "../intents/overlay.ts";
+import { DEFAULT_OVERLAY } from "../intents/overlay.ts";
 import { identityUpdater, type OverlaySlice, type SliceContext } from "../state.ts";
 
 // Scene overlay display prefs (axes, grid, gnomon, picker) — every setter runs a pure op and commits
