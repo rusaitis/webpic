@@ -59,25 +59,42 @@ export type SegmentedOptions<V extends string = string> = SelectOptions<V>;
 // the interval and converts to the store's {center, width} at the boundary (see rangeMath).
 export type RangeValue = number | readonly [number, number];
 
-export interface RangeControlOptions {
-  readonly label: string;
+// The bare widget's construction options. The pane-level RangeControlOptions below is this plus a
+// label, and pane.ts passes the object straight through — so they are one type, not two that agree.
+export interface RangeWidgetOptions {
   readonly min: number;
   readonly max: number;
   // Single-mode initial value (ignored when `range` is given).
   readonly value?: number;
   // Presence selects interval mode: [lo, hi].
   readonly range?: readonly [number, number];
+  // Drag/keyboard granularity only; text entry bypasses it. Omit ⇒ continuous.
   readonly step?: number;
-  // Position↔value mapping; default 'linear'.
+  // Position↔value mapping. Default 'linear'.
   readonly scale?: ScaleKind;
+  // symlog linear half-width around 0.
   readonly linthresh?: number;
+  // Subtle vertical ticks. `true` derives a count from `step`/scale.
   readonly ticks?: boolean | number;
+  // Lighter sub-decade minor ticks on log/symlog. Default on when `ticks`.
+  readonly hasMinorTicks?: boolean;
+  // Coupled numeric field(s) for precise entry. Default true.
+  readonly hasText?: boolean;
+  // Value→string for the text field/aria.
   readonly format?: (value: number) => string;
+  // Single-mode fill anchor (default min; set 0 for a bipolar field).
+  readonly origin?: number;
   // Interval minimum gap (default = step ?? 0); keeps the two ends from collapsing.
   readonly minGap?: number;
   // Live edits during drag/keyboard.
   readonly onInput?: (value: RangeValue) => void;
   // Committed edits on release / text entry.
+  readonly onChange?: (value: RangeValue) => void;
+}
+
+export interface RangeControlOptions extends RangeWidgetOptions {
+  readonly label: string;
+  // Required at the pane level: a labeled row exists to report its edits.
   readonly onChange: (value: RangeValue) => void;
 }
 

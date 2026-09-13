@@ -11,48 +11,12 @@ import {
   clampInterval,
   makeScale,
   pointerT,
-  type ScaleKind,
   snapToDecade,
   snapToStep,
   stepDecade,
   translateInterval,
 } from "./rangeMath.ts";
-import type { ControlHandle, RangeValue } from "./types.ts";
-
-type Pair = readonly [number, number];
-
-// The bare widget's construction options (vs the pane-level `RangeControlOptions` in ./types, which
-// adds `label` and is structurally a superset passed straight through to createRangeControl).
-export interface RangeWidgetOptions {
-  readonly min: number;
-  readonly max: number;
-  // Single-mode initial value (ignored when `range` is given).
-  readonly value?: number;
-  // Presence selects interval mode: [lo, hi].
-  readonly range?: Pair;
-  // Drag/keyboard granularity only; text entry bypasses it. Omit ⇒ continuous.
-  readonly step?: number;
-  // Position↔value mapping. Default 'linear'.
-  readonly scale?: ScaleKind;
-  // symlog linear half-width around 0.
-  readonly linthresh?: number;
-  // Subtle vertical ticks. `true` derives a count from `step`/scale.
-  readonly ticks?: boolean | number;
-  // Lighter sub-decade minor ticks on log/symlog. Default on when `ticks`.
-  readonly minorTicks?: boolean;
-  // Coupled numeric field(s) for precise entry. Default true.
-  readonly text?: boolean;
-  // Value→string for the text field/aria.
-  readonly format?: (v: number) => string;
-  // Single-mode fill anchor (default min; set 0 for a bipolar field).
-  readonly origin?: number;
-  // Interval minimum gap (default = step ?? 0).
-  readonly minGap?: number;
-  // Live, during drag/keys.
-  readonly onInput?: (v: RangeValue) => void;
-  // Commit, on pointer release / text change.
-  readonly onChange?: (v: RangeValue) => void;
-}
+import type { ControlHandle, RangeValue, RangeWidgetOptions } from "./types.ts";
 
 export function createRangeControl(
   doc: Document,
@@ -99,11 +63,11 @@ export function createRangeControl(
     min,
     max,
     isInterval,
-    hasText: config.text !== false,
+    hasText: config.hasText !== false,
     scale,
     ...(step !== undefined ? { step } : {}),
     ...(config.ticks !== undefined ? { ticks: config.ticks } : {}),
-    hasMinorTicks: config.minorTicks !== false && isLogish,
+    hasMinorTicks: config.hasMinorTicks !== false && isLogish,
     origin,
   });
 

@@ -171,7 +171,7 @@ export function installTopBar(
       max: Math.max(0, steps.length - 1),
       value: index,
       step: 1,
-      text: false, // bare track + grip; the readout lives in the chip's stepLabelEl, not a coupled field
+      hasText: false, // bare track + grip; the readout lives in the chip's stepLabelEl, not a coupled field
       format: (i) => stepReadout(i, steps), // aria-valuetext announces "step 10", not the bare index
       onInput: onScrub,
       onChange: onScrub,
