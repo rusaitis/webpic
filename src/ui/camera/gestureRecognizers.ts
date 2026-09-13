@@ -93,3 +93,47 @@ export function createTapRecognizer(): TapRecognizer {
     breakChain,
   };
 }
+
+// What a two-finger pair did between frames: the centroid's translation, the spread ratio, and the
+// twist as a shortest-arc angle (the ±π atan2 branch would otherwise spike it). Pure — the caller
+// decides which of pan/dolly/roll the numbers earn.
+export interface PinchDelta {
+  readonly panX: number;
+  readonly panY: number;
+  readonly cx: number;
+  readonly cy: number;
+  readonly spread: number;
+  readonly spreadDelta: number;
+  // prevSpread / spread — the factor a dolly consumes. 1 when either spread is degenerate.
+  readonly scale: number;
+  readonly twist: number;
+}
+
+export function pinchDelta(
+  from: { readonly x: number; readonly y: number },
+  to: { readonly x: number; readonly y: number },
+  other: { readonly x: number; readonly y: number },
+): PinchDelta {
+  const prevSpread = Math.hypot(from.x - other.x, from.y - other.y);
+  const spread = Math.hypot(to.x - other.x, to.y - other.y);
+  const prevCx = (from.x + other.x) / 2;
+  const prevCy = (from.y + other.y) / 2;
+  const cx = (to.x + other.x) / 2;
+  const cy = (to.y + other.y) / 2;
+
+  let twist =
+    Math.atan2(to.y - other.y, to.x - other.x) - Math.atan2(from.y - other.y, from.x - other.x);
+  if (twist > Math.PI) twist -= 2 * Math.PI;
+  else if (twist < -Math.PI) twist += 2 * Math.PI;
+
+  return {
+    panX: cx - prevCx,
+    panY: cy - prevCy,
+    cx,
+    cy,
+    spread,
+    spreadDelta: spread - prevSpread,
+    scale: spread > 0 && prevSpread > 0 ? prevSpread / spread : 1,
+    twist,
+  };
+}

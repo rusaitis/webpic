@@ -1,21 +1,11 @@
-import {
-  cursorRay,
-  DEFAULT_POSE,
-  dollyDeltaForScale,
-  dollyPose,
-  dollyPoseToCursor,
-  focusDistance,
-  focusPoseOnPoint,
-  normalizeWheelDelta,
-  rollPose,
-  type SimulationStore,
-  unitBoxChordMidpoint,
-} from "@store";
+import { dollyDeltaForScale, rollPose, type SimulationStore } from "@store";
 import type { Disposer } from "../controls/index.ts";
-import { clientToNdc } from "../pointerMath.ts";
-import { createSubscriptions } from "../subscriptions.ts";
-import { createTapRecognizer, createTwistGate, DOUBLE_TAP_MS } from "./gestureRecognizers.ts";
+import { installCanvasCursor } from "./canvasCursor.ts";
+import { dollyAtPoint } from "./dolly.ts";
+import { installFocusGesture } from "./focusGesture.ts";
+import { createTapRecognizer, createTwistGate, pinchDelta } from "./gestureRecognizers.ts";
 import type { CameraGlide } from "./glide.ts";
+import { installWheelDolly } from "./wheelDolly.ts";
 
 // Pointer/wheel/touch input on the main-thread canvas → camera-pose intents. The OffscreenCanvas is
 // transferred to the worker, but the <canvas> still receives DOM events here: read the live pose from
@@ -45,45 +35,43 @@ export function installCameraGestures(
   const pointers = new Map<number, TrackedPointer>(); // one drags; two pinch
   let isPanning = false;
   let viewportHeight = NOMINAL_VIEWPORT_PX; // measured per gesture; drags normalize px by this
-  // getBoundingClientRect forces layout, so it's measured once per gesture (pinch NDC) and once
-  // per wheel trail (dolly NDC) rather than per event; the canvas can't resize mid-gesture.
+  // getBoundingClientRect forces layout, so it is measured once per gesture (pinch NDC) rather than
+  // per event; the canvas can't resize mid-gesture.
   let gestureRect: DOMRect | undefined;
-  let wheelRect: DOMRect | undefined;
   // A pinch anywhere in the gesture disqualifies every release in it from being a tap.
   let wasMultiTouch = false;
-  let lastFocusMs = Number.NEGATIVE_INFINITY; // de-dupes a synthetic tap against a native dblclick
   const taps = createTapRecognizer();
   const twist = createTwistGate();
 
-  // Single writer for the canvas cursor (the marker picker never sets it directly): a marker grab
-  // or a camera drag reads "grabbing", a marker hover reads "pointer", everything else rests on "grab".
-  // The picker reports its intent through the store (pickerActive/pickerHover), so the two never race.
-  const applyCursor = (): void => {
-    const { pickerActive, pickerHover } = store.getState();
-    target.style.cursor =
-      pickerActive || pointers.size > 0 ? "grabbing" : pickerHover !== "none" ? "pointer" : "grab";
+  const cursor = installCanvasCursor(target, store, () => pointers.size > 0);
+
+  const { triggerFocus } = installFocusGesture(target, store, glide, signal);
+
+  // A primary pointer means no others are physically down, so anything still tracked is a phantom
+  // from a multitouch release the browser never delivered (iOS/Android drop these mid-pinch), which
+  // would otherwise lock the gesture at size >= 2 forever.
+  const purgePhantoms = (): void => {
+    for (const id of pointers.keys()) target.releasePointerCapture?.(id);
+    pointers.clear();
+    glide.dropMomentum(); // drop the phantom's fling so the new gesture starts clean
+    wasMultiTouch = false;
+  };
+
+  // First finger down: measure once (getBoundingClientRect forces layout) and decide orbit vs pan.
+  const beginGesture = (event: PointerEvent): void => {
+    isPanning = event.shiftKey || event.button === 1 || event.button === 2;
+    gestureRect = target.getBoundingClientRect();
+    viewportHeight = gestureRect.height > 0 ? gestureRect.height : NOMINAL_VIEWPORT_PX;
+    wasMultiTouch = false;
   };
 
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 && event.button !== 1 && event.button !== 2) return;
-    // A primary pointer means no others are physically down: anything still tracked is a phantom
-    // from a multitouch release the browser never delivered (iOS/Android drop these mid-pinch),
-    // which would otherwise lock the gesture at size >= 2 forever. Purge before this one joins.
-    if (event.isPrimary && pointers.size > 0) {
-      for (const id of pointers.keys()) target.releasePointerCapture?.(id);
-      pointers.clear();
-      glide.dropMomentum(); // drop the phantom's fling so the new gesture starts clean
-      wasMultiTouch = false;
-    }
+    if (event.isPrimary && pointers.size > 0) purgePhantoms();
     if (pointers.has(event.pointerId)) return; // button chord mid-drag — keep the current gesture
     if (pointers.size >= 2) return; // two fingers own the gesture; a third joins nothing
     if (event.button === 1) event.preventDefault(); // no middle-click autoscroll
-    if (pointers.size === 0) {
-      isPanning = event.shiftKey || event.button === 1 || event.button === 2;
-      gestureRect = target.getBoundingClientRect();
-      viewportHeight = gestureRect.height > 0 ? gestureRect.height : NOMINAL_VIEWPORT_PX;
-      wasMultiTouch = false;
-    }
+    if (pointers.size === 0) beginGesture(event);
     pointers.set(event.pointerId, {
       x: event.clientX,
       y: event.clientY,
@@ -96,58 +84,36 @@ export function installCameraGestures(
       twist.reset(); // fresh intent gate for this two-finger gesture
     }
     target.setPointerCapture?.(event.pointerId); // keep the drag if the cursor leaves the canvas
-    applyCursor();
+    cursor.apply();
     glide.setPointerDown(true);
   };
 
   // Two-pointer pinch: dolly by the spread ratio about the centroid (immediate, like wheel), pan by
   // the centroid translation (damped, like a drag), and roll by the finger-pair twist (immediate,
   // once it out-votes the zoom). All three compose — an RTS-style zoom/pan/rotate in one gesture.
-  // Dolly anchored at a client point. Both callers — the two-finger pinch and the wheel/Safari-pinch
-  // path — measure their own rect (a live gesture rect, a cached wheel rect); only the anchoring is
-  // shared, and a target with no layout falls back to a plain dolly.
-  const dollyWithRect = (delta: number, clientX: number, clientY: number, rect: DOMRect): void => {
-    const { cameraPose, setCameraPose } = store.getState();
-    if (rect.width > 0 && rect.height > 0) {
-      const { x: ndcX, y: ndcY } = clientToNdc(clientX, clientY, rect); // screen up = +ndcY
-      setCameraPose(dollyPoseToCursor(cameraPose, delta, ndcX, ndcY, rect.width / rect.height));
-    } else {
-      setCameraPose(dollyPose(cameraPose, delta)); // unlaid-out target — no cursor anchor
-    }
-  };
-
   const onPinchMove = (event: PointerEvent, moved: TrackedPointer): void => {
     let other: TrackedPointer | undefined;
     for (const [id, p] of pointers) {
       if (id !== event.pointerId) other = p;
     }
     if (other === undefined) return;
-    const prevSpread = Math.hypot(moved.x - other.x, moved.y - other.y);
-    const prevCx = (moved.x + other.x) / 2;
-    const prevCy = (moved.y + other.y) / 2;
-    const prevTwist = Math.atan2(moved.y - other.y, moved.x - other.x);
-    moved.x = event.clientX;
-    moved.y = event.clientY;
-    const spread = Math.hypot(moved.x - other.x, moved.y - other.y);
-    const cx = (moved.x + other.x) / 2;
-    const cy = (moved.y + other.y) / 2;
-    const twistAngle = Math.atan2(moved.y - other.y, moved.x - other.x);
-    if (cx !== prevCx || cy !== prevCy) {
-      glide.pan((cx - prevCx) / viewportHeight, (cy - prevCy) / viewportHeight);
+    const to = { x: event.clientX, y: event.clientY };
+    const delta = pinchDelta(moved, to, other);
+    moved.x = to.x;
+    moved.y = to.y;
+
+    if (delta.panX !== 0 || delta.panY !== 0) {
+      glide.pan(delta.panX / viewportHeight, delta.panY / viewportHeight);
     }
-    if (spread > 0 && prevSpread > 0 && spread !== prevSpread) {
-      const delta = dollyDeltaForScale(prevSpread / spread);
-      dollyWithRect(delta, cx, cy, gestureRect ?? target.getBoundingClientRect());
+    if (delta.spreadDelta !== 0 && delta.scale !== 1) {
+      const rect = gestureRect ?? target.getBoundingClientRect();
+      dollyAtPoint(store, dollyDeltaForScale(delta.scale), delta.cx, delta.cy, rect);
     }
-    // Twist → roll. Shortest-arc the angle delta first — the ±π atan2 branch would otherwise spike it.
-    let dTwist = twistAngle - prevTwist;
-    if (dTwist > Math.PI) dTwist -= 2 * Math.PI;
-    else if (dTwist < -Math.PI) dTwist += 2 * Math.PI;
-    if (twist.advance(dTwist, spread, spread - prevSpread) && dTwist !== 0) {
+    if (delta.twist !== 0 && twist.advance(delta.twist, delta.spread, delta.spreadDelta)) {
       // Screen y is down, so a clockwise on-screen twist increases atan2; +roll banks the camera CW
       // (the world then reads CCW), so flip the sign to make the world follow the fingers.
       const { cameraPose, setCameraPose } = store.getState();
-      setCameraPose(rollPose(cameraPose, -dTwist));
+      setCameraPose(rollPose(cameraPose, -delta.twist));
     }
   };
 
@@ -196,96 +162,8 @@ export function installCameraGestures(
     }
     pointers.delete(event.pointerId);
     target.releasePointerCapture?.(event.pointerId);
-    applyCursor();
+    cursor.apply();
     glide.setPointerDown(pointers.size > 0);
-  };
-
-  // Shared dolly-at-cursor path for wheel notches and Safari pinch ratios (both feed pixel-unit
-  // deltas). Anchors to the cursor when the target has layout; rides the wheel trail for liveness.
-  const dollyAt = (deltaY: number, clientX: number, clientY: number): void => {
-    // Re-measure only when the previous trail expired — one layout read per burst of notches.
-    if (wheelRect === undefined || !glide.isWheelLive()) wheelRect = target.getBoundingClientRect();
-    dollyWithRect(deltaY, clientX, clientY, wheelRect);
-    glide.touchWheel();
-  };
-
-  const onWheel = (event: WheelEvent): void => {
-    event.preventDefault(); // we own the gesture — don't let the page scroll
-    dollyAt(
-      normalizeWheelDelta(event.deltaY, event.deltaMode, event.ctrlKey),
-      event.clientX,
-      event.clientY,
-    );
-  };
-
-  // Safari delivers trackpad pinches as proprietary GestureEvents (never ctrl+wheel — so the wheel
-  // path can't double-fire); convert the running scale ratio into the wheel dolly path. iPadOS
-  // Safari fires GestureEvents AND pointer events for a two-finger touch pinch — when pointers are
-  // live, onPinchMove owns the gesture, so the bridge stands down (else every pinch dollies twice).
-  let gestureScale = 1;
-  const onGestureStart = (event: Event): void => {
-    event.preventDefault();
-    if (pointers.size > 0) return;
-    gestureScale = 1;
-  };
-  const onGestureChange = (event: Event): void => {
-    event.preventDefault();
-    if (pointers.size > 0) return;
-    // Safari-proprietary fields, absent from lib.dom — the feature gate below guards the cast.
-    const gesture = event as Event & { scale: number; clientX: number; clientY: number };
-    if (!(gesture.scale > 0)) return;
-    dollyAt(dollyDeltaForScale(gestureScale / gesture.scale), gesture.clientX, gesture.clientY);
-    gestureScale = gesture.scale;
-  };
-  const onGestureEnd = (event: Event): void => {
-    event.preventDefault();
-  };
-
-  // Pick-to-focus (double-click / touch double-tap): fly the orbit pivot to the feature under the
-  // cursor. The box-hit test runs synchronously here (store math); a hit starts the fly toward the
-  // chord midpoint the same frame — no worker-round-trip dead time — and dispatches a pick intent
-  // the app refines via the worker's opacity-weighted ray march (its pickResult retargets the
-  // running flight, masked by the slow ease-in). The goal distance is committed once here and rides
-  // the pick request so the retarget can't re-apply ×0.7 to the already-flying pose. A background
-  // gesture (ray misses the box) keeps the old reset, where the two can't conflict.
-  const focusAt = (clientX: number, clientY: number): void => {
-    const rect = target.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      glide.flyTo(DEFAULT_POSE); // unlaid-out target — no cursor to pick with
-      return;
-    }
-    const { x: ndcX, y: ndcY } = clientToNdc(clientX, clientY, rect); // screen up = +ndcY
-    const aspect = rect.width / rect.height;
-    const state = store.getState();
-    const ray = cursorRay(
-      state.cameraPose,
-      ndcX,
-      ndcY,
-      aspect,
-      state.projection === "orthographic",
-    );
-    const midpoint = unitBoxChordMidpoint(ray.origin, ray.dir, state.worldHalfExtent);
-    if (midpoint === null) {
-      glide.flyTo(DEFAULT_POSE);
-      return;
-    }
-    const distance = focusDistance(state.cameraPose.distance);
-    glide.flyTo(focusPoseOnPoint(state.cameraPose, midpoint, distance));
-    state.requestPick({ ndcX, ndcY, aspect, purpose: "focus", focusDistance: distance });
-  };
-
-  // One focus per gesture: a touch double-tap and the native dblclick some browsers also synthesize
-  // for it would otherwise both fire — the window keeps the first.
-  const triggerFocus = (clientX: number, clientY: number): void => {
-    const now = performance.now();
-    if (now - lastFocusMs < DOUBLE_TAP_MS) return;
-    lastFocusMs = now;
-    focusAt(clientX, clientY);
-  };
-
-  const onDoubleClick = (event: MouseEvent): void => {
-    if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
-    triggerFocus(event.clientX, event.clientY);
   };
 
   target.addEventListener("pointerdown", onPointerDown, { signal });
@@ -293,34 +171,13 @@ export function installCameraGestures(
   target.addEventListener("pointerup", onPointerEnd, { signal });
   target.addEventListener("pointercancel", onPointerEnd, { signal });
   target.addEventListener("lostpointercapture", onPointerEnd, { signal });
-  target.addEventListener("dblclick", onDoubleClick, { signal });
   target.addEventListener("contextmenu", (event) => event.preventDefault(), { signal });
-  // Non-passive: preventDefault needs an explicitly non-passive listener (wheel defaults passive).
-  target.addEventListener("wheel", onWheel, { passive: false, signal });
-  if ("GestureEvent" in (target.ownerDocument.defaultView ?? {})) {
-    // Safari-only trackpad pinch; non-passive so preventDefault stops the page zoom.
-    target.addEventListener("gesturestart", onGestureStart, { passive: false, signal });
-    target.addEventListener("gesturechange", onGestureChange, { passive: false, signal });
-    target.addEventListener("gestureend", onGestureEnd, { passive: false, signal });
-  }
-
-  // The picker reports its cursor intent through the store; re-apply when its hover/grab flips so the
-  // canvas reflects a marker interaction without the picker ever writing style.cursor itself.
-  const subscriptions = createSubscriptions();
-  subscriptions.on(store, (s) => s.pickerActive, applyCursor);
-  subscriptions.on(store, (s) => s.pickerHover, applyCursor);
-
-  const priorTouchAction = target.style.touchAction;
-  target.style.touchAction = "none"; // touch-drag should orbit, not scroll the page
-  const priorCursor = target.style.cursor;
-  applyCursor();
+  installWheelDolly({ target, store, glide, signal, hasLivePointers: () => pointers.size > 0 });
 
   return () => {
     abortController.abort();
-    subscriptions.dispose();
+    cursor.dispose();
     for (const id of pointers.keys()) target.releasePointerCapture?.(id);
     pointers.clear();
-    target.style.touchAction = priorTouchAction;
-    target.style.cursor = priorCursor;
   };
 }
