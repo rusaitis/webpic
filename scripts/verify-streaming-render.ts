@@ -1,4 +1,4 @@
-import { errorMessage, withPreviewedApp } from "./harness/browserSession.ts";
+import { runInstrument } from "./harness/browserSession.ts";
 import {
   armContinuousTiming,
   collectPageErrors,
@@ -40,129 +40,120 @@ const LONGTASK_BUDGET_MS = 120; // a responsive main thread during scrub stays w
 const WINDOW = "1440,900"; // fixed window so the drawing-buffer pixel count is reproducible
 
 async function main(): Promise<void> {
-  let exitCode = 0;
-  try {
-    exitCode = await withPreviewedApp(
-      async ({ page, baseUrl }) => {
-        // Console errors catch three/WebGPU validation faults — but skip the browser's default
-        // /favicon.ico (and any other) resource 404, which is benign network noise, not a fault.
-        const errors = collectPageErrors(page, /Failed to load resource/i);
+  await runInstrument(
+    async ({ page, baseUrl }) => {
+      // Console errors catch three/WebGPU validation faults — but skip the browser's default
+      // /favicon.ico (and any other) resource 404, which is benign network noise, not a fault.
+      const errors = collectPageErrors(page, /Failed to load resource/i);
 
-        await page.goto(`${baseUrl}?n=${SIZE}`, { waitUntil: "load" });
-        // The SIZE³ field is decoded + |B|-computed + uploaded before first frame.
-        await waitForFirstFrame(page, 30_000);
+      await page.goto(`${baseUrl}?n=${SIZE}`, { waitUntil: "load" });
+      // The SIZE³ field is decoded + |B|-computed + uploaded before first frame.
+      await waitForFirstFrame(page, 30_000);
 
-        const ctx = await readDrawingSurface(page);
+      const ctx = await readDrawingSurface(page);
 
-        // Record long tasks from here on — first-frame compile/upload longtasks are already past.
-        await page.evaluate(() => {
-          const w = globalThis as unknown as { __longtasks: number[] };
-          w.__longtasks = [];
-          const Observer = (
-            globalThis as unknown as {
-              PerformanceObserver: new (
-                cb: (list: { getEntries: () => Array<{ duration: number }> }) => void,
-              ) => { observe: (init: { entryTypes: string[] }) => void };
-            }
-          ).PerformanceObserver;
-          new Observer((list) => {
-            for (const entry of list.getEntries()) w.__longtasks.push(entry.duration);
-          }).observe({ entryTypes: ["longtask"] });
-        });
+      // Record long tasks from here on — first-frame compile/upload longtasks are already past.
+      await page.evaluate(() => {
+        const w = globalThis as unknown as { __longtasks: number[] };
+        w.__longtasks = [];
+        const Observer = (
+          globalThis as unknown as {
+            PerformanceObserver: new (
+              cb: (list: { getEntries: () => Array<{ duration: number }> }) => void,
+            ) => { observe: (init: { entryTypes: string[] }) => void };
+          }
+        ).PerformanceObserver;
+        new Observer((list) => {
+          for (const entry of list.getEntries()) w.__longtasks.push(entry.duration);
+        }).observe({ entryTypes: ["longtask"] });
+      });
 
-        // Scope to the render canvas — the colorbar + colormap-swatch add their own <canvas> elements, so a
-        // bare "canvas" locator is ambiguous under Playwright strict mode.
-        const canvas = page.locator("#app canvas");
-        const before = await canvas.screenshot();
+      // Scope to the render canvas — the colorbar + colormap-swatch add their own <canvas> elements, so a
+      // bare "canvas" locator is ambiguous under Playwright strict mode.
+      const canvas = page.locator("#app canvas");
+      const before = await canvas.screenshot();
 
-        const readout = await armContinuousTiming(page);
+      const readout = await armContinuousTiming(page);
 
-        // Sustained bouncing scrub across the step domain, sampling the rolling-mean readout as we go. The
-        // time control moved from a docked pane into the top bar: a chip revealing a popover with prev/next
-        // step buttons. Hover the chip to reveal the popover, then click step-next/prev — each dispatches
-        // setStep → setCursor → off-main read+compute → streamStep → scene.setField ping-pong. The
-        // continuous loop times every frame meanwhile.
-        const timeWrap = page.locator(".webpic-topbar_time");
-        const nextBtn = page.locator('[data-control="step-next"]');
-        const prevBtn = page.locator('[data-control="step-prev"]');
-        const readings: number[] = [];
-        let clock = "";
-        let dir = 1;
-        for (let i = 0; i < SCRUB_PRESSES; i++) {
-          await timeWrap.hover(); // keep the reveal-on-hover popover open
-          await (dir > 0 ? nextBtn : prevBtn).click({ force: true });
-          await page.waitForTimeout(SCRUB_DWELL_MS);
-          const reading = parseTimingReadout(await readout.innerText());
-          if (reading.meanMs !== null && i >= 6) readings.push(reading.meanMs); // drop the first ~1 s while the mean warms
-          if (reading.clock !== "") clock = reading.clock;
-          // Bounce at the domain ends so the scrub keeps swapping textures rather than parking.
-          if (i > 0 && i % 14 === 0) dir = -dir;
-        }
+      // Sustained bouncing scrub across the step domain, sampling the rolling-mean readout as we go. The
+      // time control moved from a docked pane into the top bar: a chip revealing a popover with prev/next
+      // step buttons. Hover the chip to reveal the popover, then click step-next/prev — each dispatches
+      // setStep → setCursor → off-main read+compute → streamStep → scene.setField ping-pong. The
+      // continuous loop times every frame meanwhile.
+      const timeWrap = page.locator(".webpic-topbar_time");
+      const nextBtn = page.locator('[data-control="step-next"]');
+      const prevBtn = page.locator('[data-control="step-prev"]');
+      const readings: number[] = [];
+      let clock = "";
+      let dir = 1;
+      for (let i = 0; i < SCRUB_PRESSES; i++) {
+        await timeWrap.hover(); // keep the reveal-on-hover popover open
+        await (dir > 0 ? nextBtn : prevBtn).click({ force: true });
+        await page.waitForTimeout(SCRUB_DWELL_MS);
+        const reading = parseTimingReadout(await readout.innerText());
+        if (reading.meanMs !== null && i >= 6) readings.push(reading.meanMs); // drop the first ~1 s while the mean warms
+        if (reading.clock !== "") clock = reading.clock;
+        // Bounce at the domain ends so the scrub keeps swapping textures rather than parking.
+        if (i > 0 && i % 14 === 0) dir = -dir;
+      }
 
-        const after = await canvas.screenshot();
-        const changed = !after.equals(before);
+      const after = await canvas.screenshot();
+      const changed = !after.equals(before);
 
-        const longtasks = await page.evaluate(
-          () => (globalThis as unknown as { __longtasks: number[] }).__longtasks,
-        );
-        const maxLongTask = longtasks.length > 0 ? Math.max(...longtasks) : 0;
-        const mainResponsive = maxLongTask < LONGTASK_BUDGET_MS;
+      const longtasks = await page.evaluate(
+        () => (globalThis as unknown as { __longtasks: number[] }).__longtasks,
+      );
+      const maxLongTask = longtasks.length > 0 ? Math.max(...longtasks) : 0;
+      const mainResponsive = maxLongTask < LONGTASK_BUDGET_MS;
 
-        const { min, max, p50, count } = summarize(readings);
-        const underGate = Number.isFinite(p50) && p50 <= GATE_MS;
-        const megaPixels = (ctx.bufferW * ctx.bufferH) / 1e6;
+      const { min, max, p50, count } = summarize(readings);
+      const underGate = Number.isFinite(p50) && p50 <= GATE_MS;
+      const megaPixels = (ctx.bufferW * ctx.bufferH) / 1e6;
 
-        console.log(
-          "\nwebpic streaming render-side profile — Chrome stable, headed, production preview",
-        );
-        console.log(
-          "(base Apple M2; the M2 gate targets M2 Pro — a sub-gate reading here is conservative)\n",
-        );
-        console.log(`  workload:   ${SIZE}³ synthetic |B| · 256 steps/ray · sustained scrub`);
-        console.log(
-          `  surface:    ${ctx.bufferW}×${ctx.bufferH} px (${megaPixels.toFixed(2)} MP · dpr ${ctx.dpr})`,
-        );
-        console.log(`  adapter:    ${ctx.adapter}`);
-        console.log(`  clock:      ${clock || "unknown"}`);
-        console.log(`\n  sustained per-frame during scrub (rolling mean, ${count} samples):`);
-        console.log(
-          `    min ${min.toFixed(2)}   p50 ${p50.toFixed(2)}   max ${max.toFixed(2)}  ms`,
-        );
-        console.log(`  gate:       ${GATE_MS} ms/frame → p50 ${underGate ? "≤" : ">"} gate`);
-        console.log("\n  render-side streaming checks:");
-        console.log(
-          `    frame changed across scrub:   ${changed ? "yes" : "NO"}  (streamed step reaches GPU)`,
-        );
-        console.log(
-          `    long tasks during scrub:      ${longtasks.length} (max ${maxLongTask.toFixed(1)} ms)`,
-        );
-        console.log(`    main stayed responsive:       ${mainResponsive ? "yes" : "NO"}`);
-        if (errors.length > 0) console.error(`  page errors: ${errors.join(" | ")}`);
+      console.log(
+        "\nwebpic streaming render-side profile — Chrome stable, headed, production preview",
+      );
+      console.log(
+        "(base Apple M2; the M2 gate targets M2 Pro — a sub-gate reading here is conservative)\n",
+      );
+      console.log(`  workload:   ${SIZE}³ synthetic |B| · 256 steps/ray · sustained scrub`);
+      console.log(
+        `  surface:    ${ctx.bufferW}×${ctx.bufferH} px (${megaPixels.toFixed(2)} MP · dpr ${ctx.dpr})`,
+      );
+      console.log(`  adapter:    ${ctx.adapter}`);
+      console.log(`  clock:      ${clock || "unknown"}`);
+      console.log(`\n  sustained per-frame during scrub (rolling mean, ${count} samples):`);
+      console.log(`    min ${min.toFixed(2)}   p50 ${p50.toFixed(2)}   max ${max.toFixed(2)}  ms`);
+      console.log(`  gate:       ${GATE_MS} ms/frame → p50 ${underGate ? "≤" : ">"} gate`);
+      console.log("\n  render-side streaming checks:");
+      console.log(
+        `    frame changed across scrub:   ${changed ? "yes" : "NO"}  (streamed step reaches GPU)`,
+      );
+      console.log(
+        `    long tasks during scrub:      ${longtasks.length} (max ${maxLongTask.toFixed(1)} ms)`,
+      );
+      console.log(`    main stayed responsive:       ${mainResponsive ? "yes" : "NO"}`);
+      if (errors.length > 0) console.error(`  page errors: ${errors.join(" | ")}`);
 
-        // PASS hinges on the render-side streaming behaving — the streamed step reaches the GPU, the main
-        // thread stays responsive (M2.10a off-main), and no faults fire. The absolute gate is reported (an
-        // M2 Pro concern), not gated on this base-M2 box. Whether the swap took the in-place ping-pong vs a
-        // rebuild is the unit test's call (see the header) — this script can't and doesn't assert it.
-        if (!changed || !mainResponsive || errors.length > 0) {
-          console.error("\n✖ render-side streaming did not behave as expected.");
-          return 1;
-        }
-        console.log(
-          `\n✓ streamed steps reach the GPU across a sustained scrub, main responsive; p50 ${p50.toFixed(2)} ms${
-            underGate
-              ? " (under gate)"
-              : " (over gate — M2 Pro re-run / gate lever, per the exit gate)"
-          }.`,
-        );
-        return 0;
-      },
-      { chromeArgs: [`--window-size=${WINDOW}`] },
-    );
-  } catch (error) {
-    console.error(`\n✖ ${errorMessage(error)}`);
-    exitCode = 1;
-  }
-  process.exit(exitCode);
+      // PASS hinges on the render-side streaming behaving — the streamed step reaches the GPU, the main
+      // thread stays responsive (M2.10a off-main), and no faults fire. The absolute gate is reported (an
+      // M2 Pro concern), not gated on this base-M2 box. Whether the swap took the in-place ping-pong vs a
+      // rebuild is the unit test's call (see the header) — this script can't and doesn't assert it.
+      if (!changed || !mainResponsive || errors.length > 0) {
+        console.error("\n✖ render-side streaming did not behave as expected.");
+        return 1;
+      }
+      console.log(
+        `\n✓ streamed steps reach the GPU across a sustained scrub, main responsive; p50 ${p50.toFixed(2)} ms${
+          underGate
+            ? " (under gate)"
+            : " (over gate — M2 Pro re-run / gate lever, per the exit gate)"
+        }.`,
+      );
+      return 0;
+    },
+    { chromeArgs: [`--window-size=${WINDOW}`] },
+  );
 }
 
 void main();

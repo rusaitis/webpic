@@ -11,10 +11,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Bundle, loadBundle } from "../scripts/codegen/bundle.ts";
-import { renderAliases } from "../scripts/codegen/render-aliases.ts";
-import { renderRecipes } from "../scripts/codegen/render-recipes.ts";
-import { renderRegistry } from "../scripts/codegen/render-registry.ts";
-import { renderValidators } from "../scripts/codegen/render-schema.ts";
+import { ARTIFACTS } from "../scripts/codegen/emit.ts";
 import { type PypicRun, spawnPypic } from "../scripts/harness/pypic.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -34,13 +31,6 @@ function biomeFormat(source: string, relPath: string): string {
   }
   return result.stdout;
 }
-
-const ARTIFACTS = [
-  { render: renderValidators, path: "src/schema/validators.generated.ts" },
-  { render: renderAliases, path: "src/schema/aliases.generated.ts" },
-  { render: renderRegistry, path: "src/schema/registry.generated.ts" },
-  { render: renderRecipes, path: "src/compute/recipes.generated.ts" },
-] as const;
 
 describe("regenerated artifacts match checked-in", () => {
   const bundle = loadBundle(BUNDLE_PATH);

@@ -1,25 +1,25 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { WgslReflect } from "wgsl_reflect";
-import { PARAMS_BYTE_LENGTH } from "../src/compute/backends/webgpu/params.ts";
+import { PARAMS_BYTE_LENGTH } from "@compute/backends/webgpu/params.ts";
 import {
   STREAMLINE_PARAMS_BYTE_LENGTH,
   TRACE_META_BYTE_LENGTH,
-} from "../src/compute/backends/webgpu/streamlineParams.ts";
+} from "@compute/backends/webgpu/streamlineParams.ts";
 import {
   CURL_ENTRY,
   DIVERGENCE_ENTRY,
   FIELD_OPS_WGSL,
   MAGNITUDE_ENTRY,
   WORKGROUP_SIZE,
-} from "../src/shaders/kernels/fieldOps.wgsl.ts";
-import { PARAMS_STRUCT, STENCIL_PRELUDE } from "../src/shaders/kernels/prelude.wgsl.ts";
+} from "@shaders/kernels/fieldOps.wgsl.ts";
+import { PARAMS_STRUCT, STENCIL_PRELUDE } from "@shaders/kernels/prelude.wgsl.ts";
 import {
   STREAMLINE_ENTRY,
   STREAMLINE_WGSL,
   STREAMLINE_WORKGROUP_SIZE,
-} from "../src/shaders/kernels/streamline.wgsl.ts";
+} from "@shaders/kernels/streamline.wgsl.ts";
+import { describe, expect, it } from "vitest";
+import { WgslReflect } from "wgsl_reflect";
 
 // The kernels are TS template strings, so a WGSL typo or a stale binding index survives typecheck
 // and fails only on a real GPU (`test:gpu`, local-only, macOS-gated). Parsing the assembled sources

@@ -1,7 +1,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { withPreviewedApp } from "./harness/browserSession.ts";
+import { runInstrument } from "./harness/browserSession.ts";
 import { collectPageErrors, waitForFirstFrame } from "./harness/pageProbes.ts";
 
 // Manual verification instrument for the z-up scene + magviz-feel camera: drives real Chrome stable
@@ -15,10 +15,10 @@ import { collectPageErrors, waitForFirstFrame } from "./harness/pageProbes.ts";
 
 const WINDOW = "1280,860";
 
-async function main(): Promise<number> {
+async function main(): Promise<void> {
   // The shots are the deliverable — left in place for the reviewer, path printed below.
   const shotDir = await mkdtemp(join(tmpdir(), "webpic-orientation-"));
-  return withPreviewedApp(
+  await runInstrument(
     async ({ page, baseUrl }) => {
       const errors = collectPageErrors(page, /Failed to load resource/i);
 
@@ -122,10 +122,4 @@ async function main(): Promise<number> {
   );
 }
 
-main().then(
-  (exitCode) => process.exit(exitCode),
-  (e: unknown) => {
-    console.error(e);
-    process.exit(1);
-  },
-);
+void main();

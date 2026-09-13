@@ -1,4 +1,4 @@
-import { errorMessage, withPreviewedApp } from "./harness/browserSession.ts";
+import { runInstrument } from "./harness/browserSession.ts";
 import {
   armContinuousTiming,
   collectPageErrors,
@@ -27,68 +27,59 @@ const SAMPLE_COUNT = 40; // ~10 s of sustained measurement once the loop is warm
 const WINDOW = "1440,900"; // fixed window so the drawing-buffer pixel count is reproducible
 
 async function main(): Promise<void> {
-  let exitCode = 0;
-  try {
-    exitCode = await withPreviewedApp(
-      async ({ page, baseUrl }) => {
-        const errors = collectPageErrors(page);
+  await runInstrument(
+    async ({ page, baseUrl }) => {
+      const errors = collectPageErrors(page);
 
-        await page.goto(`${baseUrl}?n=${SIZE}`, { waitUntil: "load" });
-        // The 256³ field is decoded + |B|-computed + uploaded before first frame.
-        await waitForFirstFrame(page, 30_000);
+      await page.goto(`${baseUrl}?n=${SIZE}`, { waitUntil: "load" });
+      // The 256³ field is decoded + |B|-computed + uploaded before first frame.
+      await waitForFirstFrame(page, 30_000);
 
-        const ctx = await readDrawingSurface(page);
-        const readout = await armContinuousTiming(page);
+      const ctx = await readDrawingSurface(page);
+      const readout = await armContinuousTiming(page);
 
-        // Let the rolling mean warm before sampling (a cold first frame ages out of the 30-frame window).
-        await page.waitForTimeout(1500);
+      // Let the rolling mean warm before sampling (a cold first frame ages out of the 30-frame window).
+      await page.waitForTimeout(1500);
 
-        const means: number[] = [];
-        let clock = "";
-        for (let i = 0; i < SAMPLE_COUNT; i++) {
-          const reading = parseTimingReadout(await readout.innerText());
-          if (reading.meanMs !== null) means.push(reading.meanMs);
-          if (reading.clock !== "") clock = reading.clock;
-          await page.waitForTimeout(SAMPLE_MS);
-        }
+      const means: number[] = [];
+      let clock = "";
+      for (let i = 0; i < SAMPLE_COUNT; i++) {
+        const reading = parseTimingReadout(await readout.innerText());
+        if (reading.meanMs !== null) means.push(reading.meanMs);
+        if (reading.clock !== "") clock = reading.clock;
+        await page.waitForTimeout(SAMPLE_MS);
+      }
 
-        const { min, max, p50, last, count } = summarize(means);
-        const pass = Number.isFinite(p50) && p50 <= GATE_MS;
+      const { min, max, p50, last, count } = summarize(means);
+      const pass = Number.isFinite(p50) && p50 <= GATE_MS;
 
-        const megaPixels = (ctx.bufferW * ctx.bufferH) / 1e6;
-        console.log("\nwebpic raymarch profile — Chrome stable, headed, production preview");
-        console.log(`(base Apple M2; the M2 gate targets M2 Pro — a pass here is conservative)\n`);
-        console.log(`  workload:   ${SIZE}³ synthetic |B| volume · 256 steps/ray · early-α 0.98`);
-        console.log(
-          `  surface:    ${ctx.bufferW}×${ctx.bufferH} px buffer (${megaPixels.toFixed(2)} MP · ${ctx.cssW}×${ctx.cssH} css · dpr ${ctx.dpr})`,
-        );
-        console.log(`  adapter:    ${ctx.adapter}`);
-        console.log(`  clock:      ${clock || "unknown"}`);
-        console.log(
-          `\n  sustained per-frame (30-frame rolling mean, ${count} samples over ~10 s):`,
-        );
-        console.log(
-          `    min ${min.toFixed(2)}   p50 ${p50.toFixed(2)}   max ${max.toFixed(2)}   last ${last.toFixed(2)}  ms`,
-        );
-        console.log(`\n  gate:       ${GATE_MS} ms/frame`);
-        console.log(
-          `  verdict:    p50 ${p50.toFixed(2)} ms ${pass ? "≤" : ">"} ${GATE_MS} ms → ${pass ? "PASS (under gate on this surface)" : "OVER gate — needs a gate lever (steps / resolution cap / LOD) or an M2 Pro re-run"}`,
-        );
-        // A page error means the numbers above were measured on a broken page — the one instrument
-        // whose whole job is credibility must not report success.
-        if (errors.length > 0) {
-          console.error(`\n  page errors: ${errors.join(" | ")}`);
-          return 1;
-        }
-        return 0;
-      },
-      { chromeArgs: [`--window-size=${WINDOW}`] },
-    );
-  } catch (error) {
-    console.error(`\n✖ ${errorMessage(error)}`);
-    exitCode = 1;
-  }
-  process.exit(exitCode);
+      const megaPixels = (ctx.bufferW * ctx.bufferH) / 1e6;
+      console.log("\nwebpic raymarch profile — Chrome stable, headed, production preview");
+      console.log(`(base Apple M2; the M2 gate targets M2 Pro — a pass here is conservative)\n`);
+      console.log(`  workload:   ${SIZE}³ synthetic |B| volume · 256 steps/ray · early-α 0.98`);
+      console.log(
+        `  surface:    ${ctx.bufferW}×${ctx.bufferH} px buffer (${megaPixels.toFixed(2)} MP · ${ctx.cssW}×${ctx.cssH} css · dpr ${ctx.dpr})`,
+      );
+      console.log(`  adapter:    ${ctx.adapter}`);
+      console.log(`  clock:      ${clock || "unknown"}`);
+      console.log(`\n  sustained per-frame (30-frame rolling mean, ${count} samples over ~10 s):`);
+      console.log(
+        `    min ${min.toFixed(2)}   p50 ${p50.toFixed(2)}   max ${max.toFixed(2)}   last ${last.toFixed(2)}  ms`,
+      );
+      console.log(`\n  gate:       ${GATE_MS} ms/frame`);
+      console.log(
+        `  verdict:    p50 ${p50.toFixed(2)} ms ${pass ? "≤" : ">"} ${GATE_MS} ms → ${pass ? "PASS (under gate on this surface)" : "OVER gate — needs a gate lever (steps / resolution cap / LOD) or an M2 Pro re-run"}`,
+      );
+      // A page error means the numbers above were measured on a broken page — the one instrument
+      // whose whole job is credibility must not report success.
+      if (errors.length > 0) {
+        console.error(`\n  page errors: ${errors.join(" | ")}`);
+        return 1;
+      }
+      return 0;
+    },
+    { chromeArgs: [`--window-size=${WINDOW}`] },
+  );
 }
 
 void main();

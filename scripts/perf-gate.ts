@@ -1,5 +1,5 @@
 import type { BrowserContext } from "playwright-core";
-import { errorMessage, withPreviewedApp } from "./harness/browserSession.ts";
+import { errorMessage, runInstrument } from "./harness/browserSession.ts";
 import { collectPageErrors, waitForFirstFrame } from "./harness/pageProbes.ts";
 import { summarize } from "./harness/stats.ts";
 
@@ -65,54 +65,47 @@ async function main(): Promise<void> {
   const skipBuild = process.argv.includes("--skip-build");
   if (!skipBuild) console.log("building production bundle…");
 
-  let exitCode = 0;
-  try {
-    exitCode = await withPreviewedApp(
-      async ({ context, baseUrl }) => {
-        console.log(`preview server: ${baseUrl}`);
+  await runInstrument(
+    async ({ context, baseUrl }) => {
+      console.log(`preview server: ${baseUrl}`);
 
-        const cold = await measure(context, baseUrl); // fresh profile → no compiled-pipeline cache
-        const warmRuns: FrameMetrics[] = [];
-        for (let i = 0; i < WARM_RUNS; i++) warmRuns.push(await measure(context, baseUrl));
+      const cold = await measure(context, baseUrl); // fresh profile → no compiled-pipeline cache
+      const warmRuns: FrameMetrics[] = [];
+      for (let i = 0; i < WARM_RUNS; i++) warmRuns.push(await measure(context, baseUrl));
 
-        const warmFcp = summarize(warmRuns.map((m) => m.fcpMs ?? Number.NaN)).p50;
-        const warmFrame = summarize(warmRuns.map((m) => m.firstFrameMs ?? Number.NaN)).p50;
+      const warmFcp = summarize(warmRuns.map((m) => m.fcpMs ?? Number.NaN)).p50;
+      const warmFrame = summarize(warmRuns.map((m) => m.firstFrameMs ?? Number.NaN)).p50;
 
-        const paintPass = cold.fcpMs !== null && cold.fcpMs < PAGE_PAINT_BUDGET_MS;
-        const framePass = cold.firstFrameMs !== null && cold.firstFrameMs < FIRST_FRAME_BUDGET_MS;
+      const paintPass = cold.fcpMs !== null && cold.fcpMs < PAGE_PAINT_BUDGET_MS;
+      const framePass = cold.firstFrameMs !== null && cold.firstFrameMs < FIRST_FRAME_BUDGET_MS;
 
-        console.log("\nwebpic perf gate — Chrome stable, headed, production preview");
-        console.log(
-          `(this machine is a base Apple M2; the gate targets M2 Pro, so a pass here is conservative)\n`,
-        );
-        console.log(`  metric        cold        warm(med)   budget      cold`);
-        console.log(
-          `  page paint    ${fmt(cold.fcpMs).padEnd(11)} ${fmt(warmFcp).padEnd(11)} <${PAGE_PAINT_BUDGET_MS} ms     ${paintPass ? "PASS" : "FAIL"}`,
-        );
-        console.log(
-          `  first frame   ${fmt(cold.firstFrameMs).padEnd(11)} ${fmt(warmFrame).padEnd(11)} <${FIRST_FRAME_BUDGET_MS} ms    ${framePass ? "PASS" : "FAIL"}`,
-        );
-        console.log(
-          `\n  crossOriginIsolated: ${cold.crossOriginIsolated}   navigator.gpu: ${cold.hasWebGpu ? "yes" : "NO"}`,
-        );
+      console.log("\nwebpic perf gate — Chrome stable, headed, production preview");
+      console.log(
+        `(this machine is a base Apple M2; the gate targets M2 Pro, so a pass here is conservative)\n`,
+      );
+      console.log(`  metric        cold        warm(med)   budget      cold`);
+      console.log(
+        `  page paint    ${fmt(cold.fcpMs).padEnd(11)} ${fmt(warmFcp).padEnd(11)} <${PAGE_PAINT_BUDGET_MS} ms     ${paintPass ? "PASS" : "FAIL"}`,
+      );
+      console.log(
+        `  first frame   ${fmt(cold.firstFrameMs).padEnd(11)} ${fmt(warmFrame).padEnd(11)} <${FIRST_FRAME_BUDGET_MS} ms    ${framePass ? "PASS" : "FAIL"}`,
+      );
+      console.log(
+        `\n  crossOriginIsolated: ${cold.crossOriginIsolated}   navigator.gpu: ${cold.hasWebGpu ? "yes" : "NO"}`,
+      );
 
-        if (!cold.hasWebGpu) {
-          console.error("\n✖ navigator.gpu absent — WebGPU unavailable in the launched Chrome.");
-        }
-        if (!paintPass || !framePass) {
-          console.error("\n✖ exit gate FAILED on the cold profile.");
-          return 1;
-        }
-        console.log("\n✓ exit gate PASSED on the cold profile.");
-        return 0;
-      },
-      { skipBuild },
-    );
-  } catch (error) {
-    console.error(`\n✖ ${errorMessage(error)}`);
-    exitCode = 1;
-  }
-  process.exit(exitCode);
+      if (!cold.hasWebGpu) {
+        console.error("\n✖ navigator.gpu absent — WebGPU unavailable in the launched Chrome.");
+      }
+      if (!paintPass || !framePass) {
+        console.error("\n✖ exit gate FAILED on the cold profile.");
+        return 1;
+      }
+      console.log("\n✓ exit gate PASSED on the cold profile.");
+      return 0;
+    },
+    { skipBuild },
+  );
 }
 
 void main();

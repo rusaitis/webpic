@@ -1,4 +1,4 @@
-import { withPreviewedApp } from "./harness/browserSession.ts";
+import { runInstrument } from "./harness/browserSession.ts";
 import { collectPageErrors, waitForFirstFrame } from "./harness/pageProbes.ts";
 
 // Regenerates the README hero from the real production build: the Earth dipole, |B| volume raymarching
@@ -17,7 +17,7 @@ const WINDOW = { width: 1600, height: 900 };
 const POSE = process.env.WEBPIC_POSE ?? "1.0000,0.3000,2.0000,0,0,0,0";
 const SETTLE_MS = 3000; // trace + volume upload, then the camera settle ramp back to full render scale
 
-const exitCode = await withPreviewedApp(
+await runInstrument(
   async ({ page, baseUrl }) => {
     const errors = collectPageErrors(page);
 
@@ -50,4 +50,3 @@ const exitCode = await withPreviewedApp(
     chromeArgs: [`--window-size=${WINDOW.width},${WINDOW.height + 120}`],
   },
 );
-process.exit(exitCode);

@@ -67,3 +67,21 @@ export async function withPreviewedApp<T>(
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+// Run one instrument end to end and exit with its code. Five scripts had written this try/catch in
+// four different shapes — one of which swallowed errorMessage's formatting, and one of which had no
+// exit code at all, so a hero screenshot of a broken page reported success. What an instrument's
+// failure means is one decision, so it lives here beside the session it wraps.
+export async function runInstrument(
+  body: (app: PreviewedApp) => Promise<number>,
+  options: PreviewedAppOptions = {},
+): Promise<never> {
+  let exitCode = 0;
+  try {
+    exitCode = await withPreviewedApp(body, options);
+  } catch (error) {
+    console.error(`\n\u2716 ${errorMessage(error)}`);
+    exitCode = 1;
+  }
+  process.exit(exitCode);
+}
