@@ -48,7 +48,15 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "src/**/*.generated.ts", "src/**/*.d.ts", "src/**/index.ts"],
+      // Layer barrels only — `src/**/index.ts` also hid the two compute-backend dispatchers,
+      // which are 195 lines of real logic named index.ts.
+      exclude: [
+        "src/**/*.test.ts",
+        "src/**/*.generated.ts",
+        "src/**/*.d.ts",
+        "src/*/index.ts",
+        "src/ui/controls/index.ts",
+      ],
       reporter: ["text-summary", "html", "json-summary"],
       reportsDirectory: "coverage",
       // A floor at today's integer, not a target: TASKS.md held the gate until the number had a

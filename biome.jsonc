@@ -84,12 +84,12 @@
     {
       // A test body is linear and reads top to bottom; length there is not the smell the rule is for.
       "includes": ["scripts/**", "tests/**", "**/*.test.ts"],
-      "linter": {
-        "rules": {
-          "complexity": { "noExcessiveLinesPerFunction": "off" },
-          "suspicious": { "noConsole": "off" }
-        }
-      }
+      "linter": { "rules": { "complexity": { "noExcessiveLinesPerFunction": "off" } } }
+    },
+    {
+      // An instrument reports to a terminal; there is no @schema/log sink in scripts/.
+      "includes": ["scripts/**"],
+      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     },
     {
       "includes": ["**/*.generated.ts"],
