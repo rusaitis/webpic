@@ -1,7 +1,7 @@
 import { fullRangeWindow, LOG_DECADES, logWindowFloor } from "@schema/colormap.ts";
 import { describe, expect, it, vi } from "vitest";
 
-// three/tsl's `uniform()` is the only seam onto what createNormalization sends the shader; capture
+// three/tsl's `uniform()` is the only seam onto what createValueNormalization sends the shader; capture
 // each node it mints so the retune assertions can read the values back.
 const { createdUniforms } = vi.hoisted(() => ({ createdUniforms: [] as Array<{ value: number }> }));
 vi.mock("three/tsl", async (importOriginal) => {
@@ -16,7 +16,7 @@ vi.mock("three/tsl", async (importOriginal) => {
   };
 });
 
-import { createNormalization, safeWidth, windowedT } from "./normalization.ts";
+import { createValueNormalization, safeWidth, windowedT } from "./normalization.ts";
 
 // uScaleMode's in-shader encoding (normalization.ts `scaleMode`).
 const LINEAR_MODE = 0;
@@ -106,23 +106,23 @@ describe("windowedT", () => {
 
 // The TSL `toT` graph needs a device to evaluate, so the retune contract is read off the uniforms it
 // closes over — the three values that actually reach the shader, in construction order.
-describe("createNormalization", () => {
+describe("createValueNormalization", () => {
   it("seeds center/width/mode uniforms from the full range, linear", () => {
     createdUniforms.length = 0;
-    createNormalization(0, 10);
+    createValueNormalization(0, 10);
     expect(uniformValues()).toEqual([5, 10, LINEAR_MODE]);
   });
 
   it("floors a collapsed width instead of sending 0 to the divide", () => {
     createdUniforms.length = 0;
-    const norm = createNormalization(0, 10);
+    const norm = createValueNormalization(0, 10);
     norm.setWindow(5, 0);
     expect(uniformValues()).toEqual([5, safeWidth(0), LINEAR_MODE]);
   });
 
   it("switches the scale mode in place, leaving the window alone", () => {
     createdUniforms.length = 0;
-    const norm = createNormalization(0, 10);
+    const norm = createValueNormalization(0, 10);
     norm.setScale("log");
     expect(uniformValues()).toEqual([5, 10, LOG_MODE]);
     norm.setScale("symlog");

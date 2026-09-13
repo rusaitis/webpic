@@ -2,7 +2,7 @@
 // snaps to {1,2,5}×10ᵏ so a grid over arbitrary physical bounds reads in round numbers (50, 100, …
 // not 51.2). Node-testable against fixtures; called once per axis per overlay rebuild, never per frame.
 
-export interface NiceTicks {
+export interface AxisTicks {
   // The chosen 1/2/5×10ᵏ major step (> 0), or 0 for a degenerate range.
   readonly step: number;
   // Ascending major-tick values within [min, max] (inclusive, clipped to the bounds).
@@ -17,7 +17,7 @@ const MAX_TICKS = 1000;
 // The 1/2/5×10ᵏ major step for a span targeting ~`targetCount` divisions (0 for a degenerate span):
 // snap the raw span/count to the nearest number on that lattice (Heckbert's nice-number rule), which
 // is what makes tick labels read as round.
-export function niceStep(span: number, targetCount: number): number {
+export function nearestNiceStep(span: number, targetCount: number): number {
   const raw = span / Math.max(1, Math.floor(targetCount));
   if (!(raw > 0)) return 0;
   const exponent = Math.floor(Math.log10(raw));
@@ -29,7 +29,7 @@ export function niceStep(span: number, targetCount: number): number {
 // Ascending major ticks at a *given* step within [min, max] (inclusive, clipped). Lets several axes
 // share one step for a uniform-spacing grid; a non-positive step or zero-width range degenerates to a
 // single tick. Separated from the step choice so the lattice and the spacing decision compose.
-export function ticksForStep(min: number, max: number, step: number): Omit<NiceTicks, "step"> {
+export function ticksForStep(min: number, max: number, step: number): Omit<AxisTicks, "step"> {
   const lo = Math.min(min, max);
   const hi = Math.max(min, max);
   if (!(step > 0) || !(hi > lo)) return { ticks: [lo], decimals: 0 };

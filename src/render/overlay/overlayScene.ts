@@ -14,7 +14,7 @@ import { LineBasicNodeMaterial, type Node, SpriteNodeMaterial } from "three/webg
 import { finishCanvasTexture } from "../canvasTexture.ts";
 import { createDisposableBag } from "../disposableBag.ts";
 import type { SceneOverlayConfig } from "../messages.ts";
-import { niceStep, ticksForStep } from "./niceTicks.ts";
+import { nearestNiceStep, ticksForStep } from "./niceTicks.ts";
 import {
   formatTick,
   LABEL_FADE_FULL_COS,
@@ -140,7 +140,7 @@ export function createOverlayScene(config: SceneOverlayConfig): OverlayScene {
     const [min, max] = config.axes[threeAxis].bounds;
     return Math.abs(max - min);
   });
-  const commonStep = niceStep(Math.max(...spans), config.tick.targetCount);
+  const commonStep = nearestNiceStep(Math.max(...spans), config.tick.targetCount);
 
   // Major-tick lattice per THREE axis (the shared step over the mapped field axis's physical bounds).
   const axisData: readonly ThreeAxisData[] = THREE_AXES.map((threeAxis) => {

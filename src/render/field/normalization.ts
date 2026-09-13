@@ -66,7 +66,7 @@ export function windowedT(
   return t < 0 ? 0 : t > 1 ? 1 : t;
 }
 
-export interface Normalization {
+export interface ValueNormalization {
   // map a raw field value → t∈[0,1] (saturated), mirroring windowedT for the active scale.
   toT(raw: Node<"float">): Node<"float">;
   // retune the window in place — no texture re-upload, no node rebuild.
@@ -76,12 +76,12 @@ export interface Normalization {
 }
 
 // Value→t normalization over a field's [vmin, vmax]; defaults to the full finite range, linear.
-export function createNormalization(
+export function createValueNormalization(
   vmin: number,
   vmax: number,
   wl?: WindowLevel,
   scale: ColorScale = "linear",
-): Normalization {
+): ValueNormalization {
   const window = wl ?? fullRangeWindow({ min: vmin, max: vmax });
   const uCenter = uniform(window.center);
   const uWidth = uniform(safeWidth(window.width));

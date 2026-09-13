@@ -1,5 +1,9 @@
 import type { ColorScale } from "@schema/colormap.ts";
-import { createNormalization, type Normalization, type WindowLevel } from "./normalization.ts";
+import {
+  createValueNormalization,
+  type ValueNormalization,
+  type WindowLevel,
+} from "./normalization.ts";
 import { createTransferFunctionTexture, type TransferFunctionTexture } from "./transferFunction.ts";
 import { createVolumeTexture, type ScalarField, type VolumeTexture } from "./volumeTexture.ts";
 
@@ -26,7 +30,7 @@ export interface FieldSceneOptions {
 export interface FieldSceneBase {
   readonly volume: VolumeTexture;
   readonly tf: TransferFunctionTexture;
-  readonly norm: Normalization;
+  readonly norm: ValueNormalization;
 }
 
 // Upload the field, build its colormap texture, and map values into it. The default window spans the
@@ -40,6 +44,6 @@ export function createFieldSceneBase(options: FieldSceneOptions): FieldSceneBase
   return {
     volume,
     tf: createTransferFunctionTexture(options.colormap),
-    norm: createNormalization(volume.min, volume.max, options.windowLevel, options.scale),
+    norm: createValueNormalization(volume.min, volume.max, options.windowLevel, options.scale),
   };
 }

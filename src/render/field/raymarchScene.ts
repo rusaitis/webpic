@@ -26,7 +26,7 @@ import {
 import { type Node, NodeMaterial } from "three/webgpu";
 import type { VolumeLayerScene } from "../layer/scene.ts";
 import { createFieldSceneBase, type FieldSceneOptions } from "./fieldScene.ts";
-import type { Normalization } from "./normalization.ts";
+import type { ValueNormalization } from "./normalization.ts";
 import { GRAD_EPS, PHONG } from "./shading.ts";
 import type { TransferFunctionTexture } from "./transferFunction.ts";
 import type { VolumeTexture } from "./volumeTexture.ts";
@@ -96,7 +96,7 @@ function buildRaymarchGraph(
   resources: {
     readonly volume: VolumeTexture;
     readonly tf: TransferFunctionTexture;
-    readonly norm: Normalization;
+    readonly norm: ValueNormalization;
   },
   config: {
     readonly steps: number;
