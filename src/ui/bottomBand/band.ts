@@ -144,7 +144,7 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
     scheduleSettle(() => host.reflow());
   };
 
-  // The fit pass: shouldSuppress the gnomon when the rail can't clear it (independent of the strip), then
+  // The fit pass: suppress the gnomon when the rail can't clear it (independent of the strip), then
   // minimize / migrate the strip if it can't sit beside the rail. Idempotent + monotonic in viewport
   // width, so the triggers below can fire it freely without oscillating.
   const adapt = (): void => {

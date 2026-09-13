@@ -20,7 +20,7 @@ export interface RailMenuOptions {
   readonly parent: HTMLElement; // the rail's fixed-position host (the menu mounts here)
   readonly title: string; // e.g. "Volume layers"
   readonly getItems: () => readonly RailMenuItem[]; // existing instances of this kind
-  readonly getSelected: () => string | null; // selectedLayerId, marks the isActive row
+  readonly getSelected: () => string | null; // selectedLayerId, marks the active row
   readonly onPick: (id: string) => void; // jump to an instance (then the menu closes)
   readonly onAddNew: () => void; // create a new instance (then the menu closes)
 }

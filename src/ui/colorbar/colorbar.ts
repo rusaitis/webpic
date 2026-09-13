@@ -31,9 +31,9 @@ import { colorbarStack } from "./colorbarStack.ts";
 const CHROME_SELECTOR =
   ".webpic-rail_btn, .webpic-coords-card, .webpic-topbar, .webpic-siderail, .webpic-layers, .webpic-shell, .webpic-chrome, .webpic-status";
 const INITIAL_GAP_PX = 12; // first-paint inset (bottom-right); reflow then clears the chrome
-// One nice-number target for BOTH orientations, so the tick values are identical isHorizontal and
+// One nice-number target for BOTH orientations, so the tick values are identical horizontal and
 // vertical (the set depends only on the window + this count — never the strip's pixel length). 5
-// reads well on the 320px-wide isHorizontal strip without crowding and leaves the 200px vertical one
+// reads well on the 320px-wide horizontal strip without crowding and leaves the 200px vertical one
 // with room to spare (stacked labels are short).
 const TICK_TARGET = 5;
 
@@ -63,7 +63,7 @@ export function installColorbar(
   container.dataset.edge = "bottom";
 
   // "main" stacks one section per shown binding: sections run down the free axis (below each other
-  // on isHorizontal docks, side by side on vertical), and inside a section the caption, gradient
+  // on horizontal docks, side by side on vertical), and inside a section the caption, gradient
   // strip, and tick labels stack as before — per strip.
   const main = makeEl(doc, "div", "webpic-cbar_main");
 

@@ -21,7 +21,7 @@ import { frameDt } from "../pointerMath.ts";
 // the held nudge keys at constant velocity, and runs the eased fly-to tween — applying eased
 // *increments* on top of the live pose so concurrent input blends with the flight instead of
 // canceling it. It is also the single writer of setCameraMotion, the worker's quality tier: "gesture"
-// while the hand is on the camera, "fly" while only a tween runs, idle on the isQuiet frame. Gestures
+// while the hand is on the camera, "fly" while only a tween runs, idle on the quiet frame. Gestures
 // feed it deltas; ui/camera/pointerCamera feeds it flights.
 
 // Eased fly-to duration (reset / axis snap / pick-to-focus).
@@ -188,8 +188,8 @@ export function createCameraGlide(host: CameraGlideHost): CameraGlide {
     } else {
       glideId = requestAnimationFrame(glide);
     }
-    // Per-frame: catches the isGesturing→fly edge when a wheel trail expires or momentum settles
-    // mid-flight, and idle on the isQuiet frame.
+    // Per-frame: catches the gesture→fly edge when a wheel trail expires or momentum settles
+    // mid-flight, and idle on the quiet frame.
     syncMotion();
   };
 

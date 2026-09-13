@@ -85,6 +85,43 @@ function longestHeader(layer: LayerName): { file: string; length: number } {
   return worst;
 }
 
+// A mechanical rename that reaches into comments turns English into identifiers: an adjective
+// becomes the boolean named after it, and the abbreviation for "for example" becomes a property
+// access. Each pattern is a shape prose takes and code never does, so a legitimate reference
+// (`not gated on isReady`, `the plain isReady gate`) is not a hit. They catch most of a sweep, not
+// all of it — the article-adjective shape that would catch the rest also matches that second
+// example, and a guard needing a suppression on day one is not a guard.
+const PROSE_CORRUPTION: ReadonlyArray<{ readonly pattern: RegExp; readonly shape: string }> = [
+  { pattern: /\b(?:an?|the)\s+(?:is|has|should)[A-Z]/, shape: "article + identifier" },
+  { pattern: /[a-z]-(?:is|has|should)[A-Z]/, shape: "hyphen-compound + identifier" },
+  { pattern: /\bis\s+(?:is|has|should)[A-Z]/, shape: "'is' + identifier" },
+  {
+    pattern: /\b(?:event|element|options|context|signal|abortController)\.g\./,
+    shape: "'e.g.' renamed",
+  },
+  { pattern: /\b(?:is|has|should)[A-Z][a-z]+-[a-z]/, shape: "identifier as an adjective" },
+  { pattern: /\bfor\s+(?:is|has|should)[A-Z]/, shape: "'for' + identifier" },
+  { pattern: /\bidentical\s+(?:is|has|should)[A-Z]/, shape: "'identical' + identifier" },
+  { pattern: /\bshould[A-Z][a-z]+\s+the\b/, shape: "'should<Verb> the'" },
+  {
+    pattern: /\(\s*(?:is|has|should)[A-Z][a-z]+\s+(?:until|when|while)\b/,
+    shape: "identifier as an adjective",
+  },
+];
+
+// `//` comments only. A `://` immediately before the marker is a URL, not a comment.
+function commentLines(
+  source: string,
+): ReadonlyArray<{ readonly line: number; readonly text: string }> {
+  const out: { line: number; text: string }[] = [];
+  source.split("\n").forEach((text, index) => {
+    const at = text.indexOf("//");
+    if (at === -1 || text.slice(Math.max(0, at - 1), at + 3).includes("://")) return;
+    out.push({ line: index + 1, text: text.slice(at) });
+  });
+  return out;
+}
+
 describe("comment budget", () => {
   it("accounts for every layer", () => {
     const covered = new Set<string>([...UNDOCUMENTED_LAYERS, ...DOCUMENTED_LAYERS]);
@@ -103,4 +140,17 @@ describe("comment budget", () => {
       expect(worst.length, worst.file).toBeLessThanOrEqual(HEADER_LIMIT);
     });
   }
+
+  it("keeps identifiers out of comment prose, where a rename sweep leaves them", () => {
+    const found: string[] = [];
+    for (const path of typescriptFiles("src").concat(typescriptFiles("tests"))) {
+      if (path.includes(".generated.")) continue;
+      const source = readFileSync(join(ROOT, path), "utf8");
+      for (const { line, text } of commentLines(source)) {
+        const hit = PROSE_CORRUPTION.find(({ pattern }) => pattern.test(text));
+        if (hit !== undefined) found.push(`${path}:${line} [${hit.shape}] ${text.trim()}`);
+      }
+    }
+    expect(found).toEqual([]);
+  });
 });

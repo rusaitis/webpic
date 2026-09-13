@@ -296,7 +296,7 @@ export function installDragSnap(
 
   const scheduleReflow = coalesceFrame(view, reflow);
   view?.addEventListener("resize", scheduleReflow, { signal });
-  // Re-clear when a chrome obstacle changes size — event.g. the coords chip widens once a dataset loads,
+  // Re-clear when a chrome obstacle changes size — e.g. the coords chip widens once a dataset loads,
   // after the strip already docked against its old (empty) width. obstacles() registers each node;
   // moving the strip never resizes chrome, so this can't loop. (No ResizeObserver under jsdom.)
   const RO = view?.ResizeObserver;

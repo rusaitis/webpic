@@ -38,7 +38,7 @@ export interface RangeWidgetOptions {
   readonly linthresh?: number;
   // Subtle vertical ticks. `true` derives a count from `step`/scale.
   readonly ticks?: boolean | number;
-  // Lighter sub-isDecadeStep minor ticks on log/symlog. Default on when `ticks`.
+  // Lighter sub-decade minor ticks on log/symlog. Default on when `ticks`.
   readonly minorTicks?: boolean;
   // Coupled numeric field(s) for precise entry. Default true.
   readonly text?: boolean;
@@ -73,8 +73,8 @@ export function createRangeControl(
   const minGap = config.minGap ?? (step && step > 0 ? step : 0);
   const kbStep = step && step > 0 ? step : (max - min) / 100;
 
-  // On log/symlog, drag + keyboard snap to a log-isDecadeStep grid rather than the uniform `step`.
-  // `decadeMinStep` floors it one isDecadeStep below the symlog linear band so it can't subdivide
+  // On log/symlog, drag + keyboard snap to a log-decade grid rather than the uniform `step`.
+  // `decadeMinStep` floors it one decade below the symlog linear band so it can't subdivide
   // forever toward 0; log (min > 0) needs no floor. Linear keeps uniform `step`.
   const isLogish = scale.kind === "log" || scale.kind === "symlog";
   const decadeMinStep =
@@ -129,7 +129,7 @@ export function createRangeControl(
       track.style.setProperty("--t", String(tv));
       fill.style.setProperty("--fa", String(Math.min(tv, t0)));
       fill.style.setProperty("--fb", String(Math.max(tv, t0)));
-      // Square the fill's edge at an isInteriorOrigin origin (the 0 baseline); its moving end stays round.
+      // Square the fill's edge at an interior origin (the 0 baseline); its moving end stays round.
       const isInteriorOrigin = origin > min && origin < max;
       if (isInteriorOrigin && value !== origin)
         fill.dataset.origin = value > origin ? "left" : "right";
@@ -235,7 +235,7 @@ export function createRangeControl(
 
   const onKey = (event: KeyboardEvent, end: "value" | "lo" | "hi"): void => {
     const cur = end === "lo" ? lo : end === "hi" ? hi : value;
-    // On log/symlog the value grip walks the isDecadeStep grid (Shift = 10 cells); interval ends
+    // On log/symlog the value grip walks the decade grid (Shift = 10 cells); interval ends
     // and linear sliders keep the fine `step` nudge.
     const isDecadeStep = isLogish && end === "value";
     const mult = event.shiftKey ? 10 : 1;
