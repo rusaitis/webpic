@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2024", "ESNext.Disposable"],
+    "lib": ["ES2024"],
     "erasableSyntaxOnly": true,
     "types": ["node", "@webgpu/types"]
   },
