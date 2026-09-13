@@ -226,7 +226,7 @@ export function identityUpdater<K extends keyof SimulationState>(
   return (op) => {
     const current = get()[key];
     const next = op(current);
-    // The Partial<SimulationState> shape a computed key cannot be narrowed into without help.
+    // A computed key can't be narrowed into `Partial<SimulationState>` without help.
     if (next !== current) set({ [key]: next } as Partial<SimulationState>);
   };
 }

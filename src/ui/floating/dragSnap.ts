@@ -44,7 +44,7 @@ export interface DragSnapOptions {
   // Anchor the *free* axis (the one not pinned to a dock edge) by its center rather than a corner,
   // so a size change (collapse/expand) pivots on the center. The stylesheet must translate that axis
   // by -50% (`translateX(-50%)` on top/bottom docks, `translateY(-50%)` on left/right, both for a
-  // free drop). The colorbar options in; the free-mode window keeps corner anchoring.
+  // free drop). The colorbar opts in; the free-mode window keeps corner anchoring.
   readonly centerFreeAxis?: boolean;
   // Fired when the dock edge changes (the colorbar repaints its gradient orientation).
   readonly onEdgeChange?: (edge: PaneEdge) => void;
