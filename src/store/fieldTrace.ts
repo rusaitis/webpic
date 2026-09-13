@@ -1,4 +1,10 @@
-import { displayTraceSteps, type FieldLine, traceFields, vectorComponentsForField } from "@compute";
+import {
+  displayTraceSteps,
+  type FieldLine,
+  type TraceSkip,
+  traceFields,
+  vectorComponentsForField,
+} from "@compute";
 import type { FieldDataset } from "@containers/field_dataset.ts";
 import { errorMessage, logWarn } from "@schema/log.ts";
 import { isTracingLayer, type TracingLayer } from "./layerKinds.ts";
@@ -29,8 +35,10 @@ function failedNotice(requested: number, error: string): TraceNotice {
   };
 }
 
-// How a batch's skipped seeds split across the three rejection reasons.
-function tallySkips(skipped: ReadonlyArray<{ readonly reason: string }>): {
+// How a batch's skipped seeds split across the rejection reasons. Keyed on TraceSkipReason rather
+// than `string`: a fourth reason is then a compile error here instead of a silent tally under
+// failedSeeds, which the field-lines panel reports to the user as a trace failure.
+function tallySkips(skipped: readonly TraceSkip[]): {
   nullSeeds: number;
   outsideSeeds: number;
   failedSeeds: number;
@@ -39,9 +47,20 @@ function tallySkips(skipped: ReadonlyArray<{ readonly reason: string }>): {
   let outsideSeeds = 0;
   let failedSeeds = 0;
   for (const skip of skipped) {
-    if (skip.reason === "field_null") nullSeeds++;
-    else if (skip.reason === "outside_domain") outsideSeeds++;
-    else failedSeeds++;
+    switch (skip.reason) {
+      case "field_null":
+        nullSeeds++;
+        break;
+      case "outside_domain":
+        outsideSeeds++;
+        break;
+      case "trace_failed":
+        failedSeeds++;
+        break;
+      default:
+        skip.reason satisfies never; // the tracer's union is the only source
+        break;
+    }
   }
   return { nullSeeds, outsideSeeds, failedSeeds };
 }
