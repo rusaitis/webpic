@@ -67,13 +67,13 @@
     {
       "name": "@webpic/embed (dist-embed/*.js, gzip)",
       "path": "dist-embed/*.js",
-      "limit": "560 kB",
+      "limit": "545 kB",
       "gzip": true
     },
     {
       "name": "app (dist/assets/*.js, gzip)",
       "path": "dist/assets/*.js",
-      "limit": "413 kB",
+      "limit": "385 kB",
       "gzip": true
     }
   ],

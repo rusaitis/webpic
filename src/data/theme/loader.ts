@@ -1,4 +1,5 @@
-import { parseTheme, type Theme } from "@schema/theme.ts";
+import type { Theme } from "@schema/theme.ts";
+import { parseTheme } from "@schema/themeParse.ts";
 
 // Bundled themes: synced verbatim from pypic by scripts/sync-themes.ts and inlined at
 // build time (no runtime fetch — keeps the cold-start budget). Custom themes go

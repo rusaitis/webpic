@@ -11,6 +11,7 @@ export * from "./log.ts";
 export * from "./rayBox.ts";
 export * from "./registry.ts";
 export * from "./theme.ts";
+export * from "./themeParse.ts";
 export * from "./timing.ts";
 export * from "./types.ts";
 export * from "./validators.generated.ts";

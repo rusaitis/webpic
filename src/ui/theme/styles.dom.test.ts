@@ -1,4 +1,4 @@
-import { parseTheme } from "@schema/theme.ts";
+import { parseTheme } from "@schema/themeParse.ts";
 import { afterEach, describe, expect, it } from "vitest";
 import { applyControlStyles } from "./styles.ts";
 

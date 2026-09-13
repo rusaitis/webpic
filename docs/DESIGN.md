@@ -639,7 +639,7 @@ Hand-rolled registry (`ui/keys/shortcuts.ts` is the cheat-sheet authority; OPFS 
 - **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. A `happy-dom` project (devDep) runs the `ui` DOM-unit tests (`*.dom.test.ts`) — node mode can't construct DOM, and these are deterministic, not visual. Browser mode (`@vitest/browser-playwright`) runs the `*.browser.test.ts` real-GPU suites in headed system Chrome via `npm run test:gpu` — local-only (WebGPU on macOS/Metal is unreliable headless), env-gated out of plain `vitest`/CI. Coverage via `@vitest/coverage-v8` (`npm run test:coverage`) is **gated** at a floor of 85/84/87/73 (lines/statements/functions/branches, `vitest.config.ts`); it only ever rises. Playwright E2E flows are deferred (see §Testing strategy).
 - **Git hooks:** `lefthook` (installed by `npm run prepare`) — Biome on staged files at commit; typecheck, boundaries, lint and tests at push. Mirrors CI so a red build is caught locally first.
 - **Docs:** TypeDoc from public exports.
-- **Bundle size:** `size-limit` with a 560 kB ceiling on `@webpic/embed`, 413 kB on `@webpic/app` (gzipped). Both are ratchets at the measured value, not aspirations.
+- **Bundle size:** `size-limit` with a 545 kB ceiling on `@webpic/embed`, 385 kB on `@webpic/app` (gzipped). Both are ratchets at the measured value, not aspirations.
 - **Shader validation:** `tests/wgsl.test.ts` parses the assembled WGSL with `wgsl_reflect` and pins each kernel's binding layout, workgroup size and `Params`/`TraceMeta` byte lengths against the `gpu/` runners that duplicate them. Parse-level only: CI proves the kernels compile, `test:gpu` proves they run (a `tint` CLI tier was considered and dropped — `wgsl_reflect` is in-process and needs no toolchain).
 
 **Key dependencies.** *Shipped in v0.1:* `three` (exact pin carrying #31607, not a floating range), `zarrita`, `zod` (app), `smol-toml`, `zustand`. *Adopted when their layer lands:* `comlink` (with the compute worker pool, M3+), `zod/v4-mini` (the embed build), `xxhash-wasm` (only if FNV-1a proves insufficient — it currently doesn't), `wesl-js` (gated on rustpic shared kernels). `gl-matrix` was planned here for `coordinates`/`numerics` but both shipped dependency-free — don't add it without a demonstrated need. Control widgets are owned, not a dependency — see §UI (magviz dropped `tweakpane` + `@tweakpane/plugin-essentials` once its `ui/controls` primitives landed).
@@ -788,7 +788,7 @@ Cross-cutting concerns and explicitly deferred items. Milestone-bound work lives
 
 | Concern                       | Status   | Notes                                                |
 |-------------------------------|----------|------------------------------------------------------|
-| Bundle size budget            | v0.1     | `size-limit` 560 kB embed / 413 kB app gzipped       |
+| Bundle size budget            | v0.1     | `size-limit` 545 kB embed / 385 kB app gzipped       |
 | TypeDoc API docs              | v0.1     | M6                                                   |
 | Crash telemetry (opt-in)      | v0.2     | Sentry-compatible endpoint, off by default           |
 | Accessibility (keyboard nav)  | v0.1     | Tab order, focus rings; command palette is v0.2      |
