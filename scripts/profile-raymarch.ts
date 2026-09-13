@@ -35,7 +35,7 @@ async function main(): Promise<void> {
       // The 256³ field is decoded + |B|-computed + uploaded before first frame.
       await waitForFirstFrame(page, 30_000);
 
-      const ctx = await readDrawingSurface(page);
+      const surface = await readDrawingSurface(page);
       const readout = await armContinuousTiming(page);
 
       // Let the rolling mean warm before sampling (a cold first frame ages out of the 30-frame window).
@@ -53,14 +53,14 @@ async function main(): Promise<void> {
       const { min, max, p50, last, count } = summarize(means);
       const pass = Number.isFinite(p50) && p50 <= GATE_MS;
 
-      const megaPixels = (ctx.bufferW * ctx.bufferH) / 1e6;
+      const megaPixels = (surface.bufferW * surface.bufferH) / 1e6;
       console.log("\nwebpic raymarch profile — Chrome stable, headed, production preview");
       console.log(`(base Apple M2; the M2 gate targets M2 Pro — a pass here is conservative)\n`);
       console.log(`  workload:   ${SIZE}³ synthetic |B| volume · 256 steps/ray · early-α 0.98`);
       console.log(
-        `  surface:    ${ctx.bufferW}×${ctx.bufferH} px buffer (${megaPixels.toFixed(2)} MP · ${ctx.cssW}×${ctx.cssH} css · dpr ${ctx.dpr})`,
+        `  surface:    ${surface.bufferW}×${surface.bufferH} px buffer (${megaPixels.toFixed(2)} MP · ${surface.cssW}×${surface.cssH} css · dpr ${surface.dpr})`,
       );
-      console.log(`  adapter:    ${ctx.adapter}`);
+      console.log(`  adapter:    ${surface.adapter}`);
       console.log(`  clock:      ${clock || "unknown"}`);
       console.log(`\n  sustained per-frame (30-frame rolling mean, ${count} samples over ~10 s):`);
       console.log(

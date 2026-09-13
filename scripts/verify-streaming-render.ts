@@ -51,7 +51,7 @@ async function main(): Promise<void> {
       // The SIZE³ field is decoded + |B|-computed + uploaded before first frame.
       await waitForFirstFrame(page, 30_000);
 
-      const ctx = await readDrawingSurface(page);
+      const surface = await readDrawingSurface(page);
 
       // Record long tasks from here on — first-frame compile/upload longtasks are already past.
       await page.evaluate(() => {
@@ -109,7 +109,7 @@ async function main(): Promise<void> {
 
       const { min, max, p50, count } = summarize(readings);
       const underGate = Number.isFinite(p50) && p50 <= GATE_MS;
-      const megaPixels = (ctx.bufferW * ctx.bufferH) / 1e6;
+      const megaPixels = (surface.bufferW * surface.bufferH) / 1e6;
 
       console.log(
         "\nwebpic streaming render-side profile — Chrome stable, headed, production preview",
@@ -119,9 +119,9 @@ async function main(): Promise<void> {
       );
       console.log(`  workload:   ${SIZE}³ synthetic |B| · 256 steps/ray · sustained scrub`);
       console.log(
-        `  surface:    ${ctx.bufferW}×${ctx.bufferH} px (${megaPixels.toFixed(2)} MP · dpr ${ctx.dpr})`,
+        `  surface:    ${surface.bufferW}×${surface.bufferH} px (${megaPixels.toFixed(2)} MP · dpr ${surface.dpr})`,
       );
-      console.log(`  adapter:    ${ctx.adapter}`);
+      console.log(`  adapter:    ${surface.adapter}`);
       console.log(`  clock:      ${clock || "unknown"}`);
       console.log(`\n  sustained per-frame during scrub (rolling mean, ${count} samples):`);
       console.log(`    min ${min.toFixed(2)}   p50 ${p50.toFixed(2)}   max ${max.toFixed(2)}  ms`);
