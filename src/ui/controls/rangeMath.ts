@@ -342,3 +342,63 @@ export function intervalToWindow(lo: number, hi: number): WindowLevel {
 export function windowToInterval(w: WindowLevel): [number, number] {
   return [w.center - w.width / 2, w.center + w.width / 2];
 }
+
+// How one range control quantizes an edit. On log/symlog, drag and keyboard walk a log-decade grid
+// rather than the uniform `step`; `decadeMinStep` floors that one decade below the symlog linear
+// band so it cannot subdivide forever toward 0 (log, with min > 0, needs no floor). Linear keeps the
+// uniform step. Derived once per control from its scale — pure, so the grid is testable on its own.
+export interface RangeQuantizer {
+  // Drag/decade snap on log-ish scales, uniform-step snap on linear.
+  snapDrag(raw: number): number;
+  // Uniform-step snap, whatever the scale (interval ends and linear grips use this).
+  snapStep(raw: number): number;
+  // Walk `n` decade cells from `cur` in `dir`.
+  stepDecades(cur: number, dir: 1 | -1, n: number): number;
+  // The fine keyboard nudge when not walking decades.
+  readonly keyStep: number;
+  readonly isLogish: boolean;
+}
+
+export function createRangeQuantizer(
+  scale: Scale,
+  min: number,
+  max: number,
+  step: number | undefined,
+): RangeQuantizer {
+  const isLogish = scale.kind === "log" || scale.kind === "symlog";
+  const decadeMinStep =
+    scale.kind === "symlog" && scale.linthresh > 0
+      ? 10 ** (Math.floor(Math.log10(scale.linthresh) + 1e-9) - 1)
+      : 0;
+  return {
+    isLogish,
+    keyStep: step && step > 0 ? step : (max - min) / 100,
+    snapDrag: (raw) =>
+      isLogish ? snapToDecade(raw, min, max, decadeMinStep) : snapToStep(raw, min, max, step),
+    snapStep: (raw) => snapToStep(raw, min, max, step),
+    stepDecades(cur, dir, n) {
+      let v = cur;
+      for (let i = 0; i < n; i++) v = stepDecade(v, dir, min, max, decadeMinStep);
+      return v;
+    },
+  };
+}
+
+// Which end a press on the track grabs. Intent comes from the pointer's value, not the hit target,
+// so the tall hit band works: on a grip → that grip; outside [lo, hi] → extend the nearer end;
+// between them → pan both. Single mode always grabs the one grip.
+export type RangeGrab = "value" | "lo" | "hi" | "pan";
+
+export function grabForPress(
+  raw: number,
+  lo: number,
+  hi: number,
+  isInterval: boolean,
+  onGrip: "lo" | "hi" | null,
+): RangeGrab {
+  if (!isInterval) return "value";
+  if (onGrip !== null) return onGrip;
+  if (raw <= lo) return "lo";
+  if (raw >= hi) return "hi";
+  return "pan";
+}

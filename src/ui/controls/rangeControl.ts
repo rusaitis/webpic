@@ -9,11 +9,10 @@ import { buildRangeDom } from "./rangeDom.ts";
 import {
   clamp,
   clampInterval,
+  createRangeQuantizer,
+  grabForPress,
   makeScale,
   pointerT,
-  snapToDecade,
-  snapToStep,
-  stepDecade,
   translateInterval,
 } from "./rangeMath.ts";
 import type { ControlHandle, RangeValue, RangeWidgetOptions } from "./types.ts";
@@ -35,24 +34,12 @@ export function createRangeControl(
   const formatter = config.format ?? ((v: number): string => String(v));
   const origin = clamp(config.origin ?? min, min, max);
   const minGap = config.minGap ?? (step && step > 0 ? step : 0);
-  const kbStep = step && step > 0 ? step : (max - min) / 100;
-
-  // On log/symlog, drag + keyboard snap to a log-decade grid rather than the uniform `step`.
-  // `decadeMinStep` floors it one decade below the symlog linear band so it can't subdivide
-  // forever toward 0; log (min > 0) needs no floor. Linear keeps uniform `step`.
-  const isLogish = scale.kind === "log" || scale.kind === "symlog";
-  const decadeMinStep =
-    scale.kind === "symlog" && scale.linthresh > 0
-      ? 10 ** (Math.floor(Math.log10(scale.linthresh) + 1e-9) - 1)
-      : 0;
-  const snapDrag = (raw: number): number =>
-    isLogish ? snapToDecade(raw, min, max, decadeMinStep) : snapToStep(raw, min, max, step);
-  const snapStep = (raw: number): number => snapToStep(raw, min, max, step);
-  const stepN = (cur: number, dir: 1 | -1, n: number): number => {
-    let v = cur;
-    for (let i = 0; i < n; i++) v = stepDecade(v, dir, min, max, decadeMinStep);
-    return v;
-  };
+  const { snapDrag, snapStep, stepDecades, keyStep, isLogish } = createRangeQuantizer(
+    scale,
+    min,
+    max,
+    step,
+  );
 
   let value = clamp(config.value ?? min, min, max);
   let [lo, hi] = initRange
@@ -135,29 +122,14 @@ export function createRangeControl(
     if (event.button > 0) return; // left/touch/pen only
     dragRect = track.getBoundingClientRect();
     const raw = valueAt(event.clientX, dragRect);
-    const base = { baseLo: lo, baseHi: hi, anchor: raw };
-    if (isInterval) {
-      // Intent from pointer position, not hit target, so the tall hit band works: grab a grip
-      // → drag it; outside [lo,hi] → extend the nearer end; between the grips → pan both.
-      if (event.target === gripLo) {
-        drag = { kind: "lo", ...base };
-      } else if (event.target === gripHi) {
-        drag = { kind: "hi", ...base };
-      } else if (raw <= lo) {
-        applyGrip("lo", raw);
-        drag = { kind: "lo", ...base };
-        gripLo?.focus();
-      } else if (raw >= hi) {
-        applyGrip("hi", raw);
-        drag = { kind: "hi", ...base };
-        gripHi?.focus();
-      } else {
-        drag = { kind: "pan", ...base };
-      }
-    } else {
-      applyGrip("value", raw);
-      drag = { kind: "value", ...base };
-      gripValue?.focus();
+    const onGrip = event.target === gripLo ? "lo" : event.target === gripHi ? "hi" : null;
+    const kind = grabForPress(raw, lo, hi, isInterval, onGrip);
+    drag = { kind, baseLo: lo, baseHi: hi, anchor: raw };
+    // A press already on a grip just starts dragging it; anywhere else on the track also jumps the
+    // grabbed end to the press and takes focus, so the keyboard continues from where the eye is.
+    if (onGrip === null && kind !== "pan") {
+      applyGrip(kind, raw);
+      (kind === "lo" ? gripLo : kind === "hi" ? gripHi : gripValue)?.focus();
     }
     try {
       track.setPointerCapture(event.pointerId);
@@ -207,11 +179,11 @@ export function createRangeControl(
     switch (event.key) {
       case "ArrowLeft":
       case "ArrowDown":
-        next = isDecadeStep ? stepN(cur, -1, mult) : cur - kbStep * mult;
+        next = isDecadeStep ? stepDecades(cur, -1, mult) : cur - keyStep * mult;
         break;
       case "ArrowRight":
       case "ArrowUp":
-        next = isDecadeStep ? stepN(cur, 1, mult) : cur + kbStep * mult;
+        next = isDecadeStep ? stepDecades(cur, 1, mult) : cur + keyStep * mult;
         break;
       case "Home":
         next = min;
