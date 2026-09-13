@@ -92,7 +92,8 @@ export async function armContinuousTiming(page: Page): Promise<Locator> {
 
   const readout = diagnostics.locator(".webpic-placeholder");
   await page.waitForFunction(
-    (el) => /\d+\.\d{2} ms/.test((el as { textContent: string | null }).textContent ?? ""),
+    (element) =>
+      /\d+\.\d{2} ms/.test((element as { textContent: string | null }).textContent ?? ""),
     await readout.elementHandle(),
     { timeout: 20_000 },
   );
