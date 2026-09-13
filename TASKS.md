@@ -99,12 +99,13 @@ Goal: persist derived fields + screenshots; lock bundle budgets.
 
 ### M5 — UI polish *(next up)*
 Pure-frontend, no new deps — make daily use pleasant before the heavy features land, and clear the deferred-UI debt in one sweep.
-- [ ] 1. Floating **window manager** — lift magviz's `windowManager` + `draggablePanels`: free-drag/resize/persist/focus-stack for the fixed translucent overlays (`ui/floating/floatingWindow.ts` is the seed; the Developer window already floats)
+- [x] 1a. Floating **window manager**, most of it — `ui/floating/` ships free-drag (`dragSnap` + `anchorWriter`), corner resize (`cornerResize`), focus-stack (`zStack`), magnetic snapping (`snapGeometry`) and the `floatingWindow` template; the Developer window is its first consumer
+- [ ] 1b. The rest of the window manager — geometry **persistence** (nothing in `ui/floating/` touches OPFS or localStorage yet) and migrating the remaining fixed overlays onto the template
 - [ ] 2. Command palette (`Cmd+K`) — fuzzy match over the `ui/keys/shortcuts.ts` registry (stays the cheat-sheet authority)
 - [ ] 3. Remappable-shortcuts UI — runtime keymap editing, OPFS-persisted
 - [ ] 4. Comparison view — side-by-side datasets via a secondary viewport
 - [ ] 5. High-contrast theme
-- [ ] 6. Carried UI deferrals: rail-menu hover-preview/click-pin (M4.7) · colorbar overflow chips with click-to-cycle (M4.9) · named theme *picker* + theme-driven `rail-items` (M6.5) · body-portaled popover dropdown control · binding merge/GC + magviz session import adapter (M2.5b) · top-bar upload/layers/layout actions + run-metadata popover (M6.8)
+- [ ] 6. Carried UI deferrals: rail-menu hover-preview/click-pin (M4.7) · colorbar overflow chips with click-to-cycle (M4.9) · named theme *picker* + theme-driven `rail-items` (M6.5) · binding merge/GC + magviz session import adapter (M2.5b) · top-bar upload/layers/layout actions + run-metadata popover (M6.8)
 
 ### M6 — Particles
 The headline v0.2 feature: species point clouds beside the field layers.
@@ -152,7 +153,7 @@ pypic.server foundations already shipped (HTTP discovery + WS Arrow-IPC stream) 
 
 ## Code health — 2026-09 review
 Full findings + sequencing: the review plan (session 2026-09-09). Coverage baseline at review time: **75.4% statements / 76.4% lines**; after the three tiers **77.1% / 78.2%** (1240 → 1288 tests) (`npm run test:coverage`, report only — no gate until the number has a history; the floor was set in Part 8 at 85/84/87/73).
-- [x] A. Guardrails — v8 coverage, lefthook, `docs:api` in CI (`gen:themes:check` stays local-only — it reads the `../pypic` sibling), Biome `useExhaustiveSwitchCases`/`noFloatingPromises`/`noMisusedPromises`/`noConsole`/`noParameterAssign`, `lib: ES2024`, `erasableSyntaxOnly` for scripts, `engines >=22.18` + `.nvmrc` + dependabot, app size budget 1.6 MB → 550 kB, DESIGN §Testing/§CI brought back to reality
+- [x] A. Guardrails — v8 coverage, lefthook, `docs:api` in CI (`gen:themes:check` stays local-only — it reads the `../pypic` sibling), Biome `useExhaustiveSwitchCases`/`noFloatingPromises`/`noMisusedPromises`/`noConsole`/`noParameterAssign`, `lib: ES2024`, `erasableSyntaxOnly` for scripts, `engines >=22.18` + `.nvmrc` + dependabot, app size budget 1.6 MB → 550 kB, DESIGN §Testing strategy (pragmatic — only what matters) + §CI infrastructure brought back to reality
 - [x] B. Hygiene — exhaustive response routers, `logError` seam + `.catch` at every fire-and-forget, per-frame allocs out of `cameraChrome` + composite assembly, `AbortSignal` on reader probe + `setDataset`, one `intersectRayBox`/`axisSpan`/`finiteRange` (stands up `reductions/`), render-worker `dispose` message, `Error.cause`, `// STAGED:` marker for built-not-wired code, test + scripts harness dedupe
 - [x] D. Cleanup parts 1–8 (`docs/cleanup.md`) — rules + enforcement, the code cull, the readability pass, the layout/vocabulary sweep, and finally what the build emits: the app bundle stopped carrying a validator nothing calls (412 → 401 kB gzip), the size budgets and the coverage floor became real ratchets, and a new `LayerKind` now fails to compile across the worker seam
 - [x] C. Structure — shared types to `schema/`, split `store/simulationStore.ts` (+ discriminated field state, timing → `store/perf.ts`), `LAYER_KINDS` descriptor table + nested `upsertLayer` params, de-globalize `render/worker.ts`, `ui` subscription bridge, `colorbar`/`pointerCamera` splits, worker tsconfig, render "diagnostics" → "timing"

@@ -90,7 +90,7 @@ function sourceFiles(): string[] {
   const found = SOURCE_DIRS.flatMap((dir) =>
     typescriptFiles(dir).filter((path) => !path.includes(".generated.") && path !== SELF),
   );
-  return [...found, "CLAUDE.md"];
+  return [...found, "CLAUDE.md", "TASKS.md"];
 }
 
 describe("docs/DESIGN.md section citations", () => {

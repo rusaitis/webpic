@@ -636,10 +636,10 @@ Hand-rolled registry (`ui/keys/shortcuts.ts` is the cheat-sheet authority; OPFS 
 - **TypeScript:** `target: "ES2022"`, `module: "ESNext"`, `moduleResolution: "bundler"`, `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true`, `verbatimModuleSyntax: true`, `noUnusedLocals`/`noUnusedParameters`. Three tsconfigs — app, worker (`WebWorker` lib), node (scripts + tests) — not project references.
 - **Workers:** Vite `?worker` syntax. The compute pool is designed around `comlink` (~5 KB) for RPC + a 20-line round-robin pool over `new Worker(new URL(...), { type: 'module' })`, sized to `Math.min(navigator.hardwareConcurrency - 1, 8)` (not `tinypool` — Node-only). **v0.1 reality:** only `data.worker.ts` exists, using raw `postMessage`; `comlink` is added when the compute pool lands (M3+).
 - **Lint + format:** **Biome** (single binary, integrated formatter — replaces ESLint + Prettier). Layer enforcement is not a Biome plugin; see §Layered dependency DAG.
-- **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. A `happy-dom` project (devDep) runs the `ui` DOM-unit tests (`*.dom.test.ts`) — node mode can't construct DOM, and these are deterministic, not visual. Browser mode (`@vitest/browser-playwright`) runs the `*.browser.test.ts` real-GPU suites in headed system Chrome via `npm run test:gpu` — local-only (WebGPU on macOS/Metal is unreliable headless), env-gated out of plain `vitest`/CI. Coverage via `@vitest/coverage-v8` (`npm run test:coverage`) is reported, not gated. Playwright E2E flows are deferred (see §Testing strategy).
+- **Test runner:** Vitest. Node mode for `coordinates`, `numerics`, `reductions`, `schema`, `compute/backends/ts`, `derived`. A `happy-dom` project (devDep) runs the `ui` DOM-unit tests (`*.dom.test.ts`) — node mode can't construct DOM, and these are deterministic, not visual. Browser mode (`@vitest/browser-playwright`) runs the `*.browser.test.ts` real-GPU suites in headed system Chrome via `npm run test:gpu` — local-only (WebGPU on macOS/Metal is unreliable headless), env-gated out of plain `vitest`/CI. Coverage via `@vitest/coverage-v8` (`npm run test:coverage`) is **gated** at a floor of 85/84/87/73 (lines/statements/functions/branches, `vitest.config.ts`); it only ever rises. Playwright E2E flows are deferred (see §Testing strategy).
 - **Git hooks:** `lefthook` (installed by `npm run prepare`) — Biome on staged files at commit; typecheck, boundaries, lint and tests at push. Mirrors CI so a red build is caught locally first.
 - **Docs:** TypeDoc from public exports.
-- **Bundle size:** `size-limit` with 1.0 MB ceiling on `@webpic/embed`, 550 kB on `@webpic/app` (gzipped).
+- **Bundle size:** `size-limit` with a 560 kB ceiling on `@webpic/embed`, 413 kB on `@webpic/app` (gzipped). Both are ratchets at the measured value, not aspirations.
 - **Shader validation:** `tests/wgsl.test.ts` parses the assembled WGSL with `wgsl_reflect` and pins each kernel's binding layout, workgroup size and `Params`/`TraceMeta` byte lengths against the `gpu/` runners that duplicate them. Parse-level only: CI proves the kernels compile, `test:gpu` proves they run (a `tint` CLI tier was considered and dropped — `wgsl_reflect` is in-process and needs no toolchain).
 
 **Key dependencies.** *Shipped in v0.1:* `three` (exact pin carrying #31607, not a floating range), `zarrita`, `zod` (app), `smol-toml`, `zustand`. *Adopted when their layer lands:* `comlink` (with the compute worker pool, M3+), `zod/v4-mini` (the embed build), `xxhash-wasm` (only if FNV-1a proves insufficient — it currently doesn't), `wesl-js` (gated on rustpic shared kernels). `gl-matrix` was planned here for `coordinates`/`numerics` but both shipped dependency-free — don't add it without a demonstrated need. Control widgets are owned, not a dependency — see §UI (magviz dropped `tweakpane` + `@tweakpane/plugin-essentials` once its `ui/controls` primitives landed).
@@ -658,8 +658,9 @@ Hand-rolled registry (`ui/keys/shortcuts.ts` is the cheat-sheet authority; OPFS 
 7. **TOML round-trip parity** — `smol-toml` vs Python `tomllib`.
 8. **OffscreenCanvas worker render parity** — frame from worker matches main-thread frame within 1 pixel diff (`render/parity.browser.test.ts`, `test:gpu`, local-only).
 9. **Prefetch fuzz** — `src/data/prefetch.test.ts` exercises EWMA direction detection with seeded random scrub patterns.
-10. **Render-worker integration** — the `render/worker.*.test.ts` suites drive the real message loop against mocked scenes (quality tiers, device recovery, streaming ping-pong, shader HMR).
-11. **Meta-guards** — `tests/embed.test.ts` (star-export ambiguity on the public facade), `ui/panels/themeCoverage.test.ts` (every synced theme's `default-panels` is registered), `tests/tolerances.test.ts` (the tolerance ladder stays monotone), `tests/boundaries.test.ts` + `tests/aliases.test.ts` (layer DAG + alias parity).
+10. **Data-worker message boundary** — `src/workers/data.worker.test.ts` covers the unknown-request-kind report, an unrecognized handle, pre-stream cursor/field moves, an unlandable cache write, and perf self-report start/stop.
+11. **Render-worker integration** — the `render/worker.*.test.ts` suites drive the real message loop against mocked scenes (quality tiers, device recovery, streaming ping-pong, shader HMR).
+12. **Meta-guards** — the 17 suites in `tests/`: `boundaries` + `aliases` (layer DAG, alias parity), `embed` + `embed-bundle` (star-export ambiguity and the built facade), `live-modules` (code only its own test keeps alive), `comment-budget` (JSDoc-free layers, header cap, prose a rename sweep corrupted), `design-citations` (every `§` resolves), `manifest`, `codegen` + `schema-parity`, `tolerances` (the ladder stays monotone), `wgsl` (struct layout), `goldens` / `traces.golden` / `analytic-parity` / `seed-domain-parity` / `writer-parity` — plus `ui/panels/themeCoverage.test.ts` beside its layer.
 
 **Planned, not yet written** (listed here so the gap is visible, not implied):
 - **Multi-tab cache safety** — two concurrent tabs writing to OPFS; assert no corruption. Needs a two-context browser test.
@@ -674,7 +675,6 @@ Header marks each cell measured vs derived: magnitude/curl/div @ `webgpu_f32` me
 - Three.js scene state, materials, render output (visual regressions flaky).
 - Zustand mechanics (library).
 - Visual output of UI chrome; the `*.dom.test.ts` suites assert structure, bindings, and dispatched intents only.
-- Data-worker plumbing beyond the OPFS round-trip (`data/cache.browser.test.ts`, local-only).
 
 **Fixture generation.** `scripts/gen-fixtures.ts` invokes pypic in dev; outputs checked into `tests/fixtures/v{N}/`. `scripts/gen-synthetic.ts` generates analytical fields (no pypic dep). CI does not require pypic.
 
@@ -694,12 +694,12 @@ Header marks each cell measured vs derived: magnitude/curl/div @ `webgpu_f32` me
 
 **v0.1 ships standalone WGSL; WESL is the *eventual* shared format, not a day-one dependency.** Separate the *format* decision from the *toolchain* decision:
 
-- **Format (now):** shared numeric kernels (`field.{magnitude,curl,divergence}` at M3; the DP5(4) streamline step at M4) live in `shaders/src/kernels/` as **standalone WGSL** strings, imported by `compute/backends/webgpu` and any render path needing the same math, and cross-backend-tested against their `coordinates/`/`numerics/` TS reference twins. WGSL is a **strict subset of WESL**, so these carry *zero* rewrite cost toward WESL — rename `.wgsl`→`.wesl` and add `@if`/imports when there's a reason to.
-- **Toolchain (gated on rustpic):** `wesl-js`/`wesl-rs`, a `vite-plugin-wesl` HMR step, and `scripts/sync-shaders.ts` (copy kernels from a rustpic checkout into `shaders/src/kernels/`, CI diff-checked) land **only when rustpic publishes compute kernels** to share across the Rust + TS paths — that's the moment imports + dual npm/cargo packaging earn their keep. *Not* f16: the f16/f32 dual path is handled by TS string templating in v0.1 with no preprocessor. Pin an exact `wesl-js` version on adoption so `2026_pre` churn is contained. Once rustpic publishes `@rustpic/shaders`, webpic adds it as a normal npm dep and the sync script retires.
+- **Format (now):** shared numeric kernels (`field.{magnitude,curl,divergence}` at M3; the DP5(4) streamline step at M4) live in `src/shaders/kernels/` as **standalone WGSL** strings, imported by `compute/backends/webgpu` and any render path needing the same math, and cross-backend-tested against their `coordinates/`/`numerics/` TS reference twins. WGSL is a **strict subset of WESL**, so these carry *zero* rewrite cost toward WESL — rename `.wgsl`→`.wesl` and add `@if`/imports when there's a reason to.
+- **Toolchain (gated on rustpic):** `wesl-js`/`wesl-rs`, a `vite-plugin-wesl` HMR step, and `scripts/sync-shaders.ts` (copy kernels from a rustpic checkout into `src/shaders/kernels/`, CI diff-checked) land **only when rustpic publishes compute kernels** to share across the Rust + TS paths — that's the moment imports + dual npm/cargo packaging earn their keep. *Not* f16: the f16/f32 dual path is handled by TS string templating in v0.1 with no preprocessor. Pin an exact `wesl-js` version on adoption so `2026_pre` churn is contained. Once rustpic publishes `@rustpic/shaders`, webpic adds it as a normal npm dep and the sync script retires.
 
 **Where a kernel lives:** `shaders/` (standalone WGSL, shared, TS-twin-tested) iff it's a numeric operator with a TS reference impl *or* rustpic would want it; otherwise it stays render-local TSL `wgslFn` in `render/`.
 
-Render-only shaders (raymarch compositing, ray-box, transfer function, Phong, particle billboard, axes gizmo) are webpic-private; v0.1 authors them as inline TSL `wgslFn` in `render/` (e.g. `render/raymarchScene.ts`), graduating to `shaders/src/visual/` only if a non-TSL consumer needs them.
+Render-only shaders (raymarch compositing, ray-box, transfer function, Phong, particle billboard, axes gizmo) are webpic-private; v0.1 authors them as inline TSL `wgslFn` in `render/` (e.g. `render/field/raymarchScene.ts`), graduating to `src/shaders/visual/` only if a non-TSL consumer needs them.
 
 ---
 
@@ -788,7 +788,7 @@ Cross-cutting concerns and explicitly deferred items. Milestone-bound work lives
 
 | Concern                       | Status   | Notes                                                |
 |-------------------------------|----------|------------------------------------------------------|
-| Bundle size budget            | v0.1     | `size-limit` 1.0 MB embed / 550 kB app gzipped       |
+| Bundle size budget            | v0.1     | `size-limit` 560 kB embed / 413 kB app gzipped       |
 | TypeDoc API docs              | v0.1     | M6                                                   |
 | Crash telemetry (opt-in)      | v0.2     | Sentry-compatible endpoint, off by default           |
 | Accessibility (keyboard nav)  | v0.1     | Tab order, focus rings; command palette is v0.2      |

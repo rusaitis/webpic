@@ -66,7 +66,7 @@ worker, data reads and scrub-path compute in a data worker.
 Numerical code that renders pretty pictures is easy to get subtly wrong, so the physics is
 pinned down rather than eyeballed:
 
-- **1480 tests** — pure-function suites over the math layers, the store intents, and the
+- **1494 tests** — pure-function suites over the math layers, the store intents, and the
   compute backends.
 - **Analytical fixtures** at explicit per-kernel × per-precision tolerances, over named MHD
   configurations (Orszag–Tang, Harris sheet, GEM reconnection).
@@ -113,7 +113,7 @@ npm run docs:api         # TypeDoc for @webpic/embed → docs/api (published und
 npm run check:size       # size-limit budgets (needs build + build:embed first)
 ```
 
-CI runs everything except `test:gpu`, `perf:gate` (both need a real adapter) and `test:parity` (needs a pypic checkout). A `lefthook` pre-commit runs Biome on staged files; pre-push runs typecheck, boundaries, lint and tests. Skip once with `LEFTHOOK=0`.
+CI runs `npm run check` — the nine steps above it. Everything else is local-only: `test:gpu` and `perf:gate` need a real adapter, `test:parity` and the `gen*` scripts need a `../pypic` checkout, and `gen:check` is superseded in CI by `tests/schema-parity.test.ts`, which asserts the same thing hermetically. A `lefthook` pre-commit runs Biome on staged files; pre-push runs typecheck, boundaries, lint and tests. Skip once with `LEFTHOOK=0`.
 
 Architecture and design rationale — the layer DAG, schema codegen, the compute dispatcher,
 tolerance policy, and the open risks — live in
