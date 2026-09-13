@@ -55,7 +55,7 @@ function makeProjectionChip(
   apply(store.getState().projection);
   element.addEventListener("click", () => {
     const state = store.getState();
-    state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
+    state.toggleProjection();
   });
   return { element, apply };
 }

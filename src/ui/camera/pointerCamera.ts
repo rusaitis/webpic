@@ -57,7 +57,7 @@ export function installPointerCamera(target: HTMLElement, store: SimulationStore
   shortcuts.register("z", flyToFit);
   shortcuts.register("o", () => {
     const state = store.getState();
-    state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
+    state.toggleProjection();
   });
   shortcuts.register("n", () => store.getState().toggleFlyMode()); // orbit ⇄ fly (first-person look)
   for (const [code, axis] of AXIS_KEYS) {

@@ -17,6 +17,9 @@ export function createCameraSlice({ get, set }: SliceContext): CameraSlice {
       if (motion === get().cameraMotion) return; // unchanged → no fire
       set({ cameraMotion: motion });
     },
+    toggleProjection() {
+      set({ projection: get().projection === "orthographic" ? "perspective" : "orthographic" });
+    },
     setProjection(projection) {
       if (projection === get().projection) return; // unchanged → no fire
       set({ projection });

@@ -168,6 +168,7 @@ export interface CameraSlice {
   readonly cameraFlyRequest: { readonly target: CameraFlyTarget } | null;
   setCameraPose(pose: CameraPose): void;
   setCameraMotion(motion: CameraMotion): void;
+  toggleProjection(): void;
   setProjection(projection: CameraProjection): void;
   setFlyMode(on: boolean): void;
   toggleFlyMode(): void;

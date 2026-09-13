@@ -72,16 +72,16 @@ export function focusDistance(distance: number): number {
   return clamp(distance * FOCUS_DOLLY, DISTANCE_MIN, DISTANCE_MAX);
 }
 
+// The picked point sits on the camera itself (the camera is inside the box), so there is no aim
+// direction to derive — keep the current angles rather than dividing by ~0.
+const DEGENERATE_AIM_LENGTH = 1e-9;
+
 // Re-pivot the orbit on a picked point: target flies there and the camera dollies in (clamped) —
 // but instead of trucking sideways with the pivot (angles held), the goal angles re-aim the
 // camera from where it stands toward the new pivot (it re-places the camera
 // along the live target→camera ray each frame). An off-axis pick therefore swivels the view
 // toward the point as it approaches; a centered pick reduces to a pure dolly. The existing
 // flyTo tween animates the returned pose, shortest-arc on the swivel.
-// The picked point sits on the camera itself (the camera is inside the box), so there is no aim
-// direction to derive — keep the current angles rather than dividing by ~0.
-const DEGENERATE_AIM_LENGTH = 1e-9;
-
 export function focusPoseOnPoint(
   pose: CameraPose,
   point: Vec3,
@@ -92,7 +92,6 @@ export function focusPoseOnPoint(
   const vy = camY - point[1];
   const vz = camZ - point[2];
   const len = Math.hypot(vx, vy, vz);
-  // Picked point at the camera itself (camera inside the box) — no aim direction; keep the angles.
   if (len < DEGENERATE_AIM_LENGTH) {
     return {
       target: point,

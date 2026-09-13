@@ -74,7 +74,7 @@ export function installBottomRail(
     "click",
     () => {
       const state = store.getState();
-      state.setProjection(state.projection === "orthographic" ? "perspective" : "orthographic");
+      state.toggleProjection();
     },
     { signal },
   );

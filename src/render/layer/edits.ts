@@ -80,9 +80,11 @@ export function createLayerEdits(deps: LayerEditsHost): LayerEdits {
     setShading(request) {
       const committed = entry(request.id);
       const inFlight = warming(request.id);
-      const applied = applyShading(committed, request.shaded);
-      const alsoWarming = inFlight !== committed && applyShading(inFlight, request.shaded);
-      if (applied || alsoWarming) host.requestRender();
+      const didApplyToCommitted = applyShading(committed, request.shaded);
+      // applyShading mutates, so the skip belongs in control flow, not a short-circuit.
+      const didApplyToWarming =
+        inFlight === committed ? false : applyShading(inFlight, request.shaded);
+      if (didApplyToCommitted || didApplyToWarming) host.requestRender();
     },
 
     // Position is a uniform write (the drag hot path). Axis is baked into the TSL graph, so a change
