@@ -1,12 +1,12 @@
 import type { CameraProjection, SimulationStore, UiStore } from "@store";
-import { installChromeVisibility } from "../chromeVisibility.ts";
+import { bindChromeVisibility } from "../chromeVisibility.ts";
 import { makeEl } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { createSubscriptions } from "../subscriptions.ts";
-import { installActionsPanel } from "./actionsPanel.ts";
+import { buildActionsPanel } from "./actionsPanel.ts";
 import { installDatasetPicker } from "./datasetPicker.ts";
 import { installFieldPicker } from "./fieldPicker.ts";
-import { installReveal, makeTopBarIconButton } from "./parts.ts";
+import { bindReveal, makeTopBarIconButton } from "./parts.ts";
 import { installTimeControl } from "./timeControl.ts";
 
 // The top menu bar: a brand, a dataset dropdown, a "content" button listing the available fields, a
@@ -83,7 +83,7 @@ export function installTopBar(
   const dataset = installDatasetPicker(doc, store, () => closeOverlaysExcept("dataset"));
   const field = installFieldPicker(doc, store, () => closeOverlaysExcept("field"));
   const time = installTimeControl(doc, store);
-  const actions = installActionsPanel(doc);
+  const actions = buildActionsPanel(doc);
   const projection = makeProjectionChip(doc, store);
   overlayClosers.set("dataset", dataset.close);
   overlayClosers.set("field", field.close);
@@ -104,10 +104,8 @@ export function installTopBar(
 
   // Both reveals are sticky pins: an outside scene click never dismisses one; only re-clicking the
   // trigger, Escape, or opening another overlay (via onOpen) closes it.
-  const timeReveal = installReveal(time.element, time.chip, signal, () =>
-    closeOverlaysExcept("time"),
-  );
-  const actionsReveal = installReveal(actions.element, actions.chevron, signal, () =>
+  const timeReveal = bindReveal(time.element, time.chip, signal, () => closeOverlaysExcept("time"));
+  const actionsReveal = bindReveal(actions.element, actions.chevron, signal, () =>
     closeOverlaysExcept("actions"),
   );
   overlayClosers.set("time", () => timeReveal.setExpanded(false));
@@ -151,7 +149,7 @@ export function installTopBar(
   subscriptions.on(store, (s) => s.availableFields, field.refresh);
   subscriptions.on(store, (s) => s.availableSteps, time.rebuild);
   subscriptions.on(store, (s) => s.currentStep, time.syncCursor);
-  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+  bindChromeVisibility(subscriptions, uiStore, (isVisible) => {
     container.hidden = !isVisible;
     if (!isVisible) {
       dataset.close();

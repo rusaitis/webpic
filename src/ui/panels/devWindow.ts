@@ -1,5 +1,5 @@
 import type { PerfStore, SimulationStore, UiStore } from "@store";
-import { installWindowVisibility } from "../chromeVisibility.ts";
+import { bindWindowVisibility } from "../chromeVisibility.ts";
 import type { Disposer } from "../controls/index.ts";
 import { createFloatingWindow } from "../floating/floatingWindow.ts";
 import { createSubscriptions } from "../subscriptions.ts";
@@ -33,7 +33,7 @@ export function installDevWindow(
 
   // Shown when the UI is visible AND the dev window has been opened from the rail.
   const subscriptions = createSubscriptions();
-  const applyVisible = installWindowVisibility(
+  const applyVisible = bindWindowVisibility(
     subscriptions,
     uiStore,
     win,

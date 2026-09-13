@@ -1,5 +1,5 @@
 import type { UiStore } from "@store";
-import { installChromeVisibility } from "../chromeVisibility.ts";
+import { bindChromeVisibility } from "../chromeVisibility.ts";
 import { createSubscriptions } from "../subscriptions.ts";
 
 // Docked, hideable panel container: one host element per panel name. `isUiVisible` hides
@@ -41,7 +41,7 @@ export function createShell(options: ShellOptions): Shell {
   };
 
   const subscriptions = createSubscriptions();
-  installChromeVisibility(subscriptions, options.uiStore, (isVisible) => {
+  bindChromeVisibility(subscriptions, options.uiStore, (isVisible) => {
     root.hidden = !isVisible;
   });
   subscriptions.on(options.uiStore, (s) => s.panels, applyPanels, { shouldFireNow: true });

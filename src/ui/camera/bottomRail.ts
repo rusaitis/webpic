@@ -1,5 +1,5 @@
 import type { CameraProjection, SimulationStore, UiStore } from "@store";
-import { installChromeVisibility } from "../chromeVisibility.ts";
+import { bindChromeVisibility } from "../chromeVisibility.ts";
 import { installAnchoredOverlay } from "../controls/anchoredOverlay.ts";
 import { makeEl, makeIconButton } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
@@ -235,7 +235,7 @@ export function installBottomRail(
     },
   );
   subscriptions.on(store, (s) => s.cameraPose, updateViewIfOpen);
-  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+  bindChromeVisibility(subscriptions, uiStore, (isVisible) => {
     container.hidden = !isVisible;
     if (isVisible) applyCoordsLabel();
     // Don't leave the card floating over a hidden UI; F re-reveals the rail, not the card.

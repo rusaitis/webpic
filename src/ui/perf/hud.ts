@@ -1,5 +1,5 @@
 import type { PerfSample, PerfStore, PerfWorker, UiStore } from "@store";
-import { installChromeVisibility } from "../chromeVisibility.ts";
+import { bindChromeVisibility } from "../chromeVisibility.ts";
 import { makeEl } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { createShortcutRegistry } from "../keys/shortcuts.ts";
@@ -222,7 +222,7 @@ export function installPerfHud(
   shortcuts.register("p", () => perfStore.getState().togglePerfHud(), { modifiers: "shift" });
 
   const subscriptions = createSubscriptions();
-  const applyVisible = installChromeVisibility(
+  const applyVisible = bindChromeVisibility(
     subscriptions,
     uiStore,
     (isVisible) => {

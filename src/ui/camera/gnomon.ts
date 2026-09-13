@@ -5,7 +5,7 @@ import {
   type SimulationStore,
   type UiStore,
 } from "@store";
-import { installChromeVisibility } from "../chromeVisibility.ts";
+import { bindChromeVisibility } from "../chromeVisibility.ts";
 import { makeEl } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { createSubscriptions } from "../subscriptions.ts";
@@ -143,7 +143,7 @@ export function installGnomon(
   const subscriptions = createSubscriptions();
   subscriptions.on(store, (s) => s.cameraPose, render, { shouldFireNow: true });
 
-  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+  bindChromeVisibility(subscriptions, uiStore, (isVisible) => {
     container.hidden = !isVisible;
     if (isVisible) render(store.getState().cameraPose); // catch up — the pose moved while hidden
   });

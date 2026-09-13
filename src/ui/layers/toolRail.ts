@@ -1,5 +1,5 @@
 import { LAYER_KIND_ORDER, LAYER_KINDS, type SimulationStore, type UiStore } from "@store";
-import { installChromeVisibility } from "../chromeVisibility.ts";
+import { bindChromeVisibility } from "../chromeVisibility.ts";
 import { installAnchoredOverlay } from "../controls/anchoredOverlay.ts";
 import { makeEl, makeIconButton, makePanelHeader } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
@@ -223,7 +223,7 @@ export function installToolRail(
   subscriptions.on(uiStore, (s) => s.isLayersPanelOpen, applyLayersPressed);
   subscriptions.on(uiStore, (s) => s.panels.dev ?? false, applyDevPressed);
   subscriptions.on(uiStore, (s) => s.themeName, applyThemeName);
-  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+  bindChromeVisibility(subscriptions, uiStore, (isVisible) => {
     container.hidden = !isVisible;
     if (!isVisible) {
       setOpen(false); // don't strand the flyout / menus over hidden UI; F re-reveals the rail

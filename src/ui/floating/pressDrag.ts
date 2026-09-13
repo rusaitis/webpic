@@ -21,7 +21,7 @@ export interface PressDragOptions {
   readonly onEnd?: () => void;
 }
 
-export function installPressDrag(options: PressDragOptions): void {
+export function bindPressDrag(options: PressDragOptions): void {
   const { handle, element, activeClass, signal } = options;
   let startX = 0;
   let startY = 0;

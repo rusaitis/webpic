@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GESTURE_THRESHOLD_PX } from "../layout.ts";
-import { installPressDrag } from "./pressDrag.ts";
+import { bindPressDrag } from "./pressDrag.ts";
 
 function press(element: HTMLElement, type: string, x: number, y: number, pointerId = 1): void {
   const event = new Event(type, { bubbles: true }) as PointerEvent;
@@ -8,7 +8,7 @@ function press(element: HTMLElement, type: string, x: number, y: number, pointer
   element.dispatchEvent(event);
 }
 
-describe("installPressDrag", () => {
+describe("bindPressDrag", () => {
   let element: HTMLElement;
   let moves: Array<[number, number]>;
   let ends: number;
@@ -21,7 +21,7 @@ describe("installPressDrag", () => {
     moves = [];
     ends = 0;
     abortController = new AbortController();
-    installPressDrag({
+    bindPressDrag({
       handle: element,
       element,
       activeClass: "is-dragging",
@@ -85,7 +85,7 @@ describe("installPressDrag", () => {
     const target = document.createElement("div");
     document.body.appendChild(target);
     const onMove = vi.fn();
-    installPressDrag({
+    bindPressDrag({
       handle: target,
       element: target,
       activeClass: "is-dragging",

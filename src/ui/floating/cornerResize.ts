@@ -1,7 +1,7 @@
 import { clamp } from "@schema/math.ts";
 import type { Disposer } from "../controls/index.ts";
 import { VIEWPORT_MARGIN_PX } from "../layout.ts";
-import { installPressDrag } from "./pressDrag.ts";
+import { bindPressDrag } from "./pressDrag.ts";
 
 // Pointer-driven resize from a corner handle for a floating element. Dragging the handle (the
 // element's bottom-right grip) grows/shrinks width + height while the top-left stays put (the element
@@ -56,7 +56,7 @@ export function installCornerResize(
   let originLeft = 0; // element top-left at gesture start → bounds the far-edge clamp
   let originTop = 0;
 
-  installPressDrag({
+  bindPressDrag({
     handle,
     element,
     activeClass: "is-resizing",

@@ -2,7 +2,7 @@ import { isInteractiveTarget } from "../controls/dom.ts";
 import { clampIntoViewport } from "../layout.ts";
 import { coalesceFrame } from "../pointerMath.ts";
 import { createAnchorWriter } from "./anchorWriter.ts";
-import { installPressDrag } from "./pressDrag.ts";
+import { bindPressDrag } from "./pressDrag.ts";
 import {
   type Box,
   box,
@@ -180,7 +180,7 @@ export function installDragSnap(
     options.onSettled?.(edge, settled, vp);
   };
 
-  installPressDrag({
+  bindPressDrag({
     handle,
     element,
     activeClass: "is-dragging",

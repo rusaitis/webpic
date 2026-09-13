@@ -52,7 +52,7 @@ export interface Reveal {
 // — no hover-open, matching the pickers), with Escape-to-close that returns focus to the trigger. A
 // pinned reveal is sticky: an outside scene click never dismisses it; only re-clicking the trigger,
 // Escape, or opening another overlay (via `onOpen`) closes it.
-export function installReveal(
+export function bindReveal(
   wrapper: HTMLElement,
   trigger: HTMLButtonElement,
   signal: AbortSignal,

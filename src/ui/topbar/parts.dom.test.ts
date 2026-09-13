@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  installReveal,
+  bindReveal,
   makePickerButton,
   makeStepButton,
   makeTopBarCaret,
   makeTopBarIconButton,
 } from "./parts.ts";
 
-describe("installReveal", () => {
+describe("bindReveal", () => {
   beforeEach(() => {
     document.body.replaceChildren();
   });
@@ -29,7 +29,7 @@ describe("installReveal", () => {
   });
 });
 
-describe("installReveal", () => {
+describe("bindReveal", () => {
   let wrapper: HTMLElement;
   let trigger: HTMLButtonElement;
 
@@ -42,7 +42,7 @@ describe("installReveal", () => {
   });
 
   it("toggles on each trigger click, reflecting state into aria-expanded", () => {
-    const reveal = installReveal(wrapper, trigger, new AbortController().signal);
+    const reveal = bindReveal(wrapper, trigger, new AbortController().signal);
     trigger.click();
     expect(reveal.isExpanded()).toBe(true);
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
@@ -52,14 +52,14 @@ describe("installReveal", () => {
 
   it("announces only an opening, so a close never re-closes its siblings", () => {
     const onOpen = vi.fn();
-    installReveal(wrapper, trigger, new AbortController().signal, onOpen);
+    bindReveal(wrapper, trigger, new AbortController().signal, onOpen);
     trigger.click();
     trigger.click();
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
   it("closes on Escape and returns focus to the trigger", () => {
-    const reveal = installReveal(wrapper, trigger, new AbortController().signal);
+    const reveal = bindReveal(wrapper, trigger, new AbortController().signal);
     reveal.setExpanded(true);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(reveal.isExpanded()).toBe(false);
@@ -67,7 +67,7 @@ describe("installReveal", () => {
   });
 
   it("leaves Escape alone while collapsed, so it reaches whatever else is open", () => {
-    const reveal = installReveal(wrapper, trigger, new AbortController().signal);
+    const reveal = bindReveal(wrapper, trigger, new AbortController().signal);
     const other = document.createElement("input");
     document.body.appendChild(other);
     other.focus();
@@ -78,7 +78,7 @@ describe("installReveal", () => {
 
   it("stops responding once the signal aborts", () => {
     const abortController = new AbortController();
-    const reveal = installReveal(wrapper, trigger, abortController.signal);
+    const reveal = bindReveal(wrapper, trigger, abortController.signal);
     abortController.abort();
     trigger.click();
     expect(reveal.isExpanded()).toBe(false);

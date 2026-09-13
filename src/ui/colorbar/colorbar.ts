@@ -8,7 +8,7 @@ import {
 } from "@store";
 import { shallow } from "zustand/vanilla/shallow";
 import { createBottomBand } from "../bottomBand/band.ts";
-import { installChromeVisibility } from "../chromeVisibility.ts";
+import { bindChromeVisibility } from "../chromeVisibility.ts";
 import { isInteractiveTarget, makeEl, makeIconButton } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
 import { installDragSnap, readEdge } from "../floating/dragSnap.ts";
@@ -270,7 +270,7 @@ export function installColorbar(
   const subscriptions = createSubscriptions();
   subscriptions.on(store, selectVisibleBindings, onStoreChange, { equalityFn: shallow });
   subscriptions.on(store, selectActiveBinding, onStoreChange);
-  installChromeVisibility(subscriptions, uiStore, (isVisible) => {
+  bindChromeVisibility(subscriptions, uiStore, (isVisible) => {
     container.hidden = !isVisible;
     if (!isVisible) settings.close();
     band.setVisible(isVisible);

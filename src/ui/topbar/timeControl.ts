@@ -18,7 +18,7 @@ const ICON = {
 export interface TimeControl {
   // The reveal wrapper the bar places and relocates when it goes compact.
   readonly element: HTMLElement;
-  // The reveal's trigger, handed to installReveal by the bar.
+  // The reveal's trigger, handed to bindReveal by the bar.
   readonly chip: HTMLButtonElement;
   // Rebuild the track against a changed `availableSteps` domain.
   rebuild(): void;

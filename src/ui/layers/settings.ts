@@ -6,7 +6,7 @@ import {
   selectActiveLayer,
   type UiStore,
 } from "@store";
-import { installWindowVisibility } from "../chromeVisibility.ts";
+import { bindWindowVisibility } from "../chromeVisibility.ts";
 import { installColormapControls } from "../colorbar/colormapControls.ts";
 import { makeEl, makeIconButton } from "../controls/dom.ts";
 import {
@@ -19,7 +19,7 @@ import {
 import { createFloatingWindow } from "../floating/floatingWindow.ts";
 import { ICON_CARET, ICON_CARET_UP } from "../icons.ts";
 import { createSubscriptions } from "../subscriptions.ts";
-import { installKindControls } from "./kindControls.ts";
+import { buildKindControls } from "./kindControls.ts";
 
 // The per-layer settings window (DESIGN §"Layers & navigation"): ONE component, opened from two entry
 // points (the Layers-panel gear, the rail's "Add new") so a layer is never configured in two places.
@@ -165,7 +165,7 @@ export function installLayerSettings(
       onChange: (value) => getState().setLayerVisible(layer.id, value),
     });
 
-    reflectKind = installKindControls(folder, layer, store);
+    reflectKind = buildKindControls(folder, layer, store);
 
     buildActions(layer);
   };
@@ -194,7 +194,7 @@ export function installLayerSettings(
   rebuild();
 
   const subscriptions = createSubscriptions();
-  const applyVisible = installWindowVisibility(
+  const applyVisible = bindWindowVisibility(
     subscriptions,
     uiStore,
     win,

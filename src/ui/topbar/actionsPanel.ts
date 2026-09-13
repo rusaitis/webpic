@@ -15,13 +15,13 @@ const ICON = {
 export interface ActionsPanel {
   // The reveal wrapper the bar appends.
   readonly element: HTMLElement;
-  // The reveal's trigger, handed to installReveal by the bar.
+  // The reveal's trigger, handed to bindReveal by the bar.
   readonly chevron: HTMLButtonElement;
   // The panel itself — the compact layout moves the time control into it.
   readonly panel: HTMLElement;
 }
 
-export function installActionsPanel(doc: Document): ActionsPanel {
+export function buildActionsPanel(doc: Document): ActionsPanel {
   const element = makeEl(doc, "div", "webpic-topbar_reveal");
   const chevron = makeTopBarIconButton(doc, "more", ICON_CARET_FLAT, "More actions");
   chevron.classList.add("webpic-topbar_chevron");

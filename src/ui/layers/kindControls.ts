@@ -119,7 +119,7 @@ const LAYER_KIND_CONTROLS: { readonly [K in LayerKind]: KindControls<K> } = {
 
 // Build the selected layer's kind-specific controls; the returned function reflects later edits to
 // that same layer.
-export function installKindControls(
+export function buildKindControls(
   folder: Folder,
   layer: Layer,
   store: SimulationStore,
