@@ -35,8 +35,8 @@ function formatBytes(bytes: number | null): string {
   return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
 }
 
-// Frame-time health: a hue-only tint (never weight/size), and "" for idle/NaN frames so they look
-// exactly as before. Thresholds are the 60/30 fps budgets.
+// Frame-time health: a hue-only tint (never weight/size), and "" for idle/NaN frames. Thresholds
+// are the 60/30 fps budgets.
 function frameHealthColor(sample: PerfSample | null): string {
   const ms = sample?.frameWallMs ?? Number.NaN;
   if (!Number.isFinite(ms)) return "";
@@ -45,7 +45,7 @@ function frameHealthColor(sample: PerfSample | null): string {
   return BAD_COLOR;
 }
 
-// Frame-time governor's render-scale ceiling: untinted at full (1, reads as before), amber on the
+// Frame-time governor's render-scale ceiling: untinted at full (1), amber on the
 // first throttle step, terracotta at the floor — so a thermal/heavy-view throttle is visible at a glance.
 function governorColor(scale: number): string {
   if (!Number.isFinite(scale) || scale >= 1) return "";

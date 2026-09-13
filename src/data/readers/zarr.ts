@@ -197,7 +197,7 @@ async function openPypicStore(
   const { grid, frame, transforms } = decodeGrid(rootAttrs, source);
   const normalization = decodeNormalization(rootAttrs, source);
   const physics = decodePhysics(rootAttrs, normalization, source);
-  // species/metadata are carried verbatim (decoded), typed opaque for now.
+  // species/metadata are carried verbatim (decoded) and typed opaque — pypic owns their shape.
   const species = (fromJsonNative(rootAttrs.species ?? []) ?? []) as ReadonlyArray<
     Readonly<Record<string, unknown>>
   >;

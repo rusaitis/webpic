@@ -2,7 +2,7 @@ import { installOutsideClickDismiss } from "./dom.ts";
 
 // The dismissal contract every transient surface anchored to a trigger owes the user: Escape closes
 // it and returns focus, a press outside closes it, and a resize keeps it under its anchor. Each rail
-// flyout, menu, card and popover used to answer two or three of those, and never the same two.
+// Answered here once, so a surface cannot implement two of the three and call it dismissal.
 // `position` is omitted when CSS places the surface; `close` is the caller's, since some close by
 // store intent and some by local state. The caller owns teardown through `signal` — every surface
 // here already has an AbortController for its own listeners.

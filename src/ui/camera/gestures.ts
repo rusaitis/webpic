@@ -27,9 +27,6 @@ import type { CameraGlide } from "./glide.ts";
 // Drag normalization fallback when the canvas has no layout yet (happy-dom tests, hidden mounts).
 const NOMINAL_VIEWPORT_PX = 800;
 
-// One focus per gesture: a touch double-tap and the native dblclick some browsers also synthesize
-// for it would otherwise both fire.
-
 interface TrackedPointer {
   x: number; // live position, mutated per move
   y: number;

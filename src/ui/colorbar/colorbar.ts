@@ -64,7 +64,7 @@ export function installColorbar(
 
   // "main" stacks one section per shown binding: sections run down the free axis (below each other
   // on horizontal docks, side by side on vertical), and inside a section the caption, gradient
-  // strip, and tick labels stack as before — per strip.
+  // strip, and tick labels stack per strip.
   const main = makeEl(doc, "div", "webpic-cbar_main");
 
   interface StripSection {

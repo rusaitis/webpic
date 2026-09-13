@@ -27,8 +27,7 @@ import { createSubscriptions } from "../subscriptions.ts";
 import { formatValue, paintGradient } from "./colorbarGradient.ts";
 
 // The colormap controls — colormap / value→color scale / window-level — for the *selected layer's*
-// ColormapBinding. Lifted from the old docked colormap panel; now mounted into the floating
-// colorbar's settings popover. Each control dispatches a setBinding* intent and mirrors external
+// ColormapBinding, mounted in the floating colorbar's settings popover. Each control dispatches a setBinding* intent and mirrors external
 // edits in place; the app's layerBridge resolves the changed binding to the layers that reference it.
 // Window is an [lo, hi] interval; the binding stores the canonical {center, width}.
 

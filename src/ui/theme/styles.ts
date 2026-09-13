@@ -153,7 +153,7 @@ const DERIVED_TOKENS = {
   "--webpic-mono": 'ui-monospace, "SF Mono", Menlo, monospace',
   "--webpic-blur": "10px",
   "--webpic-ease": "cubic-bezier(0.25, 1, 0.5, 1)",
-  // The two transition lists the sheet repeated verbatim: a chrome button's hover feedback, and a
+  // The two shared transition lists: a chrome button's hover feedback, and a
   // glass surface reacting to show/hide + theme.
   "--webpic-transition-control": "opacity 0.12s ease, background 0.12s ease, color 0.12s ease",
   "--webpic-transition-glass":

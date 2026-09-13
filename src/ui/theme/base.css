@@ -73,11 +73,8 @@
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
-/* Selectable opt-ins: the editable value fields (so the number/text can be selected + edited) and any
-   region a caller tags .webpic-selectable (an info window body, a readout) — text inherits into the
-   tagged subtree. */
-.webpic-range_input,
-.webpic-selectable {
+/* Selectable opt-in: the editable value fields, so the number/text can be selected + edited. */
+.webpic-range_input {
   user-select: text;
   -webkit-user-select: text;
   -webkit-touch-callout: default;
