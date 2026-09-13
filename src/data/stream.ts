@@ -54,14 +54,14 @@ export function createStreamRing<T>(options: StreamRingOptions<T>): StreamRing {
 
   // The cursor's index-adjacent neighbours (incl. the cursor), clamped to the domain.
   function wantedSteps(center: number): number[] {
-    const ci = indexOf(center);
-    if (ci < 0) return [];
+    const centerIndex = indexOf(center);
+    if (centerIndex < 0) return [];
     // An injected predictor (data/prefetch.ts) biases the window by scrub direction; trust no list it
     // returns — keep only in-domain steps. Default: the symmetric ±radius.
     if (plan !== undefined) return plan(center).filter((step) => stepIndex.has(step));
     const out: number[] = [];
     for (let k = -radius; k <= radius; k++) {
-      const step = steps[ci + k];
+      const step = steps[centerIndex + k];
       if (step !== undefined) out.push(step);
     }
     return out;
@@ -71,10 +71,10 @@ export function createStreamRing<T>(options: StreamRingOptions<T>): StreamRing {
   // counted — they're bounded by the wanted set and aborted when they leave it.
   function evict(): void {
     if (cursor === null) return;
-    const ci = indexOf(cursor);
+    const centerIndex = indexOf(cursor);
     const ready = [...entries].filter(([, e]) => e.state === "ready").map(([step]) => step);
     if (ready.length <= capacity) return;
-    ready.sort((a, b) => Math.abs(indexOf(b) - ci) - Math.abs(indexOf(a) - ci));
+    ready.sort((a, b) => Math.abs(indexOf(b) - centerIndex) - Math.abs(indexOf(a) - centerIndex));
     for (let i = 0; i < ready.length - capacity; i++) {
       const step = ready[i];
       if (step !== undefined) entries.delete(step);

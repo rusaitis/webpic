@@ -242,14 +242,14 @@ export function installPointerPicker(target: HTMLElement, store: SimulationStore
       return;
     }
     const held = arrows.codes;
-    const lr = (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
-    const ud = (held.has("ArrowUp") ? 1 : 0) - (held.has("ArrowDown") ? 1 : 0);
+    const horizontalInput = (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
+    const verticalInput = (held.has("ArrowUp") ? 1 : 0) - (held.has("ArrowDown") ? 1 : 0);
     const sa = Math.sin(state.cameraPose.azimuth);
     const ca = Math.cos(state.cameraPose.azimuth);
     // screenRight = (−sa, ca, 0) — worldToScreen's basis; into-screen horizontal = (−ca, −sa, 0).
-    const dx = lr * -sa + (arrows.isShiftHeld ? 0 : ud * -ca);
-    const dy = lr * ca + (arrows.isShiftHeld ? 0 : ud * -sa);
-    const dz = arrows.isShiftHeld ? ud : 0;
+    const dx = horizontalInput * -sa + (arrows.isShiftHeld ? 0 : verticalInput * -ca);
+    const dy = horizontalInput * ca + (arrows.isShiftHeld ? 0 : verticalInput * -sa);
+    const dz = arrows.isShiftHeld ? verticalInput : 0;
     const len = Math.hypot(dx, dy, dz);
     if (len > 0) {
       const step = (MARKER_KEY_SPEED * dtMs) / 1000 / len; // unit direction — diagonals same speed

@@ -71,29 +71,29 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
   };
 
   const dispatchColormap = (colormap: ColormapId): void => {
-    const a = active();
-    if (a !== null) store.getState().setBindingColormap(a.id, colormap);
+    const activeBinding = active();
+    if (activeBinding !== null) store.getState().setBindingColormap(activeBinding.id, colormap);
   };
   const dispatchScale = (scale: ColorScale): void => {
-    const a = active();
-    if (a !== null) store.getState().setBindingScale(a.id, scale);
+    const activeBinding = active();
+    if (activeBinding !== null) store.getState().setBindingScale(activeBinding.id, scale);
   };
   const dispatchWindow = (v: RangeValue): void => {
     if (typeof v === "number") return; // interval mode always emits a pair
-    const a = active();
-    if (a === null) return;
+    const activeBinding = active();
+    if (activeBinding === null) return;
     const { center, width } = intervalToWindow(v[0], v[1]);
-    store.getState().setBindingWindow(a.id, center, width);
+    store.getState().setBindingWindow(activeBinding.id, center, width);
   };
 
   // The window control's track scale + range are baked at construction, so a scale or extent change
   // means a fresh control rather than a mutation. Disabled until the active field's range is known.
-  const makeWindow = (a: ActiveBinding | null): void => {
+  const makeWindow = (activeBinding: ActiveBinding | null): void => {
     windowControl?.dispose();
-    const dataRange = a?.dataRange ?? { min: 0, max: 1 };
-    const scale = a?.binding.scale ?? "linear";
+    const dataRange = activeBinding?.dataRange ?? { min: 0, max: 1 };
+    const scale = activeBinding?.binding.scale ?? "linear";
     const trackMin = scale === "log" ? logTrackMin(dataRange) : dataRange.min;
-    const win = a?.binding.window ?? {
+    const win = activeBinding?.binding.window ?? {
       center: (dataRange.min + dataRange.max) / 2,
       width: dataRange.max - dataRange.min,
     };
@@ -111,19 +111,19 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
       onInput: dispatchWindow,
       onChange: dispatchWindow,
     });
-    windowControl.setDisabled(a === null || a.dataRange === null);
+    windowControl.setDisabled(activeBinding === null || activeBinding.dataRange === null);
   };
 
   const rebuild = (): void => {
     colormapControl?.dispose();
     scaleControl?.dispose();
-    const a = active();
-    const disabled = a === null;
-    currentBindingId = a?.id ?? null;
-    currentScale = a?.binding.scale ?? "linear";
+    const activeBinding = active();
+    const disabled = activeBinding === null;
+    currentBindingId = activeBinding?.id ?? null;
+    currentScale = activeBinding?.binding.scale ?? "linear";
     colormapControl = folder.addSwatchSelect<ColormapId>({
       label: "Colormap",
-      value: a?.binding.colormap ?? DEFAULT_COLORMAP,
+      value: activeBinding?.binding.colormap ?? DEFAULT_COLORMAP,
       options: colormapOptions,
       onChange: dispatchColormap,
       paintSwatch: (canvas, id) => paintGradient(canvas, id, true),
@@ -131,30 +131,30 @@ export function installColormapControls(host: HTMLElement, store: SimulationStor
     colormapControl.setDisabled(disabled);
     scaleControl = folder.addSegmented<ColorScale>({
       label: "Scale",
-      value: a?.binding.scale ?? "linear",
+      value: activeBinding?.binding.scale ?? "linear",
       options: scaleOptions,
       onChange: dispatchScale,
     });
     scaleControl.setDisabled(disabled);
-    makeWindow(a);
+    makeWindow(activeBinding);
   };
 
   // Reflect a binding edit without rebuilding (the drag hot path): mirror colormap + window in place;
   // a scale change re-bakes only the window control (its track mapping changed).
   const sync = (): void => {
-    const a = active();
-    if (a === null || a.id !== currentBindingId) {
+    const activeBinding = active();
+    if (activeBinding === null || activeBinding.id !== currentBindingId) {
       rebuild();
       return;
     }
-    colormapControl?.set(a.binding.colormap);
-    if (a.binding.scale !== currentScale) {
-      currentScale = a.binding.scale;
-      scaleControl?.set(a.binding.scale);
-      makeWindow(a);
+    colormapControl?.set(activeBinding.binding.colormap);
+    if (activeBinding.binding.scale !== currentScale) {
+      currentScale = activeBinding.binding.scale;
+      scaleControl?.set(activeBinding.binding.scale);
+      makeWindow(activeBinding);
       return;
     }
-    windowControl?.set(windowToInterval(a.binding.window));
+    windowControl?.set(windowToInterval(activeBinding.binding.window));
   };
 
   rebuild();

@@ -33,9 +33,9 @@ const MINOR_MAX_TICKS = 80;
 // Quantize a dragged/keyed value to `step` (drag granularity only — typed text bypasses
 // this so the grip can rest between steps). No step ⇒ clamp only.
 export function snapToStep(raw: number, min: number, max: number, step?: number): number {
-  const c = clamp(raw, min, max);
-  if (step === undefined || !(step > 0)) return c;
-  return clamp(min + Math.round((c - min) / step) * step, min, max);
+  const clamped = clamp(raw, min, max);
+  if (step === undefined || !(step > 0)) return clamped;
+  return clamp(min + Math.round((clamped - min) / step) * step, min, max);
 }
 
 // FP slack for log10 comparisons: 10**k comes back as 0.9999999999999999·k often enough that a bare
@@ -43,10 +43,10 @@ export function snapToStep(raw: number, min: number, max: number, step?: number)
 const LOG_DECADE_SLACK = 1e-9;
 
 // `minStep` floors the granularity near 0; the slack guards log10's just-under-integer powers.
-function decadeStep(a: number, minStep: number): number {
-  if (!(a > 0)) return minStep > 0 ? minStep : 0;
-  const d = 10 ** Math.floor(Math.log10(a) + LOG_DECADE_SLACK);
-  return minStep > 0 ? Math.max(d, minStep) : d;
+function decadeStep(magnitude: number, minStep: number): number {
+  if (!(magnitude > 0)) return minStep > 0 ? minStep : 0;
+  const decade = 10 ** Math.floor(Math.log10(magnitude) + LOG_DECADE_SLACK);
+  return minStep > 0 ? Math.max(decade, minStep) : decade;
 }
 
 // Snap to the log-decade grid (see `decadeStep`): signed, ten divisions per decade,
@@ -54,11 +54,11 @@ function decadeStep(a: number, minStep: number): number {
 // exactly 0 — set it for symlog's linear band; omit for log (min > 0 bounds it). The
 // scientific "nice value" feel (…, 10, 20, 50, 100, …) for log/symlog drag.
 export function snapToDecade(raw: number, min: number, max: number, minStep = 0): number {
-  const c = clamp(raw, min, max);
-  const a = Math.abs(c);
-  const d = decadeStep(a, minStep);
-  if (!(d > 0)) return c;
-  return clamp(Math.sign(c) * Math.round(a / d) * d, min, max);
+  const clamped = clamp(raw, min, max);
+  const magnitude = Math.abs(clamped);
+  const step = decadeStep(magnitude, minStep);
+  if (!(step > 0)) return clamped;
+  return clamp(Math.sign(clamped) * Math.round(magnitude / step) * step, min, max);
 }
 
 // One cell along the log-decade grid from `cur` toward `dir` (±1) — the keyboard companion
@@ -71,14 +71,14 @@ export function stepDecade(
   max: number,
   minStep = 0,
 ): number {
-  const c = snapToDecade(cur, min, max, minStep);
-  const a = Math.abs(c);
-  let d = decadeStep(a, minStep);
-  const towardZero = c !== 0 && dir !== Math.sign(c);
-  if (towardZero && a > 0 && Math.abs(a / d - 1) < LOG_DECADE_SLACK) {
-    d = minStep > 0 ? Math.max(d / 10, minStep) : d / 10;
+  const clamped = snapToDecade(cur, min, max, minStep);
+  const magnitude = Math.abs(clamped);
+  let step = decadeStep(magnitude, minStep);
+  const towardZero = clamped !== 0 && dir !== Math.sign(clamped);
+  if (towardZero && magnitude > 0 && Math.abs(magnitude / step - 1) < LOG_DECADE_SLACK) {
+    step = minStep > 0 ? Math.max(step / 10, minStep) : step / 10;
   }
-  return snapToDecade(c + dir * d, min, max, minStep);
+  return snapToDecade(clamped + dir * step, min, max, minStep);
 }
 
 // Pointer x → normalized [0, 1] across a track rect (the screen→param map).

@@ -174,19 +174,22 @@ const DEFAULT_AXIS_LABELS: Record<GeometryType, readonly string[]> = {
 
 function decodeStagger(raw: unknown): StaggerInfo | null {
   if (raw === undefined || raw === null) return null;
-  const s = parseBlock(StaggerAttrsSchema, raw, "grid.stagger");
+  const stagger = parseBlock(StaggerAttrsSchema, raw, "grid.stagger");
   const position =
-    s.position == null
+    stagger.position == null
       ? null
       : Object.fromEntries(
-          Object.entries(s.position).map(([k, v]) => [k, vec3(v[0] ?? 0, v[1] ?? 0, v[2] ?? 0)]),
+          Object.entries(stagger.position).map(([k, v]) => [
+            k,
+            vec3(v[0] ?? 0, v[1] ?? 0, v[2] ?? 0),
+          ]),
         );
   return {
-    convention: s.convention,
-    fieldLocations: s.field_locations ?? null,
+    convention: stagger.convention,
+    fieldLocations: stagger.field_locations ?? null,
     position,
-    interpolationOrder: s.interpolation_order ?? null,
-    notes: s.notes ?? null,
+    interpolationOrder: stagger.interpolation_order ?? null,
+    notes: stagger.notes ?? null,
   };
 }
 
@@ -278,13 +281,13 @@ export function decodePhysics(
 
 export function decodeReduction(raw: unknown): ReductionSpec | null {
   if (raw === undefined || raw === null) return null;
-  const r = parseBlock(ReductionAttrsSchema, raw, "field.reduction");
+  const reduction = parseBlock(ReductionAttrsSchema, raw, "field.reduction");
   return {
-    axis: r.axis,
-    op: r.op,
-    ...(r.result_kind !== undefined ? { resultKind: r.result_kind } : {}),
-    ...(r.weight !== undefined ? { weight: r.weight } : {}),
-    ...(r.length_axes !== undefined ? { lengthAxes: r.length_axes } : {}),
+    axis: reduction.axis,
+    op: reduction.op,
+    ...(reduction.result_kind !== undefined ? { resultKind: reduction.result_kind } : {}),
+    ...(reduction.weight !== undefined ? { weight: reduction.weight } : {}),
+    ...(reduction.length_axes !== undefined ? { lengthAxes: reduction.length_axes } : {}),
   };
 }
 
@@ -295,11 +298,11 @@ export interface DecodedFieldAttrs {
 }
 
 export function decodeFieldAttrs(rawAttrs: unknown, name: string): DecodedFieldAttrs {
-  const a = parseBlock(FieldAttrsSchema, rawAttrs ?? {}, `field "${name}" attrs`);
+  const attrs = parseBlock(FieldAttrsSchema, rawAttrs ?? {}, `field "${name}" attrs`);
   return {
-    units: a.units ?? "",
-    latex: a.latex ?? "",
-    reduction: decodeReduction(a.reduction),
+    units: attrs.units ?? "",
+    latex: attrs.latex ?? "",
+    reduction: decodeReduction(attrs.reduction),
   };
 }
 

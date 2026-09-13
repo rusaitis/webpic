@@ -55,16 +55,16 @@ export function createScrubPredictor(options: ScrubPredictorOptions): ScrubPredi
   }
 
   function observe(step: number, nowMs: number): void {
-    const ci = indexOf(step);
-    if (ci < 0) return; // out-of-domain — the ring already guards the cursor; ignore here
+    const cursorIndex = indexOf(step);
+    if (cursorIndex < 0) return; // out-of-domain — the ring already guards the cursor; ignore here
     // A long idle gap means the user stopped scrubbing: forget the old motion, restart clean.
     if (nowMs - lastObserveMs >= STATIONARY_MS) reset();
     if (lastIndex < 0) {
-      lastIndex = ci;
+      lastIndex = cursorIndex;
       lastObserveMs = nowMs;
       return; // first sample only establishes the origin — no delta yet
     }
-    const delta = ci - lastIndex;
+    const delta = cursorIndex - lastIndex;
     velocity = EWMA_ALPHA * delta + (1 - EWMA_ALPHA) * velocity;
     recentSpeeds.push(Math.abs(delta));
     if (recentSpeeds.length > SPEED_WINDOW) recentSpeeds.shift();
@@ -82,7 +82,7 @@ export function createScrubPredictor(options: ScrubPredictorOptions): ScrubPredi
       committedDirection = direction; // the reversal held long enough — flip the window
       pendingDirection = 0;
     }
-    lastIndex = ci;
+    lastIndex = cursorIndex;
     lastObserveMs = nowMs;
   }
 
@@ -103,20 +103,20 @@ export function createScrubPredictor(options: ScrubPredictorOptions): ScrubPredi
   }
 
   function plan(center: number): readonly number[] {
-    const ci = indexOf(center);
-    if (ci < 0) return [];
+    const cursorIndex = indexOf(center);
+    if (cursorIndex < 0) return [];
     const out: number[] = [];
     const seen = new Set<number>();
-    pushIndex(out, seen, ci); // the cursor is always wanted (the ring displays it)
+    pushIndex(out, seen, cursorIndex); // the cursor is always wanted (the ring displays it)
     if (committedDirection === 0) {
-      pushIndex(out, seen, ci - 1); // unsure → symmetric ±1, exactly the dumb policy
-      pushIndex(out, seen, ci + 1);
+      pushIndex(out, seen, cursorIndex - 1); // unsure → symmetric ±1, exactly the dumb policy
+      pushIndex(out, seen, cursorIndex + 1);
       return out;
     }
     const dir = committedDirection;
     const count = prefetchCount();
-    for (let k = 1; k <= count; k++) pushIndex(out, seen, ci + dir * k); // bias ahead of travel
-    pushIndex(out, seen, ci - dir); // one trailing step — cheap single-backtrack insurance
+    for (let k = 1; k <= count; k++) pushIndex(out, seen, cursorIndex + dir * k); // bias ahead of travel
+    pushIndex(out, seen, cursorIndex - dir); // one trailing step — cheap single-backtrack insurance
     return out;
   }
 

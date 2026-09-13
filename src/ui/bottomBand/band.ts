@@ -68,18 +68,18 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
     let lo = Number.POSITIVE_INFINITY;
     let hi = Number.NEGATIVE_INFINITY;
     for (const btn of doc.querySelectorAll(".webpic-rail_btn")) {
-      const r = btn.getBoundingClientRect();
-      if (r.width <= 0) continue;
-      lo = Math.min(lo, r.left);
-      hi = Math.max(hi, r.right);
+      const rect = btn.getBoundingClientRect();
+      if (rect.width <= 0) continue;
+      lo = Math.min(lo, rect.left);
+      hi = Math.max(hi, rect.right);
     }
     return hi > lo ? hi - lo : 0; // translate-invariant: a shifted rail reports the same width
   };
   const cornerWidgetRight = (): number => {
     const gnomon = doc.querySelector(".webpic-gnomon");
     if (gnomon === null) return 0;
-    const r = gnomon.getBoundingClientRect();
-    return r.width > 0 ? r.right : 0;
+    const rect = gnomon.getBoundingClientRect();
+    return rect.width > 0 ? rect.right : 0;
   };
   const setRailShift = (px: number): void => {
     doc
@@ -136,8 +136,8 @@ export function createBottomBand(host: BottomBandHost): BottomBand {
   // Migrate the strip off the crowded bottom row to the nearer side edge (vertical), clearing the rail
   // entirely. It stays where it lands — widening won't auto-return it (the user can drag it back).
   const migrateToSide = (): void => {
-    const r = strip.getBoundingClientRect();
-    const side: PaneEdge = r.left + r.width / 2 >= viewportWidth() / 2 ? "right" : "left";
+    const rect = strip.getBoundingClientRect();
+    const side: PaneEdge = rect.left + rect.width / 2 >= viewportWidth() / 2 ? "right" : "left";
     if (readEdge(strip) === side) return;
     host.migrateToSide(side);
     host.reflow(); // flush to the side edge, springing clear of the side rail / top bar
