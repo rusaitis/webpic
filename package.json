@@ -90,7 +90,7 @@
     "@types/node": "^25.9.1",
     "@types/three": "^0.185.0",
     "@vitest/browser-playwright": "^4.1.11",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "@webgpu/types": "^0.1.70",
     "happy-dom": "^20.9.0",
     "json-schema-to-zod": "^2.8.1",
