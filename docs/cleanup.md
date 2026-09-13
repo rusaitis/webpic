@@ -1,6 +1,6 @@
 # webpic — the code-health passes
 
-Ten passes between 2026-09-09 and 2026-09-13, each read-only-audited first and re-verified by hand.
+Eleven passes between 2026-09-09 and 2026-09-13, each read-only-audited first and re-verified by hand.
 No features, no behaviour change: every commit is a deletion, a rename, a split, a test, or a gate.
 
 **Read this before re-proposing a cleanup.** The plan bodies are in `git log`; what survives here is
@@ -12,19 +12,19 @@ what landed, what it found, and — the long section at the end — what was *re
 
 | measure | before | now |
 |---|---|---|
-| coverage (lines) | 75.4 % | **85.7 %**, and now a floor (85/84/87/73) |
-| tests | 1 240 | **1 494** in 170 files |
+| coverage (lines) | 75.4 % | **86.3 %**, and now a floor (86/85/88/74) |
+| tests | 1 240 | **1 524** in 173 files |
 | `npm test` wall time | 14.9 s | **~6.2 s** |
 | comment ratio (hand-written `src`) | 21 % | **16.1 %** |
-| Biome ceilings (lines / complexity) | 311 / 62 | **210 / 26** |
+| Biome ceilings (lines / complexity) | 311 / 62 | **210 / 25** |
 | file headers over 6 lines | 30 | **0** — the ratchet became the rule |
 | `/**` outside `@embed` | 385 | **0** — likewise |
 | milestone refs in comments | 27 | **0** |
 | knip unused exports | 148 (and CI was not checking) | **0** |
-| app bundle (gzip) | 1.6 MB budget, unmeasured | **395.1 kB** against a 413 kB ratchet |
+| app bundle (gzip) | 1.6 MB budget, unmeasured | **377.2 kB** against a 385 kB ratchet |
 | CSS | one 2 759-line `ui.css` | **2 647** across 15 per-surface files |
 | `docs/DESIGN.md` | 1 089 | **880** |
-| source LOC (non-test, non-generated) | 26 057 | 26 556 |
+| source LOC (non-test, non-generated) | 26 057 | 26 616 |
 
 **On that last row.** Four passes of deletion left the source the same size. That is the honest shape
 of this work: roughly 1 500 lines were deleted and roughly as many came back as named collaborators,
@@ -129,6 +129,62 @@ at 255). Splitting those two files alone moved both.
   `gen:check` was a gate). The `§` guard now scans `TASKS.md` and immediately caught a dangling cite.
 
 
+**Part 11 — the closing pass** (21 commits)
+
+Three read-only audits ran first — structure, line-level readability, tooling/tests/docs. The rule for
+this pass was narrow on purpose: land a defect or a stated-rule breach, or remove lines; reject a
+structural-only win by default, and never buy a ratchet with a suppression.
+
+- **The render worker had been shipping zod.** `schema/theme.ts` held both the theme value model and
+  its TOML parser, and `overlay/overlayScene.ts`'s single *value* import of `cssRgba` (its three
+  sibling render imports are `import type`, and erase) pulled zod + smol-toml into the worker chunk —
+  271 kB of zod source, against a budget the app shares. Splitting the parser out to
+  `schema/themeParse.ts` took the app bundle **395.9 → 377.2 kB gzip** with zero zod left in the
+  worker. Part 8's finding again, but a deep import could not help: the value and the schemas were
+  one module.
+- **A compile gate had been thrown away.** `store/fieldTrace.ts`'s `tallySkips` took
+  `{ reason: string }` and swept everything unrecognized into `failedSeeds`, while `TraceSkipReason`
+  named exactly three reasons one import away. A fourth would have been reported to the user as a
+  trace failure with nothing failing.
+- **Two garbled comments from the P10 rename sweep were still live** — "the colorbar options in".
+- **`FolderOptions.expanded` was dead**, not merely misnamed: no `addFolder` caller has ever set it,
+  so `if (options.expanded === false)` could not fire. Deleted rather than renamed.
+- **Both ceilings were measured properly, and only one moved.** `band.ts`'s `adapt()` pinned
+  complexity at 26 and its own comment already said it did two things ("suppress the gnomon …
+  independent of the strip, then minimize / migrate the strip"), so it became
+  `syncGnomonSuppression` + `fitStrip`: **26 → 25**, and 24 still fails. The lines ceiling stays at
+  **210**, pinned by `createRangeControl` — one widget's interaction state machine whose two pure
+  halves P10 already took out. `biome.jsonc` now records what 20/150 would actually cost (thirteen
+  more splits, most of them single machines) instead of restating it as a near target.
+- **Two exclusions had outlived their reason.** The coverage exclude `src/**/index.ts` was written for
+  layer barrels but matches every depth, hiding the two compute-backend dispatchers — 195 lines of
+  real logic named `index.ts`. Counting them left all four thresholds clear: same floor, bigger
+  denominator. And the Biome override turning `noConsole` off spanned scripts, tests and `*.test.ts`
+  with zero console calls in the latter two.
+- **Both barrels stopped over-publishing.** All seven bare `@render` importers were tests while eleven
+  production modules already deep-imported `@render/messages.ts` (one file used both paths on adjacent
+  lines); `@ui` re-exported ten control names for the one, `Disposer`, that crosses the boundary.
+  Sixteen `XHost` types went module-private — knip structurally cannot see this class, because an
+  export referenced inside its own file reports as used.
+- **Vocabulary:** `Normalization` meant both pypic's units record and render's TSL value→t controller;
+  `niceStep`/`NiceTicks` each existed twice. The two `niceStep`s round differently — up vs nearest —
+  so renaming was the only safe move, not merging.
+- **Naming, one concept per commit** (the sweep discipline P7 and P10 each paid for): `el`, two `ctx`
+  holding a `DrawingSurface`, two `teardown*`, seven boolean fields, six boolean-returning functions,
+  and a dozen abbreviated locals — 120 insertions against 120 deletions, renames only.
+- **Tests for the three gaps CLAUDE.md's own rule names**: `createCanvasHost` (no sibling at all, its
+  DOM half unreachable from a node suite), `installCornerResize` (a DOM `install*` whose only sibling
+  was a node test), and `createSegmented`/`createSwatchSelect` — which CLAUDE.md already claimed
+  `controls.dom.test.ts` covered, while that file imported only `createPane`. Coverage
+  86.3/85.1/88.1/74.7, floor raised to match.
+- **Nine documentation claims had stopped being true** — `target: ES2022` (the lib is ES2024), the
+  coverage floor in two places, `createLayerComposite` and `isWebgpuOp` (neither symbol exists, and a
+  test was named after each ghost), Vite's `?worker` syntax (used nowhere), a dead size-budget pair
+  presented as the gate, the `/**` allowlist being narrower than the guard enforcing it, a missing
+  shared fixture, and `plasma_beta.ts` (never landed). Plus a `§` that resolved but was not apt, and
+  `cleanup.md`'s own stray rule orphaning five bullets from their heading.
+
+
 ---
 
 ## Bugs the passes found
@@ -227,6 +283,22 @@ Every item below was inspected and rejected, or measured and found not to be wha
   `shaders`, so the scraper is the only gate available there. Unlike `TRACE_META_BYTE_LENGTH`, where
   the DAG does permit the import and the type system now holds it. *(P10)*
 
+- **`createRangeControl` is not split** — what pins the 210-line ceiling is one interaction state
+  machine over `value`/`lo`/`hi`; extracting its pointer, keyboard and text handlers means threading a
+  mutable state object. The `patchLayer` trap, and the reason the lines ratchet did not move. *(P11)*
+- **`band.ts`'s `setCollapsed(next, auto)` keeps its two positional booleans** — `layerMessages.ts`
+  has a comment in this very repo explaining why that shape is wrong, but CLAUDE.md states no such
+  rule, so it is local precedent. Revisit only if that rationale is promoted. *(P11)*
+- **`perfSampler`'s nested ternary, `zarr.ts`'s four-level nesting, `hud.ts`'s `idleTimer`-as-flag and
+  `recordLossAndAllowRecovery`'s two jobs all stay** — each fix adds lines and fixes no defect. The
+  line-removing halves rode along: a dead `isMultiStep` binding and an `active` → `visibleSubscriptions`
+  rename. *(P11)*
+- **No `isOrthographic()` predicate** for the twelve `projection === "orthographic"` derivations —
+  P8 rejected it as `worldToClient`, P10 as `rayPointAt`. Only the *toggle*, written identically three
+  times, became a store action. *(P11)*
+- **The two `niceStep`s are not merged** — one rounds up, one rounds to nearest, and both place ticks
+  users see. Renamed, not unified. *(P11)*
+
 ### Claims that did not survive verification
 
 - **27 bare casts → actually zero.** Every cast in non-test source already carried a WHY; there are
@@ -266,6 +338,17 @@ Every item below was inspected and rejected, or measured and found not to be wha
 - **The complexity ceiling was never measured tree-wide.** Every earlier probe scanned `src/` only;
   the real worst value was 33, in `scripts/verify-streaming-render.ts`. Scan the whole tree, or the
   ratchet you set is the one you can see. *(P10)*
+
+- **"Lowering either ceiling by one still fails" was true, and three probes said otherwise before one
+  said it correctly.** A `--config-path` probe resolves every `overrides.includes` glob relative to
+  the *config file's* directory, so all four overrides silently die and the measurement is of rules
+  the repo does not enforce. Disabling `vcs` to satisfy that probe also stops Biome honouring
+  `.gitignore`, and the "worst function in the tree" comes back as `coverage/sorter.js`. Adding
+  `files.includes` to compensate makes Biome ignore the path argument and check **zero** files, still
+  reporting success. The only faithful method is to edit the real `biome.jsonc` in place and restore
+  it. *(P11)*
+- **The Biome complexity ceiling did fall this time, by one** — 26 → 25, on one split. Not the 20 the
+  config had been naming since Part 3. *(P11)*
 
 ### Tooling deliberately not adopted
 
