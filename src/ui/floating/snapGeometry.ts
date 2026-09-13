@@ -51,7 +51,7 @@ export interface SnapPlacement {
 const FREE_DRAG_KEEP_PX = 64; // free panels may overhang an edge, but keep at least this much (a grab strip) on screen
 const EDGE_SNAP_PX = 72; // dock to an edge when this close
 const CORNER_SNAP_PX = 80; // pin both axes when this close to a corner
-export const EDGE_GAP_PX = 12; // breathing room from the edge when docked (matches the rail's bottom inset)
+const EDGE_GAP_PX = 12; // breathing room from the edge when docked (matches the rail's bottom inset)
 const CHROME_GAP_PX = 16; // clearance sprung between the strip and chrome (roomier than the edge inset)
 const STICKY_HYSTERESIS_PX = 120; // bias toward the current edge so tall/wide strips don't oscillate
 const OVERLAP_EPSILON_PX = 0.5; // sub-pixel snap residue is not a collision

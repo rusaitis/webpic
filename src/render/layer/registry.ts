@@ -18,6 +18,7 @@ import type { PickLayer } from "../pickRay.ts";
 import type { RenderModule, RenderModuleContext } from "../renderModule.ts";
 import type { DrawItem } from "../runtime/renderer.ts";
 import { warmScene } from "../warmScene.ts";
+import { createLayerEdits } from "./edits.ts";
 import { createLayerEpochs } from "./epochs.ts";
 import { createLayerOrder, type LayerOrderEntry } from "./order.ts";
 
@@ -176,6 +177,13 @@ function buildScene(id: string, source: LayerSource, host: LayerHost): LayerEntr
   }
 }
 
+// A source with no windowLevel normalizes over its full finite range (buildScene's default) — the
+// in-app path always carries a binding window, so the scan is the defensive branch only.
+function pickWindow(source: FieldSource): WindowLevel {
+  if (source.windowLevel !== undefined) return source.windowLevel;
+  return fullRangeWindow(finiteRange(source.field.data) ?? NO_FINITE_RANGE);
+}
+
 export function createLayerRegistry(host: LayerHost): LayerRegistry {
   // The instance-first layer registry: per-id scenes + the ordered visibility/opacity view. The worker
   // composites the visible layers; the app drives exactly one.
@@ -183,6 +191,13 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
   const composite = createLayerOrder();
   const epochs = createLayerEpochs();
   const lookup = (id: string): LayerEntry | undefined => layers.get(id);
+  const edits = createLayerEdits({
+    host,
+    entry: lookup,
+    warming: (id) => epochs.warming(id),
+    order: composite,
+    rebuildScene: (id, source) => void installScene(id, source).catch(host.reportFault),
+  });
 
   // Install a layer's scene from a fully-specified source, releasing the prior scene's Data3DTexture
   // without leaking. Warm-then-commit (managedScene): the prospective composite's pipelines compile
@@ -216,37 +231,6 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
     layers.set(id, next);
     epochs.defer(previous);
     host.requestRender();
-  }
-
-  // Push a look / shading edit onto one entry (committed or warming), keeping its retained source in
-  // step so a device-restore rebuild reproduces it. Undefined entry (no such layer yet) is a no-op.
-  function applyColormap(
-    entry: LayerEntry | undefined,
-    request: RenderRequest<"setLayerColormap">,
-  ): void {
-    if (entry === undefined || entry.kind === "fieldlines") return;
-    entry.scene.setColormap(request.colormap);
-    entry.scene.setWindowLevel(request.windowLevel.center, request.windowLevel.width);
-    entry.scene.setScale(request.scale);
-    entry.source.colormap = request.colormap;
-    entry.source.windowLevel = request.windowLevel;
-    entry.source.scale = request.scale;
-  }
-
-  function applyShading(entry: LayerEntry | undefined, shaded: boolean): boolean {
-    if (entry === undefined || entry.kind === "fieldlines") return false;
-    if (!("setShading" in entry.scene)) return false;
-    entry.scene.setShading(shaded);
-    const { params } = entry.source;
-    if (params.layerKind === "volume") entry.source.params = { ...params, shaded }; // retained for a rebuild
-    return true;
-  }
-
-  // A source with no windowLevel normalizes over its full finite range (buildScene's default) — the
-  // in-app path always carries a binding window, so the scan is the defensive branch only.
-  function pickWindow(source: FieldSource): WindowLevel {
-    if (source.windowLevel !== undefined) return source.windowLevel;
-    return fullRangeWindow(finiteRange(source.field.data) ?? NO_FINITE_RANGE);
   }
 
   return {
@@ -309,68 +293,10 @@ export function createLayerRegistry(host: LayerHost): LayerRegistry {
 
     // Cheap reorder/visibility/opacity over the full ordered list — retune per-layer opacity uniforms
     // (no rebuild). Field data rides the heavier upsert.
-    setLayerOrder(order) {
-      for (const id of composite.setOrder(order)) {
-        const layer = layers.get(id);
-        const opacity = composite.opacityOf(id);
-        if (layer === undefined || opacity === undefined) continue;
-        layer.scene.setOpacity(opacity);
-        layer.source.opacity = opacity; // keep the retained source current for a device-restore rebuild
-      }
-      host.requestRender();
-    },
-
-    // Live per-layer color: one layer's resolved ColormapBinding (colormap + window/level + scale).
-    // Applied to the committed scene AND to one warming in the background, so an edit that lands
-    // mid-warm survives the commit. A binding update ahead of the first upsert still heals on it;
-    // field lines color solid at trace time (no live colormap window/scale), so they ignore this.
-    setColormap(request) {
-      const committed = layers.get(request.id);
-      const warming = epochs.warming(request.id);
-      applyColormap(committed, request);
-      if (warming !== committed) applyColormap(warming, request);
-      if (committed !== undefined || warming !== undefined) host.requestRender();
-    },
-
-    // Live per-layer Phong toggle — a uniform flip on the volume scene. `setShading` exists only on
-    // RaymarchScene; the `in` check narrows the union (and silently no-ops a slice — no normal to light).
-    setShading(request) {
-      const committed = layers.get(request.id);
-      const warming = epochs.warming(request.id);
-      // toggle ahead of its upsert heals on the upsert (carries shaded); field lines have no normal.
-      const applied = applyShading(committed, request.shaded);
-      const alsoWarming = warming !== committed && applyShading(warming, request.shaded);
-      if (applied || alsoWarming) host.requestRender();
-    },
-
-    // Live slice plane edit. Position is a uniform write (the drag hot path). Axis is baked into the
-    // TSL graph, so a change rebuilds the slice scene from the RETAINED field (no re-transfer) through
-    // the same warm-then-commit path as upsert. No-op for a missing id or a non-slice kind (an edit
-    // ahead of the upsert heals on it — the upsert carries axis + position).
-    setSliceParams(request) {
-      const entry = layers.get(request.id);
-      if (entry === undefined || entry.kind !== "slice") return;
-      // entry.kind === "slice" doesn't narrow the scene (kind isn't correlated with the scene type in
-      // the field-layer entry); `setPosition` exists only on SliceScene, so the `in` check narrows it.
-      if (!("setPosition" in entry.scene)) return;
-      const { params } = entry.source;
-      if (params.layerKind !== "slice") return; // the entry kind says slice; params agree by construction
-      let next = params;
-      if (request.position !== undefined) {
-        entry.scene.setPosition(request.position);
-        next = { ...next, position: request.position };
-      }
-      const axisChanged = request.axis !== undefined && request.axis !== params.axis;
-      if (axisChanged) next = { ...next, axis: request.axis };
-      entry.source.params = next; // retained for a device-restore rebuild
-      if (axisChanged) {
-        // Fire-and-forget rebuild from the retained field; a failed rebuild is reported and the next
-        // edit retries. The position uniform was already set above and rides the rebuilt source.
-        void installScene(request.id, entry.source).catch(host.reportFault);
-        return; // installScene() requests its own render on commit
-      }
-      host.requestRender();
-    },
+    setLayerOrder: edits.setLayerOrder,
+    setColormap: edits.setColormap,
+    setShading: edits.setShading,
+    setSliceParams: edits.setSliceParams,
 
     applyStepScale(stepScale) {
       for (const entry of layers.values()) {
