@@ -1,8 +1,8 @@
 import { LAYER_KIND_ORDER, LAYER_KINDS, type SimulationStore, type UiStore } from "@store";
 import { bindChromeVisibility } from "../chromeVisibility.ts";
-import { installAnchoredOverlay } from "../controls/anchoredOverlay.ts";
 import { makeEl, makeIconButton, makePanelHeader } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
+import { installAnchoredOverlay } from "../floating/anchoredOverlay.ts";
 import { ICON_CLOSE } from "../icons.ts";
 import { createShortcutRegistry } from "../keys/shortcuts.ts";
 import { positionArrowFlyout } from "../layout.ts";

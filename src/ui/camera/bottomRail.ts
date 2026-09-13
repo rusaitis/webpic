@@ -1,8 +1,8 @@
 import type { CameraProjection, SimulationStore, UiStore } from "@store";
 import { bindChromeVisibility } from "../chromeVisibility.ts";
-import { installAnchoredOverlay } from "../controls/anchoredOverlay.ts";
 import { makeEl, makeIconButton } from "../controls/dom.ts";
 import type { Disposer } from "../controls/index.ts";
+import { installAnchoredOverlay } from "../floating/anchoredOverlay.ts";
 import { createShortcutRegistry } from "../keys/shortcuts.ts";
 import { createSubscriptions } from "../subscriptions.ts";
 import {

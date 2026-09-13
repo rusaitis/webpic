@@ -1,4 +1,4 @@
-import { installOutsideClickDismiss } from "./dom.ts";
+import { installOutsideClickDismiss } from "../controls/dom.ts";
 
 // The dismissal contract every transient surface anchored to a trigger owes the user: Escape closes
 // it and returns focus, a press outside closes it, and a resize keeps it under its anchor. Each rail

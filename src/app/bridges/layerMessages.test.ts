@@ -1,8 +1,8 @@
 import type { FieldLine } from "@compute";
 import { createSimulationStore, createUiStore } from "@store";
 import { describe, expect, it } from "vitest";
-import { makeField, vectorTriple } from "../../tests/fixtures.ts";
-import { flushAsync } from "../../tests/helpers.ts";
+import { makeField, vectorTriple } from "../../../tests/fixtures.ts";
+import { flushAsync } from "../../../tests/helpers.ts";
 import { createLayerMessages } from "./layerMessages.ts";
 
 function rig() {

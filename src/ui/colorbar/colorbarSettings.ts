@@ -1,6 +1,6 @@
 import type { SimulationStore } from "@store";
-import { installAnchoredOverlay } from "../controls/anchoredOverlay.ts";
 import { makeEl } from "../controls/dom.ts";
+import { installAnchoredOverlay } from "../floating/anchoredOverlay.ts";
 import { bringToFront, installRaise } from "../floating/zStack.ts";
 import { clampIntoViewport, POPOVER_GAP_PX } from "../layout.ts";
 import { installColormapControls } from "./colormapControls.ts";

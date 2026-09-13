@@ -1,6 +1,6 @@
 import { clamp } from "@schema/math.ts";
-import { installAnchoredOverlay } from "../controls/anchoredOverlay.ts";
 import { makeEl } from "../controls/dom.ts";
+import { installAnchoredOverlay } from "../floating/anchoredOverlay.ts";
 import { positionArrowFlyout } from "../layout.ts";
 import { ICON_PLUS } from "./icons.ts";
 
