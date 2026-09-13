@@ -123,6 +123,7 @@ function installLazy<M>(
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: the body is the composition root — every seam it wires is named here or nowhere
 export function bootstrap(options: BootstrapOptions = {}): () => void {
   const spawnWorker =
     options.spawnWorker ??

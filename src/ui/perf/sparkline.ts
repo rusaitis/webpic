@@ -88,6 +88,7 @@ export function createSparkline(doc: Document, devicePixelRatio: number): Sparkl
     }
   };
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the body is one canvas paint pass — its branches are the series it draws
   const drawSparkline = (): void => {
     if (context === null) return;
     context.clearRect(0, 0, SPARK_W, SPARK_H);

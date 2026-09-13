@@ -41,6 +41,7 @@ const WINDOW = "1440,900"; // fixed window so the drawing-buffer pixel count is 
 
 async function main(): Promise<void> {
   await runInstrument(
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: an instrument body is a linear probe sequence; its branches are the checks it reports
     async ({ page, baseUrl }) => {
       // Console errors catch three/WebGPU validation faults — but skip the browser's default
       // /favicon.ico (and any other) resource 404, which is benign network noise, not a fault.

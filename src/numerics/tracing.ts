@@ -241,6 +241,7 @@ function closesLoop(
 // One direction of one trace. Everything the integrator needs beyond the seed and the sign already
 // travels together as ResolvedTraceParams — passing it whole keeps eight consecutive `number`
 // arguments (any two of which would swap silently) off the call site.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the body is the DP5(4) loop; its branches are accept/reject, step control and termination
 function traceSingleDirectionAdaptive(
   interpolator: VectorFieldInterpolator,
   seed: Float64Array,

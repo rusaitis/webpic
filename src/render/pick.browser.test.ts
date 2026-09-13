@@ -31,6 +31,7 @@ function pickPoints(): Promise<{ persp: readonly number[]; ortho: readonly numbe
       worker.terminate();
       reject(new Error(message));
     };
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the branches are the response kinds this probe answers, in the order the worker sends them
     worker.onmessage = (event: MessageEvent<RenderWorkerResponse>) => {
       const message = event.data;
       switch (message.kind) {
