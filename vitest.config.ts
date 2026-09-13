@@ -61,7 +61,7 @@ export default defineConfig({
       reportsDirectory: "coverage",
       // A floor at today's integer, not a target: TASKS.md held the gate until the number had a
       // history (75.4 → 77.1 → 82.55 → 84.7 → 85.6). It only ever rises.
-      thresholds: { lines: 86, statements: 84, functions: 87, branches: 74 },
+      thresholds: { lines: 86, statements: 85, functions: 88, branches: 74 },
     },
     projects: [
       {

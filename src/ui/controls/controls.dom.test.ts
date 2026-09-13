@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createPane } from "./pane.ts";
+import { createSegmented } from "./segmented.ts";
+import { createSwatchSelect } from "./swatchSelect.ts";
 
 // happy-dom env: exercises the control facade's contract — change → onChange, set()
 // reflects without re-firing onChange, setDisabled, and dispose() removes the row and its
@@ -181,5 +183,219 @@ describe("pane/folder lifecycle", () => {
     note.dispose();
     expect(body.querySelector(".webpic-placeholder")).toBeNull();
     pane.dispose();
+  });
+});
+
+describe("createSegmented", () => {
+  it("emits the clicked segment and slides the pill to it", () => {
+    const changes: string[] = [];
+    const handle = createSegmented(
+      document,
+      "linear",
+      [
+        { value: "linear", label: "Lin" },
+        { value: "log", label: "Log" },
+        { value: "symlog", label: "Sym" },
+      ],
+      (value) => changes.push(value),
+    );
+    mount().appendChild(handle.element);
+
+    handle.element.querySelector<HTMLButtonElement>('[data-value="log"]')?.click();
+
+    expect(changes).toEqual(["log"]);
+    expect(handle.element.style.getPropertyValue("--seg-index")).toBe("1");
+  });
+
+  it("ignores a click on the segment that is already active", () => {
+    const changes: string[] = [];
+    const handle = createSegmented(
+      document,
+      "linear",
+      [
+        { value: "linear", label: "Lin" },
+        { value: "log", label: "Log" },
+      ],
+      (value) => changes.push(value),
+    );
+    mount().appendChild(handle.element);
+
+    handle.element.querySelector<HTMLButtonElement>('[data-value="linear"]')?.click();
+
+    expect(changes).toEqual([]);
+  });
+
+  it("reflects set() without echoing onChange", () => {
+    const changes: string[] = [];
+    const handle = createSegmented(
+      document,
+      "linear",
+      [
+        { value: "linear", label: "Lin" },
+        { value: "log", label: "Log" },
+      ],
+      (value) => changes.push(value),
+    );
+    mount().appendChild(handle.element);
+
+    handle.set("log");
+
+    expect(changes).toEqual([]);
+    expect(handle.element.style.getPropertyValue("--seg-index")).toBe("1");
+    const log = handle.element.querySelector('[data-value="log"]');
+    expect(log?.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("walks the group with the arrow keys, committing as it goes", () => {
+    const changes: string[] = [];
+    const handle = createSegmented(
+      document,
+      "linear",
+      [
+        { value: "linear", label: "Lin" },
+        { value: "log", label: "Log" },
+        { value: "symlog", label: "Sym" },
+      ],
+      (value) => changes.push(value),
+    );
+    mount().appendChild(handle.element);
+
+    const arrow = (key: string): void => {
+      handle.element.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    };
+    arrow("ArrowRight");
+    arrow("ArrowRight");
+    arrow("ArrowRight"); // wraps back to the first
+
+    expect(changes).toEqual(["log", "symlog", "linear"]);
+  });
+
+  it("disables every segment and marks the group", () => {
+    const handle = createSegmented(
+      document,
+      "linear",
+      [
+        { value: "linear", label: "Lin" },
+        { value: "log", label: "Log" },
+      ],
+      () => {},
+    );
+    mount().appendChild(handle.element);
+
+    handle.setDisabled(true);
+
+    expect(handle.element.classList.contains("is-disabled")).toBe(true);
+    const buttons = [...handle.element.querySelectorAll("button")];
+    expect(buttons.every((button) => button.disabled)).toBe(true);
+  });
+
+  it("removes the group and stops emitting on dispose", () => {
+    const changes: string[] = [];
+    const parent = mount();
+    const handle = createSegmented(
+      document,
+      "linear",
+      [
+        { value: "linear", label: "Lin" },
+        { value: "log", label: "Log" },
+      ],
+      (value) => changes.push(value),
+    );
+    parent.appendChild(handle.element);
+    const log = handle.element.querySelector<HTMLButtonElement>('[data-value="log"]');
+
+    handle.dispose();
+    log?.click();
+
+    expect(parent.children).toHaveLength(0);
+    expect(changes).toEqual([]);
+  });
+});
+
+describe("createSwatchSelect", () => {
+  const CHOICES = [
+    { value: "inferno", label: "Inferno" },
+    { value: "viridis", label: "Viridis" },
+  ];
+
+  it("paints the trigger for the current value and names it", () => {
+    const painted: string[] = [];
+    const handle = createSwatchSelect(
+      document,
+      "inferno",
+      CHOICES,
+      () => {},
+      (_canvas, value) => painted.push(value),
+    );
+    mount().appendChild(handle.element);
+
+    expect(handle.element.dataset.value).toBe("inferno");
+    expect(handle.element.textContent).toContain("Inferno");
+    expect(painted).toEqual(["inferno"]);
+  });
+
+  it("repaints the trigger on set() without echoing onChange", () => {
+    const changes: string[] = [];
+    const painted: string[] = [];
+    const handle = createSwatchSelect(
+      document,
+      "inferno",
+      CHOICES,
+      (value) => changes.push(value),
+      (_canvas, value) => painted.push(value),
+    );
+    mount().appendChild(handle.element);
+
+    handle.set("viridis");
+
+    expect(changes).toEqual([]);
+    expect(handle.element.dataset.value).toBe("viridis");
+    expect(painted).toEqual(["inferno", "viridis"]);
+  });
+
+  it("renames the trigger when the option list is replaced", () => {
+    const handle = createSwatchSelect(
+      document,
+      "inferno",
+      CHOICES,
+      () => {},
+      () => {},
+    );
+    mount().appendChild(handle.element);
+
+    handle.setOptions([{ value: "inferno", label: "Inferno (seq)" }]);
+
+    expect(handle.element.textContent).toContain("Inferno (seq)");
+  });
+
+  it("disables the trigger", () => {
+    const handle = createSwatchSelect(
+      document,
+      "inferno",
+      CHOICES,
+      () => {},
+      () => {},
+    );
+    mount().appendChild(handle.element);
+
+    handle.setDisabled(true);
+
+    expect((handle.element as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("removes the trigger on dispose", () => {
+    const parent = mount();
+    const handle = createSwatchSelect(
+      document,
+      "inferno",
+      CHOICES,
+      () => {},
+      () => {},
+    );
+    parent.appendChild(handle.element);
+
+    handle.dispose();
+
+    expect(parent.children).toHaveLength(0);
   });
 });
