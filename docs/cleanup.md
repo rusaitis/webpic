@@ -1,6 +1,6 @@
 # webpic — the code-health passes
 
-Eight passes between 2026-09-09 and 2026-09-13, each read-only-audited first and re-verified by hand.
+Ten passes between 2026-09-09 and 2026-09-13, each read-only-audited first and re-verified by hand.
 No features, no behaviour change: every commit is a deletion, a rename, a split, a test, or a gate.
 
 **Read this before re-proposing a cleanup.** The plan bodies are in `git log`; what survives here is
@@ -13,18 +13,18 @@ what landed, what it found, and — the long section at the end — what was *re
 | measure | before | now |
 |---|---|---|
 | coverage (lines) | 75.4 % | **85.7 %**, and now a floor (85/84/87/73) |
-| tests | 1 240 | **1 480** in 180 files |
-| `npm test` wall time | 14.9 s | **~7.5 s** |
+| tests | 1 240 | **1 494** in 170 files |
+| `npm test` wall time | 14.9 s | **~6.2 s** |
 | comment ratio (hand-written `src`) | 21 % | **16.1 %** |
-| Biome ceilings (lines / complexity) | 311 / 62 | **256 / 49** |
+| Biome ceilings (lines / complexity) | 311 / 62 | **210 / 26** |
 | file headers over 6 lines | 30 | **0** — the ratchet became the rule |
 | `/**` outside `@embed` | 385 | **0** — likewise |
 | milestone refs in comments | 27 | **0** |
 | knip unused exports | 148 (and CI was not checking) | **0** |
-| app bundle (gzip) | 1.6 MB budget, unmeasured | **401.5 kB** against a 420 kB ratchet |
+| app bundle (gzip) | 1.6 MB budget, unmeasured | **395.1 kB** against a 413 kB ratchet |
 | CSS | one 2 759-line `ui.css` | **2 647** across 15 per-surface files |
 | `docs/DESIGN.md` | 1 089 | **880** |
-| source LOC (non-test, non-generated) | 26 057 | 26 209 |
+| source LOC (non-test, non-generated) | 26 057 | 26 556 |
 
 **On that last row.** Four passes of deletion left the source the same size. That is the honest shape
 of this work: roughly 1 500 lines were deleted and roughly as many came back as named collaborators,
@@ -104,6 +104,31 @@ lines and buys a place to hang a test. The deletions are real, and so is what re
 - Body 195 → 98 lines, complexity 42 → under 20; the file itself grew 237 → 244. That is the trade
   this table's last row already records: a split buys named seams and costs lines.
 
+**Part 10 — the ratchets become rules, and six things that were broken**
+
+The pass began by measuring *what pins* the two ceilings, which no earlier part had done. The answer
+was small and specific — the complexity ceiling of 49 was one file (`snapGeometry`'s two functions at
+49 and 48, with nothing else above 38), and the line ceiling of 256 was one function (`installTopBar`
+at 255). Splitting those two files alone moved both.
+
+- **Six bugs, each found by an audit looking for something else.** They are in the section above.
+- **The ratchets fell to 26 / 210** from 49 / 256, with four bodies that are long or branchy *by
+  construction* now saying so in a one-line `biome-ignore` instead of hiding under a ceiling. Both
+  numbers are honest: lowering either by one still fails. The targets remain 20 / 150.
+- **Splits that landed:** `snapGeometry` (mirrored band-escape blocks written once), `installTopBar`
+  (five sections → four modules + an assembly), `installCameraGestures` (three input families),
+  `createLayerRegistry` (lifecycle vs. live edits), `installDragSnap` (geometry vs. CSS writing),
+  `createRetrace` / `createRecompute`, and `createRangeControl`'s two pure halves.
+- **The folder model finished:** `store/intents/` (which CLAUDE.md already cited and which did not
+  exist), `app/bridges/`, and `app/main.ts` → `app/bootstrap.ts` so one file in the tree is `main`.
+- **`vi.waitFor`'s 50 ms default poll was 37 % of the suite** — the third disguise of the real-clock
+  wait CLAUDE.md bans, and the expensive one. 46 calls at `interval: 1` took the summed test time
+  7.26 s → 5.1 s.
+- **Docs:** six DESIGN/README claims had stopped being true (coverage "not gated", two stale budget
+  pairs, a "not tested" that is tested, three wrong shader paths, a CI description that implied
+  `gen:check` was a gate). The `§` guard now scans `TASKS.md` and immediately caught a dangling cite.
+
+
 ---
 
 ## Bugs the passes found
@@ -127,6 +152,25 @@ Not drift — actually broken, and each found by a pass looking for something el
   cite (a line wrap had split `CLAUDE.md` from its `§`). *(P8)*
 
 ---
+- **A rename sweep had rewritten English into identifiers in 25 places** — 21 comments and four test
+  titles. `57e83f4` made the renamer string-aware after P7's `el` → `element` incident but never
+  comment-aware, so `a slow idle timer` became `a slow isIdle timer` and `e.g.` became `event.g.`
+  `dragSnap.ts` had been explaining its ResizeObserver that way for five commits. *(P10)*
+- **Two canonical-name authorities disagreed where it mattered.** `schema/registry.ts`'s `fieldInfo`
+  threw on a per-species component (`V_s0_1`) where `data/readers/decode.ts`'s `resolveFieldMeta`
+  resolved it — and the zarr reader admits exactly what the second one accepts. `topbar/info.ts`
+  wraps `fieldInfo` in try/catch; `panels/fieldPanel.ts` does not, so a multi-species run would have
+  taken the field panel down. Latent only because every vendored theme ships `default-panels = []`.
+  *(P10)*
+- **A disposer that was a no-op at all six call sites** — `installAnchoredOverlay` and
+  `installOutsideClickDismiss` merged an optional caller signal with an internal controller and
+  returned a disposer over the pair; every production caller aborts its own signal one line before
+  calling it. `tests/live-modules.test.ts` cannot see this: it is file-level, not export-level. *(P10)*
+- **A dead Zod schema reached both shipped chunks** — `compute/calibration.ts` is `STAGED:` and
+  uncalled, but a bare `z.object()` expression statement is not provably pure, so Rollup kept it.
+  Same shape as Part 8's validator. `/* @__PURE__ */` took the app bundle 401.5 → 395.1 kB gzip. *(P10)*
+- **`scripts/shot-readme.ts` still failed open** — the one instrument Part 8 missed. It logged
+  `pageerror` and then exited 0, so a hero screenshot of a broken page shipped looking fine. *(P10)*
 
 ## Settled — do not re-propose
 
@@ -172,6 +216,16 @@ Every item below was inspected and rejected, or measured and found not to be wha
   cover the four passes 1:1. The split kept the diff as module functions in the same file. *(P9)*
 - **No `before === layer` identity fast-path** in `sendLayerEdits` — behaviour-identical to the
   per-field comparisons on a list that never exceeds a handful of layers. *(P9)*
+- **No shared helper for `panel.ts` ↔ `settings.ts`'s reorder buttons** — they diverge on class, on
+  when the index resolves, and on focus restoration; ~10 lines to save ~8. *(P10)*
+- **`hud.ts`'s `makeRow` and `row()` stay two** — one builds live-mutated DOM, the other a rebuilt
+  HTML string. *(P10)*
+- **No `rayPointAt` helper** — `origin + t·dir` in five files, and a helper costs 4 lines to save 4.
+  The win would be structural only. *(P10)*
+- **No shared skeleton for the two GPU kernel runners** — ≈ −2 lines, the `patchLayer` trap again. *(P10)*
+- **The `WORKGROUP_SIZE` pairs keep their source-scraping assertions** — `gpu` may not import
+  `shaders`, so the scraper is the only gate available there. Unlike `TRACE_META_BYTE_LENGTH`, where
+  the DAG does permit the import and the type system now holds it. *(P10)*
 
 ### Claims that did not survive verification
 
@@ -203,6 +257,15 @@ Every item below was inspected and rejected, or measured and found not to be wha
   `snapGeometry` still pinning 49, so `biome.jsonc` did not move. A probe that appeared to show a new
   max of 38 was Biome's default 20-diagnostic cap truncating the list — re-measure with
   `--max-diagnostics` before trusting a ratchet drop. *(P9)*
+- **"Every cast in non-test source carries a WHY" was false by one** — `easedChannels.ts:34`, whose
+  identical twin in `store/layerKinds.ts` does carry the reason. Fixed; the claim is true again. *(P10)*
+- **"Zero local re-rolls of `tests/fixtures.ts`" was false twice** — `makeGrid` hand-written in three
+  places (the tell is a literal `survivingAxes: null`) and `sampleCellCentered` written byte for byte
+  in `scripts/gen-trace-fixtures.ts` and `numerics/tracing.test.ts`, the two sides of the pypic
+  trace-golden comparison. Both single-sourced. *(P10)*
+- **The complexity ceiling was never measured tree-wide.** Every earlier probe scanned `src/` only;
+  the real worst value was 33, in `scripts/verify-streaming-render.ts`. Scan the whole tree, or the
+  ratchet you set is the one you can see. *(P10)*
 
 ### Tooling deliberately not adopted
 
@@ -228,5 +291,11 @@ Also: anything in memory `perf-review-non-wins`, `tot-select-chain-no-win`, or
   the cull it was written for and hid a one-caller abstraction and a dead control path for two parts.
 - **A title is copy; a hook is a contract.** Three instruments broke on retitled UI before this landed.
 - **`data-control="layers"` is ambiguous** — the topbar's disabled placeholder and the side-rail button
-  share it. Scope by `.webpic-siderail` in any probe.
+  share it. Scope by `.webpic-siderail` in any probe.- **A `biome-ignore` must be a single comment.** A wrapped second `//` line becomes the
+  immediately-preceding comment, and the suppression silently reports as unused.
+- **Suppressions and the ceiling drop belong in one commit.** Biome's `suppressions/unused` fires on
+  a suppression added while the old ceiling still covers it.
+- **A rename sweep must skip comments as well as string literals.** P7 learned the literal half of
+  this; P10 found the other half, five commits after the sweep that caused it.
+
 - **`cleanup.md` keeps the path citations it was written with** — it records what was decided *then*.
