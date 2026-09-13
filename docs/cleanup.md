@@ -84,6 +84,25 @@ lines and buys a place to hang a test. The deletions are real, and so is what re
   (redundant with `schema-parity`, and it mutated the tree mid-run).
 - Docs: DESIGN 1 089 → 880, this file 776 → ~200.
 
+**Part 9 — `app/layerBridge`, the last untidied file in `app/`**
+- A churn-vs-complexity ranking put it top by a factor of three. `installLayerBridge` was a 195-line
+  body at cognitive complexity **42**, five subscriptions deep, with four diffing passes inside one
+  of them.
+- **The snapshot bookkeeping was the cause, not the passes.** Three channels hand-rolled
+  `if (!isReady()) { lastX = x; return; }` plus a trailing `lastX = x` — the sole reason none could
+  use `createStoreBridge`, which carried a carve-out naming this file. One `subscribeDiff` (the
+  snapshot advances whether or not the listener acts) absorbed all four channels and deleted the four
+  module `let`s. The carve-out is gone with them.
+- **The two files re-checked the same thing.** `layerBridge` filtered by kind to decide whether to
+  call; `layerMessages` re-checked the same kind to narrow its wide `Layer` parameter. Narrowing the
+  seven signatures to `FieldLayer` / `VolumeLayer` / `SliceLayer` / `TracingLayer` deleted five silent
+  runtime guards and four `as unknown as Parameters<…>` casts in the test.
+- The two literal-guarded loops (`kind !== "volume"`, `kind !== "slice"`) became one exhaustive switch
+  with a `satisfies never` arm: a new `Layer` variant is now a compile error (TS1360) until it says
+  which of its params are live-editable, where before it silently got no diff.
+- The eight-name destructure became one `send` object, so adding a message no longer edits both files.
+- Body 195 → 98 lines, complexity 42 → under 20; the file itself grew 237 → 244. That is the trade
+  this table's last row already records: a split buys named seams and costs lines.
 
 ---
 
@@ -146,6 +165,13 @@ Every item below was inspected and rejected, or measured and found not to be wha
   generic widens away from the union, trading the gate for ~25 lines. *(P8)*
 - `ui/topbar/bar.ts`'s two picker chips stay two — one helper would carry two knobs for two callers. *(P8)*
 - `data/cache.ts` and `webgpu/streamlines.ts` stay — `STAGED:`-marked, on the roadmap.
+- **No `LAYER_KINDS`-driven table for the per-layer edit diff** — a keyed generic widens away from the
+  discriminated union, the same reason `store/layers.ts`'s six kind setters stayed. The exhaustive
+  switch is the compile gate at a third of the lines. *(P9)*
+- **No `app/layerDiff.ts`** — the seam has one consumer, and `layerBridge.test.ts`'s 16 tests already
+  cover the four passes 1:1. The split kept the diff as module functions in the same file. *(P9)*
+- **No `before === layer` identity fast-path** in `sendLayerEdits` — behaviour-identical to the
+  per-field comparisons on a list that never exceeds a handful of layers. *(P9)*
 
 ### Claims that did not survive verification
 
@@ -173,6 +199,10 @@ Every item below was inspected and rejected, or measured and found not to be wha
 - **Nothing in `scripts/` is orphaned** — all 24 files reach a runner. *(P8)*
 - **The Biome complexity ceiling did not fall to 20.** It is pinned at 49 by `snapGeometry.ts:228`
   (and `chooseEdge` beside it at 48) — both `src/`, so scoping the rule to exclude tests frees nothing. *(P8)*
+- **Nor did it fall in Part 9.** `layerBridge` was the *second* offender at 42; splitting it left
+  `snapGeometry` still pinning 49, so `biome.jsonc` did not move. A probe that appeared to show a new
+  max of 38 was Biome's default 20-diagnostic cap truncating the list — re-measure with
+  `--max-diagnostics` before trusting a ratchet drop. *(P9)*
 
 ### Tooling deliberately not adopted
 

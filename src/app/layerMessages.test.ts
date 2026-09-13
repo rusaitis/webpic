@@ -14,79 +14,60 @@ function rig() {
   } as unknown as Pick<Worker, "postMessage">;
   const store = createSimulationStore();
   const uiStore = createUiStore();
-  const upserts = createLayerMessages({ store, uiStore, worker });
-  return { posts, store, uiStore, upserts };
+  const send = createLayerMessages({ store, uiStore, worker });
+  return { posts, store, uiStore, send };
 }
 
+const layerBase = (id: string) =>
+  ({ id, field: "|B|", colormapBindingId: null, visible: true, opacity: 0.5 }) as const;
+
 const volumeLayer = (id = "layer-0") =>
-  ({
-    id,
-    kind: "volume",
-    field: "|B|",
-    colormapBindingId: null,
-    visible: true,
-    opacity: 0.5,
-    steps: null,
-    density: null,
-    shaded: true,
-  }) as const;
+  ({ ...layerBase(id), kind: "volume", steps: null, density: null, shaded: true }) as const;
+
+const sliceLayer = (id = "layer-0") =>
+  ({ ...layerBase(id), kind: "slice", axis: "z", position: 0.25 }) as const;
+
+const fieldlinesLayer = (id = "layer-0") =>
+  ({ ...layerBase(id), kind: "fieldlines", seeds: [] }) as const;
 
 describe("createLayerMessages", () => {
   it("transfers a field layer's scalar and raises the render pill", async () => {
-    const { posts, uiStore, upserts } = rig();
+    const { posts, uiStore, send } = rig();
     const field = makeField("|B|", new Float32Array(8), [2, 2, 2]);
-    upserts.sendUpsert(volumeLayer(), field);
+    send.upsert(volumeLayer(), field);
     await flushAsync();
 
     const post = posts[0];
     expect(post?.message.kind).toBe("upsertLayer");
     expect(post?.transfer).toEqual([field.data.buffer]); // moved, not cloned
     expect(post?.message).toMatchObject({ opacity: 0.5, params: { layerKind: "volume" } });
-    expect(upserts.fieldUpserted.has("layer-0")).toBe(true);
+    expect(send.fieldUpserted.has("layer-0")).toBe(true);
     expect(uiStore.getState().loadingPhases.map((p) => p.key)).toContain("render");
   });
 
-  it("ignores a field-lines layer on the scalar path — it draws polylines", () => {
-    const { posts, upserts } = rig();
-    const layer = { ...volumeLayer(), kind: "fieldlines", seeds: [] } as unknown as Parameters<
-      typeof upserts.sendUpsert
-    >[0];
-    upserts.sendUpsert(layer, makeField("|B|", new Float32Array(8), [2, 2, 2]));
-    expect(posts).toEqual([]);
-  });
-
   it("sends only the slice field that changed", () => {
-    const { posts, upserts } = rig();
-    const slice = {
-      ...volumeLayer(),
-      kind: "slice",
-      axis: "z",
-      position: 0.25,
-    } as unknown as Parameters<typeof upserts.sendSliceParams>[0];
-    upserts.sendSliceParams(slice, { axis: false, position: true });
+    const { posts, send } = rig();
+    send.sliceParams(sliceLayer(), { axis: false, position: true });
     expect(posts[0]?.message).toMatchObject({ kind: "setSliceParams", position: 0.25 });
     expect(posts[0]?.message).not.toHaveProperty("axis");
   });
 
   it("drops a removed layer from the upserted set so a re-add re-sends its field", () => {
-    const { posts, upserts } = rig();
-    upserts.sendUpsert(volumeLayer(), makeField("|B|", new Float32Array(8), [2, 2, 2]));
-    upserts.sendRemove("layer-0");
-    expect(upserts.fieldUpserted.has("layer-0")).toBe(false);
+    const { posts, send } = rig();
+    send.upsert(volumeLayer(), makeField("|B|", new Float32Array(8), [2, 2, 2]));
+    send.remove("layer-0");
+    expect(send.fieldUpserted.has("layer-0")).toBe(false);
     expect(posts.at(-1)?.message).toMatchObject({ kind: "removeLayer", id: "layer-0" });
   });
 
   it("packs traced lines into world space and transfers both buffers", async () => {
-    const { posts, store, upserts } = rig();
+    const { posts, store, send } = rig();
     store.getState().setDataset(vectorTriple("B", { dims: [4, 4, 4] }));
     await flushAsync();
     const lines: FieldLine[] = [
       { nPoints: 2, points: new Float64Array([0, 0, 0, 1, 1, 1]) } as unknown as FieldLine,
     ];
-    const layer = { ...volumeLayer(), kind: "fieldlines", seeds: [] } as unknown as Parameters<
-      typeof upserts.sendUpsertFieldlines
-    >[0];
-    upserts.sendUpsertFieldlines(layer, lines);
+    send.upsertFieldlines(fieldlinesLayer(), lines);
 
     const post = posts.at(-1);
     expect(post?.message.kind).toBe("upsertFieldlines");
@@ -95,10 +76,10 @@ describe("createLayerMessages", () => {
   });
 
   it("mirrors the store's layer order onto the composite wire", async () => {
-    const { posts, store, upserts } = rig();
+    const { posts, store, send } = rig();
     store.getState().setDataset(vectorTriple("B", { dims: [4, 4, 4] }));
     await flushAsync();
-    upserts.sendComposite();
+    send.composite();
     const order = posts.at(-1)?.message.order as Array<{ id: string }>;
     expect(order.map((entry) => entry.id)).toEqual(store.getState().layers.map((l) => l.id));
   });

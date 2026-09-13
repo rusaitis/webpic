@@ -41,6 +41,12 @@ export type Layer =
       readonly seeds: ReadonlyArray<Vec3>;
     });
 
+// The two kind-specific variants the per-kind wire messages address. `FieldLayer` / `TracingLayer`
+// (store/layerKinds.ts) are their descriptor-derived siblings — those route on a capability, these
+// name one concrete kind, which is what a volume-only or slice-only message means.
+export type VolumeLayer = Extract<Layer, { readonly kind: "volume" }>;
+export type SliceLayer = Extract<Layer, { readonly kind: "slice" }>;
+
 // Distribute over the union so each member keeps its own kind-specific keys — a plain
 // `Omit<Layer, "id">` would collapse the discriminant correlation.
 type DistributeOmitId<T> = T extends unknown ? Omit<T, "id"> : never;

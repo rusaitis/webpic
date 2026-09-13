@@ -3,8 +3,8 @@ import type { SimulationState, SimulationStore } from "@store";
 // Shared plumbing for the store→render-worker bridges (app-only glue). It collects subscription
 // disposers so teardown is a single `dispose()` (no hand-maintained unsubscribe lists to fall out of
 // sync), and folds in the common "drop posts until the worker is live" gate via `subscribeWhenReady`.
-// Bridges whose gate isn't the plain isReady() check — layerBridge keeps a snapshot while not ready,
-// streamingBridge gates on its own `opened` flag — use the raw `subscribe` and keep their own guard.
+// A bridge whose gate isn't that plain isReady() check keeps its own guard on `subscribe`
+// (streamingBridge gates on its own `opened` flag).
 
 // Every store→render-worker bridge posts through the same pair: the worker port and the bootstrap
 // `workerReady` flag that gates it. One name so a new bridge inherits both, and the gate can't be
@@ -23,6 +23,13 @@ export interface StoreBridge {
   ): void;
   // Subscribe unconditionally — the listener owns its gating. Disposer still collected.
   subscribe<T>(selector: (state: SimulationState) => T, listener: (value: T) => void): void;
+  // Subscribe with the previous selected value beside the next. The snapshot advances on every
+  // change — ready or not — so a listener that returns early while the worker is cold leaves no
+  // stale previous behind to fake a diff later.
+  subscribeDiff<T>(
+    selector: (state: SimulationState) => T,
+    listener: (next: T, previous: T) => void,
+  ): void;
   dispose(): void;
 }
 
@@ -38,6 +45,16 @@ export function createStoreBridge(store: SimulationStore, isReady: () => boolean
     },
     subscribe(selector, listener) {
       disposers.push(store.subscribe(selector, listener));
+    },
+    subscribeDiff(selector, listener) {
+      let previous = selector(store.getState());
+      disposers.push(
+        store.subscribe(selector, (value) => {
+          const before = previous;
+          previous = value;
+          listener(value, before);
+        }),
+      );
     },
     dispose() {
       for (const dispose of disposers) dispose();

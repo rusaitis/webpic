@@ -9,11 +9,13 @@ import type { Vec3 } from "@schema/types.ts";
 import {
   type FieldLayer,
   gridToWorld,
-  isFieldLayer,
   type Layer,
   PHASE_KEYS,
   type SimulationStore,
+  type SliceLayer,
+  type TracingLayer,
   type UiStore,
+  type VolumeLayer,
 } from "@store";
 import type { RenderWorkerLink } from "./_storeBridge.ts";
 
@@ -26,9 +28,6 @@ import type { RenderWorkerLink } from "./_storeBridge.ts";
 
 // Color sampled from the layer's colormap for its field lines — a saturated streamline over the volume.
 const FIELDLINE_COLOR_T = 0.75;
-
-// The pill key both field upserts share; a second upsert retitles the same pill and any layerCompiled
-// drops it.
 
 // The wire's per-kind build params from a store layer. `worldHalfExtent` is the dataset's volume-box
 // aspect — the worker scales the mesh to it (cubic → unit cube); slices ignore it.
@@ -47,7 +46,7 @@ function upsertParams(layer: FieldLayer, worldHalfExtent: Vec3): FieldLayerParam
   }
 }
 
-export interface LayerUpsertsOptions extends Pick<RenderWorkerLink, "worker"> {
+export interface LayerMessagesOptions extends Pick<RenderWorkerLink, "worker"> {
   readonly store: SimulationStore;
   readonly uiStore: UiStore;
 }
@@ -61,18 +60,18 @@ interface SliceChange {
 
 export interface LayerMessages {
   // Post a field layer's scalar. The buffer is TRANSFERRED — the caller must not read it after.
-  sendUpsert(layer: Layer, field: FieldArray): void;
-  sendLayerColormap(layer: Layer, binding: ColormapBinding): void;
-  sendLayerShading(layer: Layer): void;
-  sendSliceParams(layer: Layer, changed: SliceChange): void;
-  sendComposite(): void;
-  sendRemove(id: string): void;
-  sendUpsertFieldlines(layer: Layer, lines: readonly FieldLine[]): void;
+  upsert(layer: FieldLayer, field: FieldArray): void;
+  layerColormap(layer: FieldLayer, binding: ColormapBinding): void;
+  layerShading(layer: VolumeLayer): void;
+  sliceParams(layer: SliceLayer, changed: SliceChange): void;
+  composite(): void;
+  remove(id: string): void;
+  upsertFieldlines(layer: TracingLayer, lines: readonly FieldLine[]): void;
   // Layers whose scene has received field data — the diff uses it to spot a layer still waiting.
   readonly fieldUpserted: Set<string>;
 }
 
-export function createLayerMessages(options: LayerUpsertsOptions): LayerMessages {
+export function createLayerMessages(options: LayerMessagesOptions): LayerMessages {
   const { store, uiStore, worker } = options;
   const fieldUpserted = new Set<string>();
 
@@ -83,92 +82,88 @@ export function createLayerMessages(options: LayerUpsertsOptions): LayerMessages
       ? store.getState().colormapBindings[layer.colormapBindingId]
       : undefined;
 
-  const sendUpsert = (layer: Layer, field: FieldArray): void => {
-    if (!isFieldLayer(layer)) return; // field lines draw traced polylines, not the scalar texture
+  const upsert = (layer: FieldLayer, field: FieldArray): void => {
     const payload = fieldPayload(field); // freshly computed, offset-0 → transfers wholesale
     const binding = bindingFor(layer);
-    const request: RenderWorkerRequest = {
-      kind: "upsertLayer",
-      requestId: REQUEST_IDS.layer,
-      id: layer.id,
-      field: payload,
-      colormap: binding?.colormap ?? DEFAULT_COLORMAP,
-      scale: binding?.scale ?? "linear",
-      opacity: layer.opacity,
-      ...(binding !== undefined ? { windowLevel: binding.window } : {}),
-      params: upsertParams(layer, store.getState().worldHalfExtent),
-    };
-    worker.postMessage(request, [payload.buffer]);
+    worker.postMessage(
+      {
+        kind: "upsertLayer",
+        requestId: REQUEST_IDS.layer,
+        id: layer.id,
+        field: payload,
+        colormap: binding?.colormap ?? DEFAULT_COLORMAP,
+        scale: binding?.scale ?? "linear",
+        opacity: layer.opacity,
+        ...(binding !== undefined ? { windowLevel: binding.window } : {}),
+        params: upsertParams(layer, store.getState().worldHalfExtent),
+      } satisfies RenderWorkerRequest,
+      [payload.buffer],
+    );
     fieldUpserted.add(layer.id);
     // The warm (compileAsync) runs off the render path; hold a pill until the worker acks layerCompiled.
     uiStore.getState().beginLoading(PHASE_KEYS.render, "preparing render");
   };
 
   // Live per-layer color update — colormap + window/level + scale, no field transfer.
-  const sendLayerColormap = (layer: Layer, binding: ColormapBinding): void => {
-    if (!isFieldLayer(layer)) return;
-    const request: RenderWorkerRequest = {
+  const layerColormap = (layer: FieldLayer, binding: ColormapBinding): void => {
+    worker.postMessage({
       kind: "setLayerColormap",
       requestId: REQUEST_IDS.layer,
       id: layer.id,
       colormap: binding.colormap,
       windowLevel: binding.window,
       scale: binding.scale,
-    };
-    worker.postMessage(request);
+    } satisfies RenderWorkerRequest);
   };
 
   // Live per-layer Phong toggle (volume-only) — a uniform flip, no field transfer.
-  const sendLayerShading = (layer: Layer): void => {
-    if (layer.kind !== "volume") return;
-    const request: RenderWorkerRequest = {
+  const layerShading = (layer: VolumeLayer): void => {
+    worker.postMessage({
       kind: "setLayerShading",
       requestId: REQUEST_IDS.layer,
       id: layer.id,
       shaded: layer.shaded,
-    };
-    worker.postMessage(request);
+    } satisfies RenderWorkerRequest);
   };
 
   // Live per-layer slice plane edit (slice-only) — only the changed field rides the wire. position is
   // a render-side uniform write (the drag hot path); axis rebuilds from the retained field. The store
   // SliceAxis ("x"|"y"|"z") is structurally the render SliceAxis, so it crosses verbatim.
-  const sendSliceParams = (layer: Layer, changed: SliceChange): void => {
-    if (layer.kind !== "slice") return;
-    const request: RenderWorkerRequest = {
+  const sliceParams = (layer: SliceLayer, changed: SliceChange): void => {
+    worker.postMessage({
       kind: "setSliceParams",
       requestId: REQUEST_IDS.layer,
       id: layer.id,
       ...(changed.axis ? { axis: layer.axis } : {}),
       ...(changed.position ? { position: layer.position } : {}),
-    };
-    worker.postMessage(request);
+    } satisfies RenderWorkerRequest);
   };
 
-  const sendRemove = (id: string): void => {
+  const remove = (id: string): void => {
     fieldUpserted.delete(id);
-    const request: RenderWorkerRequest = { kind: "removeLayer", requestId: REQUEST_IDS.layer, id };
-    worker.postMessage(request);
+    worker.postMessage({
+      kind: "removeLayer",
+      requestId: REQUEST_IDS.layer,
+      id,
+    } satisfies RenderWorkerRequest);
   };
 
-  const sendComposite = (): void => {
+  const composite = (): void => {
     const order = store
       .getState()
       .layers.map((layer) => ({ id: layer.id, visible: layer.visible, opacity: layer.opacity }));
-    const request: RenderWorkerRequest = {
+    worker.postMessage({
       kind: "setLayerOrder",
       requestId: REQUEST_IDS.layer,
       order,
-    };
-    worker.postMessage(request);
+    } satisfies RenderWorkerRequest);
   };
 
   // Pack a field-line layer's traced lines into the render box and post them as a batched
   // LineSegments2. The tracer integrates in physical-grid coords; `gridToWorld` (the exact inverse of
   // the seed pick's `worldToGrid`) maps each point into the same unit box the volume/slice/overlay
   // share. Both packed buffers are transferred (positions: flat world f32 xyz; counts: u32 per line).
-  const sendUpsertFieldlines = (layer: Layer, lines: readonly FieldLine[]): void => {
-    if (layer.kind !== "fieldlines") return;
+  const upsertFieldlines = (layer: TracingLayer, lines: readonly FieldLine[]): void => {
     const grid = store.getState().dataset?.grid ?? null;
     const halfExtent = store.getState().worldHalfExtent;
     let total = 0;
@@ -192,27 +187,29 @@ export function createLayerMessages(options: LayerUpsertsOptions): LayerMessages
     const binding = bindingFor(layer);
     const rgb = colormapColor(binding?.colormap ?? DEFAULT_COLORMAP, FIELDLINE_COLOR_T);
     const color: Rgba01 = [rgb[0], rgb[1], rgb[2], 1];
-    const request: RenderWorkerRequest = {
-      kind: "upsertFieldlines",
-      requestId: REQUEST_IDS.layer,
-      id: layer.id,
-      positions: transferableBuffer(positions),
-      counts: transferableBuffer(counts),
-      color,
-      opacity: layer.opacity,
-    };
-    worker.postMessage(request, [positions.buffer, counts.buffer]);
+    worker.postMessage(
+      {
+        kind: "upsertFieldlines",
+        requestId: REQUEST_IDS.layer,
+        id: layer.id,
+        positions: transferableBuffer(positions),
+        counts: transferableBuffer(counts),
+        color,
+        opacity: layer.opacity,
+      } satisfies RenderWorkerRequest,
+      [positions.buffer, counts.buffer],
+    );
     uiStore.getState().beginLoading(PHASE_KEYS.render, "preparing render");
   };
 
   return {
-    sendUpsert,
-    sendLayerColormap,
-    sendLayerShading,
-    sendSliceParams,
-    sendComposite,
-    sendRemove,
-    sendUpsertFieldlines,
+    upsert,
+    layerColormap,
+    layerShading,
+    sliceParams,
+    composite,
+    remove,
+    upsertFieldlines,
     fieldUpserted,
   };
 }
