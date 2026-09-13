@@ -4,6 +4,7 @@
 // texture uploaded from a reinterpreted buffer. Mocks come from tests/renderWorkerHarness.ts.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { settle } from "../../tests/helpers.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(() =>
@@ -36,7 +37,7 @@ beforeAll(async () => {
       devicePixelRatio: 1,
     } satisfies RenderWorkerRequest,
   });
-  await vi.waitFor(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
 });
 
 afterAll(() => {
@@ -50,7 +51,7 @@ const lastError = (): { kind: string; requestId: number; message: string } | und
 
 it("answers an unknown request kind with an error carrying the payload", async () => {
   onmessage({ data: { kind: "nonsense", requestId: 99, detail: "unroutable" } });
-  await vi.waitFor(() => expect(lastError()?.requestId).toBe(99));
+  await settle(() => expect(lastError()?.requestId).toBe(99));
   expect(lastError()?.message).toMatch(/unknown request/);
   expect(lastError()?.message).toMatch(/nonsense/); // the offending payload, not just its shape
 });
@@ -69,7 +70,7 @@ it("rejects a field payload whose buffer disagrees with its dtype and shape", as
       opacity: 1,
     } satisfies RenderWorkerRequest,
   });
-  await vi.waitFor(() => expect(lastError()?.requestId).toBe(100));
+  await settle(() => expect(lastError()?.requestId).toBe(100));
   expect(lastError()?.message).toMatch(
     /decodeFieldPayload: f64 buffer is 16 bytes, shape \[2, 2, 2\] needs 64/,
   );

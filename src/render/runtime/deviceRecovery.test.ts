@@ -1,5 +1,6 @@
 import type { DeviceLossEvent } from "@gpu";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { settle } from "../../../tests/helpers.ts";
 
 // The recovery manager in isolation: @gpu is mocked to capture the loss + restore listeners, and a
 // fake host records the order of every rebuild step. The order is the load-bearing contract (a wrong
@@ -70,7 +71,7 @@ describe("createDeviceRecovery", () => {
     order.length = 0;
 
     for (const cb of gpu.restoredCbs) cb({} as GPUDevice);
-    await vi.waitFor(() => expect(recovery.isDeviceLost()).toBe(false));
+    await settle(() => expect(recovery.isDeviceLost()).toBe(false));
     // The order is the contract: warm precedes the un-pause + repaint, so the first restored frame
     // neither stalls nor draws on a half-built device.
     expect(order).toEqual(["supersede", "teardown", "rebuildOnDevice", "warm", "requestRender"]);
@@ -122,7 +123,7 @@ describe("createDeviceRecovery", () => {
     expect(recovery.isDeviceLost()).toBe(true);
 
     for (const cb of gpu.restoredCbs) cb({} as GPUDevice);
-    await vi.waitFor(() => expect(order).toContain("reportFault"));
+    await settle(() => expect(order).toContain("reportFault"));
     expect(order).not.toContain("warm"); // the rebuild threw before the warm
     expect(order).not.toContain("requestRender"); // never un-paused
     expect(recovery.isDeviceLost()).toBe(true); // a broken rebuild must not resume painting

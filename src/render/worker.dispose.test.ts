@@ -3,6 +3,7 @@
 // Mocks come from tests/renderWorkerHarness.ts (three/webgpu can't load in node).
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { settle } from "../../tests/helpers.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(() =>
@@ -42,7 +43,7 @@ it("releases the scenes, renderer, gpu and stream port, then acks `disposed`", a
       devicePixelRatio: 1,
     },
   });
-  await vi.waitFor(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
   onmessage({
     data: {
       kind: "upsertLayer",
@@ -55,14 +56,12 @@ it("releases the scenes, renderer, gpu and stream port, then acks `disposed`", a
       opacity: 1,
     },
   });
-  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
   const port = { close: vi.fn(), onmessage: null };
   onmessage({ data: { kind: "pair", requestId: 6, port: port as unknown as MessagePort } });
 
   onmessage({ data: { kind: "dispose", requestId: 16 } });
-  await vi.waitFor(() =>
-    expect(postMessage).toHaveBeenCalledWith({ kind: "disposed", requestId: 16 }),
-  );
+  await settle(() => expect(postMessage).toHaveBeenCalledWith({ kind: "disposed", requestId: 16 }));
 
   const scene = h.createRaymarchScene.mock.results[0]?.value;
   expect(scene?.dispose).toHaveBeenCalledTimes(1);
@@ -75,9 +74,7 @@ it("releases the scenes, renderer, gpu and stream port, then acks `disposed`", a
   // race in. It must ack again without double-releasing a GPU handle that is already gone.
   postMessage.mockClear();
   onmessage({ data: { kind: "dispose", requestId: 17 } });
-  await vi.waitFor(() =>
-    expect(postMessage).toHaveBeenCalledWith({ kind: "disposed", requestId: 17 }),
-  );
+  await settle(() => expect(postMessage).toHaveBeenCalledWith({ kind: "disposed", requestId: 17 }));
   expect(scene?.dispose).toHaveBeenCalledTimes(1);
   expect(h.renderers[0]?.dispose).toHaveBeenCalledTimes(1);
   expect(gpu?.dispose).toHaveBeenCalledTimes(1);

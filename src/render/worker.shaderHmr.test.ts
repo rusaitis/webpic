@@ -5,6 +5,7 @@
 // volume → rebuildShader.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { settle } from "../../tests/helpers.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(async () => {
@@ -53,7 +54,7 @@ it("rebuildShader re-imports fresh code and swaps the volume material in place (
       devicePixelRatio: 1,
     },
   });
-  await vi.waitFor(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
 
   onmessage({
     data: {
@@ -67,7 +68,7 @@ it("rebuildShader re-imports fresh code and swaps the volume material in place (
       opacity: 1,
     },
   });
-  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
   const scene = h.createRaymarchScene.mock.results[0]?.value as {
     rebuildShader: ReturnType<typeof vi.fn>;
   };
@@ -81,7 +82,7 @@ it("rebuildShader re-imports fresh code and swaps the volume material in place (
 
   // Re-imports fresh code (cache-busted by the timestamp), swaps the material with the fresh builder,
   // and re-warms the composite — never rebuilds the scene (no extra createRaymarchScene).
-  await vi.waitFor(() => expect(scene.rebuildShader).toHaveBeenCalledTimes(1));
+  await settle(() => expect(scene.rebuildShader).toHaveBeenCalledTimes(1));
   expect(h.loadFreshRaymarchBuilder).toHaveBeenCalledWith(987654321);
   expect(scene.rebuildShader).toHaveBeenCalledWith(h.freshBuilder);
   expect(h.createRaymarchScene).toHaveBeenCalledTimes(1); // material swap, not a scene rebuild
@@ -97,7 +98,7 @@ it("ignores a rebuildShader when the fresh import fails (keeps the prior shader)
   const self = (globalThis as unknown as { self: { postMessage: ReturnType<typeof vi.fn> } }).self;
   onmessage({ data: { kind: "rebuildShader", requestId: 14, timestamp: 111 } });
   // The handler swallows the bad edit into a posted fault (reportFault) — wait for that, not a timer.
-  await vi.waitFor(() =>
+  await settle(() =>
     expect(self.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "error", message: "WGSL parse error mid-edit" }),
     ),

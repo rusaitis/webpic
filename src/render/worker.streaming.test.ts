@@ -5,6 +5,7 @@
 // rebuild. Mocks come from tests/renderWorkerHarness.ts. Flow: init → upsert layer-0 → pair → streamStep.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { settle } from "../../tests/helpers.ts";
 import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
@@ -44,7 +45,7 @@ it("applies a streamStep in place via scene.setField (no scene rebuild)", async 
       devicePixelRatio: 1,
     },
   });
-  await vi.waitFor(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
 
   // The data worker's initial upsert creates the volume layer (scene #1, field shape [1,1,1]).
   onmessage({
@@ -59,7 +60,7 @@ it("applies a streamStep in place via scene.setField (no scene rebuild)", async 
       opacity: 1,
     },
   });
-  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
   const scene = h.createRaymarchScene.mock.results[0]?.value as {
     setField: ReturnType<typeof vi.fn>;
   };
@@ -79,7 +80,7 @@ it("applies a streamStep in place via scene.setField (no scene rebuild)", async 
   );
 
   // The streamed field is uploaded in place (scene.setField) — the scene is NOT rebuilt.
-  await vi.waitFor(() => expect(scene.setField).toHaveBeenCalledTimes(1));
+  await settle(() => expect(scene.setField).toHaveBeenCalledTimes(1));
   expect(scene.setField.mock.calls[0]?.[0]).toMatchObject({ shape: [2, 2, 2] });
   expect(h.createRaymarchScene).toHaveBeenCalledTimes(1); // ping-pong, not a rebuild
   channel.port1.close();
@@ -100,7 +101,7 @@ it("falls back to a scene rebuild when setField declines the in-place swap", asy
       opacity: 1,
     },
   });
-  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(before + 1));
+  await settle(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(before + 1));
   const scene = h.createRaymarchScene.mock.results[before]?.value as {
     setField: ReturnType<typeof vi.fn>;
   };
@@ -120,7 +121,7 @@ it("falls back to a scene rebuild when setField declines the in-place swap", asy
   );
 
   // Declined → rebuild (one more scene) carrying the new field + the retained look.
-  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(before + 2));
+  await settle(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(before + 2));
   expect(scene.setField).toHaveBeenCalledTimes(1); // consulted first
   expect(h.createRaymarchScene.mock.calls.at(-1)?.[0]).toMatchObject({
     colormap: "viridis",
@@ -139,12 +140,12 @@ it("setCameraMotion retunes march + render scale, full quality on idle", async (
   scene.setStepScale.mockClear();
   renderer.setRenderScale.mockClear();
   onmessage({ data: { kind: "setCameraMotion", requestId: 9, motion: "gesture" } });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
   expect(renderer.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE);
   // Node has no display loop to advance a settle ramp — the idle edge restores full quality
   // in one step (the browser path ramps across painted frames instead).
   onmessage({ data: { kind: "setCameraMotion", requestId: 10, motion: "idle" } });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
   expect(renderer.setRenderScale).toHaveBeenCalledWith(1);
 });
 
@@ -155,9 +156,9 @@ it("setProjection flips every volume scene's ray generation (uniform, no rebuild
   const builds = h.createRaymarchScene.mock.calls.length;
   scene.setProjection.mockClear();
   onmessage({ data: { kind: "setProjection", requestId: 11, projection: "orthographic" } });
-  await vi.waitFor(() => expect(scene.setProjection).toHaveBeenCalledWith(true));
+  await settle(() => expect(scene.setProjection).toHaveBeenCalledWith(true));
   onmessage({ data: { kind: "setProjection", requestId: 12, projection: "perspective" } });
-  await vi.waitFor(() => expect(scene.setProjection).toHaveBeenCalledWith(false));
+  await settle(() => expect(scene.setProjection).toHaveBeenCalledWith(false));
   expect(h.createRaymarchScene.mock.calls.length).toBe(builds); // no scene rebuild
 });
 
@@ -190,7 +191,7 @@ it("ignores a streamStep for an unknown layer (heals on the next upsert)", async
     },
     [sentinel],
   );
-  await vi.waitFor(() => expect(scene.setField).toHaveBeenCalledTimes(swapsBefore + 1));
+  await settle(() => expect(scene.setField).toHaveBeenCalledTimes(swapsBefore + 1));
   expect(h.createRaymarchScene).toHaveBeenCalledTimes(before); // no rebuild for a missing layer
   channel.port1.close();
 });

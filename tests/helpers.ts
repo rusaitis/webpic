@@ -1,5 +1,5 @@
 import type { LogSink } from "@schema/log.ts";
-import { expect } from "vitest";
+import { expect, vi } from "vitest";
 import { DEFAULT_TOLERANCE, type Tolerance } from "./tolerances.ts";
 
 // Drain the microtask queue (via a macrotask tick) so a fire-and-forget async store action settles
@@ -7,6 +7,14 @@ import { DEFAULT_TOLERANCE, type Tolerance } from "./tolerances.ts";
 // through the async dispatcher (compute/field.ts). The TS backend resolves on the next microtask, so
 // one macrotask hop is always enough; it's the test-side mirror of "subscribers react when it lands".
 export const flushAsync = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+// Poll an assertion until it holds. vi.waitFor's default interval is 50 ms of real clock, which is
+// the same wait CLAUDE.md §Testing bans wearing a third disguise — 46 of these cost ~2 s, a third of
+// the suite. The pending work here is microtask- or frame-driven, so 1 ms resolves on the first or
+// second tick. Prefer `await flushAsync()` plus a direct assertion where the work is purely async;
+// this is for the sites that need a frame pumped between polls.
+export const settle = (assertion: () => void): Promise<void> =>
+  vi.waitFor(assertion, { interval: 1 });
 
 // Shared array-wise tolerance assertion for the numeric kernels. Defaults to the f64 reference
 // floor; pass a tests/tolerances.ts cell (TOL.magnitude.ts_f32, …) or a partial override otherwise.

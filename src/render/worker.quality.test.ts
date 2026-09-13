@@ -4,6 +4,7 @@
 // asserts. Mocks come from tests/renderWorkerHarness.ts (three/webgpu can't load in node).
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { settle } from "../../tests/helpers.ts";
 import { INTERACTION_RENDER_SCALE, INTERACTION_STEP_SCALE } from "./constants.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
@@ -57,7 +58,7 @@ it("a gesture end ramps quality back over painted frames, not in one pop", async
       devicePixelRatio: 1,
     },
   });
-  await vi.waitFor(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
   const renderer = (await h.installRenderer.mock.results[0]?.value) as {
     renderComposite: ReturnType<typeof vi.fn>;
     setRenderScale: ReturnType<typeof vi.fn>;
@@ -74,7 +75,7 @@ it("a gesture end ramps quality back over painted frames, not in one pop", async
       opacity: 1,
     },
   });
-  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
   const scene = h.createRaymarchScene.mock.results[0]?.value as {
     setStepScale: ReturnType<typeof vi.fn>;
   };
@@ -90,19 +91,19 @@ it("a gesture end ramps quality back over painted frames, not in one pop", async
   renderer.setRenderScale.mockClear();
 
   onmessage({ data: { kind: "setCameraMotion", requestId: 4, motion: "gesture" } });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
   expect(renderer.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE);
 
   // Idle edge with a live loop: the FIRST level is the settle step (render restores, march at
   // 0.7), not full — the Node collapse must not fire here.
   onmessage({ data: { kind: "setCameraMotion", requestId: 5, motion: "idle" } });
-  await vi.waitFor(() => expect(renderer.setRenderScale).toHaveBeenCalledWith(1));
+  await settle(() => expect(renderer.setRenderScale).toHaveBeenCalledWith(1));
   expect(scene.setStepScale).toHaveBeenCalledWith(0.7);
   expect(scene.setStepScale).not.toHaveBeenCalledWith(1);
 
   // Each painted frame advances the ramp exactly one level; the second frame lands at full.
   tickFrame();
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
   const paintsAtFull = renderer.renderComposite.mock.calls.length;
   tickFrame(); // paints the full-quality frame
   tickFrame(); // quality stable → dirty flag stays clear, no further paints
@@ -117,13 +118,13 @@ it("a new gesture mid-ramp re-enters interaction quality", async () => {
     setStepScale: ReturnType<typeof vi.fn>;
   };
   onmessage({ data: { kind: "setCameraMotion", requestId: 6, motion: "gesture" } });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
   onmessage({ data: { kind: "setCameraMotion", requestId: 7, motion: "idle" } });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
   scene.setStepScale.mockClear();
   // Mid-settle, the user grabs the camera again: straight back to gesture quality.
   onmessage({ data: { kind: "setCameraMotion", requestId: 8, motion: "gesture" } });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
 });
 
 it("a fly runs the animating tier: coarser march at full resolution, settling to full on idle", async () => {
@@ -135,14 +136,14 @@ it("a fly runs the animating tier: coarser march at full resolution, settling to
   };
   // The previous test ends mid-gesture: release and land the ramp so this starts from full.
   onmessage({ data: { kind: "setCameraMotion", requestId: 11, motion: "idle" } });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
   tickFrame();
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
   scene.setStepScale.mockClear();
   renderer.setRenderScale.mockClear();
 
   onmessage({ data: { kind: "setCameraMotion", requestId: 9, motion: "fly" } });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
   // The whole point of the tier: the flight renders at full resolution — no realloc, no blur.
   expect(renderer.setRenderScale).not.toHaveBeenCalled();
 
@@ -150,7 +151,7 @@ it("a fly runs the animating tier: coarser march at full resolution, settling to
   // painted frame advances the ramp to full — a single subtle step-density flip after landing.
   scene.setStepScale.mockClear();
   onmessage({ data: { kind: "setCameraMotion", requestId: 10, motion: "idle" } });
-  await vi.waitFor(() => {
+  await settle(() => {
     // The handler's await initDone makes the transition async; poll until the ramp is armed.
     tickFrame();
     expect(scene.setStepScale).toHaveBeenCalledWith(1);
@@ -178,7 +179,7 @@ it("a marker drag coarsens the volume like a gesture, settling to full on releas
       active: true,
     },
   });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE));
   expect(renderer.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE);
 
   // A drag move (active unchanged, position rides every message): must NOT re-drive the tier — the
@@ -203,9 +204,9 @@ it("a marker drag coarsens the volume like a gesture, settling to full on releas
       active: false,
     },
   });
-  await vi.waitFor(() => expect(renderer.setRenderScale).toHaveBeenCalledWith(1));
+  await settle(() => expect(renderer.setRenderScale).toHaveBeenCalledWith(1));
   tickFrame();
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(1));
 
   // Same restore sequence as a camera gesture: 0.4 (drag) → 0.7 (settle frame) → 1 (full).
   expect(scene.setStepScale.mock.calls.map((c) => c[0])).toEqual([INTERACTION_STEP_SCALE, 0.7, 1]);
@@ -223,7 +224,7 @@ it("a marker release while a fly is live falls back to the fly tier, not a settl
 
   // A machine fly is running (animating: coarser march, full resolution)...
   onmessage({ data: { kind: "setCameraMotion", requestId: 15, motion: "fly" } });
-  await vi.waitFor(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
+  await settle(() => expect(scene.setStepScale).toHaveBeenCalledWith(0.7));
   // ...then the user grabs the marker mid-flight: the hand gesture dominates (interacting tier).
   onmessage({
     data: {
@@ -234,7 +235,7 @@ it("a marker release while a fly is live falls back to the fly tier, not a settl
       active: true,
     },
   });
-  await vi.waitFor(() =>
+  await settle(() =>
     expect(renderer.setRenderScale).toHaveBeenCalledWith(INTERACTION_RENDER_SCALE),
   );
   expect(scene.setStepScale).toHaveBeenCalledWith(INTERACTION_STEP_SCALE);
@@ -252,7 +253,7 @@ it("a marker release while a fly is live falls back to the fly tier, not a settl
       active: false,
     },
   });
-  await vi.waitFor(() => expect(renderer.setRenderScale).toHaveBeenCalledWith(1));
+  await settle(() => expect(renderer.setRenderScale).toHaveBeenCalledWith(1));
   expect(scene.setStepScale).toHaveBeenCalledWith(0.7);
   tickFrame();
   tickFrame();
@@ -260,7 +261,7 @@ it("a marker release while a fly is live falls back to the fly tier, not a settl
 
   // The fly ends: now it settles to full.
   onmessage({ data: { kind: "setCameraMotion", requestId: 18, motion: "idle" } });
-  await vi.waitFor(() => {
+  await settle(() => {
     tickFrame();
     expect(scene.setStepScale).toHaveBeenCalledWith(1);
   });

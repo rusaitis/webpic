@@ -4,6 +4,7 @@
 // camera.ts / frameTimer.ts / messages.ts are the real (pure-three / pure-JS) modules. One stateful flow: init → upsert → loss → restore.
 
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { settle } from "../../tests/helpers.ts";
 import type { RenderWorkerRequest } from "./messages.ts";
 
 const h = await vi.hoisted(() =>
@@ -43,7 +44,7 @@ it("rebuilds the renderer + every layer scene on the new device when the device 
       devicePixelRatio: 1,
     },
   });
-  await vi.waitFor(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.installRenderer).toHaveBeenCalledTimes(1));
 
   // Seed one volume layer (carries a real ArrayBuffer so decodeFieldPayload succeeds).
   onmessage({
@@ -58,7 +59,7 @@ it("rebuilds the renderer + every layer scene on the new device when the device 
       opacity: 1,
     },
   });
-  await vi.waitFor(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
+  await settle(() => expect(h.createRaymarchScene).toHaveBeenCalledTimes(1));
 
   // A recoverable loss (isTerminal:false), then restore on a fresh GPUDevice.
   expect(h.lostCbs.length).toBeGreaterThan(0);
@@ -67,14 +68,14 @@ it("rebuilds the renderer + every layer scene on the new device when the device 
   for (const cb of h.restoredCbs) cb(newDevice);
 
   // The renderer is reinstalled on the new device and the layer scene is rebuilt from its source.
-  await vi.waitFor(() => expect(h.installRenderer).toHaveBeenCalledTimes(2));
+  await settle(() => expect(h.installRenderer).toHaveBeenCalledTimes(2));
   expect(h.createRaymarchScene).toHaveBeenCalledTimes(2);
   expect(h.installRenderer.mock.calls[1]?.[0]).toMatchObject({ device: newDevice });
 
   // The post-restore repaint hits the *new* renderer, not the dead one — after its pipelines were
   // warmed (compileComposite precedes the un-pause, so the first restored frame doesn't stall).
   const restored = h.renderers[1];
-  await vi.waitFor(() => expect(restored?.renderComposite).toHaveBeenCalled());
+  await settle(() => expect(restored?.renderComposite).toHaveBeenCalled());
   expect(restored?.compileComposite).toHaveBeenCalled();
 });
 
