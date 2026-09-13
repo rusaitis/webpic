@@ -6,7 +6,7 @@ import { createSimulationStore, createUiStore, DEFAULT_POSE, focusPoseOnPoint } 
 import { describe, expect, it, vi } from "vitest";
 import { makeDataset, makeFakeWorker, makeField, vectorTriple } from "../../tests/fixtures.ts";
 import { flushAsync } from "../../tests/helpers.ts";
-import { bootstrap, DISPOSE_GRACE_MS } from "./main.ts";
+import { bootstrap, DISPOSE_GRACE_MS } from "./bootstrap.ts";
 
 function fakeCanvas(): HTMLCanvasElement {
   const offscreen = { tag: "offscreen" } as unknown as OffscreenCanvas;

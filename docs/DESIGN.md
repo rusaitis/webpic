@@ -103,7 +103,7 @@ they are written down. A reserved layer's row carries the reason its edges are h
 
 ### First load walkthrough
 
-1. User pastes a Zarr URL → `app/main.ts`'s `bootstrap()` probes WebGPU + acquires a `GPUDevice` (or shows the requires-WebGPU page).
+1. User pastes a Zarr URL → `app/bootstrap.ts`'s `bootstrap()` probes WebGPU + acquires a `GPUDevice` (or shows the requires-WebGPU page).
 2. Hardcoded heuristics seed the dispatcher; OPFS-cached scores for a known GPU adapter restore instantly, else background calibration kicks off.
 3. `data.worker.ts` fetches `simulation.toml`; Zod validates against the canonical schema.
 4. `simulationStore` populated with dataset metadata, timesteps, and fields.
@@ -305,7 +305,7 @@ Both sides are exhaustive: the worker's `handle()` and the app's response router
 
 ### Renderer
 - **`THREE.WebGPURenderer`** (`three/webgpu`) — **pinned to `three@0.185.1`**, not a floating `r172+` range; bump the pin deliberately, with the full GPU gate. r179 broke OffscreenCanvas-in-worker (#31605); PR-#31607 fixed it (guards `HTMLVideoElement instanceof` with a `typeof … !== 'undefined'` presence check) and first shipped in r180/`0.180.0`; `0.185.1` still carries it (worker-frame parity smoke green on bump). Canonical pin reference for the whole doc. CI smoke asserts worker-frame vs main-frame within 1 px.
-- **OffscreenCanvas-on-Worker from day one.** `render/worker.ts` owns canvas + scene + renderer; `app/main.ts` transfers via `transferControlToOffscreen()`; talks to `store/` via `MessageChannel`.
+- **OffscreenCanvas-on-Worker from day one.** `render/worker.ts` owns canvas + scene + renderer; `app/bootstrap.ts` transfers via `transferControlToOffscreen()`; talks to `store/` via `MessageChannel`.
 - **Raw `GPUComputePassEncoder` pipelines** owned by `compute/backends/webgpu/`; shared kernels in `@webpic/shaders`.
 - Frame timing is wall-clock: `render/runtime/frameTimer.ts`, gated to continuous mode. `gpu/profiler.ts` carries the `GPUQuerySet`/`timestamp-query` path `STAGED:` — render-pass timestamps lost the Metal device and were removed.
 - **`device.lost` recovery** (`gpu/device.ts`): rebuild `compute/` + `render/` from OPFS-cached source, restore scene from `store/`. UX: canvas freezes on last frame; "GPU was reset; recovering…" banner with elapsed seconds; UI stays interactive (Zustand survives in main); 200 ms fade-in on recovery; OPFS-evicted fields marked "unavailable, refetching" — never silent.
