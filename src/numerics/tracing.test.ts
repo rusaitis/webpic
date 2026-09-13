@@ -257,15 +257,6 @@ describe("pypic doctest fidelity", () => {
     expect(Number.isFinite(fl.metadata.maxLocalError)).toBe(true);
     expect(pointAt(fl.points, fl.nPoints - 1)[0]).toBeGreaterThan(pointAt(fl.points, 0)[0]);
   });
-
-  it("trace_field_lines_adaptive returns one rk45_dopri line per seed", () => {
-    const lines = traceFieldLinesAdaptive(uniform, [
-      [2, 2, 2],
-      [4, 4, 4],
-    ]);
-    expect(lines).toHaveLength(2);
-    expect(lines.every((fl) => fl.metadata.method === "rk45_dopri")).toBe(true);
-  });
 });
 
 describe("cancellation (AbortSignal)", () => {

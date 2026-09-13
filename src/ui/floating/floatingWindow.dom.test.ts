@@ -15,7 +15,7 @@ describe("createFloatingWindow", () => {
   it("mounts the window chrome — grip, titled bar, body, resize handle", () => {
     const win = createFloatingWindow({ name: "test", parent: document.body, title: "Developer" });
     const root = query(document.body, ".webpic-window");
-    expect(query(root, ".webpic-window_grip")).toBeTruthy();
+    expect(query(root, ".webpic-window_grip")).not.toBeNull();
     expect(query(root, ".webpic-window_title").textContent).toBe("Developer");
     expect(query(root, ".webpic-window_resize").dataset.noDrag).toBe("");
     expect(win.body.classList.contains("webpic-window_body")).toBe(true);

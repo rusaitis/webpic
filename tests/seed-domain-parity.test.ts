@@ -76,13 +76,14 @@ describe("seed picking → tracer", () => {
     expect(line?.nPoints).toBeGreaterThanOrEqual(2);
   });
 
-  it("a slice seed on the box face traces without throwing (clamp closes the validateSeed gap)", () => {
+  it("a slice seed on the box face traces to a field line (clamp closes the validateSeed gap)", () => {
     // position 0 is the box face — pre-clamp it would map to physical = origin, which the tracer's
     // up-front validateSeed rejects as out-of-domain. clampSeedToDomain pulls it to the first cell.
     const seed = seedFromSlice([0, 0, 2], [0, 0, -1], "z", 0, DATASET.grid, HALF);
     expect(seed).not.toBeNull();
     if (seed === null) return;
-    expect(() => traceFieldLinesAdaptive(DATASET, [seed])).not.toThrow();
+    const [line] = traceFieldLinesAdaptive(DATASET, [seed]);
+    expect(line?.nPoints).toBeGreaterThanOrEqual(2);
   });
 });
 

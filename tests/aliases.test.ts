@@ -44,6 +44,6 @@ describe("path-alias parity (tsconfig ↔ Vite/Vitest ↔ LAYERS)", () => {
 
   it("resolves a layer alias end-to-end at runtime", async () => {
     const mod = await import("@schema");
-    expect(mod).toBeTypeOf("object");
+    expect(mod.fieldInfo).toBeTypeOf("function");
   });
 });

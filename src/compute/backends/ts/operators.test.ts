@@ -19,28 +19,21 @@ describe("ts backend grid operators", () => {
   });
 
   it("selects the right curl component per recipe (curl_B_1/2/3 → 0/1/2)", () => {
+    // The twin is built with the same anisotropic [0.5, 1, 2] spacing the dataset carries, so a
+    // wrong or swapped spacing axis shifts the central-difference scale and fails here.
     const [t1, t2, t3] = curl(f1, f2, f3, shape, spacing);
     assertAllclose(computeRecipeTs("curl_B_1", dataset).data, t1);
     assertAllclose(computeRecipeTs("curl_B_2", dataset).data, t2);
     assertAllclose(computeRecipeTs("curl_B_3", dataset).data, t3);
   });
 
-  it("threads anisotropic spacing through to the operator", () => {
-    // A wrong/swapped spacing axis would shift the central-difference scale; compare against the twin
-    // built with the same anisotropic [0.5, 1, 2] spacing the dataset carries.
-    const out = computeRecipeTs("curl_B_3", dataset);
-    const twin = curl(f1, f2, f3, shape, spacing)[2];
-    expect(twin).toBeDefined();
-    assertAllclose(out.data, twin ?? new Float64Array());
-  });
-
-  it("now offers curl/divergence (op set mirrors the WGSL backend)", () => {
+  it("binds curl/divergence, the same op set as the WGSL backend", () => {
     expect(isTsComputable(RECIPES.curl_B_1)).toBe(true);
     expect(isTsComputable(RECIPES.div_B)).toBe(true);
     expect(isTsComputable(RECIPES.vort_1)).toBe(true); // vorticity = curl V, free coverage
   });
 
-  it("still rejects ops it does not bind or whose features are out of scope", () => {
+  it("rejects ops it does not bind or whose features are out of scope", () => {
     expect(isTsComputable(RECIPES.beta)).toBe(false); // unbound func (plasma_beta)
     expect(isTsComputable(RECIPES.d_s0)).toBe(false); // needsC + species args
   });

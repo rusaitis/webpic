@@ -46,7 +46,6 @@ describe("tickLabels", () => {
 
   it("falls back to a linear read when a log window reaches ≤ 0", () => {
     // makeScale('log', …) throws on min ≤ 0; tickLabels must not.
-    expect(() => tickLabels({ center: 0, width: 2 }, "log", 3)).not.toThrow();
     expect(values(tickLabels({ center: 0, width: 2 }, "log", 3))).toEqual([-1, 0, 1]);
   });
 });

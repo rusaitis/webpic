@@ -60,7 +60,6 @@ describe("fieldButtonLabel", () => {
   });
 
   it("degrades to the raw name for an unknown field, never throwing", () => {
-    expect(() => fieldButtonLabel("not_a_field")).not.toThrow();
     expect(fieldButtonLabel("not_a_field")).toBe("not_a_field");
   });
 });
@@ -81,7 +80,6 @@ describe("fieldMetaRows", () => {
   });
 
   it("returns a name-only row for an unknown field, never throwing", () => {
-    expect(() => fieldMetaRows("nope")).not.toThrow();
     expect(fieldMetaRows("nope")).toEqual([{ label: "Name", value: "nope" }]);
   });
 });
