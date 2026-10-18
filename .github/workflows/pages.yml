@@ -33,7 +33,7 @@ jobs:
       # The @webpic/embed API reference (TypeDoc, treatWarningsAsErrors) publishes under /api/.
       - run: npm run docs:api && mkdir -p dist/api && cp -R docs/api/. dist/api/
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
